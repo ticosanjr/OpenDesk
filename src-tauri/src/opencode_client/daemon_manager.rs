@@ -1,0 +1,518 @@
+use crate::{
+    events::{EventBus, OpenDeskWsEvent},
+    opencode_client::rest_client::{AgentDto, ModelDto, RestClient},
+    paths::AppPaths,
+};
+use anyhow::{Context, Result, anyhow};
+use serde::{Deserialize, Serialize};
+use std::{process::Stdio, sync::Arc, time::Duration};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncRead, BufReader},
+    process::{Child, Command},
+    sync::{RwLock, mpsc},
+    time::timeout,
+};
+use tokio_util::sync::CancellationToken;
+
+const DEFAULT_PORT: u16 = 3100;
+const LAST_PORT: u16 = 3199;
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(20);
+const HEALTH_INTERVAL: Duration = Duration::from_secs(5);
+const MAX_HEALTH_FAILURES: u8 = 3;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DaemonStatus {
+    pub online: bool,
+    pub port: u16,
+    pub active_jobs: usize,
+    pub state: String,
+    pub message: Option<String>,
+    pub version: Option<String>,
+}
+
+struct Inner {
+    status: DaemonStatus,
+    child: Option<Child>,
+    pid: Option<u32>,
+    password: Option<String>,
+    rest: Option<RestClient>,
+    shutdown: CancellationToken,
+}
+
+pub struct DaemonManager {
+    paths: AppPaths,
+    events: EventBus,
+    inner: RwLock<Inner>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct DaemonLock {
+    pid: u32,
+    port: u16,
+    password: String,
+}
+
+impl DaemonManager {
+    pub fn new(paths: AppPaths, events: EventBus) -> Arc<Self> {
+        Arc::new(Self {
+            paths,
+            events,
+            inner: RwLock::new(Inner {
+                status: DaemonStatus {
+                    online: false,
+                    port: DEFAULT_PORT,
+                    active_jobs: 0,
+                    state: "starting".into(),
+                    message: None,
+                    version: None,
+                },
+                child: None,
+                pid: None,
+                password: None,
+                rest: None,
+                shutdown: CancellationToken::new(),
+            }),
+        })
+    }
+
+    pub fn spawn_supervisor(self: &Arc<Self>) {
+        let manager = Arc::clone(self);
+        tauri::async_runtime::spawn(async move {
+            manager.supervise().await;
+        });
+    }
+
+    pub async fn status(&self) -> DaemonStatus {
+        self.inner.read().await.status.clone()
+    }
+
+    pub async fn client(&self) -> Option<RestClient> {
+        self.inner.read().await.rest.clone()
+    }
+
+    pub async fn models(&self, directory: Option<&str>) -> Result<Vec<ModelDto>> {
+        let client = self
+            .client()
+            .await
+            .ok_or_else(|| anyhow!("OpenCode daemon is not online"))?;
+        client.models(directory).await
+    }
+
+    pub async fn agents(&self, directory: Option<&str>) -> Result<Vec<AgentDto>> {
+        let client = self
+            .client()
+            .await
+            .ok_or_else(|| anyhow!("OpenCode daemon is not online"))?;
+        client.agents(directory).await
+    }
+
+    #[allow(dead_code)]
+    pub async fn set_active_jobs(&self, active_jobs: usize) {
+        let changed = {
+            let mut inner = self.inner.write().await;
+            if inner.status.active_jobs == active_jobs {
+                false
+            } else {
+                inner.status.active_jobs = active_jobs;
+                true
+            }
+        };
+        if changed {
+            self.publish_status().await;
+        }
+    }
+
+    pub async fn restart(&self) {
+        self.mark_state("restarting", Some("restart requested".into()))
+            .await;
+        self.stop_child().await;
+    }
+
+    pub async fn shutdown(&self) {
+        self.inner.read().await.shutdown.cancel();
+        self.stop_child().await;
+    }
+
+    async fn supervise(self: Arc<Self>) {
+        let mut backoff = Duration::from_secs(1);
+
+        loop {
+            if self.inner.read().await.shutdown.is_cancelled() {
+                break;
+            }
+
+            match self.ensure_running().await {
+                Ok(()) => {
+                    backoff = Duration::from_secs(2);
+                    self.health_loop().await;
+                }
+                Err(error) => {
+                    self.mark_offline(format!("{error:#}")).await;
+                    tokio::time::sleep(backoff).await;
+                    backoff = (backoff * 2).min(Duration::from_secs(30));
+                }
+            }
+        }
+
+        self.stop_child().await;
+    }
+
+    async fn ensure_running(&self) -> Result<()> {
+        {
+            let inner = self.inner.read().await;
+            if inner.child.is_some() && inner.status.online {
+                return Ok(());
+            }
+        }
+
+        if let Some(lock) = read_lock_file(&self.paths.daemon_lock_path) {
+            let rest = RestClient::new(lock.port, lock.password.clone());
+            if let Ok(info) = rest.info().await {
+                tracing::info!(port = lock.port, version = %info.version, "attached to existing OpenCode daemon");
+                self.install_online(
+                    lock.port,
+                    lock.password,
+                    rest,
+                    Some(info.version),
+                    None,
+                    Some(lock.pid),
+                )
+                .await;
+                return Ok(());
+            }
+
+            // The lock points at a process that is no longer healthy. Kill it
+            // before spawning a replacement so it does not hold the port.
+            if lock.pid > 0 {
+                terminate_pid(lock.pid).await;
+            }
+            let _ = std::fs::remove_file(&self.paths.daemon_lock_path);
+        }
+
+        let port = find_free_port()?;
+        self.mark_state(
+            "starting",
+            Some(format!("starting opencode serve on port {port}")),
+        )
+        .await;
+
+        let mut command = Command::new("opencode");
+        command
+            .args([
+                "serve",
+                "--hostname",
+                "127.0.0.1",
+                "--port",
+                &port.to_string(),
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        #[cfg(unix)]
+        {
+            command.process_group(0);
+        }
+
+        let mut child = command
+            .spawn()
+            .context("could not start `opencode serve`; is OpenCode installed and on PATH?")?;
+        let pid = child.id().unwrap_or_default();
+
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| anyhow!("opencode stdout was not captured"))?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| anyhow!("opencode stderr was not captured"))?;
+
+        let (line_tx, mut line_rx) = mpsc::channel::<String>(32);
+        spawn_line_reader(stdout, "stdout", line_tx.clone());
+        spawn_line_reader(stderr, "stderr", line_tx);
+
+        let password = match timeout(STARTUP_TIMEOUT, async {
+            while let Some(line) = line_rx.recv().await {
+                if let Some(password) = line.strip_prefix("server password ") {
+                    return Some(password.trim().to_string());
+                }
+            }
+            None
+        })
+        .await
+        {
+            Ok(Some(password)) if !password.is_empty() => password,
+            _ => {
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+                return Err(anyhow!(
+                    "timed out waiting for the OpenCode server password on stdout/stderr"
+                ));
+            }
+        };
+
+        let rest = RestClient::new(port, password.clone());
+        let mut info = None;
+        for _ in 0..40 {
+            match rest.info().await {
+                Ok(value) => {
+                    info = Some(value);
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(250)).await,
+            }
+        }
+
+        let info = match info {
+            Some(info) => info,
+            None => {
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+                return Err(anyhow!(
+                    "OpenCode server on port {port} did not become healthy with the captured password"
+                ));
+            }
+        };
+
+        write_lock_file(
+            &self.paths.daemon_lock_path,
+            &DaemonLock {
+                pid,
+                port,
+                password: password.clone(),
+            },
+        )?;
+
+        self.install_online(
+            port,
+            password,
+            rest,
+            Some(info.version),
+            Some(child),
+            Some(pid),
+        )
+        .await;
+
+        Ok(())
+    }
+
+    async fn install_online(
+        &self,
+        port: u16,
+        password: String,
+        rest: RestClient,
+        version: Option<String>,
+        child: Option<Child>,
+        pid: Option<u32>,
+    ) {
+        let status = {
+            let mut inner = self.inner.write().await;
+            inner.child = child;
+            inner.pid = pid;
+            inner.password = Some(password);
+            inner.rest = Some(rest);
+            inner.status = DaemonStatus {
+                online: true,
+                port,
+                active_jobs: inner.status.active_jobs,
+                state: "online".into(),
+                message: None,
+                version,
+            };
+            inner.status.clone()
+        };
+        self.publish(status);
+    }
+
+    async fn health_loop(self: &Arc<Self>) {
+        let mut failures: u8 = 0;
+
+        loop {
+            tokio::time::sleep(HEALTH_INTERVAL).await;
+
+            if self.inner.read().await.shutdown.is_cancelled() {
+                return;
+            }
+
+            let rest = {
+                let inner = self.inner.read().await;
+                inner.rest.clone()
+            };
+            let Some(rest) = rest else {
+                return;
+            };
+
+            match rest.info().await {
+                Ok(info) => {
+                    failures = 0;
+                    let should_publish = {
+                        let mut inner = self.inner.write().await;
+                        let was_online = inner.status.online;
+                        inner.status.online = true;
+                        inner.status.state = "online".into();
+                        inner.status.message = None;
+                        inner.status.version = Some(info.version);
+                        !was_online
+                    };
+                    if should_publish {
+                        self.publish_status().await;
+                    }
+                }
+                Err(error) => {
+                    failures += 1;
+                    tracing::warn!(failures, error = %error, "OpenCode healthcheck failed");
+                    if failures >= MAX_HEALTH_FAILURES {
+                        self.mark_offline(format!("healthcheck failed: {error}"))
+                            .await;
+                        self.stop_child().await;
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    async fn mark_state(&self, state: &str, message: Option<String>) {
+        let status = {
+            let mut inner = self.inner.write().await;
+            inner.status.state = state.to_string();
+            inner.status.message = message;
+            if state != "online" {
+                inner.status.online = false;
+            }
+            inner.status.clone()
+        };
+        self.publish(status);
+    }
+
+    async fn mark_offline(&self, message: String) {
+        let status = {
+            let mut inner = self.inner.write().await;
+            inner.status.online = false;
+            inner.status.state = "offline".into();
+            inner.status.message = Some(message);
+            inner.rest = None;
+            inner.status.clone()
+        };
+        self.publish(status);
+    }
+
+    async fn publish_status(&self) {
+        let status = self.inner.read().await.status.clone();
+        self.publish(status);
+    }
+
+    fn publish(&self, status: DaemonStatus) {
+        self.events.publish(OpenDeskWsEvent::DaemonStatusChanged {
+            online: status.online,
+            port: status.port,
+            active_jobs: status.active_jobs,
+            state: status.state,
+            message: status.message,
+            version: status.version,
+        });
+    }
+
+    async fn stop_child(&self) {
+        let (child, pid, port) = {
+            let mut inner = self.inner.write().await;
+            inner.rest = None;
+            inner.password = None;
+            (inner.child.take(), inner.pid.take(), inner.status.port)
+        };
+
+        if let Some(mut child) = child {
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+        } else if let Some(pid) = pid {
+            terminate_pid(pid).await;
+        }
+
+        // Give the OS a moment to release the port before the supervisor
+        // attempts to spawn a replacement.
+        for _ in 0..30 {
+            if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        let _ = std::fs::remove_file(&self.paths.daemon_lock_path);
+    }
+}
+
+fn spawn_line_reader<R>(reader: R, source: &'static str, line_tx: mpsc::Sender<String>)
+where
+    R: AsyncRead + Unpin + Send + 'static,
+{
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(reader).lines();
+        loop {
+            match lines.next_line().await {
+                Ok(Some(line)) => {
+                    if line.starts_with("server password ") {
+                        let _ = line_tx.send(line).await;
+                    } else {
+                        tracing::debug!(target: "opencode", source, "{line}");
+                    }
+                }
+                Ok(None) => break,
+                Err(error) => {
+                    tracing::debug!(target: "opencode", source, error = %error, "log reader stopped");
+                    break;
+                }
+            }
+        }
+    });
+}
+
+async fn terminate_pid(pid: u32) {
+    #[cfg(unix)]
+    {
+        let _ = tokio::process::Command::new("kill")
+            .args(["-TERM", &pid.to_string()])
+            .status()
+            .await;
+    }
+
+    #[cfg(windows)]
+    {
+        let _ = tokio::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .status()
+            .await;
+    }
+}
+
+fn find_free_port() -> Result<u16> {
+    for port in DEFAULT_PORT..=LAST_PORT {
+        if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            return Ok(port);
+        }
+    }
+    Err(anyhow!(
+        "no free port in {DEFAULT_PORT}-{LAST_PORT} for the OpenCode daemon"
+    ))
+}
+
+fn read_lock_file(path: &std::path::Path) -> Option<DaemonLock> {
+    let bytes = std::fs::read(path).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+fn write_lock_file(path: &std::path::Path, lock: &DaemonLock) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let bytes = serde_json::to_vec_pretty(lock)?;
+    std::fs::write(path, bytes)?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    }
+
+    Ok(())
+}

@@ -1,0 +1,100 @@
+use crate::{
+    db, events::EventBus, opencode_client::daemon_manager::DaemonManager, paths::AppPaths,
+};
+use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
+use std::{
+    net::TcpListener,
+    sync::{Arc, Mutex},
+};
+use uuid::Uuid;
+
+pub struct AppState {
+    pub paths: AppPaths,
+    pub db: SqlitePool,
+    pub events: EventBus,
+    pub daemon: Arc<DaemonManager>,
+    pub api_port: u16,
+    pub api_token: String,
+    pub listener: Mutex<Option<TcpListener>>,
+    pub started_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiEndpoint {
+    pub port: u16,
+    pub token: String,
+}
+
+impl AppState {
+    pub async fn initialize(paths: AppPaths) -> Result<Self> {
+        let db = db::init(&paths.db_path).await?;
+
+        let listener = TcpListener::bind(("127.0.0.1", 0))
+            .context("could not reserve a local port for the OpenDesk API")?;
+        listener
+            .set_nonblocking(true)
+            .context("could not configure the OpenDesk API listener")?;
+        let api_port = listener
+            .local_addr()
+            .context("could not read the OpenDesk API port")?
+            .port();
+
+        let api_token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+
+        let events = EventBus::new(2048);
+        let daemon = DaemonManager::new(paths.clone(), events.clone());
+
+        let state = Self {
+            paths,
+            db,
+            events,
+            daemon,
+            api_port,
+            api_token,
+            listener: Mutex::new(Some(listener)),
+            started_at: Utc::now(),
+        };
+
+        state.write_api_lock()?;
+        Ok(state)
+    }
+
+    pub fn take_listener(&self) -> Option<TcpListener> {
+        self.listener
+            .lock()
+            .expect("OpenDesk listener mutex is not poisoned")
+            .take()
+    }
+
+    pub fn api_endpoint(&self) -> ApiEndpoint {
+        ApiEndpoint {
+            port: self.api_port,
+            token: self.api_token.clone(),
+        }
+    }
+
+    fn write_api_lock(&self) -> Result<()> {
+        let path = &self.paths.api_lock_path;
+        let bytes = serde_json::to_vec_pretty(&self.api_endpoint())?;
+        std::fs::write(path, bytes)
+            .with_context(|| format!("could not write {}", path.display()))?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+                .with_context(|| format!("could not protect {}", path.display()))?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Drop for AppState {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.paths.api_lock_path);
+    }
+}

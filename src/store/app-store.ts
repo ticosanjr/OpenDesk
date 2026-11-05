@@ -1,0 +1,225 @@
+import { create } from "zustand";
+import { apiGet, apiPost, websocketUrl } from "@/lib/api";
+import type {
+  DaemonStatus,
+  DashboardStats,
+  QueueJob,
+  Workspace,
+  WsEvent,
+} from "@/lib/types";
+
+export interface CreateWorkspaceInput {
+  name: string;
+  root_path: string;
+  description?: string;
+  color_hex?: string;
+  default_router_policy?: string;
+  timezone?: string;
+}
+
+interface AppStore {
+  booted: boolean;
+  loading: boolean;
+  error: string | null;
+  connected: boolean;
+  daemon: DaemonStatus | null;
+  workspaces: Workspace[];
+  activeWorkspaceId: string | null;
+  dashboard: DashboardStats | null;
+  queue: QueueJob[];
+  lastEventId: number;
+  boot: () => Promise<void>;
+  refresh: () => Promise<void>;
+  selectWorkspace: (id: string) => Promise<void>;
+  createWorkspace: (input: CreateWorkspaceInput) => Promise<Workspace>;
+  restartDaemon: () => Promise<void>;
+}
+
+let socket: WebSocket | null = null;
+let reconnectTimer: number | null = null;
+let reconnectAttempts = 0;
+let bootPromise: Promise<void> | null = null;
+
+export const useAppStore = create<AppStore>((set, get) => ({
+  booted: false,
+  loading: true,
+  error: null,
+  connected: false,
+  daemon: null,
+  workspaces: [],
+  activeWorkspaceId: null,
+  dashboard: null,
+  queue: [],
+  lastEventId: 0,
+
+  boot: async () => {
+    if (bootPromise) return bootPromise;
+
+    bootPromise = (async () => {
+      set({ loading: true, error: null });
+      try {
+        await get().refresh();
+        set({ booted: true });
+        await connectSocket();
+      } catch (error) {
+        set({
+          error: error instanceof Error ? error.message : String(error),
+          booted: false,
+        });
+      } finally {
+        set({ loading: false });
+      }
+    })();
+
+    try {
+      await bootPromise;
+    } finally {
+      bootPromise = null;
+    }
+  },
+
+  refresh: async () => {
+    const [daemon, workspaces] = await Promise.all([
+      apiGet<DaemonStatus>("/api/daemon/status"),
+      apiGet<Workspace[]>("/api/workspaces"),
+    ]);
+
+    let activeWorkspaceId = get().activeWorkspaceId;
+    if (!activeWorkspaceId && workspaces.length > 0) {
+      try {
+        activeWorkspaceId = await apiGet<string>(
+          "/api/settings/active_workspace_id",
+        );
+      } catch {
+        activeWorkspaceId = workspaces[0]?.id ?? null;
+      }
+    }
+
+    if (
+      activeWorkspaceId &&
+      !workspaces.some((workspace) => workspace.id === activeWorkspaceId)
+    ) {
+      activeWorkspaceId = workspaces[0]?.id ?? null;
+    }
+
+    let dashboard: DashboardStats | null = null;
+    if (activeWorkspaceId) {
+      dashboard = await apiGet<DashboardStats>(
+        `/api/dashboard?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+      );
+    }
+
+    set({ daemon, workspaces, activeWorkspaceId, dashboard });
+  },
+
+  selectWorkspace: async (id: string) => {
+    const workspace = await apiPost<Workspace>(`/api/workspaces/${id}/activate`);
+    set((state) => ({
+      activeWorkspaceId: workspace.id,
+      workspaces: state.workspaces.map((item) =>
+        item.id === workspace.id ? workspace : item,
+      ),
+    }));
+    const dashboard = await apiGet<DashboardStats>(
+      `/api/dashboard?workspace_id=${encodeURIComponent(workspace.id)}`,
+    );
+    set({ dashboard });
+  },
+
+  createWorkspace: async (input: CreateWorkspaceInput) => {
+    const workspace = await apiPost<Workspace>("/api/workspaces", input);
+    set((state) => ({
+      workspaces: [workspace, ...state.workspaces],
+      activeWorkspaceId: workspace.id,
+    }));
+    return workspace;
+  },
+
+  restartDaemon: async () => {
+    await apiPost<{ ok: boolean }>("/api/daemon/restart");
+    set((state) => ({
+      daemon: state.daemon
+        ? { ...state.daemon, state: "restarting", online: false }
+        : null,
+    }));
+  },
+}));
+
+async function connectSocket() {
+  if (
+    socket &&
+    (socket.readyState === WebSocket.OPEN ||
+      socket.readyState === WebSocket.CONNECTING)
+  ) {
+    return;
+  }
+
+  const url = await websocketUrl();
+  socket = new WebSocket(url);
+
+  socket.onopen = () => {
+    reconnectAttempts = 0;
+    useAppStore.setState({ connected: true });
+  };
+
+  socket.onmessage = (message) => {
+    try {
+      const event = JSON.parse(message.data as string) as WsEvent;
+      handleEvent(event);
+    } catch (error) {
+      console.warn("OpenDesk: invalid websocket event", error);
+    }
+  };
+
+  socket.onerror = () => {
+    socket?.close();
+  };
+
+  socket.onclose = () => {
+    useAppStore.setState({ connected: false });
+    scheduleReconnect();
+  };
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer !== null) return;
+  const delay = Math.min(1000 * 2 ** reconnectAttempts, 15_000);
+  reconnectAttempts += 1;
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = null;
+    void connectSocket();
+  }, delay);
+}
+
+function handleEvent(event: WsEvent) {
+  const state = useAppStore.getState();
+  if (event.event_id > state.lastEventId) {
+    useAppStore.setState({ lastEventId: event.event_id });
+  }
+
+  switch (event.event_type) {
+    case "DaemonStatusChanged":
+      useAppStore.setState({ daemon: event.payload as DaemonStatus });
+      break;
+    case "QueueUpdated": {
+      const payload = event.payload as { jobs?: QueueJob[] };
+      useAppStore.setState({ queue: payload.jobs ?? [] });
+      break;
+    }
+    case "ResyncRequired":
+      void state.refresh();
+      break;
+    case "ArtifactCreated":
+      useAppStore.setState((current) => ({
+        dashboard: current.dashboard
+          ? {
+              ...current.dashboard,
+              artifacts_total: current.dashboard.artifacts_total + 1,
+            }
+          : current.dashboard,
+      }));
+      break;
+    default:
+      break;
+  }
+}
