@@ -33,7 +33,7 @@ npm run tauri dev      # app completo
 npm run check          # TypeScript
 npm run build          # frontend
 npm run test:rust      # testes Rust
-npm run test:e2e       # Playwright (backend headless + Vite)
+npm run test:e2e       # Playwright Chromium (npx playwright install chromium)
 cd src-tauri && cargo check
 cd src-tauri && cargo test
 scripts/release.sh     # build local + retenção de 3 releases (sem CI)
