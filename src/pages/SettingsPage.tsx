@@ -185,7 +185,7 @@ export function SettingsPage() {
             <Badge variant="blue">V2-only</Badge>
           </CardHeader>
           <CardContent className="space-y-2">
-            <InfoRow label="Versão" value="0.6.0" />
+            <InfoRow label="Versão" value="0.6.1" />
             <InfoRow label="OpenCode API" value="v2 (/api/*)" />
             <InfoRow label="Fase" value="resiliência (Fase 6)" />
             <InfoRow label="Banco" value="~/.local/share/opendesk/opendesk.db" />

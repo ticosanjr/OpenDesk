@@ -93,7 +93,7 @@ No primeiro boot o OpenDesk:
 ```bash
 npm run check          # TypeScript
 npm run build          # frontend
-npm run test:rust      # 43 testes Rust
+npm run test:rust      # 48 testes Rust
 npm run test:e2e       # 4 testes Playwright (headless + Vite)
 cd src-tauri && cargo check
 cd src-tauri && cargo test

@@ -377,7 +377,7 @@ pub async fn download_and_stage(state: &AppState) -> AppResult<DownloadResult> {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
-    if !digest.eq_ignore_ascii_case(&expected_sha) {
+    if !verify_sha256(&digest, &expected_sha) {
         return Err(AppError::Internal(format!(
             "SHA256 mismatch for {}: expected {}, got {}",
             asset_name, expected_sha, digest
@@ -429,7 +429,7 @@ pub async fn download_and_stage(state: &AppState) -> AppResult<DownloadResult> {
         action: "restart-required".into(),
         path: Some(target.to_string_lossy().to_string()),
         message: format!(
-            "Atualização {} baixada e verificada. Feche o OpenDesk; ele será substituído e reaberto automaticamente. Backup: {}.",
+            "Atualização {} baixada e verificada. Encerre o OpenDesk (inclusive pelo ícone da bandeja); o binário será substituído e o app reaberto automaticamente. Backup: {}.",
             manifest.version,
             backup.display()
         ),
@@ -483,6 +483,10 @@ async fn find_asset_id(
         })
 }
 
+fn verify_sha256(digest: &str, expected: &str) -> bool {
+    !expected.trim().is_empty() && digest.eq_ignore_ascii_case(expected.trim())
+}
+
 fn write_executable(path: &Path, bytes: &[u8]) -> AppResult<()> {
     let mut file = std::fs::File::create(path)?;
     file.write_all(bytes)?;
@@ -502,8 +506,10 @@ fn spawn_replacer(staged: &Path, target: &Path, pid: u32) -> AppResult<()> {
     let script_path = target.with_extension(format!("update-{pid}.sh"));
     let launch = format!("nohup \"{}\" >/dev/null 2>&1 &", target.display());
     let script = format!(
-        "#!/bin/sh\nwhile kill -0 {pid} 2>/dev/null; do sleep 0.5; done\ncp -f \"{}\" \"{}\" && chmod 755 \"{}\" && rm -f \"{}\"\n{launch}\n",
+        "#!/bin/sh\nwhile kill -0 {pid} 2>/dev/null; do sleep 0.5; done\ncp -f \"{}\" \"{}.new\" && chmod 755 \"{}.new\" && mv -f \"{}.new\" \"{}\" && rm -f \"{}\"\n{launch}\n",
         staged.display(),
+        target.display(),
+        target.display(),
         target.display(),
         target.display(),
         staged.display(),
@@ -587,5 +593,35 @@ mod tests {
     fn development_build_skips_asset_selection() {
         let value = manifest(vec![("opendesk-linux-x86_64", "c")]);
         assert!(select_asset(&value, "development").is_none());
+    }
+
+    #[test]
+    fn verifies_sha256_case_insensitively() {
+        assert!(verify_sha256("abc123", "ABC123"));
+        assert!(verify_sha256("abc123", " abc123 "));
+        assert!(!verify_sha256("abc123", "abc124"));
+        assert!(!verify_sha256("abc123", ""));
+    }
+
+    #[test]
+    fn parses_latest_manifest() {
+        let raw = r#"{
+            "version": "0.6.0",
+            "tag": "v0.6.0",
+            "repo": "ticosanjr/OpenDesk",
+            "platform": "linux-x86_64",
+            "published_at": "2026-11-06T00:00:00Z",
+            "notes": "release",
+            "assets": [
+                {"name": "OpenDesk_0.6.0_amd64.AppImage", "size": 10, "sha256": "aa"}
+            ]
+        }"#;
+        let manifest: LatestManifest = serde_json::from_str(raw).expect("manifest");
+        assert_eq!(manifest.version, "0.6.0");
+        assert_eq!(manifest.assets.len(), 1);
+        assert_eq!(
+            select_asset(&manifest, "appimage").unwrap().name,
+            "OpenDesk_0.6.0_amd64.AppImage"
+        );
     }
 }

@@ -443,7 +443,7 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 ### Verificado
 
-- `cargo test` — **43 passed** (resolver, updater, self-update, fila, budget,
+- `cargo test` — **48 passed** (resolver, updater, self-update, fila, budget,
   cron, JSONC, secrets, MCP).
 - `npm run check` — ok.
 - `npm run build` — ok.
@@ -463,3 +463,11 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 2. Publicar a release 0.6.0 com `latest.json` e validar o auto-update.
 3. Ampliar cobertura para ≥80% nos módulos de lógica.
 4. Retry automático de entregas e concorrência configurável da fila.
+
+## 2026-11-06 — Release 0.6.1
+
+- Helper de auto-atualização agora copia para `<binário>.new`, dá `chmod` e usa
+  `mv -f` (atômico no mesmo filesystem) antes de relançar.
+- Mensagem de atualização indica encerrar o app também pela bandeja.
+- `cargo test` — **48 passed** (testes adicionais do supervisor de daemon e do
+  manifesto/SHA256 de atualização).

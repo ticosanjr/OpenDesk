@@ -246,7 +246,7 @@ export function UpdatesCard() {
           <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[10px] leading-relaxed text-emerald-300">
             {result.message}
             {result.action === "restart-required"
-              ? " Feche o OpenDesk para aplicar."
+              ? " Encerre o app pela bandeja para aplicar."
               : null}
           </p>
         ) : null}
