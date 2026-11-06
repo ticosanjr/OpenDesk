@@ -1,0 +1,1298 @@
+use crate::{
+    app_state::AppState,
+    config_sync::{
+        agents::{self, AgentWriteInput, PermissionRule},
+        commands::{self, CommandWriteInput},
+        jsonc_editor,
+        paths::StudioPaths,
+        skills::{self, SkillExtraFile, SkillWriteInput},
+    },
+    error::{AppError, AppResult},
+};
+use axum::{
+    Json,
+    extract::{Path, Query, State},
+};
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+use std::{
+    io::{Cursor, Read},
+    path::{Path as FsPath, PathBuf},
+    sync::Arc,
+};
+
+use super::studio::{StudioQuery, context, require_id};
+
+#[derive(Debug, Deserialize)]
+pub struct TargetBody {
+    #[serde(default)]
+    pub target_scope: Option<String>,
+    #[serde(default)]
+    pub target_workspace_id: Option<String>,
+    #[serde(default)]
+    pub new_id: Option<String>,
+    #[serde(default)]
+    pub overwrite: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ToggleBody {
+    pub enabled: bool,
+}
+
+struct Target {
+    paths: StudioPaths,
+    scope: String,
+}
+
+async fn target(state: &AppState, body: &TargetBody, source_scope: &str) -> AppResult<Target> {
+    let query = StudioQuery {
+        scope: Some(
+            body.target_scope
+                .clone()
+                .unwrap_or_else(|| source_scope.to_string()),
+        ),
+        workspace_id: body.target_workspace_id.clone(),
+        id: None,
+        expected_sha256: None,
+    };
+    let (paths, scope, _) = context(state, &query).await?;
+    Ok(Target { paths, scope })
+}
+
+fn exists(paths: &StudioPaths, scope: &str, kind: &str, id: &str) -> AppResult<bool> {
+    match kind {
+        "agent" => Ok(agents::get(paths, scope, id).is_ok()),
+        "skill" => Ok(skills::get(paths, scope, id).is_ok()),
+        "command" => Ok(commands::get(paths, scope, id).is_ok()),
+        "mcp" => {
+            let document = jsonc_editor::read_for_scope(paths, scope)?;
+            Ok(jsonc_editor::list_mcp_servers(&document)
+                .iter()
+                .any(|server| server.name == id))
+        }
+        _ => Err(AppError::BadRequest(format!(
+            "invalid studio kind '{kind}'"
+        ))),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn copy_item(
+    source: &StudioPaths,
+    source_scope: &str,
+    target: &StudioPaths,
+    target_scope: &str,
+    kind: &str,
+    id: &str,
+    new_id: &str,
+    overwrite: bool,
+    backups_dir: &FsPath,
+) -> AppResult<()> {
+    if !overwrite && exists(target, target_scope, kind, new_id)? {
+        return Err(AppError::Conflict(format!(
+            "{kind} '{new_id}' already exists in {target_scope}"
+        )));
+    }
+    match kind {
+        "agent" => {
+            let agent = agents::get(source, source_scope, id)?;
+            agents::write(
+                target,
+                target_scope,
+                new_id,
+                AgentWriteInput {
+                    name: agent.name,
+                    avatar: agent.avatar,
+                    description: agent.description,
+                    mode: agent.mode,
+                    model: agent.model,
+                    color: agent.color,
+                    hidden: agent.hidden,
+                    steps: agent.steps,
+                    disabled: agent.disabled,
+                    permissions: agent
+                        .permissions
+                        .into_iter()
+                        .map(|permission| PermissionRule {
+                            action: permission.action,
+                            resource: permission.resource,
+                            effect: permission.effect,
+                        })
+                        .collect(),
+                    system: agent.system,
+                    expected_sha256: None,
+                },
+                backups_dir,
+            )?;
+        }
+        "skill" => {
+            let skill = skills::get(source, source_scope, id)?;
+            skills::write(
+                target,
+                target_scope,
+                new_id,
+                SkillWriteInput {
+                    name: skill.name.clone().into(),
+                    description: skill.description,
+                    body: skill.body,
+                    files: skill
+                        .files
+                        .into_iter()
+                        .map(|file| SkillExtraFile {
+                            path: file.path,
+                            content: file.content,
+                        })
+                        .collect(),
+                    expected_sha256: None,
+                },
+                backups_dir,
+            )?;
+        }
+        "command" => {
+            let command = commands::get(source, source_scope, id)?;
+            commands::write(
+                target,
+                target_scope,
+                new_id,
+                CommandWriteInput {
+                    description: command.description,
+                    agent: command.agent,
+                    model: command.model,
+                    subagent: command.subagent,
+                    template: command.template,
+                    expected_sha256: None,
+                },
+                backups_dir,
+            )?;
+        }
+        "mcp" => {
+            let document = jsonc_editor::read_for_scope(source, source_scope)?;
+            let server = jsonc_editor::list_mcp_servers(&document)
+                .into_iter()
+                .find(|server| server.name == id)
+                .map(|server| server.server)
+                .ok_or_else(|| AppError::NotFound(format!("mcp {id}")))?;
+            let target_path = target.config_path(target_scope)?;
+            jsonc_editor::upsert_mcp_server(&target_path, new_id, &server, None, backups_dir)?;
+        }
+        other => {
+            return Err(AppError::BadRequest(format!(
+                "invalid studio kind '{other}'"
+            )));
+        }
+    }
+    Ok(())
+}
+
+pub async fn duplicate(
+    State(state): State<Arc<AppState>>,
+    Path((kind, id)): Path<(String, String)>,
+    Query(query): Query<StudioQuery>,
+    Json(body): Json<TargetBody>,
+) -> AppResult<Json<Value>> {
+    let (paths, scope, _) = context(&state, &query).await?;
+    let mut target_id = body
+        .new_id
+        .clone()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| format!("{id}-copy"));
+    let mut counter = 2;
+    while exists(&paths, &scope, &kind, &target_id)? {
+        target_id = format!("{id}-copy-{counter}");
+        counter += 1;
+        if counter > 100 {
+            return Err(AppError::Conflict("could not find a free copy id".into()));
+        }
+    }
+    copy_item(
+        &paths,
+        &scope,
+        &paths,
+        &scope,
+        &kind,
+        &id,
+        &target_id,
+        false,
+        &state.paths.backups_dir,
+    )?;
+    Ok(Json(
+        json!({ "ok": true, "kind": kind, "id": target_id, "scope": scope }),
+    ))
+}
+
+pub async fn copy(
+    State(state): State<Arc<AppState>>,
+    Path((kind, id)): Path<(String, String)>,
+    Query(query): Query<StudioQuery>,
+    Json(body): Json<TargetBody>,
+) -> AppResult<Json<Value>> {
+    let (paths, scope, _) = context(&state, &query).await?;
+    let target = target(&state, &body, &scope).await?;
+    let target_id = body
+        .new_id
+        .clone()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| id.clone());
+    copy_item(
+        &paths,
+        &scope,
+        &target.paths,
+        &target.scope,
+        &kind,
+        &id,
+        &target_id,
+        body.overwrite,
+        &state.paths.backups_dir,
+    )?;
+    Ok(Json(
+        json!({ "ok": true, "kind": kind, "id": target_id, "scope": target.scope }),
+    ))
+}
+
+pub async fn move_item(
+    State(state): State<Arc<AppState>>,
+    Path((kind, id)): Path<(String, String)>,
+    Query(query): Query<StudioQuery>,
+    Json(body): Json<TargetBody>,
+) -> AppResult<Json<Value>> {
+    let (paths, scope, _) = context(&state, &query).await?;
+    let target = target(&state, &body, &scope).await?;
+    let target_id = body
+        .new_id
+        .clone()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| id.clone());
+    if target.scope == scope && target_id == id {
+        return Err(AppError::BadRequest(
+            "source and target are the same item".into(),
+        ));
+    }
+    copy_item(
+        &paths,
+        &scope,
+        &target.paths,
+        &target.scope,
+        &kind,
+        &id,
+        &target_id,
+        body.overwrite,
+        &state.paths.backups_dir,
+    )?;
+    if let Err(error) = delete_item(&paths, &scope, &kind, &id, &state.paths.backups_dir) {
+        let _ = delete_item(
+            &target.paths,
+            &target.scope,
+            &kind,
+            &target_id,
+            &state.paths.backups_dir,
+        );
+        return Err(error);
+    }
+    Ok(Json(json!({
+        "ok": true,
+        "kind": kind,
+        "id": target_id,
+        "scope": target.scope,
+    })))
+}
+
+fn delete_item(
+    paths: &StudioPaths,
+    scope: &str,
+    kind: &str,
+    id: &str,
+    backups_dir: &FsPath,
+) -> AppResult<()> {
+    match kind {
+        "agent" => agents::delete(paths, scope, id),
+        "skill" => skills::delete(paths, scope, id),
+        "command" => commands::delete(paths, scope, id),
+        "mcp" => {
+            let path = paths.config_path(scope)?;
+            jsonc_editor::delete_mcp_server(&path, id, None, backups_dir)?;
+            Ok(())
+        }
+        other => Err(AppError::BadRequest(format!(
+            "invalid studio kind '{other}'"
+        ))),
+    }
+}
+
+fn item_path(paths: &StudioPaths, scope: &str, kind: &str, id: &str) -> AppResult<PathBuf> {
+    match kind {
+        "agent" => Ok(paths.agents_dir(scope)?.join(format!("{id}.md"))),
+        "skill" => Ok(PathBuf::from(skills::get(paths, scope, id)?.path)),
+        "command" => Ok(PathBuf::from(commands::get(paths, scope, id)?.path)),
+        "mcp" => paths.config_path(scope),
+        other => Err(AppError::BadRequest(format!(
+            "invalid studio kind '{other}'"
+        ))),
+    }
+}
+
+pub async fn list_backups(
+    State(state): State<Arc<AppState>>,
+    Path((kind, id)): Path<(String, String)>,
+    Query(query): Query<StudioQuery>,
+) -> AppResult<Json<Value>> {
+    let (paths, scope, _) = context(&state, &query).await?;
+    let path = item_path(&paths, &scope, &kind, &id)?;
+    let entries = crate::config_sync::file_ops::list_backups_for(&path, &state.paths.backups_dir)?;
+    Ok(Json(json!({ "path": path, "backups": entries })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RestoreBody {
+    pub backup_id: String,
+}
+
+pub async fn restore_backup(
+    State(state): State<Arc<AppState>>,
+    Path((kind, id)): Path<(String, String)>,
+    Query(query): Query<StudioQuery>,
+    Json(body): Json<RestoreBody>,
+) -> AppResult<Json<Value>> {
+    let (paths, scope, _) = context(&state, &query).await?;
+    let path = item_path(&paths, &scope, &kind, &id)?;
+    crate::config_sync::file_ops::restore_backup(&body.backup_id, &path, &state.paths.backups_dir)?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+pub async fn remove_item(
+    State(state): State<Arc<AppState>>,
+    Path((kind, id)): Path<(String, String)>,
+    Query(query): Query<StudioQuery>,
+) -> AppResult<Json<Value>> {
+    let (paths, scope, _) = context(&state, &query).await?;
+    delete_item(&paths, &scope, &kind, &id, &state.paths.backups_dir)?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+pub async fn toggle(
+    State(state): State<Arc<AppState>>,
+    Path((kind, id)): Path<(String, String)>,
+    Query(query): Query<StudioQuery>,
+    Json(body): Json<ToggleBody>,
+) -> AppResult<Json<Value>> {
+    let (paths, scope, _) = context(&state, &query).await?;
+    let id = require_id(&StudioQuery {
+        id: Some(id),
+        ..query.clone()
+    })?;
+    match kind.as_str() {
+        "agent" => {
+            let mut agent = agents::get(&paths, &scope, &id)?;
+            agent.disabled = !body.enabled;
+            agents::write(
+                &paths,
+                &scope,
+                &id,
+                AgentWriteInput {
+                    name: agent.name,
+                    avatar: agent.avatar,
+                    description: agent.description,
+                    mode: agent.mode,
+                    model: agent.model,
+                    color: agent.color,
+                    hidden: agent.hidden,
+                    steps: agent.steps,
+                    disabled: agent.disabled,
+                    permissions: agent.permissions,
+                    system: agent.system,
+                    expected_sha256: None,
+                },
+                &state.paths.backups_dir,
+            )?;
+        }
+        "skill" => {
+            let skill = skills::get(&paths, &scope, &id)?;
+            let skill_path = PathBuf::from(&skill.path);
+            let is_folder =
+                skill_path.file_name().and_then(|name| name.to_str()) == Some("SKILL.md");
+            let disabled_root = paths.opencode_dir(&scope)?.join("disabled/skills");
+            let skills_root = paths.skills_dir(&scope)?;
+            if is_folder {
+                let source = skill_path
+                    .parent()
+                    .map(FsPath::to_path_buf)
+                    .ok_or_else(|| AppError::Internal("skill path has no parent".into()))?;
+                let target = if body.enabled {
+                    skills_root.join(&id)
+                } else {
+                    disabled_root.join(&id)
+                };
+                move_dir(&source, &target)?;
+            } else {
+                let source = skill_path;
+                let target = if body.enabled {
+                    skills_root.join(format!("{id}.md"))
+                } else {
+                    disabled_root.join(format!("{id}.md"))
+                };
+                move_file(&source, &target)?;
+            }
+        }
+        "command" => {
+            let command = commands::get(&paths, &scope, &id)?;
+            let source = PathBuf::from(&command.path);
+            let disabled_root = paths.opencode_dir(&scope)?.join("disabled/commands");
+            let target = if body.enabled {
+                paths.commands_dir(&scope)?.join(format!("{id}.md"))
+            } else {
+                disabled_root.join(format!("{id}.md"))
+            };
+            move_file(&source, &target)?;
+        }
+        "mcp" => {
+            let document = jsonc_editor::read_for_scope(&paths, &scope)?;
+            let mut server = jsonc_editor::list_mcp_servers(&document)
+                .into_iter()
+                .find(|server| server.name == id)
+                .map(|server| server.server)
+                .ok_or_else(|| AppError::NotFound(format!("mcp {id}")))?;
+            server["disabled"] = Value::Bool(!body.enabled);
+            let path = paths.config_path(&scope)?;
+            jsonc_editor::upsert_mcp_server(&path, &id, &server, None, &state.paths.backups_dir)?;
+        }
+        other => {
+            return Err(AppError::BadRequest(format!(
+                "invalid studio kind '{other}'"
+            )));
+        }
+    }
+    Ok(Json(
+        json!({ "ok": true, "kind": kind, "id": id, "enabled": body.enabled }),
+    ))
+}
+
+fn move_dir(source: &FsPath, target: &FsPath) -> AppResult<()> {
+    if !source.exists() {
+        return Err(AppError::NotFound(format!("{}", source.display())));
+    }
+    if target.exists() {
+        return Err(AppError::Conflict(format!(
+            "{} already exists",
+            target.display()
+        )));
+    }
+    if let Some(parent) = target.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    if std::fs::rename(source, target).is_err() {
+        copy_dir(source, target)?;
+        std::fs::remove_dir_all(source)?;
+    }
+    Ok(())
+}
+
+fn copy_dir(source: &FsPath, target: &FsPath) -> AppResult<()> {
+    std::fs::create_dir_all(target)?;
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let path = entry.path();
+        let destination = target.join(entry.file_name());
+        if path.is_dir() {
+            copy_dir(&path, &destination)?;
+        } else {
+            std::fs::copy(&path, &destination)?;
+        }
+    }
+    Ok(())
+}
+
+fn move_file(source: &FsPath, target: &FsPath) -> AppResult<()> {
+    if !source.exists() {
+        return Err(AppError::NotFound(format!("{}", source.display())));
+    }
+    if target.exists() {
+        return Err(AppError::Conflict(format!(
+            "{} already exists",
+            target.display()
+        )));
+    }
+    if let Some(parent) = target.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    if std::fs::rename(source, target).is_err() {
+        std::fs::copy(source, target)?;
+        std::fs::remove_file(source)?;
+    }
+    Ok(())
+}
+
+pub async fn effective(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<StudioQuery>,
+) -> AppResult<Json<Value>> {
+    let workspace_id = match &query.workspace_id {
+        Some(id) => id.clone(),
+        None => crate::api::tasks::resolve_workspace_id(&state, None).await?,
+    };
+    let global = StudioPaths::new(None);
+    let (workspace, _, _) = context(
+        &state,
+        &StudioQuery {
+            scope: Some("workspace".into()),
+            workspace_id: Some(workspace_id),
+            id: None,
+            expected_sha256: None,
+        },
+    )
+    .await?;
+
+    let mut items = Vec::new();
+    for kind in ["agent", "skill", "command"] {
+        let global_items = list_kind(&global, "global", kind)?;
+        let workspace_items = list_kind(&workspace, "workspace", kind)?;
+        let workspace_ids = workspace_items
+            .iter()
+            .filter_map(|item| item.get("id").and_then(Value::as_str).map(str::to_string))
+            .collect::<std::collections::HashSet<_>>();
+        for mut item in global_items {
+            let id = item
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let overridden = workspace_ids.contains(&id);
+            item["source_scope"] = json!("global");
+            item["overridden"] = json!(overridden);
+            items.push(json!({
+                "kind": kind,
+                "id": id,
+                "source_scope": "global",
+                "overridden": overridden,
+                "disabled": item.get("disabled").and_then(Value::as_bool).unwrap_or(false),
+                "value": item,
+            }));
+        }
+        for mut item in workspace_items {
+            let id = item
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            item["source_scope"] = json!("workspace");
+            item["overridden"] = json!(false);
+            items.push(json!({
+                "kind": kind,
+                "id": id,
+                "source_scope": "workspace",
+                "overridden": false,
+                "disabled": item.get("disabled").and_then(Value::as_bool).unwrap_or(false),
+                "value": item,
+            }));
+        }
+    }
+
+    // MCP merge: workspace overrides global by name.
+    let global_doc = jsonc_editor::read_for_scope(&global, "global")?;
+    let workspace_doc = jsonc_editor::read_for_scope(&workspace, "workspace")?;
+    let mut servers: std::collections::BTreeMap<String, (Value, &str)> =
+        std::collections::BTreeMap::new();
+    for server in jsonc_editor::list_mcp_servers(&global_doc) {
+        servers.insert(server.name, (server.server, "global"));
+    }
+    for server in jsonc_editor::list_mcp_servers(&workspace_doc) {
+        servers.insert(server.name, (server.server, "workspace"));
+    }
+    for (id, (server, source)) in servers {
+        let disabled = server
+            .get("disabled")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        items.push(json!({
+            "kind": "mcp",
+            "id": id,
+            "source_scope": source,
+            "overridden": source == "workspace" && global_doc.parsed
+                .pointer("/mcp/servers")
+                .and_then(Value::as_object)
+                .map(|map| map.contains_key(&id))
+                .unwrap_or(false),
+            "disabled": disabled,
+            "value": server,
+        }));
+    }
+    Ok(Json(json!({ "items": items })))
+}
+
+fn list_kind(paths: &StudioPaths, scope: &str, kind: &str) -> AppResult<Vec<Value>> {
+    let values = match kind {
+        "agent" => agents::list(paths, scope)?
+            .into_iter()
+            .map(|item| serde_json::to_value(item).unwrap_or(Value::Null))
+            .collect(),
+        "skill" => skills::list(paths, scope)?
+            .into_iter()
+            .map(|item| serde_json::to_value(item).unwrap_or(Value::Null))
+            .collect(),
+        "command" => commands::list(paths, scope)?
+            .into_iter()
+            .map(|item| serde_json::to_value(item).unwrap_or(Value::Null))
+            .collect(),
+        _ => Vec::new(),
+    };
+    Ok(values)
+}
+
+// Installation ------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct InstallRequest {
+    pub source_type: String,
+    pub value: String,
+    #[serde(default)]
+    pub kind: Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstallItem {
+    pub kind: String,
+    pub id: String,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub body: String,
+    #[serde(default)]
+    pub files: Vec<SkillExtraFile>,
+    #[serde(default)]
+    pub server: Option<Value>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InstallPreview {
+    pub items: Vec<InstallItem>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InstallApply {
+    pub items: Vec<InstallItem>,
+    #[serde(default)]
+    pub target_scope: Option<String>,
+    #[serde(default)]
+    pub target_workspace_id: Option<String>,
+    #[serde(default)]
+    pub overwrite: bool,
+}
+
+pub async fn install_preview(
+    State(_state): State<Arc<AppState>>,
+    Json(request): Json<InstallRequest>,
+) -> AppResult<Json<InstallPreview>> {
+    let (items, warnings) = collect_source(&request).await?;
+    Ok(Json(InstallPreview { items, warnings }))
+}
+
+pub async fn install_apply(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<InstallApply>,
+) -> AppResult<Json<Value>> {
+    let target = target(
+        &state,
+        &TargetBody {
+            target_scope: body.target_scope,
+            target_workspace_id: body.target_workspace_id,
+            new_id: None,
+            overwrite: body.overwrite,
+        },
+        "workspace",
+    )
+    .await?;
+    let mut written = Vec::new();
+    for item in body.items {
+        if item.kind == "mcp" {
+            let server = item.server.clone().ok_or_else(|| {
+                AppError::BadRequest(format!("mcp {} has no server object", item.id))
+            })?;
+            let path = target.paths.config_path(&target.scope)?;
+            jsonc_editor::upsert_mcp_server(
+                &path,
+                &item.id,
+                &server,
+                None,
+                &state.paths.backups_dir,
+            )?;
+        } else if item.kind == "agent" {
+            agents::write(
+                &target.paths,
+                &target.scope,
+                &item.id,
+                AgentWriteInput {
+                    name: item.name.clone(),
+                    avatar: None,
+                    description: item.description.clone(),
+                    mode: None,
+                    model: None,
+                    color: None,
+                    hidden: false,
+                    steps: None,
+                    disabled: false,
+                    permissions: Vec::new(),
+                    system: item.body.clone(),
+                    expected_sha256: None,
+                },
+                &state.paths.backups_dir,
+            )?;
+        } else if item.kind == "skill" {
+            skills::write(
+                &target.paths,
+                &target.scope,
+                &item.id,
+                SkillWriteInput {
+                    name: item.name.clone(),
+                    description: item.description.clone(),
+                    body: item.body.clone(),
+                    files: item.files.clone(),
+                    expected_sha256: None,
+                },
+                &state.paths.backups_dir,
+            )?;
+        } else if item.kind == "command" {
+            commands::write(
+                &target.paths,
+                &target.scope,
+                &item.id,
+                CommandWriteInput {
+                    description: item.description.clone(),
+                    agent: None,
+                    model: None,
+                    subagent: None,
+                    template: item.body.clone(),
+                    expected_sha256: None,
+                },
+                &state.paths.backups_dir,
+            )?;
+        } else {
+            return Err(AppError::BadRequest(format!(
+                "invalid install kind '{}'",
+                item.kind
+            )));
+        }
+        written.push(json!({ "kind": item.kind, "id": item.id }));
+    }
+    Ok(Json(
+        json!({ "ok": true, "scope": target.scope, "items": written }),
+    ))
+}
+
+pub async fn catalog() -> Json<Value> {
+    Json(json!({
+        "mcps": [
+            {
+                "id": "filesystem",
+                "name": "Filesystem",
+                "description": "Leitura e escrita de arquivos em um diretório permitido.",
+                "server": {
+                    "type": "local",
+                    "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "."],
+                    "disabled": false
+                }
+            },
+            {
+                "id": "git",
+                "name": "Git",
+                "description": "Operações de git em repositórios locais.",
+                "server": {
+                    "type": "local",
+                    "command": ["npx", "-y", "@modelcontextprotocol/server-git"],
+                    "disabled": false
+                }
+            },
+            {
+                "id": "fetch",
+                "name": "Fetch",
+                "description": "Busca páginas HTTP e converte para markdown.",
+                "server": {
+                    "type": "local",
+                    "command": ["npx", "-y", "@modelcontextprotocol/server-fetch"],
+                    "disabled": false
+                }
+            },
+            {
+                "id": "memory",
+                "name": "Memory",
+                "description": "Memória persistente em grafo para agentes.",
+                "server": {
+                    "type": "local",
+                    "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],
+                    "disabled": false
+                }
+            },
+            {
+                "id": "sequential-thinking",
+                "name": "Sequential Thinking",
+                "description": "Raciocínio passo a passo estruturado.",
+                "server": {
+                    "type": "local",
+                    "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
+                    "disabled": false
+                }
+            },
+            {
+                "id": "playwright",
+                "name": "Playwright",
+                "description": "Automação de navegador via Playwright MCP.",
+                "server": {
+                    "type": "local",
+                    "command": ["npx", "-y", "@playwright/mcp@latest"],
+                    "disabled": false
+                }
+            }
+        ]
+    }))
+}
+
+async fn collect_source(request: &InstallRequest) -> AppResult<(Vec<InstallItem>, Vec<String>)> {
+    let source = request.value.trim();
+    if source.is_empty() {
+        return Err(AppError::BadRequest("source value is required".into()));
+    }
+    let mut warnings = Vec::new();
+    let mut items = Vec::new();
+
+    match request.source_type.as_str() {
+        "mcp_json" => {
+            let server: Value = serde_json::from_str(source)
+                .map_err(|error| AppError::BadRequest(format!("invalid MCP JSON: {error}")))?;
+            items.push(InstallItem {
+                kind: "mcp".into(),
+                id: request.name.clone().unwrap_or_else(|| "mcp-server".into()),
+                name: request.name.clone(),
+                description: None,
+                body: String::new(),
+                files: Vec::new(),
+                server: Some(server),
+            });
+        }
+        "npm" => {
+            let package = source.trim_start_matches("npm:");
+            let id = request
+                .name
+                .clone()
+                .unwrap_or_else(|| package.rsplit('/').next().unwrap_or("mcp").to_string());
+            items.push(InstallItem {
+                kind: "mcp".into(),
+                id,
+                name: Some(package.to_string()),
+                description: Some(format!("MCP instalado a partir do pacote npm {package}")),
+                body: String::new(),
+                files: Vec::new(),
+                server: Some(json!({
+                    "type": "local",
+                    "command": ["npx", "-y", package],
+                    "disabled": false
+                })),
+            });
+        }
+        "url" | "github" => {
+            let bytes = if request.source_type == "github" {
+                download_github(source).await?
+            } else {
+                download_url(source).await?
+            };
+            if source.to_lowercase().ends_with(".zip") || request.source_type == "github" {
+                collect_zip(&bytes, &mut items, &mut warnings)?;
+            } else {
+                let text = String::from_utf8_lossy(&bytes).to_string();
+                collect_text(source, &text, request, &mut items, &mut warnings)?;
+            }
+        }
+        "local" => {
+            let path = PathBuf::from(source);
+            if path.is_dir() {
+                collect_local_dir(&path, &mut items, &mut warnings)?;
+            } else if path.is_file() {
+                let text = std::fs::read_to_string(&path)?;
+                collect_text(
+                    &path.to_string_lossy(),
+                    &text,
+                    request,
+                    &mut items,
+                    &mut warnings,
+                )?;
+            } else {
+                return Err(AppError::BadRequest(format!(
+                    "local path not found: {}",
+                    path.display()
+                )));
+            }
+        }
+        other => {
+            return Err(AppError::BadRequest(format!(
+                "invalid source_type '{other}'; expected github, url, local, mcp_json or npm"
+            )));
+        }
+    }
+
+    if items.is_empty() {
+        return Err(AppError::BadRequest(
+            "no agent, skill, command or MCP was detected in this source".into(),
+        ));
+    }
+    Ok((items, warnings))
+}
+
+async fn download_url(url: &str) -> AppResult<Vec<u8>> {
+    let response = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .user_agent("OpenDesk-Studio/1")
+        .build()
+        .map_err(|error| AppError::Internal(error.to_string()))?
+        .get(url)
+        .send()
+        .await
+        .map_err(|error| AppError::BadRequest(format!("download failed: {error}")))?;
+    if !response.status().is_success() {
+        return Err(AppError::BadRequest(format!(
+            "download failed with {}",
+            response.status()
+        )));
+    }
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|error| AppError::BadRequest(format!("download failed: {error}")))?;
+    if bytes.len() > 10 * 1024 * 1024 {
+        return Err(AppError::BadRequest("download exceeds 10 MB".into()));
+    }
+    Ok(bytes.to_vec())
+}
+
+async fn download_github(source: &str) -> AppResult<Vec<u8>> {
+    let source = source.trim_start_matches("github:");
+    let (repo, rest) = source.split_once('@').unwrap_or((source, "main"));
+    let (repo, path) = repo.split_once('/').unwrap_or((repo, ""));
+    let url = format!(
+        "https://codeload.github.com/{repo}/zip/refs/heads/{}",
+        if rest.is_empty() { "main" } else { rest }
+    );
+    let bytes = download_url(&url).await.map_err(|_| {
+        AppError::BadRequest(format!(
+            "could not download GitHub repository {repo} ({path}); check the ref and visibility"
+        ))
+    })?;
+    Ok(bytes)
+}
+
+fn collect_zip(
+    bytes: &[u8],
+    items: &mut Vec<InstallItem>,
+    warnings: &mut Vec<String>,
+) -> AppResult<()> {
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes.to_vec()))
+        .map_err(|error| AppError::BadRequest(format!("invalid zip: {error}")))?;
+    if archive.len() > 500 {
+        return Err(AppError::BadRequest("zip contains too many files".into()));
+    }
+    for index in 0..archive.len() {
+        let mut file = archive
+            .by_index(index)
+            .map_err(|error| AppError::BadRequest(format!("invalid zip entry: {error}")))?;
+        if file.is_dir() || file.size() > 2 * 1024 * 1024 {
+            continue;
+        }
+        let name = file
+            .name()
+            .map_err(|error| AppError::BadRequest(format!("invalid zip entry name: {error}")))?
+            .replace('\\', "/");
+        if name.contains("..") || name.starts_with('/') {
+            warnings.push(format!("ignored unsafe path {name}"));
+            continue;
+        }
+        let mut content = String::new();
+        if file.read_to_string(&mut content).is_err() {
+            continue;
+        }
+        collect_text(
+            &name,
+            &content,
+            &InstallRequest {
+                source_type: "zip".into(),
+                value: name.clone(),
+                kind: None,
+                name: None,
+            },
+            items,
+            warnings,
+        )?;
+    }
+    Ok(())
+}
+
+fn collect_local_dir(
+    path: &FsPath,
+    items: &mut Vec<InstallItem>,
+    warnings: &mut Vec<String>,
+) -> AppResult<()> {
+    for entry in walkdir::WalkDir::new(path).max_depth(6) {
+        let Ok(entry) = entry else { continue };
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let name = entry.path().to_string_lossy().to_string();
+        if !name.ends_with(".md") {
+            continue;
+        }
+        let Ok(content) = std::fs::read_to_string(entry.path()) else {
+            continue;
+        };
+        collect_text(
+            &name,
+            &content,
+            &InstallRequest {
+                source_type: "local".into(),
+                value: name.clone(),
+                kind: None,
+                name: None,
+            },
+            items,
+            warnings,
+        )?;
+    }
+    Ok(())
+}
+
+fn collect_text(
+    path: &str,
+    content: &str,
+    request: &InstallRequest,
+    items: &mut Vec<InstallItem>,
+    warnings: &mut Vec<String>,
+) -> AppResult<()> {
+    let lower = path.to_lowercase();
+    let file_name = lower.rsplit('/').next().unwrap_or(&lower);
+    let id_from_path = |suffix: &str| {
+        path.rsplit('/')
+            .find(|segment| !segment.is_empty())
+            .map(|segment| segment.trim_end_matches(suffix).to_string())
+            .unwrap_or_else(|| "item".into())
+    };
+
+    if file_name == "skill.md" || lower.contains("/skills/") && lower.ends_with(".md") {
+        let id = request
+            .name
+            .clone()
+            .or_else(|| path.split('/').rev().nth(1).map(str::to_string))
+            .unwrap_or_else(|| "skill".into());
+        items.push(InstallItem {
+            kind: "skill".into(),
+            id,
+            name: None,
+            description: None,
+            body: content.to_string(),
+            files: Vec::new(),
+            server: None,
+        });
+    } else if lower.contains("/agents/") || request.kind.as_deref() == Some("agent") {
+        items.push(InstallItem {
+            kind: "agent".into(),
+            id: request.name.clone().unwrap_or_else(|| id_from_path(".md")),
+            name: None,
+            description: None,
+            body: content.to_string(),
+            files: Vec::new(),
+            server: None,
+        });
+    } else if lower.contains("/commands/") || request.kind.as_deref() == Some("command") {
+        items.push(InstallItem {
+            kind: "command".into(),
+            id: request.name.clone().unwrap_or_else(|| id_from_path(".md")),
+            name: None,
+            description: None,
+            body: content.to_string(),
+            files: Vec::new(),
+            server: None,
+        });
+    } else if request.kind.as_deref() == Some("skill") {
+        items.push(InstallItem {
+            kind: "skill".into(),
+            id: request.name.clone().unwrap_or_else(|| "skill".into()),
+            name: None,
+            description: None,
+            body: content.to_string(),
+            files: Vec::new(),
+            server: None,
+        });
+    } else {
+        warnings.push(format!("skipped unrecognised file {path}"));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn studio_paths(temp: &TempDir) -> (StudioPaths, StudioPaths) {
+        let global = StudioPaths {
+            global_dir: temp.path().join("global"),
+            workspace_root: None,
+        };
+        let workspace = StudioPaths {
+            global_dir: temp.path().join("global"),
+            workspace_root: Some(temp.path().join("ws")),
+        };
+        (global, workspace)
+    }
+
+    fn agent_input() -> AgentWriteInput {
+        AgentWriteInput {
+            name: Some("Auditor".into()),
+            avatar: Some("🛡️".into()),
+            description: Some("Auditor".into()),
+            mode: Some("subagent".into()),
+            model: None,
+            color: Some("#60a5fa".into()),
+            hidden: false,
+            steps: None,
+            disabled: false,
+            permissions: Vec::new(),
+            system: "Você audita.".into(),
+            expected_sha256: None,
+        }
+    }
+
+    #[test]
+    fn copies_agents_and_commands_between_global_and_workspace() {
+        let temp = TempDir::new().expect("temp");
+        let (global, workspace) = studio_paths(&temp);
+        let backups = temp.path().join("backups");
+        agents::write(&global, "global", "auditor", agent_input(), &backups).expect("agent");
+        copy_item(
+            &global,
+            "global",
+            &workspace,
+            "workspace",
+            "agent",
+            "auditor",
+            "auditor-copy",
+            false,
+            &backups,
+        )
+        .expect("copy agent");
+        assert_eq!(
+            agents::get(&workspace, "workspace", "auditor-copy")
+                .expect("copied agent")
+                .name
+                .as_deref(),
+            Some("Auditor")
+        );
+
+        commands::write(
+            &global,
+            "global",
+            "revisar",
+            CommandWriteInput {
+                description: Some("Revisar".into()),
+                agent: Some("auditor".into()),
+                model: None,
+                subagent: None,
+                template: "Revise $ARGUMENTS".into(),
+                expected_sha256: None,
+            },
+            &backups,
+        )
+        .expect("command");
+        copy_item(
+            &global,
+            "global",
+            &workspace,
+            "workspace",
+            "command",
+            "revisar",
+            "revisar",
+            false,
+            &backups,
+        )
+        .expect("copy command");
+        assert_eq!(
+            commands::get(&workspace, "workspace", "revisar")
+                .expect("copied command")
+                .template,
+            "Revise $ARGUMENTS"
+        );
+    }
+
+    #[test]
+    fn copies_skills_and_mcp_servers() {
+        let temp = TempDir::new().expect("temp");
+        let (global, workspace) = studio_paths(&temp);
+        let backups = temp.path().join("backups");
+        skills::write(
+            &global,
+            "global",
+            "pesquisa",
+            SkillWriteInput {
+                name: Some("Pesquisa".into()),
+                description: Some("Pesquisa".into()),
+                body: "Use fontes confiáveis.".into(),
+                files: vec![],
+                expected_sha256: None,
+            },
+            &backups,
+        )
+        .expect("skill");
+        copy_item(
+            &global,
+            "global",
+            &workspace,
+            "workspace",
+            "skill",
+            "pesquisa",
+            "pesquisa",
+            false,
+            &backups,
+        )
+        .expect("copy skill");
+        assert_eq!(
+            skills::get(&workspace, "workspace", "pesquisa")
+                .expect("copied skill")
+                .name,
+            "Pesquisa"
+        );
+
+        let global_config = global.config_path("global").expect("global config");
+        jsonc_editor::upsert_mcp_server(
+            &global_config,
+            "fetch",
+            &json!({"type": "local", "command": ["npx", "fetch"]}),
+            None,
+            &backups,
+        )
+        .expect("mcp");
+        copy_item(
+            &global,
+            "global",
+            &workspace,
+            "workspace",
+            "mcp",
+            "fetch",
+            "fetch",
+            false,
+            &backups,
+        )
+        .expect("copy mcp");
+        let workspace_doc = jsonc_editor::read_for_scope(&workspace, "workspace").expect("config");
+        assert!(
+            jsonc_editor::list_mcp_servers(&workspace_doc)
+                .iter()
+                .any(|server| server.name == "fetch")
+        );
+    }
+
+    #[test]
+    fn move_file_refuses_to_overwrite() {
+        let temp = TempDir::new().expect("temp");
+        let source = temp.path().join("a.md");
+        let target = temp.path().join("b.md");
+        std::fs::write(&source, "a").expect("source");
+        std::fs::write(&target, "b").expect("target");
+        assert!(move_file(&source, &target).is_err());
+        assert_eq!(std::fs::read_to_string(&source).expect("source"), "a");
+    }
+}

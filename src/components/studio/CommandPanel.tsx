@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Save, Terminal, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPut } from "@/lib/api";
 import type { CommandFile, ModelInfo, StudioScope } from "@/lib/types";
@@ -31,9 +31,11 @@ function blankCommand(scope: StudioScope): CommandFile {
 export function CommandPanel({
   scope,
   workspaceId,
+  focusId,
 }: {
   scope: StudioScope;
   workspaceId: string | null;
+  focusId?: string | null;
 }) {
   const lastFsEvent = useAppStore((state) => state.lastFsEvent);
   const query = useMemo(
@@ -69,6 +71,17 @@ export function CommandPanel({
   useEffect(() => {
     void load();
   }, [load, lastFsEvent?.path]);
+
+  const lastFocus = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusId || lastFocus.current === focusId) return;
+    const found = commands.find((command) => command.id === focusId);
+    if (found) {
+      lastFocus.current = focusId;
+      setDraft({ ...found });
+      setIsNew(false);
+    }
+  }, [focusId, commands]);
 
   useEffect(() => {
     apiGet<{ data: ModelInfo[] }>("/api/models")

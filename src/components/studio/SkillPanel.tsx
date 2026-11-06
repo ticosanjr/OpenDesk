@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPut } from "@/lib/api";
 import type { SkillFile, StudioScope } from "@/lib/types";
@@ -30,9 +30,11 @@ function blankSkill(scope: StudioScope): SkillFile {
 export function SkillPanel({
   scope,
   workspaceId,
+  focusId,
 }: {
   scope: StudioScope;
   workspaceId: string | null;
+  focusId?: string | null;
 }) {
   const lastFsEvent = useAppStore((state) => state.lastFsEvent);
   const query = useMemo(
@@ -67,6 +69,17 @@ export function SkillPanel({
   useEffect(() => {
     void load();
   }, [load, lastFsEvent?.path]);
+
+  const lastFocus = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusId || lastFocus.current === focusId) return;
+    const found = skills.find((skill) => skill.id === focusId);
+    if (found) {
+      lastFocus.current = focusId;
+      setDraft({ ...found, files: found.files.map((file) => ({ ...file })) });
+      setIsNew(false);
+    }
+  }, [focusId, skills]);
 
   async function save() {
     if (!draft) return;

@@ -26,6 +26,8 @@ pub struct SkillFile {
     pub body: String,
     pub files: Vec<SkillExtraFile>,
     pub sha256: String,
+    #[serde(default)]
+    pub disabled: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -86,12 +88,52 @@ pub fn list(paths: &StudioPaths, scope: &str) -> AppResult<Vec<SkillFile>> {
             }
         }
     }
+
+    // Disabled skills live outside the native skills directory so OpenCode
+    // ignores them, but Studio still shows them for one-click re-enable.
+    let disabled_root = paths.opencode_dir(scope)?.join("disabled/skills");
+    if disabled_root.is_dir() {
+        for entry in WalkDir::new(&disabled_root).min_depth(1).max_depth(6) {
+            let Ok(entry) = entry else { continue };
+            if !entry.file_type().is_file()
+                || entry.path().file_name().and_then(|name| name.to_str()) != Some("SKILL.md")
+            {
+                continue;
+            }
+            let Some(parent) = entry.path().parent() else {
+                continue;
+            };
+            let Ok(id) = relative_id(&disabled_root, parent) else {
+                continue;
+            };
+            if let Ok(mut skill) = parse_skill(scope, &id, entry.path()) {
+                skill.disabled = true;
+                skills.push(skill);
+            }
+        }
+    }
     Ok(skills)
 }
 
 pub fn get(paths: &StudioPaths, scope: &str, id: &str) -> AppResult<SkillFile> {
     let id = validate_skill_slug(id)?;
     let path = skill_path(paths, scope, &id)?;
+    if path.exists() {
+        return parse_skill(scope, &id, &path);
+    }
+    let disabled_root = paths.opencode_dir(scope)?.join("disabled/skills");
+    let nested = disabled_root.join(&id).join("SKILL.md");
+    let flat = disabled_root.join(format!("{id}.md"));
+    if nested.exists() {
+        let mut skill = parse_skill(scope, &id, &nested)?;
+        skill.disabled = true;
+        return Ok(skill);
+    }
+    if flat.exists() {
+        let mut skill = parse_skill(scope, &id, &flat)?;
+        skill.disabled = true;
+        return Ok(skill);
+    }
     parse_skill(scope, &id, &path)
 }
 
@@ -161,6 +203,18 @@ pub fn delete(paths: &StudioPaths, scope: &str, id: &str) -> AppResult<()> {
     }
 
     let flat = dir.join(format!("{id}.md"));
+    if flat.exists() {
+        return file_ops::delete_path(&flat);
+    }
+    let disabled_root = paths.opencode_dir(scope)?.join("disabled/skills");
+    let disabled_dir = disabled_root.join(&id);
+    if disabled_dir.exists() {
+        return std::fs::remove_dir_all(&disabled_dir).map_err(Into::into);
+    }
+    let disabled_flat = disabled_root.join(format!("{id}.md"));
+    if disabled_flat.exists() {
+        return file_ops::delete_path(&disabled_flat);
+    }
     file_ops::delete_path(&flat)
 }
 
@@ -212,6 +266,7 @@ fn parse_skill(scope: &str, id: &str, path: &Path) -> AppResult<SkillFile> {
         body: document.body,
         files,
         sha256: snapshot.sha256,
+        disabled: false,
     })
 }
 

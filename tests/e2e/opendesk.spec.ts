@@ -54,7 +54,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     headers: auth.headers,
   });
   expect(about.ok()).toBeTruthy();
-  expect((await about.json()).app.version).toBe("0.8.1");
+  expect((await about.json()).app.version).toBe("0.10.0");
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });
@@ -233,6 +233,18 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   expect(edited.find((item) => item.id === task!.id)?.assigned_agent).toBe(
     "explore",
   );
+
+  const modelUpdate = await request.patch(
+    `${auth.baseURL}/api/tasks/${task!.id}`,
+    {
+      headers: auth.headers,
+      data: { preferred_model: "opencode-go/glm-5.3#high" },
+    },
+  );
+  expect(modelUpdate.ok()).toBeTruthy();
+  expect((await modelUpdate.json()).preferred_model).toBe(
+    "opencode-go/glm-5.3#high",
+  );
 });
 
 test("creates a cron routine, runs it and saves SMTP/Google settings", async ({
@@ -309,4 +321,109 @@ test("creates a chat thread and shows it in the UI", async ({ page, request }) =
     { headers: auth.headers },
   );
   expect(removed.ok()).toBeTruthy();
+});
+
+
+test("studio copies, toggles and installs across scopes", async ({ page, request }) => {
+  const auth = api();
+  const workspaces = await request.get(`${auth.baseURL}/api/workspaces`, {
+    headers: auth.headers,
+  });
+  const workspaceId = ((await workspaces.json()) as Array<{ id: string }>)[0]?.id;
+  expect(workspaceId).toBeTruthy();
+
+  const globalAgent = await request.put(
+    `${auth.baseURL}/api/studio/agent?id=studio-e2e&scope=global`,
+    {
+      headers: auth.headers,
+      data: {
+        name: "Studio E2E",
+        avatar: "🧪",
+        description: "Agente de teste",
+        mode: "subagent",
+        system: "Teste.",
+      },
+    },
+  );
+  expect(globalAgent.ok()).toBeTruthy();
+
+  const copied = await request.post(
+    `${auth.baseURL}/api/studio/agent/studio-e2e/copy?scope=global`,
+    {
+      headers: auth.headers,
+      data: {
+        target_scope: "workspace",
+        target_workspace_id: workspaceId,
+        new_id: "studio-e2e-ws",
+      },
+    },
+  );
+  expect(copied.ok()).toBeTruthy();
+
+  const toggled = await request.post(
+    `${auth.baseURL}/api/studio/agent/studio-e2e-ws/toggle?scope=workspace&workspace_id=${workspaceId}`,
+    { headers: auth.headers, data: { enabled: false } },
+  );
+  expect(toggled.ok()).toBeTruthy();
+
+  const effective = await request.get(
+    `${auth.baseURL}/api/studio/effective?workspace_id=${workspaceId}`,
+    { headers: auth.headers },
+  );
+  expect(effective.ok()).toBeTruthy();
+  const items = (await effective.json()).items as Array<{
+    id: string;
+    source_scope: string;
+    disabled: boolean;
+    kind: string;
+  }>;
+  const workspaceAgent = items.find(
+    (item) => item.id === "studio-e2e-ws" && item.kind === "agent",
+  );
+  expect(workspaceAgent?.source_scope).toBe("workspace");
+  expect(workspaceAgent?.disabled).toBe(true);
+
+  const preview = await request.post(
+    `${auth.baseURL}/api/studio/install/preview`,
+    {
+      headers: auth.headers,
+      data: {
+        source_type: "npm",
+        value: "@modelcontextprotocol/server-memory",
+        name: "memory-e2e",
+      },
+    },
+  );
+  expect(preview.ok()).toBeTruthy();
+  const previewBody = await preview.json();
+  const applied = await request.post(
+    `${auth.baseURL}/api/studio/install/apply`,
+    {
+      headers: auth.headers,
+      data: {
+        items: previewBody.items,
+        target_scope: "workspace",
+        target_workspace_id: workspaceId,
+      },
+    },
+  );
+  expect(applied.ok()).toBeTruthy();
+
+  await page.goto("/#/studio");
+  await expect(page.getByRole("heading", { name: "OpenCode Studio" })).toBeVisible();
+  await page.getByRole("button", { name: "Efetivo" }).click();
+  await expect(page.getByText("studio-e2e-ws").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Instalar" })).toBeVisible();
+
+  await request.delete(
+    `${auth.baseURL}/api/studio/agent/studio-e2e-ws?scope=workspace&workspace_id=${workspaceId}`,
+    { headers: auth.headers },
+  );
+  await request.delete(
+    `${auth.baseURL}/api/studio/mcp/memory-e2e?scope=workspace&workspace_id=${workspaceId}`,
+    { headers: auth.headers },
+  );
+  await request.delete(`${auth.baseURL}/api/studio/agent/studio-e2e?scope=global`, {
+    headers: auth.headers,
+  });
 });

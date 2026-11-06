@@ -445,6 +445,8 @@ mod tests {
             UpdateTaskInput {
                 title: Some("Relatório v2".into()),
                 priority: Some(1),
+                assigned_agent: Some("explore".into()),
+                preferred_model: Some("opencode-go/glm-5.3#high".into()),
                 ..Default::default()
             },
         )
@@ -452,6 +454,11 @@ mod tests {
         .expect("update");
         assert_eq!(updated.title, "Relatório v2");
         assert_eq!(updated.priority, 1);
+        assert_eq!(updated.assigned_agent.as_deref(), Some("explore"));
+        assert_eq!(
+            updated.preferred_model.as_deref(),
+            Some("opencode-go/glm-5.3#high")
+        );
 
         let moved = move_to(&pool, &task.id, "BUILD", Some(2))
             .await

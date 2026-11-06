@@ -1,7 +1,7 @@
 {
   "name": "opendesk",
   "private": true,
-  "version": "0.8.1",
+  "version": "0.10.0",
   "description": "Visual governance, automation and observability for OpenCode",
   "type": "module",
   "scripts": {
@@ -15,7 +15,9 @@
     "test:e2e:ui": "playwright test --ui",
     "test:ui": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:all": "npm run check && npm run test:rust && npm run test:ui && npm run build && npm run test:e2e"
+    "test:all": "npm run check && npm run test:rust && npm run test:ui && npm run build && npm run test:e2e",
+    "clean": "bash scripts/clean.sh",
+    "clean:deep": "bash scripts/clean.sh --deep"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

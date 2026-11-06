@@ -104,7 +104,103 @@ fn backup_file(path: &Path, snapshot: &FileSnapshot, backups_dir: &Path) -> AppR
     let stamp = Utc::now().format("%Y%m%dT%H%M%S%.3fZ");
     let backup_dir = backups_dir.join(format!("{stamp}-{}", Uuid::new_v4().simple()));
     std::fs::create_dir_all(&backup_dir)?;
-    std::fs::write(backup_dir.join(file_name), snapshot.content.as_bytes())?;
+    std::fs::write(backup_dir.join(&file_name), snapshot.content.as_bytes())?;
+    let metadata = serde_json::json!({
+        "original_path": path.to_string_lossy(),
+        "file_name": file_name,
+        "sha256": snapshot.sha256,
+        "created_at": Utc::now().to_rfc3339(),
+    });
+    std::fs::write(
+        backup_dir.join("metadata.json"),
+        serde_json::to_vec_pretty(&metadata)?,
+    )?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BackupEntry {
+    pub id: String,
+    pub original_path: String,
+    pub file_name: String,
+    pub created_at: String,
+    pub sha256: Option<String>,
+}
+
+pub fn list_backups_for(path: &Path, backups_dir: &Path) -> AppResult<Vec<BackupEntry>> {
+    let mut entries = Vec::new();
+    let Ok(directories) = std::fs::read_dir(backups_dir) else {
+        return Ok(entries);
+    };
+    for directory in directories.flatten() {
+        if !directory
+            .file_type()
+            .map(|kind| kind.is_dir())
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        let metadata_path = directory.path().join("metadata.json");
+        let Ok(bytes) = std::fs::read(&metadata_path) else {
+            continue;
+        };
+        let Ok(metadata) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+            continue;
+        };
+        let original = metadata
+            .get("original_path")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default();
+        if original != path.to_string_lossy() {
+            continue;
+        }
+        entries.push(BackupEntry {
+            id: directory.file_name().to_string_lossy().to_string(),
+            original_path: original.to_string(),
+            file_name: metadata
+                .get("file_name")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("config")
+                .to_string(),
+            created_at: metadata
+                .get("created_at")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+            sha256: metadata
+                .get("sha256")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string),
+        });
+    }
+    entries.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+    Ok(entries)
+}
+
+pub fn restore_backup(backup_id: &str, path: &Path, backups_dir: &Path) -> AppResult<()> {
+    if backup_id.contains('/') || backup_id.contains('\\') || backup_id.contains("..") {
+        return Err(AppError::BadRequest("invalid backup id".into()));
+    }
+    let directory = backups_dir.join(backup_id);
+    let metadata_path = directory.join("metadata.json");
+    let bytes = std::fs::read(&metadata_path)
+        .map_err(|_| AppError::NotFound(format!("backup {backup_id}")))?;
+    let metadata: serde_json::Value = serde_json::from_slice(&bytes)?;
+    let original = metadata
+        .get("original_path")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    if original != path.to_string_lossy() {
+        return Err(AppError::BadRequest(
+            "backup does not belong to this file".into(),
+        ));
+    }
+    let file_name = metadata
+        .get("file_name")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("config");
+    let content = std::fs::read_to_string(directory.join(file_name))?;
+    write_text_atomic(path, &content, None, backups_dir)?;
     Ok(())
 }
 
@@ -190,4 +286,37 @@ pub fn list_files_recursive(dir: &Path, extension: &str) -> AppResult<Vec<PathBu
     }
     files.sort();
     Ok(files)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn backup_metadata_lists_and_restores() {
+        let temp = TempDir::new().expect("temp");
+        let path = temp.path().join("agent.md");
+        let backups = temp.path().join("backups");
+        std::fs::write(&path, "v1").expect("v1");
+        write_text_atomic(&path, "v2", None, &backups).expect("v2");
+        let list = list_backups_for(&path, &backups).expect("list");
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].file_name, "agent.md");
+        restore_backup(&list[0].id, &path, &backups).expect("restore");
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), "v1");
+    }
+
+    #[test]
+    fn restore_rejects_foreign_backups() {
+        let temp = TempDir::new().expect("temp");
+        let first = temp.path().join("a.md");
+        let second = temp.path().join("b.md");
+        let backups = temp.path().join("backups");
+        std::fs::write(&first, "a").expect("a");
+        std::fs::write(&second, "b").expect("b");
+        write_text_atomic(&first, "a2", None, &backups).expect("backup");
+        let list = list_backups_for(&first, &backups).expect("list");
+        assert!(restore_backup(&list[0].id, &second, &backups).is_err());
+    }
 }

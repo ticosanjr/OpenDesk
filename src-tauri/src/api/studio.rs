@@ -20,7 +20,7 @@ use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct StudioQuery {
     pub scope: Option<String>,
     pub workspace_id: Option<String>,
@@ -42,7 +42,7 @@ pub struct McpWriteBody {
     pub expected_sha256: Option<String>,
 }
 
-async fn context(
+pub(crate) async fn context(
     state: &AppState,
     query: &StudioQuery,
 ) -> AppResult<(StudioPaths, String, String)> {
@@ -81,7 +81,7 @@ async fn context(
     }
 }
 
-fn require_id(query: &StudioQuery) -> AppResult<String> {
+pub(crate) fn require_id(query: &StudioQuery) -> AppResult<String> {
     query
         .id
         .clone()

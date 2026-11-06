@@ -82,6 +82,7 @@ export function KanbanPage() {
   const [logTask, setLogTask] = useState<Task | null>(null);
   const [initialRunId, setInitialRunId] = useState<string | null>(null);
   const [decision, setDecision] = useState<DispatchDecision | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const draggedRef = useRef<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -283,6 +284,19 @@ export function KanbanPage() {
       {error ? (
         <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
           {error}
+        </p>
+      ) : null}
+      {notice ? (
+        <p className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-300">
+          <CheckCircle2 size={13} />
+          {notice}
+          <button
+            type="button"
+            className="ml-auto text-[10px] text-emerald-300/70 hover:text-emerald-200"
+            onClick={() => setNotice(null)}
+          >
+            fechar
+          </button>
         </p>
       ) : null}
 
@@ -614,8 +628,17 @@ export function KanbanPage() {
         onClose={() => setEditTask(null)}
         onSaved={async (task, rerun) => {
           setEditTask(null);
+          setNotice(
+            rerun
+              ? `Tarefa salva e reenfileirada: ${task.title}`
+              : `Tarefa salva: ${task.title}`,
+          );
           if (rerun) {
-            await apiPost(`/api/tasks/${task.id}/dispatch`, {});
+            try {
+              await apiPost(`/api/tasks/${task.id}/dispatch`, {});
+            } catch (cause) {
+              setError(cause instanceof Error ? cause.message : String(cause));
+            }
           }
           await load();
         }}
@@ -1038,6 +1061,7 @@ function EditTaskModal({
   const [error, setError] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentFile[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
+  const [customModel, setCustomModel] = useState(false);
 
   useEffect(() => {
     if (!task) return;
@@ -1163,20 +1187,45 @@ function EditTaskModal({
         </label>
         <label>
           <span className={labelClass}>Modelo</span>
-          <input
-            list="opendesk-model-options"
-            value={model}
-            onChange={(event) => setModel(event.target.value)}
-            placeholder="automático (router)"
+          <select
+            value={customModel ? "__custom" : model}
+            onChange={(event) => {
+              if (event.target.value === "__custom") {
+                setCustomModel(true);
+                return;
+              }
+              setCustomModel(false);
+              setModel(event.target.value);
+            }}
             className={inputClass}
-          />
-          <datalist id="opendesk-model-options">
-            {models.map((item) => {
-              const provider = item.providerID ?? "";
-              const id = item.modelID ?? item.id;
-              return <option key={`${provider}/${id}`} value={`${provider}/${id}`} />;
-            })}
-          </datalist>
+          >
+            <option value="">automático (router)</option>
+            {Array.from(
+              new Set([
+                ...models.map((item) => {
+                  const provider = item.providerID ?? "";
+                  const id = item.modelID ?? item.id;
+                  return `${provider}/${id}`;
+                }),
+                ...(model ? [model] : []),
+              ]),
+            )
+              .filter(Boolean)
+              .map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            <option value="__custom">personalizado…</option>
+          </select>
+          {customModel ? (
+            <input
+              value={model}
+              onChange={(event) => setModel(event.target.value)}
+              placeholder="provider/model#variant"
+              className={cn(inputClass, "mt-2 font-mono text-[10px]")}
+            />
+          ) : null}
         </label>
         <label>
           <span className={labelClass}>Effort</span>

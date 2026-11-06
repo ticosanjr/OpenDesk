@@ -63,15 +63,17 @@ scripts/release.sh     # build local + retenção de 3 releases (sem CI)
 
 ## Estado atual
 
-Fases 1–8 concluídas: fundação, Studio SSOT, workspaces configuráveis, agentes
-com nome/avatar/cor, roteador DSH, fila, budget guard, execução OpenCode V2 via
-SSE, proveniência, Kanban com transições, erros acionáveis, edição de tarefas,
-chat interativo com qualquer agente, bridge Signal, Meta-Builder, cron, pastas
-determinísticas, SMTP, entregas pós-run, Google Workspace, MCP bridge, resolução
-resiliente do motor OpenCode, fallback para serviço compartilhado, atualização
-do OpenCode, auto-atualização do OpenDesk, concorrência da fila e
-Sobre/diagnóstico. Próxima frente: retry durável, rollback/assinatura, cobertura
-≥80%, Windows/macOS e testes de contrato Google/OpenCode.
+Fases 1–10 concluídas: fundação, Studio SSOT com gestão completa (efetivo,
+copiar/mover/duplicar, toggle, backups e instalação), workspaces configuráveis,
+agentes com nome/avatar/cor, roteador DSH, fila, budget guard, execução OpenCode
+V2 via SSE, proveniência, Kanban com transições, erros acionáveis, edição de
+tarefas, chat interativo com qualquer agente, bridge Signal, Meta-Builder, cron,
+pastas determinísticas, SMTP, entregas pós-run, Google Workspace, MCP bridge,
+resolução resiliente do motor OpenCode, fallback para serviço compartilhado,
+atualização do OpenCode, auto-atualização do OpenDesk, concorrência da fila,
+Sobre/diagnóstico e limpeza automática de build. Próxima frente: retry durável,
+rollback/assinatura, cobertura ≥80%, Windows/macOS e testes de contrato
+Google/OpenCode.
 
 Releases são locais (`releases/`, máximo 3 versões) e nunca via CI. O remoto é
 `origin` em https://github.com/ticosanjr/OpenDesk (privado); `scripts/release.sh`

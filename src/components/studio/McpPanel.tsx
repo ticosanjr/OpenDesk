@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPut } from "@/lib/api";
 import type {
@@ -26,9 +26,11 @@ const DEFAULT_SERVER = `{
 export function McpPanel({
   scope,
   workspaceId,
+  focusId,
 }: {
   scope: StudioScope;
   workspaceId: string | null;
+  focusId?: string | null;
 }) {
   const lastFsEvent = useAppStore((state) => state.lastFsEvent);
   const query = useMemo(
@@ -68,6 +70,18 @@ export function McpPanel({
   useEffect(() => {
     void load();
   }, [load, lastFsEvent?.path]);
+
+  const lastFocus = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusId || lastFocus.current === focusId) return;
+    const found = servers.find((server) => server.name === focusId);
+    if (found) {
+      lastFocus.current = focusId;
+      setName(found.name);
+      setText(JSON.stringify(found.server, null, 2));
+      setIsNew(false);
+    }
+  }, [focusId, servers]);
 
   async function save() {
     const serverName = name.trim();

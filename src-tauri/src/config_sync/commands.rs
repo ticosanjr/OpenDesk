@@ -19,6 +19,8 @@ pub struct CommandFile {
     pub subagent: Option<bool>,
     pub template: String,
     pub sha256: String,
+    #[serde(default)]
+    pub disabled: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -51,12 +53,36 @@ pub fn list(paths: &StudioPaths, scope: &str) -> AppResult<Vec<CommandFile>> {
         }
     }
 
+    let disabled_root = paths.opencode_dir(scope)?.join("disabled/commands");
+    if disabled_root.is_dir() {
+        for path in list_files_recursive(&disabled_root, "md")? {
+            let Ok(id) = relative_id(&disabled_root, &path) else {
+                continue;
+            };
+            if let Ok(mut command) = parse_command(scope, &id, &path) {
+                command.disabled = true;
+                commands.push(command);
+            }
+        }
+    }
     Ok(commands)
 }
 
 pub fn get(paths: &StudioPaths, scope: &str, id: &str) -> AppResult<CommandFile> {
     let id = validate_slug(id, true)?;
     let path = command_path(paths, scope, &id)?;
+    if path.exists() {
+        return parse_command(scope, &id, &path);
+    }
+    let disabled = paths
+        .opencode_dir(scope)?
+        .join("disabled/commands")
+        .join(format!("{id}.md"));
+    if disabled.exists() {
+        let mut command = parse_command(scope, &id, &disabled)?;
+        command.disabled = true;
+        return Ok(command);
+    }
     parse_command(scope, &id, &path)
 }
 
@@ -107,7 +133,14 @@ pub fn write(
 pub fn delete(paths: &StudioPaths, scope: &str, id: &str) -> AppResult<()> {
     let id = validate_slug(id, true)?;
     let path = command_path(paths, scope, &id)?;
-    file_ops::delete_path(&path)
+    if path.exists() {
+        return file_ops::delete_path(&path);
+    }
+    let disabled = paths
+        .opencode_dir(scope)?
+        .join("disabled/commands")
+        .join(format!("{id}.md"));
+    file_ops::delete_path(&disabled)
 }
 
 fn command_path(paths: &StudioPaths, scope: &str, id: &str) -> AppResult<PathBuf> {
@@ -130,6 +163,7 @@ fn parse_command(scope: &str, id: &str, path: &Path) -> AppResult<CommandFile> {
         subagent: markdown::get_bool(mapping, "subagent"),
         template: document.body,
         sha256: snapshot.sha256,
+        disabled: false,
     })
 }
 

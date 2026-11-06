@@ -4,9 +4,10 @@ Sistema operacional visual de governança, automação e observabilidade sobre o
 OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
-> **Status:** fases 1–8 prontas. O OpenDesk cobre fundação, Studio, execução,
-> automação, Google Workspace + MCP bridge, resiliência/atualizações, fluxo
-> básico de tarefas e chat interativo com Signal. Repositório privado:
+> **Status:** fases 1–10 prontas. O OpenDesk cobre fundação, Studio com gestão
+> completa (efetivo, copiar/mover, toggle, backup e instalação), execução,
+> automação, Google Workspace + MCP bridge, resiliência/atualizações, tarefas e
+> chat interativo com Signal. Repositório privado:
 > <https://github.com/ticosanjr/OpenDesk>. Consulte
 > [docs/implementation-plan.md](docs/implementation-plan.md) e
 > [docs/progress.md](docs/progress.md).
@@ -53,6 +54,9 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Sobre & diagnóstico com modos simples/avançado e exportação JSON.
 - Chat interativo com qualquer agente, histórico, streaming por sessão e custo.
 - Signal: vínculo por QR (`signal-cli link`), allowlist e bridge de mensagens.
+- Studio efetivo (global + workspace), copiar/mover/duplicar, toggle, backups e
+  instalação de GitHub/URL/local/npm/catálogo.
+- Limpeza automática de artefatos de build após cada release.
 - Auto-atualização do OpenDesk por release privada com SHA256 e backup.
 - Google Workspace: OAuth2 loopback + PKCE, Docs, Drive, Calendar, Gmail e
   Tasks; export pós-run para Google Docs/Drive.
@@ -101,10 +105,12 @@ No primeiro boot o OpenDesk:
 ```bash
 npm run check          # TypeScript
 npm run build          # frontend
-npm run test:rust      # 82 testes Rust
+npm run test:rust      # 87 testes Rust
 npm run test:ui        # Vitest + cobertura da lógica frontend
-npm run test:e2e       # 5 testes Playwright (headless + Vite)
+npm run test:e2e       # 6 testes Playwright (headless + Vite)
 scripts/gate.sh        # gate local antes de release
+npm run clean          # remove build/cobertura após release
+npm run clean:deep     # remove também node_modules
 cd src-tauri && cargo check
 cd src-tauri && cargo test
 scripts/release.sh     # build + release local + retenção de 3 versões
@@ -187,6 +193,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0010 — Atualizações](docs/decisions/0010-updates.md)
 - [ADR 0011 — Workflow e erros](docs/decisions/0011-task-workflow-and-errors.md)
 - [ADR 0012 — Chat e Signal](docs/decisions/0012-chat-and-signal.md)
+- [ADR 0013 — Gestão do Studio](docs/decisions/0013-studio-management.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)

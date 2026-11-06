@@ -13,6 +13,7 @@ pub mod runs;
 pub mod schedules;
 pub mod signal;
 pub mod studio;
+pub mod studio_ops;
 pub mod tasks;
 pub mod updates;
 pub mod ws;
@@ -133,6 +134,32 @@ fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/studio/config",
             get(studio::get_config).put(studio::put_config),
+        )
+        .route("/api/studio/effective", get(studio_ops::effective))
+        .route("/api/studio/catalog", get(studio_ops::catalog))
+        .route(
+            "/api/studio/install/preview",
+            post(studio_ops::install_preview),
+        )
+        .route("/api/studio/install/apply", post(studio_ops::install_apply))
+        .route(
+            "/api/studio/{kind}/{id}/duplicate",
+            post(studio_ops::duplicate),
+        )
+        .route("/api/studio/{kind}/{id}/copy", post(studio_ops::copy))
+        .route("/api/studio/{kind}/{id}/move", post(studio_ops::move_item))
+        .route("/api/studio/{kind}/{id}/toggle", post(studio_ops::toggle))
+        .route(
+            "/api/studio/{kind}/{id}/backups",
+            get(studio_ops::list_backups),
+        )
+        .route(
+            "/api/studio/{kind}/{id}/restore",
+            post(studio_ops::restore_backup),
+        )
+        .route(
+            "/api/studio/{kind}/{id}",
+            axum::routing::delete(studio_ops::remove_item),
         )
         .route("/api/studio/mcp", get(studio::list_mcp))
         .route(

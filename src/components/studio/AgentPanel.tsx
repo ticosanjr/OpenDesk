@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Loader2, Save, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPut } from "@/lib/api";
 import { slugifyWorkspace } from "@/lib/folder";
@@ -97,9 +97,11 @@ function initials(value: string): string {
 export function AgentPanel({
   scope,
   workspaceId,
+  focusId,
 }: {
   scope: StudioScope;
   workspaceId: string | null;
+  focusId?: string | null;
 }) {
   const lastFsEvent = useAppStore((state) => state.lastFsEvent);
   const query = useMemo(
@@ -136,6 +138,20 @@ export function AgentPanel({
   useEffect(() => {
     void load();
   }, [load, lastFsEvent?.path]);
+
+  const lastFocus = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusId || lastFocus.current === focusId) return;
+    const found = agents.find((agent) => agent.id === focusId);
+    if (found) {
+      lastFocus.current = focusId;
+      setDraft({
+        ...found,
+        permissions: found.permissions.map((permission) => ({ ...permission })),
+      });
+      setIsNew(false);
+    }
+  }, [focusId, agents]);
 
   useEffect(() => {
     apiGet<{ data: ModelInfo[] }>("/api/models")

@@ -146,3 +146,10 @@ else
 fi
 
 echo "==> Release v${VERSION} ready in releases/${VERSION}"
+
+if [[ "${OPENDESK_SKIP_CLEAN:-0}" != "1" ]]; then
+  echo "==> Cleaning build artifacts"
+  "$ROOT/scripts/clean.sh"
+else
+  echo "    cleanup skipped (OPENDESK_SKIP_CLEAN=1)"
+fi

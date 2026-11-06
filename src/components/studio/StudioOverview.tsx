@@ -1,0 +1,600 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ArrowRightLeft,
+  Bot,
+  BookOpen,
+  Copy,
+  History,
+  Loader2,
+  Plus,
+  Search,
+  Terminal,
+  ToggleLeft,
+  ToggleRight,
+  Trash2,
+  Plug,
+  RefreshCw,
+} from "lucide-react";
+import { apiDelete, apiGet, apiPost } from "@/lib/api";
+import type {
+  BackupEntry,
+  EffectiveStudioItem,
+  StudioInstallPreview,
+} from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
+import { useAppStore } from "@/store/app-store";
+import { cn } from "@/lib/utils";
+import { StudioInstallModal } from "@/components/studio/StudioInstallModal";
+
+const KIND_META = {
+  agent: { label: "Agente", icon: Bot },
+  skill: { label: "Skill", icon: BookOpen },
+  command: { label: "Comando", icon: Terminal },
+  mcp: { label: "MCP", icon: Plug },
+} as const;
+
+export function StudioOverview({
+  workspaceId,
+  onOpenEditor,
+}: {
+  workspaceId: string | null;
+  onOpenEditor: (kind: "agent" | "skill" | "command" | "mcp", scope: "global" | "workspace", id: string) => void;
+}) {
+  const workspaces = useAppStore((state) => state.workspaces);
+  const [items, setItems] = useState<EffectiveStudioItem[]>([]);
+  const [search, setSearch] = useState("");
+  const [kindFilter, setKindFilter] = useState<"all" | EffectiveStudioItem["kind"]>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "enabled" | "disabled">("all");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [transfer, setTransfer] = useState<{
+    item: EffectiveStudioItem;
+    mode: "copy" | "move";
+  } | null>(null);
+  const [installOpen, setInstallOpen] = useState(false);
+  const [backupsFor, setBackupsFor] = useState<EffectiveStudioItem | null>(null);
+
+  const load = useCallback(async () => {
+    if (!workspaceId) {
+      setItems([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await apiGet<{ items: EffectiveStudioItem[] }>(
+        `/api/studio/effective?workspace_id=${encodeURIComponent(workspaceId)}`,
+      );
+      setItems(response.items);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setLoading(false);
+    }
+  }, [workspaceId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const filtered = useMemo(
+    () =>
+      items.filter((item) => {
+        if (kindFilter !== "all" && item.kind !== kindFilter) return false;
+        if (statusFilter === "enabled" && item.disabled) return false;
+        if (statusFilter === "disabled" && !item.disabled) return false;
+        if (search.trim()) {
+          const value = item.value as { name?: string; description?: string };
+          const haystack = `${item.id} ${value.name ?? ""} ${value.description ?? ""}`.toLowerCase();
+          return haystack.includes(search.trim().toLowerCase());
+        }
+        return true;
+      }),
+    [items, kindFilter, statusFilter, search],
+  );
+
+  async function duplicate(item: EffectiveStudioItem) {
+    setError(null);
+    try {
+      await apiPost(
+        `/api/studio/${item.kind}/${encodeURIComponent(item.id)}/duplicate?scope=${item.source_scope}`,
+        { new_id: `${item.id}-copy` },
+      );
+      setNotice(`${KIND_META[item.kind].label} duplicado.`);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  async function toggle(item: EffectiveStudioItem) {
+    setError(null);
+    try {
+      await apiPost(
+        `/api/studio/${item.kind}/${encodeURIComponent(item.id)}/toggle?scope=${item.source_scope}`,
+        { enabled: item.disabled },
+      );
+      setNotice(item.disabled ? "Item ativado." : "Item desativado.");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  async function remove(item: EffectiveStudioItem) {
+    if (!window.confirm(`Excluir ${KIND_META[item.kind].label} ${item.id} do escopo ${item.source_scope}?`)) {
+      return;
+    }
+    setError(null);
+    try {
+      await apiDelete(
+        `/api/studio/${item.kind}/${encodeURIComponent(item.id)}?scope=${item.source_scope}${
+          item.kind === "mcp" ? `&workspace_id=${workspaceId ?? ""}` : ""
+        }`,
+      );
+      setNotice("Item excluído.");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  return (
+    <>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800/70 px-4 py-3">
+          <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
+            <Search size={13} className="text-zinc-600" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar por ID, nome ou descrição…"
+              className="h-full flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
+            />
+          </div>
+          <select
+            value={kindFilter}
+            onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}
+            className={selectClass}
+          >
+            <option value="all">todos os tipos</option>
+            <option value="agent">agentes</option>
+            <option value="skill">skills</option>
+            <option value="command">comandos</option>
+            <option value="mcp">MCPs</option>
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+            className={selectClass}
+          >
+            <option value="all">todos os estados</option>
+            <option value="enabled">ativos</option>
+            <option value="disabled">desativados</option>
+          </select>
+          <Badge variant="default">{filtered.length}</Badge>
+          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+            <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
+            Atualizar
+          </Button>
+          <Button size="sm" onClick={() => setInstallOpen(true)}>
+            <Plus size={13} />
+            Instalar
+          </Button>
+        </div>
+
+        {error ? (
+          <p className="mx-4 mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-300">
+            {error}
+          </p>
+        ) : null}
+        {notice ? (
+          <p className="mx-4 mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[10px] text-emerald-300">
+            {notice}
+          </p>
+        ) : null}
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {filtered.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-[11px] text-zinc-600">
+              Nenhum item encontrado. Use “Instalar” para importar de GitHub, URL, npm,
+              catálogo ou pasta local.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((item) => {
+                const meta = KIND_META[item.kind];
+                const Icon = meta.icon;
+                return (
+                  <Card key={`${item.kind}:${item.source_scope}:${item.id}`} className="overflow-hidden">
+                    <CardContent className="flex flex-wrap items-center gap-3 p-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/50 text-zinc-500">
+                        <Icon size={14} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="truncate text-[12px] font-medium text-zinc-200">
+                            {String((item.value as { name?: string }).name || item.id)}
+                          </p>
+                          <Badge variant="default">{meta.label}</Badge>
+                          <Badge variant={item.source_scope === "workspace" ? "blue" : "purple"}>
+                            {item.source_scope}
+                          </Badge>
+                          {item.overridden ? <Badge variant="yellow">override</Badge> : null}
+                          {item.disabled ? <Badge variant="red">desativado</Badge> : null}
+                        </div>
+                        <p className="truncate font-mono text-[9px] text-zinc-600">
+                          {item.id}
+                          {(item.value as { description?: string }).description
+                            ? ` · ${(item.value as { description?: string }).description}`
+                            : ""}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[9px]"
+                          onClick={() => onOpenEditor(item.kind, item.source_scope, item.id)}
+                        >
+                          editar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-[9px]"
+                          onClick={() => void duplicate(item)}
+                        >
+                          <Copy size={11} />
+                          duplicar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-[9px]"
+                          onClick={() => setTransfer({ item, mode: "copy" })}
+                        >
+                          <ArrowRightLeft size={11} />
+                          copiar/mover
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-[9px]"
+                          onClick={() => void toggle(item)}
+                        >
+                          {item.disabled ? <ToggleLeft size={11} /> : <ToggleRight size={11} />}
+                          {item.disabled ? "ativar" : "desativar"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[9px]"
+                          onClick={() => setBackupsFor(item)}
+                        >
+                          <History size={11} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[9px] text-red-300/80"
+                          onClick={() => void remove(item)}
+                        >
+                          <Trash2 size={11} />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <TransferModal
+        transfer={transfer}
+        workspaces={workspaces}
+        workspaceId={workspaceId}
+        onClose={() => setTransfer(null)}
+        onDone={async (message) => {
+          setTransfer(null);
+          setNotice(message);
+          await load();
+        }}
+      />
+      <BackupsModal
+        item={backupsFor}
+        workspaceId={workspaceId}
+        onClose={() => setBackupsFor(null)}
+        onRestored={async () => {
+          setNotice("Backup restaurado.");
+          setBackupsFor(null);
+          await load();
+        }}
+      />
+      <StudioInstallModal
+        open={installOpen}
+        workspaceId={workspaceId}
+        defaultScope="workspace"
+        onClose={() => setInstallOpen(false)}
+        onInstalled={async (preview: StudioInstallPreview) => {
+          setInstallOpen(false);
+          setNotice(`${preview.items.length} item(ns) instalado(s).`);
+          await load();
+        }}
+      />
+    </>
+  );
+}
+
+function TransferModal({
+  transfer,
+  workspaces,
+  workspaceId,
+  onClose,
+  onDone,
+}: {
+  transfer: { item: EffectiveStudioItem; mode: "copy" | "move" } | null;
+  workspaces: Array<{ id: string; name: string }>;
+  workspaceId: string | null;
+  onClose: () => void;
+  onDone: (message: string) => Promise<void>;
+}) {
+  const [mode, setMode] = useState<"copy" | "move">("copy");
+  const [scope, setScope] = useState<"workspace" | "global">("workspace");
+  const [targetWorkspace, setTargetWorkspace] = useState(workspaceId ?? "");
+  const [newId, setNewId] = useState("");
+  const [overwrite, setOverwrite] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!transfer) return;
+    setMode(transfer.mode);
+    setScope(
+      transfer.item.source_scope === "workspace" ? "global" : "workspace",
+    );
+    setTargetWorkspace(workspaceId ?? "");
+    setNewId(transfer.item.id);
+    setOverwrite(false);
+    setError(null);
+  }, [transfer, workspaceId]);
+
+  if (!transfer) return null;
+
+  async function apply() {
+    if (!transfer) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiPost(
+        `/api/studio/${transfer.item.kind}/${encodeURIComponent(transfer.item.id)}/${mode}?scope=${transfer.item.source_scope}${
+          transfer.item.source_scope === "workspace" ? `&workspace_id=${workspaceId ?? ""}` : ""
+        }`,
+        {
+          target_scope: scope,
+          target_workspace_id: scope === "workspace" ? targetWorkspace : null,
+          new_id: newId.trim() || transfer.item.id,
+          overwrite,
+        },
+      );
+      await onDone(
+        mode === "move" ? "Item movido." : "Item copiado.",
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Copiar/mover ${transfer.item.id}`} className="max-w-lg">
+      <div className="space-y-3">
+        <div className="flex gap-2">
+          {(["copy", "move"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setMode(value)}
+              className={cn(
+                "rounded-lg border px-3 py-1.5 text-[11px]",
+                mode === value
+                  ? "border-blue-500/50 bg-blue-500/10 text-blue-200"
+                  : "border-zinc-800 text-zinc-500",
+              )}
+            >
+              {value === "copy" ? "Copiar" : "Mover"}
+            </button>
+          ))}
+        </div>
+        <label className="block">
+          <span className={labelClass}>Escopo destino</span>
+          <select
+            value={scope}
+            onChange={(event) => setScope(event.target.value as "workspace" | "global")}
+            className={inputClass}
+          >
+            <option value="workspace">workspace</option>
+            <option value="global">global</option>
+          </select>
+        </label>
+        {scope === "workspace" ? (
+          <label className="block">
+            <span className={labelClass}>Workspace destino</span>
+            <select
+              value={targetWorkspace}
+              onChange={(event) => setTargetWorkspace(event.target.value)}
+              className={inputClass}
+            >
+              {workspaces.map((workspace) => (
+                <option key={workspace.id} value={workspace.id}>
+                  {workspace.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <label className="block">
+          <span className={labelClass}>Novo ID</span>
+          <input
+            value={newId}
+            onChange={(event) => setNewId(event.target.value)}
+            className={inputClass}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-[11px] text-zinc-400">
+          <input
+            type="checkbox"
+            checked={overwrite}
+            onChange={(event) => setOverwrite(event.target.checked)}
+            className="accent-blue-500"
+          />
+          sobrescrever se já existir
+        </label>
+        {error ? (
+          <p className="rounded border border-red-500/20 bg-red-500/10 p-2 text-[10px] text-red-300">
+            {error}
+          </p>
+        ) : null}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button size="sm" onClick={() => void apply()} disabled={busy}>
+            {busy ? <Loader2 size={13} className="animate-spin" /> : null}
+            {mode === "copy" ? "Copiar" : "Mover"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+const inputClass =
+  "h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[11px] text-zinc-100 outline-none focus:border-blue-500/60";
+const selectClass =
+  "h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300 outline-none focus:border-blue-500/60";
+const labelClass =
+  "mb-1 block text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-500";
+
+
+function BackupsModal({
+  item,
+  workspaceId,
+  onClose,
+  onRestored,
+}: {
+  item: EffectiveStudioItem | null;
+  workspaceId: string | null;
+  onClose: () => void;
+  onRestored: () => Promise<void>;
+}) {
+  const [backups, setBackups] = useState<BackupEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!item) return;
+    setLoading(true);
+    setError(null);
+    const query = `scope=${item.source_scope}${
+      item.source_scope === "workspace" && workspaceId
+        ? `&workspace_id=${workspaceId}`
+        : ""
+    }`;
+    apiGet<{ backups: BackupEntry[] }>(
+      `/api/studio/${item.kind}/${encodeURIComponent(item.id)}/backups?${query}`,
+    )
+      .then((value) => setBackups(value.backups))
+      .catch((cause) =>
+        setError(cause instanceof Error ? cause.message : String(cause)),
+      )
+      .finally(() => setLoading(false));
+  }, [item, workspaceId]);
+
+  if (!item) return null;
+
+  async function restore(backup: BackupEntry) {
+    if (!item) return;
+    if (!window.confirm(`Restaurar backup de ${backup.created_at}?`)) return;
+    setBusy(backup.id);
+    setError(null);
+    try {
+      const query = `scope=${item.source_scope}${
+        item.source_scope === "workspace" && workspaceId
+          ? `&workspace_id=${workspaceId}`
+          : ""
+      }`;
+      await apiPost(
+        `/api/studio/${item.kind}/${encodeURIComponent(item.id)}/restore?${query}`,
+        { backup_id: backup.id },
+      );
+      await onRestored();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Backups de ${item.id}`}
+      description="Cada gravação cria um backup antes de sobrescrever o arquivo nativo."
+      className="max-w-lg"
+    >
+      <div className="space-y-2">
+        {error ? (
+          <p className="rounded border border-red-500/20 bg-red-500/10 p-2 text-[10px] text-red-300">
+            {error}
+          </p>
+        ) : null}
+        {loading ? (
+          <p className="flex items-center gap-2 text-[10px] text-zinc-500">
+            <Loader2 size={12} className="animate-spin" />
+            carregando…
+          </p>
+        ) : backups.length === 0 ? (
+          <p className="text-[10px] text-zinc-600">
+            Nenhum backup para este item ainda.
+          </p>
+        ) : (
+          backups.map((backup) => (
+            <div
+              key={backup.id}
+              className="flex items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] text-zinc-300">{backup.created_at}</p>
+                <p className="truncate font-mono text-[9px] text-zinc-600">
+                  {backup.id}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7"
+                onClick={() => void restore(backup)}
+                disabled={busy !== null}
+              >
+                {busy === backup.id ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : null}
+                restaurar
+              </Button>
+            </div>
+          ))
+        )}
+      </div>
+    </Modal>
+  );
+}

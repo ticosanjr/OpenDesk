@@ -212,6 +212,7 @@ export interface SkillFile {
   body: string;
   files: SkillExtraFile[];
   sha256: string;
+  disabled?: boolean;
 }
 
 export interface CommandFile {
@@ -224,6 +225,7 @@ export interface CommandFile {
   subagent?: boolean | null;
   template: string;
   sha256: string;
+  disabled?: boolean;
 }
 
 export interface ConfigDocument {
@@ -561,4 +563,48 @@ export interface SignalStatus {
   cli_version?: string | null;
   bridge_running: boolean;
   link_running: boolean;
+}
+
+
+export type StudioKind = "agent" | "skill" | "command" | "mcp";
+
+export interface EffectiveStudioItem {
+  kind: StudioKind;
+  id: string;
+  source_scope: "global" | "workspace";
+  overridden: boolean;
+  disabled: boolean;
+  value: Record<string, unknown>;
+}
+
+export interface StudioInstallItem {
+  kind: StudioKind;
+  id: string;
+  name?: string | null;
+  description?: string | null;
+  body: string;
+  files?: SkillExtraFile[];
+  server?: Record<string, unknown> | null;
+}
+
+export interface StudioInstallPreview {
+  items: StudioInstallItem[];
+  warnings: string[];
+}
+
+export interface StudioCatalog {
+  mcps: Array<{
+    id: string;
+    name: string;
+    description: string;
+    server: Record<string, unknown>;
+  }>;
+}
+
+export interface BackupEntry {
+  id: string;
+  original_path: string;
+  file_name: string;
+  created_at: string;
+  sha256?: string | null;
 }

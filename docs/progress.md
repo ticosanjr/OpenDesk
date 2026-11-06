@@ -601,3 +601,49 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   recente (`/opt/java/current/bin`, SDKMAN), necessário para o signal-cli 0.14
   dentro do AppImage/minimal PATH.
 - `probe` do OpenCode tolera `ETXTBSY` durante substituição do binário.
+
+## 2026-11-06 — Fase 10: gestão completa do Studio (0.10.0)
+
+### Studio
+
+- Visão **Efetivo**: global + workspace, com origem, override e estado.
+- Busca, filtro por tipo/estado, contadores e ações rápidas.
+- CRUD continua disponível por tipo e escopo.
+- `duplicate`, `copy` e `move` entre qualquer workspace e global, com novo ID e
+  opção de sobrescrever.
+- Ativação/desativação:
+  - agentes/MCPs via `disabled` nativo;
+  - skills/comandos movidos para `.opencode/disabled/...`.
+- Backups por item com restauração pela UI.
+- Instalação:
+  - catálogo curado de MCPs (filesystem, git, fetch, memory, sequential
+    thinking, Playwright);
+  - GitHub (`owner/repo`), URL, pasta/arquivo local, JSON de MCP e npm;
+  - preview item a item, destino workspace/global, conflito e avisos;
+  - limites de 10 MB, validação de caminho e nenhuma execução de scripts.
+- Editor de MCP mantém JSON bruto e agora participa do toggle/effective.
+
+### Tarefas
+
+- `PATCH /api/tasks/{id}` testado para gravar agente, modelo e limpar campos.
+- Modal de edição usa select de modelos disponíveis + opção personalizada.
+- Feedback “Tarefa salva”.
+- Erros de região/provider (`This model is not available in your country`) agora
+  são classificados como `model_unavailable` com dica de trocar de modelo.
+
+### Limpeza
+
+- `scripts/clean.sh` remove `target`, `dist`, `coverage`, `test-results`,
+  `playwright-report`, `.vite` e temporários.
+- `scripts/release.sh` executa a limpeza no final.
+- `npm run clean` e `npm run clean:deep`.
+- `.gitignore` cobre artefatos de build e cobertura.
+
+### Verificado
+
+- `cargo test` — 87 passed.
+- `cargo clippy --all-targets -- -D warnings` — limpo.
+- `npm run check` — ok.
+- Playwright — 6 testes, incluindo cópia/toggle/effective/instalação npm e
+  persistência de modelo em tarefa.
+- Cobertura Rust — 40,23% (ratchet local); lógica frontend — 90,3%.

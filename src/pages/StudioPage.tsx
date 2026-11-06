@@ -17,6 +17,7 @@ import { SkillPanel } from "@/components/studio/SkillPanel";
 import { CommandPanel } from "@/components/studio/CommandPanel";
 import { McpPanel } from "@/components/studio/McpPanel";
 import { ConfigPanel } from "@/components/studio/ConfigPanel";
+import { StudioOverview } from "@/components/studio/StudioOverview";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import type { StudioScope } from "@/lib/types";
@@ -39,7 +40,8 @@ export function StudioPage() {
     (state) => state.setWorkspaceDialogOpen,
   );
   const [tab, setTab] = useState<Tab>("agents");
-  const [scope, setScope] = useState<StudioScope>("workspace");
+  const [scope, setScope] = useState<StudioScope | "effective">("workspace");
+  const [focusId, setFocusId] = useState<string | null>(null);
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
 
   return (
@@ -86,9 +88,21 @@ export function StudioPage() {
             >
               Global
             </button>
+            <button
+              type="button"
+              onClick={() => setScope("effective")}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors",
+                scope === "effective"
+                  ? "bg-zinc-800 text-zinc-100"
+                  : "text-zinc-500 hover:text-zinc-200",
+              )}
+            >
+              Efetivo
+            </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1">
+          <div className={cn("flex flex-wrap items-center gap-1", scope === "effective" && "hidden")}>
             {TABS.map((item) => (
               <button
                 key={item.id}
@@ -110,7 +124,16 @@ export function StudioPage() {
       </div>
 
       <div className="mt-3 min-h-0 flex-1 overflow-hidden border-t border-zinc-800/70">
-        {scope === "workspace" && !activeWorkspaceId ? (
+        {scope === "effective" ? (
+          <StudioOverview
+            workspaceId={activeWorkspaceId}
+            onOpenEditor={(kind, targetScope, id) => {
+              setScope(targetScope);
+              setFocusId(id);
+              setTab(kind === "mcp" ? "mcp" : kind === "skill" ? "skills" : kind === "command" ? "commands" : "agents");
+            }}
+          />
+        ) : scope === "workspace" && !activeWorkspaceId ? (
           <div className="p-5 lg:p-7">
             <EmptyState
               icon={FolderPlus}
@@ -125,15 +148,15 @@ export function StudioPage() {
             />
           </div>
         ) : tab === "agents" ? (
-          <AgentPanel scope={scope} workspaceId={activeWorkspaceId} />
+          <AgentPanel scope={scope as StudioScope} workspaceId={activeWorkspaceId} focusId={focusId} />
         ) : tab === "skills" ? (
-          <SkillPanel scope={scope} workspaceId={activeWorkspaceId} />
+          <SkillPanel scope={scope as StudioScope} workspaceId={activeWorkspaceId} focusId={focusId} />
         ) : tab === "commands" ? (
-          <CommandPanel scope={scope} workspaceId={activeWorkspaceId} />
+          <CommandPanel scope={scope as StudioScope} workspaceId={activeWorkspaceId} focusId={focusId} />
         ) : tab === "mcp" ? (
-          <McpPanel scope={scope} workspaceId={activeWorkspaceId} />
+          <McpPanel scope={scope as StudioScope} workspaceId={activeWorkspaceId} focusId={focusId} />
         ) : (
-          <ConfigPanel scope={scope} workspaceId={activeWorkspaceId} />
+          <ConfigPanel scope={scope as StudioScope} workspaceId={activeWorkspaceId} />
         )}
       </div>
     </div>
