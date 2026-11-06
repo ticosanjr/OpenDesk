@@ -285,8 +285,28 @@ export function IntegrationsPage() {
         </p>
       ) : null}
 
+      <div className="sticky top-0 z-20 -mx-5 flex flex-wrap gap-1 border-b border-zinc-800/60 bg-[#09090b]/95 px-5 py-2 backdrop-blur lg:-mx-7 lg:px-7">
+        {[
+          ["SMTP", "integrations-smtp"],
+          ["Google", "integrations-google"],
+          ["Signal", "integrations-signal"],
+          ["Entregas", "integrations-deliveries"],
+        ].map(([label, id]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() =>
+              document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+            }
+            className="rounded-lg px-2.5 py-1 text-[10px] font-medium text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="grid gap-3 lg:grid-cols-2">
-        <Card>
+        <Card id="integrations-smtp" className="scroll-mt-14">
           <CardHeader>
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -390,7 +410,7 @@ export function IntegrationsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="integrations-google" className="scroll-mt-14">
           <CardHeader>
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -466,10 +486,12 @@ export function IntegrationsPage() {
           </CardContent>
         </Card>
 
-        <SignalCard />
+        <div id="integrations-signal" className="scroll-mt-14">
+          <SignalCard />
+        </div>
       </div>
 
-      <Card>
+      <Card id="integrations-deliveries" className="scroll-mt-14">
         <CardHeader>
           <div>
             <CardTitle className="flex items-center gap-2">

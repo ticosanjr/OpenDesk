@@ -40,6 +40,7 @@ export function ArtifactsPage() {
 
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [agentFilter, setAgentFilter] = useState("");
+  const [debouncedAgent, setDebouncedAgent] = useState("");
   const [actionFilter, setActionFilter] = useState("");
   const [selected, setSelected] = useState<Artifact | null>(null);
   const [content, setContent] = useState<ArtifactContent | null>(null);
@@ -49,13 +50,19 @@ export function ArtifactsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebouncedAgent(agentFilter), 250);
+    return () => window.clearTimeout(handle);
+  }, [agentFilter]);
+
   const query = useMemo(() => {
     if (!activeWorkspaceId) return "";
     const params = new URLSearchParams({ workspace_id: activeWorkspaceId, limit: "200" });
-    if (agentFilter.trim()) params.set("agent", agentFilter.trim());
+    if (debouncedAgent.trim()) params.set("agent", debouncedAgent.trim());
     if (actionFilter) params.set("action", actionFilter);
     return params.toString();
-  }, [activeWorkspaceId, agentFilter, actionFilter]);
+  }, [activeWorkspaceId, debouncedAgent, actionFilter]);
 
   const load = useCallback(async () => {
     if (!activeWorkspaceId) {

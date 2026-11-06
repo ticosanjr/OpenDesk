@@ -26,12 +26,15 @@ import type {
   Schedule,
   SchedulePreview,
   StudioRuntime,
+  TaskRun,
 } from "@/lib/types";
 import { RecurrenceEditor } from "@/components/routines/RecurrenceEditor";
 import { describeRecurrence, parseRecurrence } from "@/lib/recurrence";
 import { ROUTER_POLICY_LABELS } from "@/lib/types";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { confirmAction } from "@/store/confirm-store";
+import { toast } from "@/store/toast-store";
 
 export function RoutinesPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -46,6 +49,9 @@ export function RoutinesPage() {
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Schedule | null>(null);
+  const [historySchedule, setHistorySchedule] = useState<Schedule | null>(null);
+  const [historyRuns, setHistoryRuns] = useState<TaskRun[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
   const query = useMemo(
@@ -80,8 +86,85 @@ export function RoutinesPage() {
         active: !schedule.is_active,
       });
       await load();
+      toast({
+        tone: "success",
+        title: schedule.is_active ? "Rotina pausada" : "Rotina retomada",
+        description: schedule.name,
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  async function duplicate(schedule: Schedule) {
+    try {
+      await apiPost("/api/schedules", {
+        workspace_id: schedule.workspace_id,
+        name: `${schedule.name} (cópia)`,
+        description: schedule.description,
+        cron_expression: schedule.cron_expression,
+        timezone: schedule.timezone,
+        agent_name: schedule.agent_name,
+        command_or_prompt: schedule.command_or_prompt,
+        router_policy: schedule.router_policy,
+        output_folder_template: schedule.output_folder_template,
+        notify_email_recipients: schedule.notify_email_recipients,
+        notify_signal: schedule.notify_signal,
+        notify_signal_recipients: schedule.notify_signal_recipients,
+        notify_only_on_change: schedule.notify_only_on_change,
+        recurrence_json: schedule.recurrence_json,
+        one_time: schedule.one_time,
+        sync_to_google_docs: schedule.sync_to_google_docs,
+        sync_to_google_calendar: schedule.sync_to_google_calendar,
+        is_active: schedule.is_active,
+      });
+      await load();
+      toast({ tone: "success", title: "Rotina duplicada", description: schedule.name });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível duplicar",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  }
+
+  async function testNotification(schedule: Schedule) {
+    const channel = schedule.notify_email_recipients ? "email" : "signal";
+    try {
+      const result = await apiPost<{ sent: number; channel: string }>(
+        `/api/schedules/${schedule.id}/notify-test`,
+        { channel },
+      );
+      toast({
+        tone: "success",
+        title: "Teste enviado",
+        description: `${result.sent} destino(s) via ${result.channel}.`,
+      });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Falha no teste de notificação",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  }
+
+  async function openHistory(schedule: Schedule) {
+    setHistorySchedule(schedule);
+    setHistoryRuns([]);
+    setHistoryLoading(true);
+    try {
+      const runsList = await apiGet<TaskRun[]>(`/api/schedules/${schedule.id}/runs`);
+      setHistoryRuns(runsList);
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível carregar o histórico",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setHistoryLoading(false);
     }
   }
 
@@ -95,7 +178,7 @@ export function RoutinesPage() {
   }
 
   async function remove(schedule: Schedule) {
-    if (!window.confirm(`Excluir a rotina ${schedule.name}?`)) return;
+    if (!(await confirmAction({ title: `Excluir a rotina ${schedule.name}?`, description: "Os runs já executados e artefatos não serão apagados.", confirmLabel: "Excluir rotina", tone: "destructive" }))) return;
     try {
       await apiDelete(`/api/schedules/${schedule.id}`);
       await load();
@@ -286,6 +369,32 @@ export function RoutinesPage() {
                         variant="outline"
                         size="sm"
                         className="h-7"
+                        onClick={() => void openHistory(schedule)}
+                      >
+                        Histórico
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7"
+                        onClick={() => void duplicate(schedule)}
+                      >
+                        Duplicar
+                      </Button>
+                      {schedule.notify_email_recipients || schedule.notify_signal ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7"
+                          onClick={() => void testNotification(schedule)}
+                        >
+                          Testar aviso
+                        </Button>
+                      ) : null}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7"
                         onClick={() => {
                           setEditing(schedule);
                           setCreateOpen(true);
@@ -327,6 +436,63 @@ export function RoutinesPage() {
           )}
         </CardContent>
       </Card>
+
+      <Modal
+        open={!!historySchedule}
+        onClose={() => setHistorySchedule(null)}
+        title={`Histórico · ${historySchedule?.name ?? "rotina"}`}
+        description="Últimos 100 runs disparados por esta rotina."
+        className="max-w-2xl"
+      >
+        {historyLoading ? (
+          <p className="text-[11px] text-zinc-500">Carregando histórico…</p>
+        ) : historyRuns.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-[11px] text-zinc-600">
+            Nenhum run registrado ainda. Use “Executar agora” ou aguarde o próximo disparo.
+          </p>
+        ) : (
+          <div className="max-h-[55vh] space-y-1.5 overflow-y-auto pr-1">
+            {historyRuns.map((run) => (
+              <div
+                key={run.id}
+                className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[10px]"
+              >
+                <Badge
+                  variant={
+                    run.status === "SUCCESS"
+                      ? "green"
+                      : run.status === "FAILED"
+                        ? "red"
+                        : run.status === "RUNNING"
+                          ? "blue"
+                          : "yellow"
+                  }
+                >
+                  {run.status}
+                </Badge>
+                <span className="font-mono text-zinc-400">{run.phase ?? "run"}</span>
+                <span className="text-zinc-500">
+                  {run.agent_name} · {run.model_id} · {Math.round(run.duration_ms / 1000)}s ·{" "}
+                  {run.tokens_input + run.tokens_output} tokens
+                </span>
+                <span className="ml-auto text-zinc-600">
+                  {relativeTime(run.started_at)}
+                </span>
+                {run.error_message ? (
+                  <p className="w-full truncate font-mono text-[9px] text-red-300/80">
+                    {run.error_message}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="mt-4 flex justify-end border-t border-zinc-800/70 pt-4">
+          <Button variant="ghost" size="sm" onClick={() => setHistorySchedule(null)}>
+            Fechar
+          </Button>
+        </div>
+      </Modal>
 
       <CreateScheduleModal
         open={createOpen}

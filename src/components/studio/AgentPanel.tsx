@@ -19,6 +19,7 @@ import {
   StudioListItem,
 } from "@/components/studio/StudioList";
 import { cn } from "@/lib/utils";
+import { confirmAction } from "@/store/confirm-store";
 
 const ACTIONS = [
   "*",
@@ -223,7 +224,7 @@ export function AgentPanel({
 
   async function remove() {
     if (!draft || isNew) return;
-    if (!window.confirm(`Excluir o agente @${draft.id}?`)) return;
+    if (!(await confirmAction({ title: `Excluir o agente @${draft.id}?`, description: "O arquivo .md será removido do escopo selecionado.", confirmLabel: "Excluir agente", tone: "destructive" }))) return;
     setSaving(true);
     try {
       await apiDelete(`/api/studio/agent?id=${encodeURIComponent(draft.id)}&${query}`);

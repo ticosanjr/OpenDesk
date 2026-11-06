@@ -773,3 +773,58 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   notificações e edição de rotina.
 - Modal ganhou rolagem vertical para formulários altos.
 - `cargo clippy --all-targets -- -D warnings` limpo.
+
+## 2026-11-06 — 0.13.0: explorador, feedback global e gestão de workspace
+
+### Exploração e workspace
+
+- Página Arquivos real com árvore navegável, busca local, breadcrumb, tamanho,
+  data, prévia textual e ações de abrir/copiar caminho.
+- API `/api/files/tree` e `/api/files/content` com validação de caminho,
+  bloqueio de symlink/`..`, limite de 512 KB e omissão de pastas pesadas.
+- Workspace editável (nome, cor, política, timezone e e-mail padrão) e
+  removível sem apagar a pasta no disco.
+- Switcher de workspace com busca, cor, caminho e atalhos para criar/gerenciar.
+
+### Feedback e acessibilidade
+
+- `Toaster` global com variantes, ações e erros persistentes.
+- `ConfirmDialog` substitui os 11 `window.confirm`.
+- `ErrorBoundary` por aplicação com recarregar/tentar novamente.
+- Alerta de budget e progresso de atualização aparecem no shell.
+- Notificações nativas para runs concluídos/falhosos.
+- Modal com focus trap, restauração de foco e `aria-label` no fechamento.
+- Tray: pausar/retomar fila realmente funciona e atualiza o rótulo.
+
+### Formulários e produtividade
+
+- `AgentCombobox` compartilhado (global + workspace + runtime + built-ins +
+  ID manual), `ModelCombobox` com filtro/health e `SlashTextarea` com `/`.
+- Kanban: board horizontal, busca, filtro por agente/prioridade e formulário
+  único de criar/editar com agente global, modelo pesquisável, e-mail e Google.
+- Chat: busca de conversas, renomear inline, pickers compartilhados e `/`.
+- Rotinas: duplicar, testar notificação e histórico por rotina.
+- Command palette busca tarefas, rotinas, artefatos e agentes.
+- Atalhos: `Ctrl/Cmd+K` (busca), `Ctrl/Cmd+N` (nova tarefa), `Ctrl/Cmd+Shift+R`
+  (atualizar dados).
+- Página de Configurações e Integrações ganharam navegação por seções.
+- Dashboard usa agentes do disco quando o engine está offline e separa gasto
+  diário do gasto acumulado.
+
+### Performance e robustez
+
+- Rotas com `React.lazy`: chunk inicial caiu de ~642 KB para ~366 KB
+  (~115 KB gzip).
+- Filtro de artefatos com debounce de 250 ms.
+- Logs de runs em andamento atualizam a cada 3 s.
+- `task_runs.schedule_id` + índice para histórico de rotinas.
+- Backup rotativo do SQLite antes de migrações.
+
+### Testes
+
+- `cargo test` — 107 passed.
+- `vitest` — 41 passed; cobertura de linhas 92,4%.
+- Playwright — 12 passed, incluindo explorador de arquivos e edição/remoção de
+  workspace.
+- `cargo clippy --all-targets -- -D warnings` limpo.
+- `scripts/gate.sh` passou.

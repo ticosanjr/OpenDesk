@@ -13,6 +13,7 @@ import {
   StudioListItem,
 } from "@/components/studio/StudioList";
 import { cn } from "@/lib/utils";
+import { confirmAction } from "@/store/confirm-store";
 
 function blankCommand(scope: StudioScope): CommandFile {
   return {
@@ -123,7 +124,7 @@ export function CommandPanel({
 
   async function remove() {
     if (!draft || isNew) return;
-    if (!window.confirm(`Excluir o comando /${draft.id}?`)) return;
+    if (!(await confirmAction({ title: `Excluir o comando /${draft.id}?`, description: "O arquivo .md será removido do escopo selecionado.", confirmLabel: "Excluir comando", tone: "destructive" }))) return;
     setSaving(true);
     try {
       await apiDelete(`/api/studio/command?id=${encodeURIComponent(draft.id)}&${query}`);

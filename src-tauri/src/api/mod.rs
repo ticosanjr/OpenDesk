@@ -4,6 +4,7 @@ pub mod budget;
 pub mod chat;
 pub mod commands;
 pub mod engine;
+pub mod files;
 pub mod google;
 pub mod integrations;
 pub mod meta;
@@ -212,6 +213,8 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/runs", get(runs::list_runs))
         .route("/api/runs/{id}", get(runs::get_run))
         .route("/api/runs/{id}/log", get(runs::run_log))
+        .route("/api/files/tree", get(files::tree))
+        .route("/api/files/content", get(files::content))
         .route("/api/artifacts", get(artifacts::list_artifacts))
         .route("/api/artifacts/{id}", get(artifacts::get_artifact))
         .route(
@@ -238,6 +241,11 @@ fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/schedules/tick", post(schedules::tick_scheduler))
         .route("/api/schedules/preview", post(schedules::preview_schedule))
+        .route("/api/schedules/{id}/runs", get(schedules::schedule_runs))
+        .route(
+            "/api/schedules/{id}/notify-test",
+            post(schedules::test_notification),
+        )
         .route(
             "/api/schedules/{id}",
             get(schedules::get_schedule)
@@ -410,6 +418,8 @@ async fn dashboard(
             COALESCE(SUM(tokens_cache_read), 0) AS tokens_cache_read,
             COALESCE(SUM(tokens_cache_write), 0) AS tokens_cache_write,
             COALESCE(SUM(estimated_cost_usd), 0.0) AS estimated_cost_usd,
+            COALESCE(SUM(CASE WHEN started_at >= strftime('%Y-%m-%dT00:00:00Z', 'now')
+                THEN estimated_cost_usd ELSE 0 END), 0.0) AS daily_cost_usd,
             0 AS queue_running,
             0 AS queue_waiting,
             0 AS artifacts_total

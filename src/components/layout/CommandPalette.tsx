@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Command } from "cmdk";
 import { useNavigate } from "react-router-dom";
 import {
@@ -19,6 +19,9 @@ import {
 } from "lucide-react";
 import { useUiStore } from "@/store/ui-store";
 import { useAppStore } from "@/store/app-store";
+import { apiGet } from "@/lib/api";
+import type { AgentFile, Artifact, Schedule, Task } from "@/lib/types";
+import { relativeTime } from "@/lib/format";
 import { NAV_ITEMS } from "@/components/layout/Sidebar";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +46,13 @@ export function CommandPalette() {
   );
   const refresh = useAppStore((state) => state.refresh);
   const restartDaemon = useAppStore((state) => state.restartDaemon);
+  const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
+  const setTaskDialogOpen = useUiStore((state) => state.setTaskDialogOpen);
   const navigate = useNavigate();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [agents, setAgents] = useState<AgentFile[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -53,6 +62,29 @@ export function CommandPalette() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, setOpen]);
+
+  useEffect(() => {
+    if (!open || !activeWorkspaceId) return;
+    let cancelled = false;
+    const query = `workspace_id=${encodeURIComponent(activeWorkspaceId)}`;
+    void Promise.all([
+      apiGet<Task[]>(`/api/tasks?${query}`).catch(() => []),
+      apiGet<Artifact[]>(`/api/artifacts?${query}&limit=40`).catch(() => []),
+      apiGet<Schedule[]>(`/api/schedules?${query}`).catch(() => []),
+      apiGet<AgentFile[]>(
+        `/api/studio/agents?scope=workspace&workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+      ).catch(() => []),
+    ]).then(([taskList, artifactList, scheduleList, agentList]) => {
+      if (cancelled) return;
+      setTasks(taskList);
+      setArtifacts(artifactList);
+      setSchedules(scheduleList);
+      setAgents(agentList);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspaceId, open]);
 
   if (!open) return null;
 
@@ -113,10 +145,119 @@ export function CommandPalette() {
             })}
           </Command.Group>
 
+          {tasks.length > 0 ? (
+            <Command.Group
+              heading="Tarefas"
+              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-600"
+            >
+              {tasks.slice(0, 12).map((task) => (
+                <Command.Item
+                  key={task.id}
+                  value={`tarefa ${task.title} ${task.assigned_agent ?? ""}`}
+                  onSelect={() =>
+                    run(() => navigate(`/kanban?task=${encodeURIComponent(task.id)}`))
+                  }
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+                >
+                  <KanbanSquare size={14} className="shrink-0 text-zinc-500" />
+                  <span className="min-w-0 flex-1 truncate">{task.title}</span>
+                  <span className="shrink-0 font-mono text-[9px] text-zinc-600">
+                    {task.column_stage}
+                  </span>
+                </Command.Item>
+              ))}
+            </Command.Group>
+          ) : null}
+
+          {schedules.length > 0 ? (
+            <Command.Group
+              heading="Rotinas"
+              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-600"
+            >
+              {schedules.slice(0, 10).map((schedule) => (
+                <Command.Item
+                  key={schedule.id}
+                  value={`rotina ${schedule.name} ${schedule.cron_expression}`}
+                  onSelect={() => run(() => navigate("/routines"))}
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+                >
+                  <CalendarClock size={14} className="shrink-0 text-zinc-500" />
+                  <span className="min-w-0 flex-1 truncate">{schedule.name}</span>
+                  <span className="shrink-0 font-mono text-[9px] text-zinc-600">
+                    {schedule.is_active ? "ativa" : "pausada"}
+                  </span>
+                </Command.Item>
+              ))}
+            </Command.Group>
+          ) : null}
+
+          {artifacts.length > 0 ? (
+            <Command.Group
+              heading="Artefatos"
+              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-600"
+            >
+              {artifacts.slice(0, 10).map((artifact) => (
+                <Command.Item
+                  key={artifact.id}
+                  value={`artefato ${artifact.file_path} ${artifact.created_by_agent}`}
+                  onSelect={() =>
+                    run(() =>
+                      navigate(`/artifacts?id=${encodeURIComponent(artifact.id)}`),
+                    )
+                  }
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+                >
+                  <Archive size={14} className="shrink-0 text-zinc-500" />
+                  <span className="min-w-0 flex-1 truncate font-mono text-[10px]">
+                    {artifact.file_path}
+                  </span>
+                  <span className="shrink-0 text-[9px] text-zinc-600">
+                    {relativeTime(artifact.created_at)}
+                  </span>
+                </Command.Item>
+              ))}
+            </Command.Group>
+          ) : null}
+
+          {agents.length > 0 ? (
+            <Command.Group
+              heading="Agentes"
+              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-600"
+            >
+              {agents.slice(0, 10).map((agent) => (
+                <Command.Item
+                  key={agent.id}
+                  value={`agente ${agent.id} ${agent.name ?? ""}`}
+                  onSelect={() => run(() => navigate("/studio"))}
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+                >
+                  <Wand2 size={14} className="shrink-0 text-zinc-500" />
+                  <span className="min-w-0 flex-1 truncate">@{agent.id}</span>
+                  <span className="shrink-0 text-[9px] text-zinc-600">
+                    {agent.name ?? "agente"}
+                  </span>
+                </Command.Item>
+              ))}
+            </Command.Group>
+          ) : null}
+
           <Command.Group
             heading="Ações"
             className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-600"
           >
+            <Command.Item
+              value="Nova tarefa"
+              onSelect={() =>
+                run(() => {
+                  navigate("/kanban");
+                  setTaskDialogOpen(true);
+                })
+              }
+              className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+            >
+              <KanbanSquare size={15} className="text-zinc-500" />
+              Nova tarefa
+            </Command.Item>
             <Command.Item
               value="Novo workspace"
               onSelect={() =>

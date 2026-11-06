@@ -13,6 +13,7 @@ import {
   Play,
   Plus,
   RotateCw,
+  Search,
   Square,
   XCircle,
 } from "lucide-react";
@@ -21,15 +22,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
+import { AgentCombobox } from "@/components/ui/agent-combobox";
+import { ModelCombobox } from "@/components/ui/model-combobox";
+import { SlashTextarea } from "@/components/ui/slash-textarea";
+import { toast } from "@/store/toast-store";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiGet, apiPatch, apiPost, apiPut, apiText } from "@/lib/api";
 import type {
-  AgentFile,
   DispatchDecision,
-  ModelHealth,
-  ModelInfo,
   QueueJob,
   QueueStatus,
   Task,
@@ -38,6 +40,7 @@ import type {
 } from "@/lib/types";
 import { formatUsd, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { confirmAction } from "@/store/confirm-store";
 
 const COLUMNS = [
   { id: "BACKLOG", label: "Backlog", tone: "default" as const },
@@ -84,6 +87,9 @@ export function KanbanPage() {
   const [initialRunId, setInitialRunId] = useState<string | null>(null);
   const [decision, setDecision] = useState<DispatchDecision | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [agentFilter, setAgentFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
   const draggedRef = useRef<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -91,6 +97,27 @@ export function KanbanPage() {
   const workspaceQuery = useMemo(
     () => (activeWorkspaceId ? `?workspace_id=${encodeURIComponent(activeWorkspaceId)}` : ""),
     [activeWorkspaceId],
+  );
+
+  const filteredTasks = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return tasks.filter((task) => {
+      if (needle) {
+        const haystack = `${task.title} ${task.description} ${task.tags_json} ${task.assigned_agent ?? ""}`.toLowerCase();
+        if (!haystack.includes(needle)) return false;
+      }
+      if (agentFilter && (task.assigned_agent ?? "") !== agentFilter) return false;
+      if (priorityFilter && String(task.priority) !== priorityFilter) return false;
+      return true;
+    });
+  }, [agentFilter, priorityFilter, query, tasks]);
+
+  const boardAgents = useMemo(
+    () =>
+      Array.from(
+        new Set(tasks.map((task) => task.assigned_agent).filter(Boolean)),
+      ).sort() as string[],
+    [tasks],
   );
 
   const load = useCallback(async () => {
@@ -180,14 +207,26 @@ export function KanbanPage() {
       stage !== "DONE" &&
       stage !== "BACKLOG" &&
       !running &&
-      !window.confirm(
-        `Mover para ${stage}? Isso pode iniciar uma execução e consumir budget.`,
-      )
+      !(await confirmAction({
+        title: `Mover para ${stage}?`,
+        description:
+          "Isso pode iniciar uma execução no OpenCode e consumir budget. A coluna é persistida antes do disparo.",
+        confirmLabel: "Mover e executar",
+      }))
     ) {
       return;
     }
-    if (stage === "BACKLOG" && running) {
-      if (!window.confirm("Cancelar a execução atual e voltar para Backlog?")) return;
+    if (
+      stage === "BACKLOG" &&
+      running &&
+      !(await confirmAction({
+        title: "Cancelar a execução atual?",
+        description: "A tarefa volta para Backlog e o run em andamento é interrompido.",
+        confirmLabel: "Cancelar execução",
+        tone: "destructive",
+      }))
+    ) {
+      return;
     }
     setError(null);
     // Optimistic move so the card does not jump back while the API responds.
@@ -327,14 +366,81 @@ export function KanbanPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-3 xl:grid-cols-5">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/20 px-3 py-2">
+        <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
+          <Search size={13} className="text-zinc-600" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Buscar por título, descrição, tag ou agente…"
+            className="h-full flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
+          />
+        </div>
+        <select
+          value={agentFilter}
+          onChange={(event) => setAgentFilter(event.target.value)}
+          className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300"
+          aria-label="Filtrar por agente"
+        >
+          <option value="">todos os agentes</option>
+          {boardAgents.map((agent) => (
+            <option key={agent} value={agent}>
+              @{agent}
+            </option>
+          ))}
+        </select>
+        <select
+          value={priorityFilter}
+          onChange={(event) => setPriorityFilter(event.target.value)}
+          className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300"
+          aria-label="Filtrar por prioridade"
+        >
+          <option value="">todas as prioridades</option>
+          {[4, 3, 2, 1].map((priority) => (
+            <option key={priority} value={priority}>
+              {priority} — {PRIORITY_LABEL[priority]}
+            </option>
+          ))}
+        </select>
+        <Badge variant="default">{filteredTasks.length} de {tasks.length}</Badge>
+        {(query || agentFilter || priorityFilter) ? (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setAgentFilter("");
+              setPriorityFilter("");
+            }}
+            className="text-[10px] text-zinc-500 hover:text-zinc-200"
+          >
+            limpar filtros
+          </button>
+        ) : null}
+        <label className="ml-auto flex items-center gap-2 text-[10px] text-zinc-500">
+          concorrência
+          <select
+            value={queueStatus?.concurrency ?? 1}
+            onChange={(event) => void setConcurrency(Number(event.target.value))}
+            className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300"
+            aria-label="Concorrência da fila"
+          >
+            {[1, 2, 3, 4].map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
         {COLUMNS.map((column) => {
-          const columnTasks = tasks.filter((task) => task.column_stage === column.id);
+          const columnTasks = filteredTasks.filter((task) => task.column_stage === column.id);
           return (
             <Card
               key={column.id}
               data-column={column.id}
-              className="flex min-h-[380px] flex-col"
+              className="flex min-h-[440px] w-[280px] shrink-0 flex-col"
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 const taskId =
@@ -692,48 +798,161 @@ function CreateTaskModal({
   onClose: () => void;
   onCreated: () => Promise<void>;
 }) {
+  return (
+    <TaskFormModal
+      open={open}
+      mode="create"
+      task={null}
+      workspaceId={workspaceId}
+      onClose={onClose}
+      onSaved={async () => {
+        await onCreated();
+      }}
+    />
+  );
+}
+
+function EditTaskModal({
+  task,
+  onClose,
+  onSaved,
+}: {
+  task: Task | null;
+  onClose: () => void;
+  onSaved: (task: Task, rerun: boolean) => Promise<void>;
+}) {
+  return (
+    <TaskFormModal
+      open={!!task}
+      mode="edit"
+      task={task}
+      workspaceId={task?.workspace_id ?? null}
+      onClose={onClose}
+      onSaved={async (saved, rerun) => {
+        await onSaved(saved, rerun);
+      }}
+    />
+  );
+}
+
+function TaskFormModal({
+  open,
+  mode,
+  task,
+  workspaceId,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  mode: "create" | "edit";
+  task: Task | null;
+  workspaceId: string | null;
+  onClose: () => void;
+  onSaved: (task: Task, rerun: boolean) => Promise<void>;
+}) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [mode, setMode] = useState("AUTO_DSH");
+  const [executionMode, setExecutionMode] = useState("AUTO_DSH");
   const [priority, setPriority] = useState(2);
   const [tags, setTags] = useState("");
   const [agent, setAgent] = useState("");
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("medium");
-  const [saving, setSaving] = useState(false);
+  const [email, setEmail] = useState("");
+  const [exportToGdocs, setExportToGdocs] = useState(false);
+  const [saving, setSaving] = useState<"save" | "rerun" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function submit() {
+  useEffect(() => {
+    if (!open) return;
+    setError(null);
+    if (task) {
+      setTitle(task.title);
+      setDescription(task.description);
+      setExecutionMode(task.execution_mode);
+      setPriority(task.priority);
+      setAgent(task.assigned_agent ?? "");
+      setModel(task.preferred_model ?? "");
+      setEffort(task.effort_level);
+      setEmail(task.notify_email ?? "");
+      setExportToGdocs(task.export_to_gdocs);
+      try {
+        setTags((JSON.parse(task.tags_json) as string[]).join(", "));
+      } catch {
+        setTags("");
+      }
+    } else {
+      setTitle("");
+      setDescription("");
+      setExecutionMode("AUTO_DSH");
+      setPriority(2);
+      setAgent("");
+      setModel("");
+      setEffort("medium");
+      setEmail("");
+      setExportToGdocs(false);
+      setTags("");
+    }
+  }, [open, task]);
+
+  if (!open) return null;
+  const running =
+    task?.phase_status === "queued" || task?.phase_status === "running";
+
+  async function submit(rerun: boolean) {
+    if (!workspaceId) return;
     if (!title.trim() || !description.trim()) {
       setError("Título e descrição são obrigatórios.");
       return;
     }
-    setSaving(true);
+    setSaving(rerun ? "rerun" : "save");
     setError(null);
     try {
-      await apiPost(`/api/tasks?workspace_id=${encodeURIComponent(workspaceId)}`, {
+      const payload = {
         title: title.trim(),
         description: description.trim(),
-        execution_mode: mode,
+        execution_mode: executionMode,
         priority,
+        assigned_agent: agent.trim() || null,
+        preferred_model: model.trim() || null,
+        effort_level: effort,
+        notify_email: email.trim() || null,
+        export_to_gdocs: exportToGdocs,
         tags: tags
           .split(",")
           .map((tag) => tag.trim())
           .filter(Boolean),
-        assigned_agent: agent.trim() || null,
-        preferred_model: model.trim() || null,
-        effort_level: effort,
-      });
-      setTitle("");
-      setDescription("");
-      setTags("");
-      setAgent("");
-      setModel("");
-      await onCreated();
+      };
+      if (mode === "create") {
+        const created = await apiPost<Task>(
+          `/api/tasks?workspace_id=${encodeURIComponent(workspaceId)}`,
+          payload,
+        );
+        toast({
+          tone: "success",
+          title: "Tarefa criada",
+          description: `“${created.title}” entrou no Kanban.`,
+        });
+        await onSaved(created, false);
+      } else if (task) {
+        const saved = await apiPatch<Task>(`/api/tasks/${task.id}`, {
+          ...payload,
+          agent_override: Boolean(agent.trim()),
+          model_override: Boolean(model.trim()),
+          clear_agent: !agent.trim(),
+          clear_model: !model.trim(),
+        });
+        toast({
+          tone: "success",
+          title: rerun ? "Tarefa salva e reenfileirada" : "Tarefa atualizada",
+          description: saved.title,
+        });
+        await onSaved(saved, rerun);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setSaving(false);
+      setSaving(null);
     }
   }
 
@@ -741,33 +960,42 @@ function CreateTaskModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Nova tarefa"
-      description="O roteador DSH decide Plan/Build, agente, modelo e effort. Você pode sobrescrever manualmente."
+      title={mode === "create" ? "Nova tarefa" : "Editar tarefa"}
+      description={
+        mode === "create"
+          ? "O roteador DSH decide Plan/Build, agente, modelo e effort. Você pode sobrescrever manualmente."
+          : "Corrija agente, modelo, prompt e prioridade sem recriar o card."
+      }
       className="max-w-2xl"
     >
       <div className="grid gap-3 md:grid-cols-2">
         <label className="md:col-span-2">
           <span className={labelClass}>Título</span>
           <input
+            autoFocus
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder="Relatório executivo de vendas"
             className={inputClass}
           />
         </label>
-        <label className="md:col-span-2">
+        <div className="md:col-span-2">
           <span className={labelClass}>Descrição / prompt</span>
-          <textarea
+          <SlashTextarea
             value={description}
-            onChange={(event) => setDescription(event.target.value)}
+            onChange={setDescription}
+            workspaceId={workspaceId}
             rows={5}
-            placeholder="Descreva o objetivo, as entradas e os critérios de aceite…"
-            className={cn(inputClass, "h-auto resize-y py-2")}
+            placeholder="Descreva o objetivo, as entradas e os critérios de aceite… Digite / para comandos e skills."
           />
-        </label>
+        </div>
         <label>
           <span className={labelClass}>Modo</span>
-          <select value={mode} onChange={(event) => setMode(event.target.value)} className={inputClass}>
+          <select
+            value={executionMode}
+            onChange={(event) => setExecutionMode(event.target.value)}
+            className={inputClass}
+          >
             <option value="AUTO_DSH">AUTO_DSH — roteador decide</option>
             <option value="PLAN_ONLY">PLAN_ONLY — só plano</option>
             <option value="PLAN_THEN_BUILD">PLAN_THEN_BUILD — aprovar plano</option>
@@ -781,10 +1009,40 @@ function CreateTaskModal({
             onChange={(event) => setPriority(Number(event.target.value))}
             className={inputClass}
           >
-            <option value={1}>1 — baixa</option>
-            <option value={2}>2 — normal</option>
-            <option value={3}>3 — alta</option>
-            <option value={4}>4 — crítica</option>
+            {[4, 3, 2, 1].map((value) => (
+              <option key={value} value={value}>
+                {value} — {PRIORITY_LABEL[value]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div>
+          <span className={labelClass}>Agente (opcional)</span>
+          <AgentCombobox
+            value={agent}
+            onChange={(value) => setAgent(value)}
+            workspaceId={workspaceId}
+            placeholder="automático (router)"
+          />
+        </div>
+        <div>
+          <span className={labelClass}>Modelo (opcional)</span>
+          <ModelCombobox
+            value={model}
+            onChange={setModel}
+            placeholder="digite para filtrar (ex.: deepseek, glm, opencode-go/…)"
+          />
+        </div>
+        <label>
+          <span className={labelClass}>Effort</span>
+          <select
+            value={effort}
+            onChange={(event) => setEffort(event.target.value)}
+            className={inputClass}
+          >
+            <option value="low">low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
           </select>
         </label>
         <label>
@@ -797,45 +1055,68 @@ function CreateTaskModal({
           />
         </label>
         <label>
-          <span className={labelClass}>Agente manual (opcional)</span>
+          <span className={labelClass}>E-mail de notificação</span>
           <input
-            value={agent}
-            onChange={(event) => setAgent(event.target.value)}
-            placeholder="build, plan, auditor…"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="ops@empresa.com"
             className={inputClass}
           />
         </label>
-        <label>
-          <span className={labelClass}>Modelo manual (opcional)</span>
+        <label className="flex items-end gap-2 pb-2 text-[11px] text-zinc-400">
           <input
-            value={model}
-            onChange={(event) => setModel(event.target.value)}
-            placeholder="opencode-go/glm-5.3"
-            className={inputClass}
+            type="checkbox"
+            checked={exportToGdocs}
+            onChange={(event) => setExportToGdocs(event.target.checked)}
+            className="accent-blue-500"
           />
-        </label>
-        <label>
-          <span className={labelClass}>Effort manual</span>
-          <select value={effort} onChange={(event) => setEffort(event.target.value)} className={inputClass}>
-            <option value="low">low</option>
-            <option value="medium">medium</option>
-            <option value="high">high</option>
-          </select>
+          exportar para Google Docs
         </label>
       </div>
+      {running ? (
+        <p className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-200">
+          Cancele a execução atual antes de salvar alterações.
+        </p>
+      ) : null}
       {error ? (
         <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
           {error}
         </p>
       ) : null}
-      <div className="mt-4 flex justify-end gap-2 border-t border-zinc-800/70 pt-4">
+      <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-zinc-800/70 pt-4">
         <Button variant="ghost" size="sm" onClick={onClose}>
           Cancelar
         </Button>
-        <Button size="sm" onClick={() => void submit()} disabled={saving}>
-          {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-          Criar tarefa
-        </Button>
+        {mode === "create" ? (
+          <Button size="sm" onClick={() => void submit(false)} disabled={saving !== null}>
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            Criar tarefa
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void submit(false)}
+              disabled={saving !== null || running}
+            >
+              {saving === "save" ? <Loader2 size={14} className="animate-spin" /> : null}
+              Salvar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void submit(true)}
+              disabled={saving !== null || running}
+            >
+              {saving === "rerun" ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <ArrowRightLeft size={14} />
+              )}
+              Salvar e reexecutar
+            </Button>
+          </>
+        )}
       </div>
     </Modal>
   );
@@ -1062,330 +1343,6 @@ function runVariant(status: string): "green" | "red" | "blue" | "yellow" | "defa
   return "default";
 }
 
-function EditTaskModal({
-  task,
-  onClose,
-  onSaved,
-}: {
-  task: Task | null;
-  onClose: () => void;
-  onSaved: (task: Task, rerun: boolean) => Promise<void>;
-}) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [mode, setMode] = useState("AUTO_DSH");
-  const [priority, setPriority] = useState(2);
-  const [agent, setAgent] = useState("");
-  const [model, setModel] = useState("");
-  const [effort, setEffort] = useState("medium");
-  const [tags, setTags] = useState("");
-  const [email, setEmail] = useState("");
-  const [exportToGdocs, setExportToGdocs] = useState(false);
-  const [saving, setSaving] = useState<"save" | "rerun" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [agents, setAgents] = useState<AgentFile[]>([]);
-  const [models, setModels] = useState<ModelInfo[]>([]);
-  const [modelHealth, setModelHealth] = useState<ModelHealth[]>([]);
-  const [modelInput, setModelInput] = useState("");
-  const [modelOpen, setModelOpen] = useState(false);
-
-  useEffect(() => {
-    if (!task) return;
-    setTitle(task.title);
-    setDescription(task.description);
-    setMode(task.execution_mode);
-    setPriority(task.priority);
-    setAgent(task.assigned_agent ?? "");
-    setModel(task.preferred_model ?? "");
-    setModelInput(task.preferred_model ?? "");
-    setEffort(task.effort_level);
-    setEmail(task.notify_email ?? "");
-    setExportToGdocs(task.export_to_gdocs);
-    try {
-      setTags((JSON.parse(task.tags_json) as string[]).join(", "));
-    } catch {
-      setTags("");
-    }
-    setError(null);
-    const studioQuery = `scope=workspace&workspace_id=${encodeURIComponent(task.workspace_id)}`;
-    Promise.all([
-      apiGet<AgentFile[]>(`/api/studio/agents?${studioQuery}`).catch(() => []),
-      apiGet<{ data: ModelInfo[] }>("/api/models").catch(() => ({ data: [] })),
-      apiGet<{ models: ModelHealth[] }>("/api/models/health").catch(() => ({
-        models: [],
-      })),
-    ]).then(([agentList, modelResponse, health]) => {
-      setAgents(agentList);
-      setModels(modelResponse.data ?? []);
-      setModelHealth(health.models);
-    });
-  }, [task]);
-
-  if (!task) return null;
-  const running = task.phase_status === "queued" || task.phase_status === "running";
-
-  async function save(rerun: boolean) {
-    if (!task) return;
-    if (!title.trim() || !description.trim()) {
-      setError("Título e descrição são obrigatórios.");
-      return;
-    }
-    setSaving(rerun ? "rerun" : "save");
-    setError(null);
-    try {
-      const saved = await apiPatch<Task>(`/api/tasks/${task.id}`, {
-        title: title.trim(),
-        description: description.trim(),
-        execution_mode: mode,
-        priority,
-        assigned_agent: agent.trim() || null,
-        preferred_model: model.trim() || null,
-        effort_level: effort,
-        notify_email: email.trim() || null,
-        export_to_gdocs: exportToGdocs,
-        tags: tags
-          .split(",")
-          .map((tag) => tag.trim())
-          .filter(Boolean),
-        agent_override: Boolean(agent.trim()),
-        model_override: Boolean(model.trim()),
-        clear_agent: !agent.trim(),
-        clear_model: !model.trim(),
-      });
-      await onSaved(saved, rerun);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setSaving(null);
-    }
-  }
-
-  return (
-    <Modal
-      open={!!task}
-      onClose={onClose}
-      title="Editar tarefa"
-      description="Corrija agente, modelo, prompt e prioridade sem recriar o card."
-      className="max-w-2xl"
-    >
-      <div className="grid gap-3 md:grid-cols-2">
-        <label className="md:col-span-2">
-          <span className={labelClass}>Título</span>
-          <input value={title} onChange={(event) => setTitle(event.target.value)} className={inputClass} />
-        </label>
-        <label className="md:col-span-2">
-          <span className={labelClass}>Descrição / prompt</span>
-          <textarea
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            rows={5}
-            className={cn(inputClass, "h-auto resize-y py-2")}
-          />
-        </label>
-        <label>
-          <span className={labelClass}>Modo</span>
-          <select value={mode} onChange={(event) => setMode(event.target.value)} className={inputClass}>
-            <option value="AUTO_DSH">AUTO_DSH</option>
-            <option value="PLAN_ONLY">PLAN_ONLY</option>
-            <option value="PLAN_THEN_BUILD">PLAN_THEN_BUILD</option>
-            <option value="BUILD_DIRECT">BUILD_DIRECT</option>
-          </select>
-        </label>
-        <label>
-          <span className={labelClass}>Prioridade</span>
-          <select value={priority} onChange={(event) => setPriority(Number(event.target.value))} className={inputClass}>
-            {[1, 2, 3, 4].map((value) => (
-              <option key={value} value={value}>
-                {value} — {PRIORITY_LABEL[value]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className={labelClass}>Agente</span>
-          <input
-            list="opendesk-agent-options"
-            value={agent}
-            onChange={(event) => setAgent(event.target.value)}
-            placeholder="automático (router)"
-            className={inputClass}
-          />
-          <datalist id="opendesk-agent-options">
-            {agents.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name ?? item.id}
-              </option>
-            ))}
-          </datalist>
-        </label>
-        <label className="relative">
-          <span className={labelClass}>Modelo</span>
-          <input
-            value={modelInput}
-            onChange={(event) => {
-              setModelInput(event.target.value);
-              setModel(event.target.value);
-              setModelOpen(true);
-            }}
-            onFocus={() => setModelOpen(true)}
-            onBlur={() => window.setTimeout(() => setModelOpen(false), 150)}
-            placeholder="digite para filtrar (ex.: deepseek, glm, opencode-go/…)"
-            className={cn(inputClass, "font-mono text-[10px]")}
-          />
-          {modelHealth.some(
-            (item) =>
-              `${item.provider_id}/${item.model_id}` ===
-              model.split("#")[0],
-          ) ? (
-            <p className="mt-1 text-[9px] text-amber-300">
-              Este modelo falhou recentemente ({modelHealth.find(
-                (item) =>
-                  `${item.provider_id}/${item.model_id}` ===
-                  model.split("#")[0],
-              )?.code}). Escolha outro ou limpe o cooldown em Configurações →
-              OpenCode Engine.
-            </p>
-          ) : null}
-          {modelOpen ? (
-            <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
-              <button
-                type="button"
-                className="block w-full rounded px-2 py-1 text-left text-[10px] text-zinc-400 hover:bg-zinc-800"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  setModel("");
-                  setModelInput("");
-                  setModelOpen(false);
-                }}
-              >
-                automático (router)
-              </button>
-              {(() => {
-                const query = modelInput.trim().toLowerCase();
-                const values = Array.from(
-                  new Set([
-                    ...models.map((item) => {
-                      const provider = item.providerID ?? "";
-                      const id = item.modelID ?? item.id;
-                      return `${provider}/${id}`;
-                    }),
-                    ...(model ? [model] : []),
-                  ]),
-                ).filter(Boolean);
-                const filtered = values
-                  .filter((value) => !query || value.toLowerCase().includes(query))
-                  .slice(0, 60);
-                return (
-                  <>
-                    {filtered.map((value) => {
-                      const base = value.split("#")[0];
-                      const failed = modelHealth.some(
-                        (item) => `${item.provider_id}/${item.model_id}` === base,
-                      );
-                      return (
-                      <button
-                        key={value}
-                        type="button"
-                        className={cn(
-                          "block w-full rounded px-2 py-1 text-left font-mono text-[10px] hover:bg-zinc-800",
-                          value === model ? "bg-zinc-800 text-zinc-100" : "text-zinc-300",
-                        )}
-                        onMouseDown={(event) => {
-                          event.preventDefault();
-                          setModel(value);
-                          setModelInput(value);
-                          setModelOpen(false);
-                        }}
-                      >
-                        {value}
-                        {failed ? " ⚠ falhou recentemente" : ""}
-                      </button>
-                      );
-                    })}
-                    {modelInput.trim() &&
-                    !values.some(
-                      (value) => value.toLowerCase() === modelInput.trim().toLowerCase(),
-                    ) ? (
-                      <button
-                        type="button"
-                        className="block w-full rounded px-2 py-1 text-left font-mono text-[10px] text-blue-300 hover:bg-zinc-800"
-                        onMouseDown={(event) => {
-                          event.preventDefault();
-                          setModel(modelInput.trim());
-                          setModelOpen(false);
-                        }}
-                      >
-                        usar “{modelInput.trim()}”
-                      </button>
-                    ) : null}
-                    {filtered.length === 0 && !modelInput.trim() ? (
-                      <p className="px-2 py-1 text-[10px] text-zinc-600">
-                        Nenhum modelo disponível. Digite um valor personalizado.
-                      </p>
-                    ) : null}
-                  </>
-                );
-              })()}
-            </div>
-          ) : null}
-        </label>
-        <label>
-          <span className={labelClass}>Effort</span>
-          <select value={effort} onChange={(event) => setEffort(event.target.value)} className={inputClass}>
-            <option value="low">low</option>
-            <option value="medium">medium</option>
-            <option value="high">high</option>
-          </select>
-        </label>
-        <label>
-          <span className={labelClass}>Tags (vírgula)</span>
-          <input value={tags} onChange={(event) => setTags(event.target.value)} className={inputClass} />
-        </label>
-        <label>
-          <span className={labelClass}>E-mail de notificação</span>
-          <input value={email} onChange={(event) => setEmail(event.target.value)} className={inputClass} />
-        </label>
-        <label className="flex items-end gap-2 pb-2 text-[11px] text-zinc-400">
-          <input
-            type="checkbox"
-            checked={exportToGdocs}
-            onChange={(event) => setExportToGdocs(event.target.checked)}
-            className="accent-blue-500"
-          />
-          exportar para Google Docs
-        </label>
-      </div>
-      {running ? (
-        <p className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-200">
-          Cancele a execução atual antes de salvar alterações.
-        </p>
-      ) : null}
-      {error ? (
-        <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
-          {error}
-        </p>
-      ) : null}
-      <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-zinc-800/70 pt-4">
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void save(false)}
-          disabled={saving !== null || running}
-        >
-          {saving === "save" ? <Loader2 size={14} className="animate-spin" /> : null}
-          Salvar
-        </Button>
-        <Button size="sm" onClick={() => void save(true)} disabled={saving !== null || running}>
-          {saving === "rerun" ? <Loader2 size={14} className="animate-spin" /> : <ArrowRightLeft size={14} />}
-          Salvar e reexecutar
-        </Button>
-      </div>
-    </Modal>
-  );
-}
 
 function LogDrawer({
   task,
@@ -1439,17 +1396,25 @@ function LogDrawer({
     }
     let cancelled = false;
     setLog("");
-    apiText(`/api/runs/${selectedRun}/log`)
-      .then((content) => {
-        if (!cancelled) setLog(content);
-      })
-      .catch(() => {
-        if (!cancelled) setLog("");
-      });
+    const fetchLog = () =>
+      apiText(`/api/runs/${selectedRun}/log`)
+        .then((content) => {
+          if (!cancelled) setLog(content);
+        })
+        .catch(() => {
+          if (!cancelled) setLog("");
+        });
+    void fetchLog();
+    const active = runs.find((run) => run.id === selectedRun);
+    const handle =
+      active?.status === "RUNNING"
+        ? window.setInterval(() => void fetchLog(), 3000)
+        : null;
     return () => {
       cancelled = true;
+      if (handle) window.clearInterval(handle);
     };
-  }, [selectedRun, lastRunEvent?.run_id, lastRunEvent?.status]);
+  }, [selectedRun, lastRunEvent?.run_id, lastRunEvent?.status, runs]);
 
   if (!task) return null;
 

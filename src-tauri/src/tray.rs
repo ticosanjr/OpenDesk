@@ -80,15 +80,27 @@ pub fn setup(app: &AppHandle, state: Arc<AppState>) -> tauri::Result<()> {
                 });
             }
             "pause_queue" => {
-                // Queue control is wired in phase 3; the tray entry exists now so
-                // the final menu shape does not change under users.
-                tracing::info!("queue pause requested from tray");
+                let state = app.state::<Arc<AppState>>().inner().clone();
+                tauri::async_runtime::spawn(async move {
+                    if state.queue.is_paused() {
+                        let _ = state.queue.resume().await;
+                    } else {
+                        state.queue.pause("paused from tray").await;
+                    }
+                });
             }
             _ => {}
         })
         .build(app)?;
 
-    spawn_menu_updater(app.clone(), state, status_item, queue_item, spend_item);
+    spawn_menu_updater(
+        app.clone(),
+        state,
+        status_item,
+        queue_item,
+        pause_item,
+        spend_item,
+    );
     Ok(())
 }
 
@@ -97,6 +109,7 @@ fn spawn_menu_updater(
     state: Arc<AppState>,
     status_item: MenuItem<tauri::Wry>,
     queue_item: MenuItem<tauri::Wry>,
+    pause_item: MenuItem<tauri::Wry>,
     _spend_item: MenuItem<tauri::Wry>,
 ) {
     tauri::async_runtime::spawn(async move {
@@ -124,6 +137,11 @@ fn spawn_menu_updater(
                         .count();
                     let _ = queue_item
                         .set_text(format!("Fila: {running} rodando | {waiting} aguardando"));
+                    let _ = pause_item.set_text(if state.queue.is_paused() {
+                        "Retomar fila"
+                    } else {
+                        "Pausar fila"
+                    });
                 }
                 _ => {}
             }

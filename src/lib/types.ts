@@ -115,6 +115,7 @@ export interface DashboardStats {
   tokens_cache_read: number;
   tokens_cache_write: number;
   estimated_cost_usd: number;
+  daily_cost_usd: number;
   queue_running: number;
   queue_waiting: number;
   artifacts_total: number;
@@ -685,4 +686,20 @@ export interface SchedulePreview {
   cron_expression: string;
   human: string;
   next_runs: string[];
+}
+
+export interface FileEntry {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  size: number;
+  modified?: string | null;
+}
+
+export interface FileContent {
+  path: string;
+  content: string;
+  truncated: boolean;
+  binary: boolean;
+  size: number;
 }

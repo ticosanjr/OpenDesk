@@ -54,9 +54,9 @@ export function StudioPage() {
           actions={
             <>
               <Badge variant="blue">SSOT no disco</Badge>
-              <Badge variant="default">
+              <Badge variant="green">
                 <Wand2 size={10} />
-                fase 2
+                disco + runtime
               </Badge>
             </>
           }

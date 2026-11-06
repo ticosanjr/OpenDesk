@@ -65,6 +65,7 @@ pub struct DashboardStats {
     pub tokens_cache_read: i64,
     pub tokens_cache_write: i64,
     pub estimated_cost_usd: f64,
+    pub daily_cost_usd: f64,
     pub queue_running: i64,
     pub queue_waiting: i64,
     pub artifacts_total: i64,

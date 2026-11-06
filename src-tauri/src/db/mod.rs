@@ -26,6 +26,8 @@ pub async fn init(db_path: &Path) -> Result<SqlitePool> {
             .with_context(|| format!("could not create database directory {}", parent.display()))?;
     }
 
+    backup_existing_database(db_path)?;
+
     let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path.display()))?
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal)
@@ -44,6 +46,31 @@ pub async fn init(db_path: &Path) -> Result<SqlitePool> {
         .context("database migration failed")?;
 
     Ok(pool)
+}
+
+/// Keep the last three copies of the database next to the original file. This
+/// runs before migrations, so a failed upgrade always has a rollback point.
+fn backup_existing_database(db_path: &Path) -> Result<()> {
+    if !db_path.exists() {
+        return Ok(());
+    }
+    let metadata = std::fs::metadata(db_path)
+        .with_context(|| format!("could not stat database {}", db_path.display()))?;
+    if metadata.len() == 0 {
+        return Ok(());
+    }
+    let backup = db_path.with_extension("db.bak");
+    let second = db_path.with_extension("db.bak.2");
+    let third = db_path.with_extension("db.bak.3");
+    if backup.exists() {
+        let _ = std::fs::copy(&backup, &third);
+    }
+    if backup.exists() {
+        let _ = std::fs::copy(&backup, &second);
+    }
+    std::fs::copy(db_path, &backup)
+        .with_context(|| format!("could not back up database to {}", backup.display()))?;
+    Ok(())
 }
 
 #[allow(dead_code)]

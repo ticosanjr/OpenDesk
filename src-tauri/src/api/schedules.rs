@@ -1,9 +1,14 @@
 use crate::{
     app_state::AppState,
-    db::schedules::{self, CreateScheduleInput, Schedule, UpdateScheduleInput},
+    db::{
+        runs::{self, TaskRun},
+        schedules::{self, CreateScheduleInput, Schedule, UpdateScheduleInput},
+    },
     error::{AppError, AppResult},
     events::OpenDeskWsEvent,
+    integrations::{signal, smtp_mailer},
     queue_scheduler::{cron_engine, recurrence},
+    secrets::SecretStore,
 };
 use axum::{
     Json,
@@ -183,3 +188,109 @@ pub async fn tick_scheduler(
 
 #[allow(dead_code)]
 fn _error(_: AppError) {}
+
+pub async fn schedule_runs(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<Vec<TaskRun>>> {
+    schedules::get(&state.db, &id).await?;
+    Ok(Json(runs::list_by_schedule(&state.db, &id).await?))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct NotifyTestBody {
+    pub channel: String,
+}
+
+pub async fn test_notification(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<NotifyTestBody>,
+) -> AppResult<Json<serde_json::Value>> {
+    let schedule = schedules::get(&state.db, &id).await?;
+    let subject = format!("[OpenDesk] Teste de notificação · {}", schedule.name);
+    let html = format!(
+        "<p>Este é um teste de notificação da rotina <strong>{}</strong>.</p>\
+         <p>Próximo disparo: {}</p>",
+        schedule.name,
+        schedule.next_run_at.as_deref().unwrap_or("não agendado")
+    );
+    match body.channel.as_str() {
+        "email" => {
+            let recipients =
+                split_recipients(schedule.notify_email_recipients.as_deref().unwrap_or(""));
+            if recipients.is_empty() {
+                return Err(AppError::BadRequest(
+                    "a rotina não tem destinatários de e-mail".into(),
+                ));
+            }
+            let secrets = SecretStore::new(&state.paths);
+            let config = smtp_mailer::load_config(&state.db, &secrets, &schedule.workspace_id)
+                .await?
+                .ok_or_else(|| {
+                    AppError::BadRequest("SMTP não está configurado para este workspace".into())
+                })?;
+            for recipient in &recipients {
+                smtp_mailer::send_email(&config, recipient, &subject, html.clone(), Vec::new())
+                    .await
+                    .map_err(|error| AppError::Daemon(format!("SMTP test failed: {error:#}")))?;
+            }
+            Ok(Json(serde_json::json!({
+                "sent": recipients.len(),
+                "channel": "email"
+            })))
+        }
+        "signal" => {
+            let config = signal::load(&state.db).await?;
+            if config.account.trim().is_empty() {
+                return Err(AppError::BadRequest(
+                    "Signal não está vinculado neste OpenDesk".into(),
+                ));
+            }
+            let mut recipients =
+                split_recipients(schedule.notify_signal_recipients.as_deref().unwrap_or(""));
+            if recipients.is_empty() {
+                recipients = config.allowlist.clone();
+            }
+            if recipients.is_empty() {
+                return Err(AppError::BadRequest(
+                    "a rotina não tem destinatários Signal e a allowlist está vazia".into(),
+                ));
+            }
+            let message = format!("[OpenDesk] Teste da rotina {}", schedule.name);
+            for recipient in &recipients {
+                signal::send_text(&config.cli_path, &config.account, recipient, &message).await?;
+            }
+            Ok(Json(serde_json::json!({
+                "sent": recipients.len(),
+                "channel": "signal"
+            })))
+        }
+        other => Err(AppError::BadRequest(format!(
+            "invalid notification channel '{other}'; expected email or signal"
+        ))),
+    }
+}
+
+fn split_recipients(value: &str) -> Vec<String> {
+    value
+        .split([',', ';'])
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .map(ToString::to_string)
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::split_recipients;
+
+    #[test]
+    fn splits_notification_recipients() {
+        assert_eq!(
+            split_recipients(" a@x.com, b@x.com; c@x.com "),
+            vec!["a@x.com", "b@x.com", "c@x.com"]
+        );
+        assert!(split_recipients("  ").is_empty());
+    }
+}

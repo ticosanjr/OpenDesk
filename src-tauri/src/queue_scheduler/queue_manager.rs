@@ -338,6 +338,7 @@ impl QueueManager {
                 queue_job_id: Some(job.id.clone()),
                 workspace_id: job.workspace_id.clone(),
                 task_id: job.task_id.clone(),
+                schedule_id: job.schedule_id.clone(),
                 parent_run_id: None,
                 phase: Some(phase.to_string()),
                 agent_name: job.resolved_agent.clone(),

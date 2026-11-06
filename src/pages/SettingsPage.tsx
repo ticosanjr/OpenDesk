@@ -20,16 +20,22 @@ import { UpdatesCard } from "@/components/settings/UpdatesCard";
 import { AboutCard } from "@/components/settings/AboutCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
-import { apiGet, apiPut } from "@/lib/api";
+import { apiDelete, apiGet, apiPatch, apiPut } from "@/lib/api";
 import { pickFolder } from "@/lib/folder";
 import { shortPath } from "@/lib/format";
 import { ROUTER_POLICY_LABELS } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { confirmAction } from "@/store/confirm-store";
+import { toast } from "@/store/toast-store";
+import type { Workspace } from "@/lib/types";
+import { Modal } from "@/components/ui/modal";
 
 export function SettingsPage() {
   const workspaces = useAppStore((state) => state.workspaces);
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const selectWorkspace = useAppStore((state) => state.selectWorkspace);
+  const refresh = useAppStore((state) => state.refresh);
+  const [editing, setEditing] = useState<Workspace | null>(null);
   const setWorkspaceDialogOpen = useUiStore(
     (state) => state.setWorkspaceDialogOpen,
   );
@@ -99,11 +105,38 @@ export function SettingsPage() {
         }
       />
 
-      <EngineCard />
-      <UpdatesCard />
-      <AboutCard />
+      <div className="sticky top-0 z-20 -mx-5 flex flex-wrap gap-1 border-b border-zinc-800/60 bg-[#09090b]/95 px-5 py-2 backdrop-blur lg:-mx-7 lg:px-7">
+        {[
+          ["Geral", "settings-general"],
+          ["Engine", "settings-engine"],
+          ["Atualizações", "settings-updates"],
+          ["Sobre", "settings-about"],
+          ["Workspaces", "settings-workspaces"],
+        ].map(([label, id]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() =>
+              document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+            }
+            className="rounded-lg px-2.5 py-1 text-[10px] font-medium text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div id="settings-engine" className="scroll-mt-14">
+        <EngineCard />
+      </div>
+      <div id="settings-updates" className="scroll-mt-14">
+        <UpdatesCard />
+      </div>
+      <div id="settings-about" className="scroll-mt-14">
+        <AboutCard />
+      </div>
+
+      <div id="settings-general" className="grid scroll-mt-14 gap-3 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <div>
@@ -175,7 +208,7 @@ export function SettingsPage() {
 
       </div>
 
-      <Card>
+      <Card id="settings-workspaces" className="scroll-mt-14">
         <CardHeader>
           <div>
             <CardTitle className="flex items-center gap-2">
@@ -238,6 +271,14 @@ export function SettingsPage() {
                       variant="outline"
                       size="sm"
                       className="h-7"
+                      onClick={() => setEditing(workspace)}
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7"
                       onClick={() => void reveal(workspace.root_path)}
                     >
                       <ExternalLink size={12} />
@@ -252,6 +293,45 @@ export function SettingsPage() {
                         Ativar
                       </Button>
                     ) : null}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="h-7"
+                      onClick={async () => {
+                        if (
+                          !(await confirmAction({
+                            title: `Remover o workspace ${workspace.name}?`,
+                            description:
+                              "O registro é removido do OpenDesk. Nenhum arquivo ou pasta do disco é apagado.",
+                            confirmLabel: "Remover registro",
+                            tone: "destructive",
+                          }))
+                        ) {
+                          return;
+                        }
+                        try {
+                          if (active) {
+                            const next = workspaces.find((item) => item.id !== workspace.id);
+                            if (next) await selectWorkspace(next.id);
+                          }
+                          await apiDelete(`/api/workspaces/${workspace.id}`);
+                          await refresh();
+                          toast({
+                            tone: "success",
+                            title: "Workspace removido",
+                            description: "A pasta original continua intacta no disco.",
+                          });
+                        } catch (cause) {
+                          toast({
+                            tone: "error",
+                            title: "Não foi possível remover o workspace",
+                            description: cause instanceof Error ? cause.message : String(cause),
+                          });
+                        }
+                      }}
+                    >
+                      Remover
+                    </Button>
                   </div>
                 );
               })}
@@ -259,6 +339,154 @@ export function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      <WorkspaceEditModal
+        workspace={editing}
+        onClose={() => setEditing(null)}
+        onSaved={async () => {
+          setEditing(null);
+          await refresh();
+          toast({ tone: "success", title: "Workspace atualizado" });
+        }}
+      />
     </PageBody>
   );
 }
+
+function WorkspaceEditModal({
+  workspace,
+  onClose,
+  onSaved,
+}: {
+  workspace: Workspace | null;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [color, setColor] = useState("#3b82f6");
+  const [policy, setPolicy] = useState("COST_BENEFIT");
+  const [timezone, setTimezone] = useState("UTC");
+  const [email, setEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!workspace) return;
+    setName(workspace.name);
+    setColor(workspace.color_hex);
+    setPolicy(workspace.default_router_policy);
+    setTimezone(workspace.timezone);
+    setEmail(workspace.default_email_recipient ?? "");
+    setError(null);
+  }, [workspace]);
+
+  async function save() {
+    if (!workspace) return;
+    if (!name.trim()) {
+      setError("Informe o nome do workspace.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await apiPatch(`/api/workspaces/${workspace.id}`, {
+        name: name.trim(),
+        color_hex: color,
+        default_router_policy: policy,
+        timezone: timezone.trim(),
+        default_email_recipient: email.trim() || null,
+      });
+      await onSaved();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={!!workspace}
+      onClose={onClose}
+      title={`Editar ${workspace?.name ?? "workspace"}`}
+      description="Esses valores são defaults do workspace ativo. A pasta no disco não é movida."
+      className="max-w-xl"
+    >
+      <div className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label>
+            <span className={labelClass}>Nome</span>
+            <input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label>
+            <span className={labelClass}>Cor</span>
+            <div className="flex h-9 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2">
+              <input
+                type="color"
+                value={color}
+                onChange={(event) => setColor(event.target.value)}
+                className="h-5 w-7 cursor-pointer rounded border-0 bg-transparent p-0"
+              />
+              <span className="font-mono text-[10px] text-zinc-500">{color}</span>
+            </div>
+          </label>
+          <label>
+            <span className={labelClass}>Política padrão</span>
+            <select
+              value={policy}
+              onChange={(event) => setPolicy(event.target.value)}
+              className={inputClass}
+            >
+              {Object.entries(ROUTER_POLICY_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className={labelClass}>Timezone</span>
+            <input
+              value={timezone}
+              onChange={(event) => setTimezone(event.target.value)}
+              placeholder="America/Sao_Paulo"
+              className={cn(inputClass, "font-mono text-[10px]")}
+            />
+          </label>
+          <label className="sm:col-span-2">
+            <span className={labelClass}>E-mail padrão de notificação</span>
+            <input
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="ops@empresa.com"
+              className={inputClass}
+            />
+          </label>
+        </div>
+        {error ? (
+          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+            {error}
+          </p>
+        ) : null}
+        <div className="flex justify-end gap-2 border-t border-zinc-800/70 pt-4">
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button size="sm" onClick={() => void save()} disabled={saving}>
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            Salvar workspace
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+const labelClass =
+  "mb-1 block text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-500";
+const inputClass =
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";

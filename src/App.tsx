@@ -1,15 +1,37 @@
+import { lazy } from "react";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
-import { DashboardPage } from "@/pages/DashboardPage";
-import { KanbanPage } from "@/pages/KanbanPage";
-import { ChatPage } from "@/pages/ChatPage";
-import { ArtifactsPage } from "@/pages/ArtifactsPage";
-import { FilesPage } from "@/pages/FilesPage";
-import { RoutinesPage } from "@/pages/RoutinesPage";
-import { StudioPage } from "@/pages/StudioPage";
-import { RouterPage } from "@/pages/RouterPage";
-import { IntegrationsPage } from "@/pages/IntegrationsPage";
-import { SettingsPage } from "@/pages/SettingsPage";
+
+const DashboardPage = lazy(() =>
+  import("@/pages/DashboardPage").then((module) => ({ default: module.DashboardPage })),
+);
+const KanbanPage = lazy(() =>
+  import("@/pages/KanbanPage").then((module) => ({ default: module.KanbanPage })),
+);
+const ChatPage = lazy(() =>
+  import("@/pages/ChatPage").then((module) => ({ default: module.ChatPage })),
+);
+const ArtifactsPage = lazy(() =>
+  import("@/pages/ArtifactsPage").then((module) => ({ default: module.ArtifactsPage })),
+);
+const FilesPage = lazy(() =>
+  import("@/pages/FilesPage").then((module) => ({ default: module.FilesPage })),
+);
+const RoutinesPage = lazy(() =>
+  import("@/pages/RoutinesPage").then((module) => ({ default: module.RoutinesPage })),
+);
+const StudioPage = lazy(() =>
+  import("@/pages/StudioPage").then((module) => ({ default: module.StudioPage })),
+);
+const RouterPage = lazy(() =>
+  import("@/pages/RouterPage").then((module) => ({ default: module.RouterPage })),
+);
+const IntegrationsPage = lazy(() =>
+  import("@/pages/IntegrationsPage").then((module) => ({ default: module.IntegrationsPage })),
+);
+const SettingsPage = lazy(() =>
+  import("@/pages/SettingsPage").then((module) => ({ default: module.SettingsPage })),
+);
 
 export default function App() {
   return (

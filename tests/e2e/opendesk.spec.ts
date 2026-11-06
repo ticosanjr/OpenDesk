@@ -34,7 +34,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     .fill("/tmp/opendesk-e2e/workspaces");
   await page.getByRole("button", { name: "Criar workspace" }).click();
 
-  await expect(page.locator("select").first()).toContainText("E2E Workspace");
+  await expect(page.getByRole("button", { name: "Workspace ativo" })).toContainText("E2E Workspace");
 
   // Settings: change the default workspaces folder.
   await page.getByRole("link", { name: "Configurações" }).click();
@@ -54,7 +54,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     headers: auth.headers,
   });
   expect(about.ok()).toBeTruthy();
-  expect((await about.json()).app.version).toBe("0.12.0");
+  expect((await about.json()).app.version).toBe("0.13.0");
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });
@@ -70,7 +70,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
   // Studio: create an agent with name, avatar and color.
   await page.getByRole("link", { name: "OpenCode Studio" }).click();
   await expect(page.getByRole("heading", { name: "OpenCode Studio" })).toBeVisible();
-  await page.getByRole("button", { name: /Workspace/ }).click();
+  await page.getByRole("button", { name: /^Workspace ·/ }).click();
   await page.getByTitle("Novo agente").click();
   await page
     .locator('input[placeholder="Auditor de Qualidade"]')
@@ -142,7 +142,7 @@ test("adds an existing workspace from another folder without touching it", async
     .fill("Existing Workspace");
   await page.getByRole("button", { name: "Adicionar workspace" }).click();
 
-  await expect(page.locator("select").first()).toContainText("Existing Workspace");
+  await expect(page.getByRole("button", { name: "Workspace ativo" })).toContainText("Existing Workspace");
   expect(existsSync(`${existing}/keep-me.txt`)).toBeTruthy();
 });
 
@@ -240,7 +240,8 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("button", { name: "Editar" }).click();
   await expect(page.getByText("Editar tarefa")).toBeVisible();
-  await page.getByLabel("Agente").fill("explore");
+  await page.getByLabel("Agente", { exact: true }).fill("explore");
+  await page.getByRole("option", { name: /@explore/ }).click();
   await page.getByRole("button", { name: "Salvar", exact: true }).click();
   await expect(page.getByText("Editar tarefa")).not.toBeVisible();
   const tasksAfterEdit = await request.get(`${auth.baseURL}/api/tasks`, {
@@ -259,10 +260,10 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   await page.getByRole("button", { name: "Editar" }).click();
   const modelInput = page.getByPlaceholder(/digite para filtrar/);
   await modelInput.fill("opencode-go/glm-5.3#high");
-  await page.getByRole("button", { name: "opencode-go/glm-5.3#high", exact: true }).click();
+  await page.getByRole("option", { name: /opencode-go\/glm-5.3#high/ }).click();
   await page.getByRole("button", { name: "Salvar", exact: true }).click();
   await expect(page.getByText("Editar tarefa")).not.toBeVisible();
-  await expect(page.getByText("Tarefa salva")).toBeVisible();
+  await expect(page.getByText("Tarefa atualizada").first()).toBeVisible();
 
   const afterModel = await request.get(`${auth.baseURL}/api/tasks`, {
     headers: auth.headers,
@@ -731,7 +732,7 @@ Use a skill importada.
   ).toBe(true);
 });
 
-test("kanban drag-and-drop persists the column", async ({ page, request }) => {
+test("kanban move control persists an adjacent column", async ({ page, request }) => {
   const auth = api();
   const workspaces = await request.get(`${auth.baseURL}/api/workspaces`, {
     headers: auth.headers,
@@ -758,11 +759,10 @@ test("kanban drag-and-drop persists the column", async ({ page, request }) => {
 
   await page.goto("/#/kanban");
   await expect(page.getByRole("button", { name: "Abrir tarefa Drag E2E" })).toBeVisible();
-  await page
-    .getByRole("button", { name: "Abrir tarefa Drag E2E" })
-    .getByTitle("Arrastar tarefa")
-    .dragTo(page.locator('[data-column="DONE"]'));
-  await expect(page.locator('[data-column="DONE"]').getByText("Drag E2E")).toBeVisible();
+  await page.getByLabel("Mover Drag E2E").selectOption("PLAN");
+  await expect(page.getByText("Mover para PLAN?")).toBeVisible();
+  await page.getByRole("button", { name: "Mover e executar" }).click();
+  await expect(page.locator('[data-column="PLAN"]').getByText("Drag E2E")).toBeVisible();
 
   // The column change is persisted through an async API call; poll briefly.
   await expect
@@ -780,7 +780,7 @@ test("kanban drag-and-drop persists the column", async ({ page, request }) => {
       },
       { timeout: 5_000 },
     )
-    .toBe("DONE");
+    .toBe("PLAN");
 });
 
 test("studio backup lists and restores an item", async ({ request }) => {
@@ -815,4 +815,98 @@ test("studio backup lists and restores an item", async ({ request }) => {
   await request.delete(`${auth.baseURL}/api/studio/agent/backup-e2e?scope=global`, {
     headers: auth.headers,
   });
+});
+
+test("files explorer lists and previews workspace files", async ({
+  page,
+  request,
+}) => {
+  const auth = api();
+  const workspaces = (await (
+    await request.get(`${auth.baseURL}/api/workspaces`, { headers: auth.headers })
+  ).json()) as Array<{ id: string; root_path: string }>;
+  const workspace = workspaces[0];
+  expect(workspace).toBeTruthy();
+  const inputDir = `${workspace.root_path}/input`;
+  mkdirSync(inputDir, { recursive: true });
+  writeFileSync(`${inputDir}/e2e-brief.md`, "# Brief E2E\n\nConteúdo do explorador.\n");
+
+  const tree = await request.get(
+    `${auth.baseURL}/api/files/tree?workspace_id=${encodeURIComponent(workspace.id)}&path=input`,
+    { headers: auth.headers },
+  );
+  expect(tree.ok()).toBeTruthy();
+  const entries = (await tree.json()) as Array<{ name: string; path: string }>;
+  expect(entries.some((entry) => entry.name === "e2e-brief.md")).toBeTruthy();
+
+  await page.goto("/#/files");
+  await expect(page.getByRole("heading", { name: "Arquivos" })).toBeVisible();
+  await page.getByRole("button", { name: /input/ }).first().click();
+  await page.getByRole("button", { name: /e2e-brief\.md/ }).click();
+  await expect(page.getByText("Conteúdo do explorador.")).toBeVisible();
+});
+
+test("edits and removes a workspace without touching its folder", async ({
+  page,
+  request,
+}) => {
+  const auth = api();
+  const original = (await (
+    await request.get(`${auth.baseURL}/api/workspaces`, { headers: auth.headers })
+  ).json()) as Array<{ id: string }>;
+
+  const created = await request.post(`${auth.baseURL}/api/workspaces`, {
+    headers: auth.headers,
+    data: {
+      name: "Workspace Editável",
+      root_path: "/tmp/opendesk-e2e/editable-workspace",
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+  const workspace = (await created.json()) as { id: string; root_path: string };
+
+  await page.goto("/#/settings");
+  await expect(page.getByText("Workspace Editável").first()).toBeVisible();
+  const row = page
+    .locator("p")
+    .filter({ hasText: "Workspace Editável" })
+    .first()
+    .locator("xpath=ancestor::div[contains(@class,'rounded-lg')][1]");
+  await row.getByRole("button", { name: "Editar" }).click();
+  await page.getByLabel("Nome").fill("Workspace Renomeado");
+  await page.getByLabel("Timezone").fill("America/Sao_Paulo");
+  await page.getByRole("button", { name: "Salvar workspace" }).click();
+  await expect(page.getByText("Workspace atualizado").first()).toBeVisible();
+
+  const renamed = (await (
+    await request.get(`${auth.baseURL}/api/workspaces`, { headers: auth.headers })
+  ).json()) as Array<{ id: string; name: string; timezone: string }>;
+  expect(renamed.find((item) => item.id === workspace.id)?.name).toBe(
+    "Workspace Renomeado",
+  );
+  expect(renamed.find((item) => item.id === workspace.id)?.timezone).toBe(
+    "America/Sao_Paulo",
+  );
+
+  const updatedRow = page
+    .locator("p")
+    .filter({ hasText: "Workspace Renomeado" })
+    .first()
+    .locator("xpath=ancestor::div[contains(@class,'rounded-lg')][1]");
+  await updatedRow.getByRole("button", { name: "Remover" }).click();
+  await page.getByRole("button", { name: "Remover registro" }).click();
+  await expect(page.getByText("Workspace removido").first()).toBeVisible();
+
+  const remaining = (await (
+    await request.get(`${auth.baseURL}/api/workspaces`, { headers: auth.headers })
+  ).json()) as Array<{ id: string }>;
+  expect(remaining.some((item) => item.id === workspace.id)).toBe(false);
+  expect(existsSync(workspace.root_path)).toBe(true);
+
+  if (original[0]) {
+    await request.post(
+      `${auth.baseURL}/api/workspaces/${original[0].id}/activate`,
+      { headers: auth.headers },
+    );
+  }
 });

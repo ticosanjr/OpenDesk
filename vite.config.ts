@@ -42,7 +42,7 @@ export default defineConfig(() => ({
       // The gate covers logic (API client, formatting, stores). Tauri/React
       // glue is exercised by Playwright and intentionally excluded here.
       include: ["src/lib/**", "src/store/**"],
-      exclude: ["src/**/*.test.{ts,tsx}", "src/test/**"],
+      exclude: ["src/**/*.test.{ts,tsx}", "src/test/**", "src/lib/types.ts"],
       thresholds: {
         lines: 85,
         functions: 85,

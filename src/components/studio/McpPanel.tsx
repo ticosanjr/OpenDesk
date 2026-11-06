@@ -17,6 +17,7 @@ import {
   StudioListItem,
 } from "@/components/studio/StudioList";
 import { cn } from "@/lib/utils";
+import { confirmAction } from "@/store/confirm-store";
 
 const DEFAULT_SERVER = `{
   "type": "local",
@@ -126,7 +127,7 @@ export function McpPanel({
   async function remove() {
     const serverName = name.trim();
     if (!serverName || isNew) return;
-    if (!window.confirm(`Excluir o servidor MCP ${serverName}?`)) return;
+    if (!(await confirmAction({ title: `Excluir o servidor MCP ${serverName}?`, description: "A entrada será removida do opencode.jsonc do escopo selecionado.", confirmLabel: "Excluir MCP", tone: "destructive" }))) return;
     setSaving(true);
     try {
       const next = await apiDelete<ConfigDocument>(

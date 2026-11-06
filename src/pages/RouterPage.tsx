@@ -23,6 +23,7 @@ import type { BudgetSettings, BudgetStatus, RouterRule } from "@/lib/types";
 import { ROUTER_POLICY_LABELS } from "@/lib/types";
 import { formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { confirmAction } from "@/store/confirm-store";
 
 interface RouterConfig {
   workspace_id: string;
@@ -111,7 +112,7 @@ export function RouterPage() {
   }
 
   async function removeRule(id: string) {
-    if (!window.confirm("Excluir esta regra?")) return;
+    if (!(await confirmAction({ title: "Excluir regra do roteador?", description: "A regra deixa de ser avaliada imediatamente.", confirmLabel: "Excluir regra", tone: "destructive" }))) return;
     try {
       await apiDelete(`/api/router/rules/${id}`);
       await load();

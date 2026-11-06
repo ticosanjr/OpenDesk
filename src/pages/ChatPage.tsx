@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bot,
+  Check,
   Loader2,
   MessageSquare,
+  Pencil,
   Plus,
   RefreshCw,
+  Search,
   Send,
   Sparkles,
   Trash2,
   Wand2,
+  X,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,17 +21,15 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
-import { apiDelete, apiGet, apiPost } from "@/lib/api";
-import type {
-  AgentFile,
-  ChatMessage,
-  ChatReply,
-  ChatThread,
-} from "@/lib/types";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
+import type { ChatMessage, ChatReply, ChatThread } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { relativeTime } from "@/lib/format";
-
-const FALLBACK_AGENTS = ["build", "plan", "explore", "general"];
+import { AgentCombobox } from "@/components/ui/agent-combobox";
+import { ModelCombobox } from "@/components/ui/model-combobox";
+import { SlashTextarea } from "@/components/ui/slash-textarea";
+import { toast } from "@/store/toast-store";
+import { confirmAction } from "@/store/confirm-store";
 
 export function ChatPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -40,16 +42,23 @@ export function ChatPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [thread, setThread] = useState<ChatThread | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [agents, setAgents] = useState<string[]>(FALLBACK_AGENTS);
   const [agent, setAgent] = useState("build");
   const [model, setModel] = useState("");
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [threadQuery, setThreadQuery] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
+  const filteredThreads = threads.filter((item) => {
+    const needle = threadQuery.trim().toLowerCase();
+    if (!needle) return true;
+    return `${item.title} ${item.agent}`.toLowerCase().includes(needle);
+  });
 
   const loadThreads = useCallback(async () => {
     if (!activeWorkspaceId) {
@@ -78,17 +87,6 @@ export function ChatPage() {
   useEffect(() => {
     void loadThreads();
   }, [loadThreads]);
-
-  useEffect(() => {
-    if (!activeWorkspaceId) return;
-    const query = `scope=workspace&workspace_id=${encodeURIComponent(activeWorkspaceId)}`;
-    apiGet<AgentFile[]>(`/api/studio/agents?${query}`)
-      .then((list) => {
-        const ids = list.map((item) => item.id);
-        setAgents(Array.from(new Set([...FALLBACK_AGENTS, ...ids])));
-      })
-      .catch(() => setAgents(FALLBACK_AGENTS));
-  }, [activeWorkspaceId]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -170,14 +168,39 @@ export function ChatPage() {
     }
   }
 
+  async function renameThread() {
+    if (!thread || !titleDraft.trim()) {
+      setRenaming(false);
+      return;
+    }
+    try {
+      const updated = await apiPatch<ChatThread>(`/api/chat/threads/${thread.id}`, {
+        title: titleDraft.trim(),
+      });
+      setThread(updated);
+      setRenaming(false);
+      toast({ tone: "success", title: "Conversa renomeada" });
+      await loadThreads();
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível renomear",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  }
+
   async function removeThread(id: string) {
-    if (!window.confirm("Excluir esta conversa e o histórico local?")) return;
+    if (!(await confirmAction({ title: "Excluir conversa?", description: "O histórico local desta conversa será removido.", confirmLabel: "Excluir conversa", tone: "destructive" }))) return;
     try {
       await apiDelete(`/api/chat/threads/${id}`);
       if (selectedId === id) setSelectedId(null);
       await loadThreads();
+      toast({ tone: "success", title: "Conversa excluída" });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      const message = cause instanceof Error ? cause.message : String(cause);
+      setError(message);
+      toast({ tone: "error", title: "Não foi possível excluir", description: message });
     }
   }
 
@@ -233,13 +256,26 @@ export function ChatPage() {
               Nova
             </Button>
           </CardHeader>
+          <div className="border-b border-zinc-800/70 p-2">
+            <div className="flex h-8 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
+              <Search size={12} className="text-zinc-600" />
+              <input
+                value={threadQuery}
+                onChange={(event) => setThreadQuery(event.target.value)}
+                placeholder="Buscar conversa ou agente"
+                className="h-full flex-1 bg-transparent text-[10px] outline-none placeholder:text-zinc-600"
+              />
+            </div>
+          </div>
           <CardContent className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-            {threads.length === 0 ? (
+            {filteredThreads.length === 0 ? (
               <p className="p-3 text-center text-[10px] text-zinc-600">
-                Nenhuma conversa. Escolha um agente e crie a primeira.
+                {threads.length === 0
+                  ? "Nenhuma conversa. Escolha um agente e crie a primeira."
+                  : "Nenhuma conversa encontrada."}
               </p>
             ) : (
-              threads.map((item) => (
+              filteredThreads.map((item) => (
                 <button
                   type="button"
                   key={item.id}
@@ -265,29 +301,20 @@ export function ChatPage() {
             )}
           </CardContent>
           <div className="space-y-2 border-t border-zinc-800/70 p-3">
-            <label className="block">
+            <div className="block">
               <span className={labelClass}>Agente para novas conversas</span>
-              <select
+              <AgentCombobox
                 value={agent}
-                onChange={(event) => setAgent(event.target.value)}
-                className={inputClass}
-              >
-                {agents.map((id) => (
-                  <option key={id} value={id}>
-                    @{id}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className={labelClass}>Modelo (opcional)</span>
-              <input
-                value={model}
-                onChange={(event) => setModel(event.target.value)}
-                placeholder="provider/model#variant"
-                className={inputClass}
+                onChange={(value) => setAgent(value)}
+                workspaceId={activeWorkspaceId}
+                placeholder="build"
+                allowEmpty={false}
               />
-            </label>
+            </div>
+            <div className="block">
+              <span className={labelClass}>Modelo (opcional)</span>
+              <ModelCombobox value={model} onChange={setModel} />
+            </div>
             <Button size="sm" className="w-full" onClick={() => void createThread()} disabled={loading}>
               {loading ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
               Criar conversa com @{agent}
@@ -297,10 +324,31 @@ export function ChatPage() {
 
         <Card className="flex max-h-[620px] min-h-[420px] flex-col">
           <CardHeader className="px-4 py-3">
-            <div className="min-w-0">
-              <CardTitle className="truncate text-[12px]">
-                {thread?.title ?? "Selecione uma conversa"}
-              </CardTitle>
+            <div className="min-w-0 flex-1">
+              {renaming && thread ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    autoFocus
+                    value={titleDraft}
+                    onChange={(event) => setTitleDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") void renameThread();
+                      if (event.key === "Escape") setRenaming(false);
+                    }}
+                    className="h-7 min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-950 px-2 text-[11px] text-zinc-100 outline-none"
+                  />
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => void renameThread()}>
+                    <Check size={12} />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRenaming(false)}>
+                    <X size={12} />
+                  </Button>
+                </div>
+              ) : (
+                <CardTitle className="truncate text-[12px]">
+                  {thread?.title ?? "Selecione uma conversa"}
+                </CardTitle>
+              )}
               {thread ? (
                 <p className="mt-0.5 font-mono text-[9px] text-zinc-600">
                   @{thread.agent}
@@ -312,6 +360,19 @@ export function ChatPage() {
               ) : null}
             </div>
             <div className="flex items-center gap-2">
+              {thread ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Renomear conversa"
+                  onClick={() => {
+                    setTitleDraft(thread.title);
+                    setRenaming(true);
+                  }}
+                >
+                  <Pencil size={13} />
+                </Button>
+              ) : null}
               {thread ? (
                 <Button
                   variant="ghost"
@@ -368,23 +429,20 @@ export function ChatPage() {
             </div>
             <div className="border-t border-zinc-800/70 p-3">
               <div className="flex items-end gap-2">
-                <textarea
+                <SlashTextarea
                   value={prompt}
-                  onChange={(event) => setPrompt(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      void send();
-                    }
-                  }}
+                  onChange={setPrompt}
+                  workspaceId={activeWorkspaceId}
                   rows={2}
+                  submitOnEnter
+                  onSubmit={() => void send()}
+                  disabled={!thread || sending}
                   placeholder={
                     thread
-                      ? `Mensagem para @${thread.agent}… (Enter envia, Shift+Enter quebra linha)`
+                      ? `Mensagem para @${thread.agent}… (Enter envia, Shift+Enter quebra linha, / para comandos)`
                       : "Crie ou selecione uma conversa primeiro"
                   }
-                  disabled={!thread || sending}
-                  className="min-h-[52px] flex-1 resize-y rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-[11px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-blue-500/60 disabled:opacity-60"
+                  className="min-h-[52px] flex-1"
                 />
                 <Button
                   size="sm"
@@ -461,12 +519,13 @@ function MetaBuilder({ workspaceId }: { workspaceId: string }) {
   return (
     <div className="space-y-3">
       <div className="flex items-end gap-2">
-        <textarea
+        <SlashTextarea
           value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
+          onChange={setPrompt}
+          workspaceId={workspaceId}
           rows={2}
           placeholder="Crie um subagente chamado revisor-fiscal focado em contabilidade…"
-          className="min-h-[52px] flex-1 resize-y rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-[11px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-blue-500/60"
+          className="min-h-[52px] flex-1"
         />
         <Button size="sm" className="h-9" onClick={() => void build()} disabled={busy}>
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
@@ -490,7 +549,5 @@ function MetaBuilder({ workspaceId }: { workspaceId: string }) {
   );
 }
 
-const inputClass =
-  "h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[11px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
 const labelClass =
   "mb-1 block text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-500";

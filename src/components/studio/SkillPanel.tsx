@@ -13,6 +13,7 @@ import {
   StudioListItem,
 } from "@/components/studio/StudioList";
 import { cn } from "@/lib/utils";
+import { confirmAction } from "@/store/confirm-store";
 
 function blankSkill(scope: StudioScope): SkillFile {
   return {
@@ -114,7 +115,14 @@ export function SkillPanel({
 
   async function remove() {
     if (!draft || isNew) return;
-    if (!window.confirm(`Excluir a skill ${draft.id}? A pasta inteira será removida.`)) {
+    if (
+      !(await confirmAction({
+        title: `Excluir a skill ${draft.id}?`,
+        description: "A pasta inteira da skill será removida do escopo selecionado.",
+        confirmLabel: "Excluir skill",
+        tone: "destructive",
+      }))
+    ) {
       return;
     }
     setSaving(true);

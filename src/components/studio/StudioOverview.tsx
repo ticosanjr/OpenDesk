@@ -29,6 +29,7 @@ import { Modal } from "@/components/ui/modal";
 import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
 import { StudioInstallModal } from "@/components/studio/StudioInstallModal";
+import { confirmAction } from "@/store/confirm-store";
 
 const KIND_META = {
   agent: { label: "Agente", icon: Bot },
@@ -159,7 +160,14 @@ export function StudioOverview({
   }
 
   async function remove(item: EffectiveStudioItem) {
-    if (!window.confirm(`Excluir ${KIND_META[item.kind].label} ${item.id} do escopo ${item.source_scope}?`)) {
+    if (
+      !(await confirmAction({
+        title: `Excluir ${KIND_META[item.kind].label} ${item.id}?`,
+        description: `O item será removido do escopo ${item.source_scope}.`,
+        confirmLabel: "Excluir item",
+        tone: "destructive",
+      }))
+    ) {
       return;
     }
     setError(null);
@@ -728,7 +736,7 @@ function BackupsModal({
 
   async function restore(backup: BackupEntry) {
     if (!item) return;
-    if (!window.confirm(`Restaurar backup de ${backup.created_at}?`)) return;
+    if (!(await confirmAction({ title: "Restaurar backup?", description: `O conteúdo atual será substituído pelo backup de ${backup.created_at}.`, confirmLabel: "Restaurar", tone: "destructive" }))) return;
     setBusy(backup.id);
     setError(null);
     try {

@@ -69,7 +69,7 @@ export function DashboardPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!activeWorkspace || !daemon?.online) {
+    if (!activeWorkspace) {
       setAgents([]);
       return;
     }
@@ -82,16 +82,42 @@ export function DashboardPage() {
       activeWorkspace.id,
     )}`;
 
+    const runtimeAgents = daemon?.online
+      ? apiGet<{ data: AgentInfo[] }>(`/api/agents?directory=${directory}`).catch(
+          () => ({ data: [] }),
+        )
+      : Promise.resolve({ data: [] });
+
     Promise.all([
-      apiGet<{ data: AgentInfo[] }>(`/api/agents?directory=${directory}`),
+      runtimeAgents,
       apiGet<AgentFile[]>(`/api/studio/agents?${studioQuery}`).catch(() => []),
     ])
       .then(([response, studioAgents]) => {
         if (cancelled) return;
-        setAgents(response.data);
-        setPresentation(
-          Object.fromEntries(studioAgents.map((agent) => [agent.id, agent])),
+        const presentationMap = Object.fromEntries(
+          studioAgents.map((agent) => [agent.id, agent]),
         );
+        setPresentation(presentationMap);
+        if (response.data.length > 0) {
+          setAgents(response.data);
+        } else {
+          setAgents(
+            studioAgents.map((agent) => {
+              const [provider, rest] = (agent.model ?? "").split("/");
+              const [id, variant] = (rest ?? "").split("#");
+              return {
+                id: agent.id,
+                name: agent.name,
+                description: agent.description,
+                mode: agent.mode,
+                model:
+                  provider && id
+                    ? { providerID: provider, id, variant: variant || null }
+                    : null,
+              };
+            }),
+          );
+        }
       })
       .catch((error: unknown) => {
         if (!cancelled) {
@@ -158,7 +184,8 @@ export function DashboardPage() {
     (dashboard?.tokens_cache_read ?? 0) + (dashboard?.tokens_input ?? 0);
   const cacheHit =
     cacheBase > 0 ? ((dashboard?.tokens_cache_read ?? 0) / cacheBase) * 100 : 0;
-  const spent = dashboard?.estimated_cost_usd ?? 0;
+  const spent = dashboard?.daily_cost_usd ?? 0;
+  const totalSpent = dashboard?.estimated_cost_usd ?? 0;
 
   const modelUsage = Object.values(
     recentRuns.reduce<Record<string, { model: string; calls: number; tokens: number; cost: number; duration: number }>>(
@@ -220,11 +247,11 @@ export function DashboardPage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           icon={CircleDollarSign}
-          label="Gasto acumulado"
+          label="Gasto hoje"
           value={formatUsd(spent)}
           hint={`limite diário ${formatUsd(DAILY_LIMIT)} · ${formatPercent(
             Math.min(100, (spent / DAILY_LIMIT) * 100),
-          )} usado`}
+          )} usado · total ${formatUsd(totalSpent)}`}
           tone={spent / DAILY_LIMIT >= 0.8 ? "warning" : "default"}
         />
         <KpiCard
@@ -269,13 +296,7 @@ export function DashboardPage() {
             <Badge variant="blue">{agents.length} encontrados</Badge>
           </CardHeader>
           <CardContent>
-            {!daemon?.online ? (
-              <EmptyState
-                icon={Server}
-                title="OpenCode engine offline"
-                description="O dashboard carrega agentes quando o daemon local estiver saudável."
-              />
-            ) : agentsError ? (
+            {agentsError ? (
               <EmptyState
                 icon={TerminalSquare}
                 title="Não foi possível listar agentes"
@@ -285,7 +306,7 @@ export function DashboardPage() {
               <EmptyState
                 icon={Bot}
                 title="Nenhum agente configurado"
-                description="Crie arquivos em .opencode/agents/ ou use o OpenCode Studio na Fase 2."
+                description="Crie um agente no OpenCode Studio ou adicione um arquivo em .opencode/agents/."
               />
             ) : (
               <div className="grid gap-2 md:grid-cols-2">
@@ -388,10 +409,9 @@ export function DashboardPage() {
                 Uso por modelo
               </CardTitle>
               <CardDescription>
-                Chamadas, tokens e custo por modelo. Chega com a telemetria da Fase 3.
+                Chamadas, tokens, custo e latência média por modelo nos runs recentes.
               </CardDescription>
             </div>
-            <Badge variant="default">em breve</Badge>
           </CardHeader>
           <CardContent>
             {modelUsage.length === 0 ? (

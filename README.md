@@ -59,6 +59,14 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Signal: vínculo por QR (`signal-cli link`), allowlist e bridge de mensagens.
 - Studio efetivo (global + workspace), copiar/mover/duplicar, toggle, backups e
   instalação de GitHub/URL/local/npm/catálogo.
+- Explorador de arquivos do workspace com árvore, busca, breadcrumb e prévia.
+- Toasts, confirmação consistente, boundary de erro e notificações nativas.
+- Workspace editável/removível sem tocar na pasta do disco.
+- Kanban horizontal com busca/filtros e formulário único de tarefa.
+- Command palette com tarefas, rotinas, artefatos e agentes.
+- Página de Configurações/Integrações com navegação por seções.
+- Rotas em code splitting e logs de run em atualização contínua.
+- Backup rotativo do SQLite antes de migrações.
 - Limpeza automática de artefatos de build após cada release.
 - Auto-atualização do OpenDesk por release privada com SHA256 e backup.
 - Google Workspace: OAuth2 loopback + PKCE, Docs, Drive, Calendar, Gmail e
@@ -168,8 +176,7 @@ docs/                       plano, decisões e histórico
 - As APIs Google não foram testadas com uma conta real neste ambiente; o fluxo
   de autorização, o store de segredos e o bridge MCP foram validados.
 - Google Keep continua indisponível para contas comuns; o backlog usa Tasks.
-- A fila executa **um job por vez**; concorrência configurável fica para a
-  próxima iteração.
+- A fila executa até 4 jobs simultâneos conforme configuração do Kanban.
 - O broker de permissões de runs autônomos responde `once` e audita em
   `permission_audit`; políticas por workspace ainda não têm UI.
 - O Playwright usa o backend headless com `OPENDESK_SKIP_DAEMON=1`; o teste live
@@ -201,6 +208,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0015 — Instalação com retry e rollback](docs/decisions/0015-install-retry-rollback.md)
 - [ADR 0016 — Runtime inventory e streaming](docs/decisions/0016-runtime-inventory-and-streaming.md)
 - [ADR 0017 — Recorrência intuitiva e notificações](docs/decisions/0017-intuitive-recurrence-and-notifications.md)
+- [ADR 0018 — Arquivos, feedback e gestão de workspace](docs/decisions/0018-files-feedback-and-workspace-management.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)

@@ -8,6 +8,7 @@ pub struct TaskRun {
     pub queue_job_id: Option<String>,
     pub workspace_id: String,
     pub task_id: Option<String>,
+    pub schedule_id: Option<String>,
     pub parent_run_id: Option<String>,
     pub phase: Option<String>,
     pub agent_name: String,
@@ -45,6 +46,7 @@ pub struct CreateRunInput {
     pub queue_job_id: Option<String>,
     pub workspace_id: String,
     pub task_id: Option<String>,
+    pub schedule_id: Option<String>,
     pub parent_run_id: Option<String>,
     pub phase: Option<String>,
     pub agent_name: String,
@@ -66,7 +68,7 @@ pub struct RunUsage {
     pub estimated_cost_usd: f64,
 }
 
-const COLUMNS: &str = "r.id, r.queue_job_id, r.workspace_id, r.task_id, r.parent_run_id, r.phase, \
+const COLUMNS: &str = "r.id, r.queue_job_id, r.workspace_id, r.task_id, r.schedule_id, r.parent_run_id, r.phase, \
     r.agent_name, r.execution_mode, r.provider_id, r.model_id, r.effort_level, r.status, \
     r.tokens_input, r.tokens_output, r.tokens_reasoning, r.tokens_cache_read, r.tokens_cache_write, \
     r.estimated_cost_usd, r.pricing_snapshot_json, r.duration_ms, r.log_path, r.raw_stdout_log, \
@@ -76,15 +78,16 @@ pub async fn create(pool: &SqlitePool, input: CreateRunInput) -> AppResult<TaskR
     let id = input.id;
     sqlx::query(
         "INSERT INTO task_runs (
-            id, queue_job_id, workspace_id, task_id, parent_run_id, phase,
+            id, queue_job_id, workspace_id, task_id, schedule_id, parent_run_id, phase,
             agent_name, execution_mode, provider_id, model_id, effort_level,
             status, pricing_snapshot_json, log_path
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RUNNING', ?, ?)",
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RUNNING', ?, ?)",
     )
     .bind(&id)
     .bind(input.queue_job_id.as_deref())
     .bind(&input.workspace_id)
     .bind(input.task_id.as_deref())
+    .bind(input.schedule_id.as_deref())
     .bind(input.parent_run_id.as_deref())
     .bind(input.phase.as_deref())
     .bind(&input.agent_name)
@@ -126,6 +129,19 @@ pub async fn list(
         .bind(workspace_id)
         .bind(task_id)
         .bind(task_id)
+        .fetch_all(pool)
+        .await?)
+}
+
+pub async fn list_by_schedule(pool: &SqlitePool, schedule_id: &str) -> AppResult<Vec<TaskRun>> {
+    let query = format!(
+        "SELECT {COLUMNS} FROM task_runs r
+         LEFT JOIN tasks t ON t.id = r.task_id
+         WHERE r.schedule_id = ?
+         ORDER BY r.started_at DESC LIMIT 100"
+    );
+    Ok(sqlx::query_as::<_, TaskRun>(&query)
+        .bind(schedule_id)
         .fetch_all(pool)
         .await?)
 }
@@ -243,6 +259,7 @@ mod tests {
             queue_job_id: None,
             workspace_id: "ws-1".into(),
             task_id: None,
+            schedule_id: None,
             parent_run_id: None,
             phase: Some("build".into()),
             agent_name: "build".into(),

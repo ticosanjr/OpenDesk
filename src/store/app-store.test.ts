@@ -142,6 +142,7 @@ describe("websocket event reducer", () => {
         tokens_cache_read: 0,
         tokens_cache_write: 0,
         estimated_cost_usd: 0,
+        daily_cost_usd: 0,
         queue_running: 0,
         queue_waiting: 0,
         artifacts_total: 2,
