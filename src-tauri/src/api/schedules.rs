@@ -3,7 +3,7 @@ use crate::{
     db::schedules::{self, CreateScheduleInput, Schedule, UpdateScheduleInput},
     error::{AppError, AppResult},
     events::OpenDeskWsEvent,
-    queue_scheduler::cron_engine,
+    queue_scheduler::{cron_engine, recurrence},
 };
 use axum::{
     Json,
@@ -28,11 +28,46 @@ pub async fn list_schedules(
     Ok(Json(schedules::list(&state.db, &workspace_id).await?))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct PreviewBody {
+    pub recurrence: recurrence::Recurrence,
+    pub timezone: String,
+}
+
+pub async fn preview_schedule(Json(body): Json<PreviewBody>) -> AppResult<Json<serde_json::Value>> {
+    let cron_expression = body.recurrence.to_cron()?;
+    let next_runs = recurrence::next_runs(&cron_expression, &body.timezone, Utc::now(), 5)?;
+    Ok(Json(serde_json::json!({
+        "cron_expression": cron_expression,
+        "human": body.recurrence.human(),
+        "next_runs": next_runs,
+    })))
+}
+
 pub async fn create_schedule(
     State(state): State<Arc<AppState>>,
-    Json(input): Json<CreateScheduleInput>,
+    Json(mut input): Json<CreateScheduleInput>,
 ) -> AppResult<Json<Schedule>> {
-    let next = cron_engine::next_occurrence(&input.cron_expression, &input.timezone, Utc::now())?;
+    let parsed = input
+        .recurrence_json
+        .as_deref()
+        .and_then(|value| serde_json::from_str::<recurrence::Recurrence>(value).ok());
+    let next = if let Some(recurrence) = &parsed {
+        input.cron_expression = recurrence.to_cron()?;
+        input.one_time = recurrence.frequency == "once";
+        if input.one_time {
+            recurrence.once_datetime(&input.timezone)?
+        } else {
+            cron_engine::next_occurrence(&input.cron_expression, &input.timezone, Utc::now())?
+        }
+    } else {
+        cron_engine::next_occurrence(&input.cron_expression, &input.timezone, Utc::now())?
+    };
+    if input.one_time && next <= Utc::now() {
+        return Err(AppError::BadRequest(
+            "a rotina de uma vez precisa estar no futuro".into(),
+        ));
+    }
     let schedule = schedules::create(&state.db, input).await?;
     schedules::set_next_run(&state.db, &schedule.id, Some(&next.to_rfc3339())).await?;
     let schedule = schedules::get(&state.db, &schedule.id).await?;
@@ -53,11 +88,32 @@ pub async fn get_schedule(
 pub async fn update_schedule(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-    Json(input): Json<UpdateScheduleInput>,
+    Json(mut input): Json<UpdateScheduleInput>,
 ) -> AppResult<Json<Schedule>> {
+    let parsed = input
+        .recurrence_json
+        .as_deref()
+        .and_then(|value| serde_json::from_str::<recurrence::Recurrence>(value).ok());
+    if let Some(recurrence) = &parsed {
+        input.cron_expression = Some(recurrence.to_cron()?);
+        input.one_time = Some(recurrence.frequency == "once");
+    }
     let schedule = schedules::update(&state.db, &id, input).await?;
-    let next =
-        cron_engine::next_occurrence(&schedule.cron_expression, &schedule.timezone, Utc::now())?;
+    let next = if schedule.one_time {
+        recurrence::parse_recurrence(schedule.recurrence_json.as_deref())
+            .map(|recurrence| recurrence.once_datetime(&schedule.timezone))
+            .transpose()?
+            .unwrap_or_else(|| {
+                cron_engine::next_occurrence(
+                    &schedule.cron_expression,
+                    &schedule.timezone,
+                    Utc::now(),
+                )
+                .unwrap_or_else(|_| Utc::now())
+            })
+    } else {
+        cron_engine::next_occurrence(&schedule.cron_expression, &schedule.timezone, Utc::now())?
+    };
     schedules::set_next_run(&state.db, &id, Some(&next.to_rfc3339())).await?;
     let schedule = schedules::get(&state.db, &id).await?;
     state.events.publish(OpenDeskWsEvent::ScheduleUpdated {

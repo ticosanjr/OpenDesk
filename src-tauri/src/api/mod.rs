@@ -237,6 +237,7 @@ fn router(state: Arc<AppState>) -> Router {
             get(schedules::list_schedules).post(schedules::create_schedule),
         )
         .route("/api/schedules/tick", post(schedules::tick_scheduler))
+        .route("/api/schedules/preview", post(schedules::preview_schedule))
         .route(
             "/api/schedules/{id}",
             get(schedules::get_schedule)

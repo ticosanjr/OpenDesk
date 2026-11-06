@@ -16,6 +16,12 @@ pub struct Schedule {
     pub router_policy: String,
     pub output_folder_template: String,
     pub notify_email_recipients: Option<String>,
+    pub notify_signal: bool,
+    pub notify_signal_recipients: Option<String>,
+    pub notify_only_on_change: bool,
+    pub recurrence_json: Option<String>,
+    pub one_time: bool,
+    pub last_output_hash: Option<String>,
     pub sync_to_google_docs: bool,
     pub sync_to_google_calendar: bool,
     pub is_active: bool,
@@ -44,6 +50,16 @@ pub struct CreateScheduleInput {
     #[serde(default)]
     pub notify_email_recipients: Option<String>,
     #[serde(default)]
+    pub notify_signal: bool,
+    #[serde(default)]
+    pub notify_signal_recipients: Option<String>,
+    #[serde(default)]
+    pub notify_only_on_change: bool,
+    #[serde(default)]
+    pub recurrence_json: Option<String>,
+    #[serde(default)]
+    pub one_time: bool,
+    #[serde(default)]
     pub sync_to_google_docs: bool,
     #[serde(default)]
     pub sync_to_google_calendar: bool,
@@ -62,13 +78,18 @@ pub struct UpdateScheduleInput {
     pub router_policy: Option<String>,
     pub output_folder_template: Option<String>,
     pub notify_email_recipients: Option<String>,
+    pub notify_signal: Option<bool>,
+    pub notify_signal_recipients: Option<String>,
+    pub notify_only_on_change: Option<bool>,
+    pub recurrence_json: Option<String>,
+    pub one_time: Option<bool>,
     pub sync_to_google_docs: Option<bool>,
     pub sync_to_google_calendar: Option<bool>,
     pub is_active: Option<bool>,
 }
 
 fn default_timezone() -> String {
-    "UTC".into()
+    iana_time_zone::get_timezone().unwrap_or_else(|_| "UTC".into())
 }
 
 fn default_policy() -> String {
@@ -85,8 +106,9 @@ fn default_true() -> bool {
 
 const COLUMNS: &str = "id, workspace_id, name, description, cron_expression, timezone, \
     agent_name, command_or_prompt, router_policy, output_folder_template, \
-    notify_email_recipients, sync_to_google_docs, sync_to_google_calendar, is_active, \
-    last_run_at, last_run_status, next_run_at, created_at";
+    notify_email_recipients, notify_signal, notify_signal_recipients, notify_only_on_change, \
+    recurrence_json, one_time, last_output_hash, sync_to_google_docs, sync_to_google_calendar, \
+    is_active, last_run_at, last_run_status, next_run_at, created_at";
 
 pub async fn list(pool: &SqlitePool, workspace_id: &str) -> AppResult<Vec<Schedule>> {
     let query =
@@ -137,8 +159,9 @@ pub async fn create(pool: &SqlitePool, input: CreateScheduleInput) -> AppResult<
         "INSERT INTO schedules (
             id, workspace_id, name, description, cron_expression, timezone,
             agent_name, command_or_prompt, router_policy, output_folder_template,
-            notify_email_recipients, sync_to_google_docs, sync_to_google_calendar, is_active
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            notify_email_recipients, notify_signal, notify_signal_recipients, notify_only_on_change,
+            recurrence_json, one_time, sync_to_google_docs, sync_to_google_calendar, is_active
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&input.workspace_id)
@@ -151,6 +174,11 @@ pub async fn create(pool: &SqlitePool, input: CreateScheduleInput) -> AppResult<
     .bind(&policy)
     .bind(input.output_folder_template.trim())
     .bind(input.notify_email_recipients.as_deref())
+    .bind(input.notify_signal)
+    .bind(input.notify_signal_recipients.as_deref())
+    .bind(input.notify_only_on_change)
+    .bind(input.recurrence_json.as_deref())
+    .bind(input.one_time)
     .bind(input.sync_to_google_docs)
     .bind(input.sync_to_google_calendar)
     .bind(input.is_active)
@@ -183,8 +211,9 @@ pub async fn update(
         "UPDATE schedules SET
             name = ?, description = ?, cron_expression = ?, timezone = ?, agent_name = ?,
             command_or_prompt = ?, router_policy = ?, output_folder_template = ?,
-            notify_email_recipients = ?, sync_to_google_docs = ?,
-            sync_to_google_calendar = ?, is_active = ?
+            notify_email_recipients = ?, notify_signal = ?, notify_signal_recipients = ?,
+            notify_only_on_change = ?, recurrence_json = ?, one_time = ?,
+            sync_to_google_docs = ?, sync_to_google_calendar = ?, is_active = ?
          WHERE id = ?",
     )
     .bind(input.name.unwrap_or(current.name))
@@ -204,6 +233,19 @@ pub async fn update(
             .notify_email_recipients
             .or(current.notify_email_recipients),
     )
+    .bind(input.notify_signal.unwrap_or(current.notify_signal))
+    .bind(
+        input
+            .notify_signal_recipients
+            .or(current.notify_signal_recipients),
+    )
+    .bind(
+        input
+            .notify_only_on_change
+            .unwrap_or(current.notify_only_on_change),
+    )
+    .bind(input.recurrence_json.or(current.recurrence_json))
+    .bind(input.one_time.unwrap_or(current.one_time))
     .bind(
         input
             .sync_to_google_docs
@@ -220,6 +262,19 @@ pub async fn update(
     .await?;
 
     get(pool, id).await
+}
+
+pub async fn set_last_output_hash(
+    pool: &SqlitePool,
+    id: &str,
+    hash: Option<&str>,
+) -> AppResult<()> {
+    sqlx::query("UPDATE schedules SET last_output_hash = ? WHERE id = ?")
+        .bind(hash)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
 }
 
 pub async fn delete(pool: &SqlitePool, id: &str) -> AppResult<()> {
@@ -296,6 +351,11 @@ mod tests {
             router_policy: "cost_benefit".into(),
             output_folder_template: "output/{YYYY}-{MM}/{schedule_slug}".into(),
             notify_email_recipients: Some("ops@example.com".into()),
+            notify_signal: false,
+            notify_signal_recipients: None,
+            notify_only_on_change: false,
+            recurrence_json: None,
+            one_time: false,
             sync_to_google_docs: true,
             sync_to_google_calendar: false,
             is_active: true,
@@ -343,6 +403,55 @@ mod tests {
 
         delete(&pool, &schedule.id).await.expect("delete");
         assert!(get(&pool, &schedule.id).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn persists_recurrence_and_notification_settings() {
+        let (_temp, pool) = setup().await;
+        let mut value = input();
+        value.recurrence_json =
+            Some(r#"{"frequency":"weekly","interval":1,"time":"09:30","weekdays":[1,3]}"#.into());
+        value.notify_signal = true;
+        value.notify_signal_recipients = Some("+5511999999999".into());
+        value.notify_only_on_change = true;
+        value.one_time = false;
+        let schedule = create(&pool, value).await.expect("create");
+
+        let loaded = get(&pool, &schedule.id).await.expect("get");
+        assert!(loaded.notify_signal);
+        assert_eq!(
+            loaded.notify_signal_recipients.as_deref(),
+            Some("+5511999999999")
+        );
+        assert!(loaded.notify_only_on_change);
+        assert_eq!(
+            loaded.recurrence_json.as_deref(),
+            Some(r#"{"frequency":"weekly","interval":1,"time":"09:30","weekdays":[1,3]}"#)
+        );
+        assert!(!loaded.one_time);
+        assert!(loaded.last_output_hash.is_none());
+
+        set_last_output_hash(&pool, &schedule.id, Some("abc"))
+            .await
+            .expect("hash");
+        let loaded = get(&pool, &schedule.id).await.expect("get");
+        assert_eq!(loaded.last_output_hash.as_deref(), Some("abc"));
+
+        let updated = update(
+            &pool,
+            &schedule.id,
+            UpdateScheduleInput {
+                notify_signal: Some(false),
+                notify_only_on_change: Some(false),
+                one_time: Some(true),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("update");
+        assert!(!updated.notify_signal);
+        assert!(!updated.notify_only_on_change);
+        assert!(updated.one_time);
     }
 
     #[tokio::test]

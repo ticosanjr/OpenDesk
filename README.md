@@ -40,8 +40,11 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Proveniência de artefatos com diff autoritativo e fallback por tool calls.
 - Kanban com 5 colunas, aprovação Plan → Build, logs por run e controlador da
   fila; Chat com tarefa rápida e Meta-Builder de agentes/skills/comandos.
-- Rotinas cron com motor dirigido pelo SQLite, timezone, pasta determinística,
-  idempotência de slot e execução manual.
+- Rotinas com recorrência intuitiva (calendário, dias da semana, mensal e cron
+  custom), timezone local editável, prévia dos próximos disparos, edição,
+  pasta determinística, idempotência de slot e execução manual.
+- Notificações por e-mail e Signal, com opção de só avisar quando o artefato
+  principal mudar.
 - SMTP por workspace com segredo criptografado (AES-256-GCM, 0600), teste de
   conexão e entrega pós-run com anexos e idempotência.
 - Motor OpenCode resiliente: descoberta do binário fora do `PATH`,
@@ -194,6 +197,10 @@ docs/                       plano, decisões e histórico
 - [ADR 0011 — Workflow e erros](docs/decisions/0011-task-workflow-and-errors.md)
 - [ADR 0012 — Chat e Signal](docs/decisions/0012-chat-and-signal.md)
 - [ADR 0013 — Gestão do Studio](docs/decisions/0013-studio-management.md)
+- [ADR 0014 — Overrides e saúde de modelos](docs/decisions/0014-model-overrides-and-health.md)
+- [ADR 0015 — Instalação com retry e rollback](docs/decisions/0015-install-retry-rollback.md)
+- [ADR 0016 — Runtime inventory e streaming](docs/decisions/0016-runtime-inventory-and-streaming.md)
+- [ADR 0017 — Recorrência intuitiva e notificações](docs/decisions/0017-intuitive-recurrence-and-notifications.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)

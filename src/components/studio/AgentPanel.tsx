@@ -80,6 +80,7 @@ function blankAgent(scope: StudioScope): AgentFile {
     mode: "subagent",
     model: "",
     color: "#60a5fa",
+    router_policy: null,
     hidden: false,
     steps: null,
     disabled: false,
@@ -461,6 +462,28 @@ export function AgentPanel({
                     </span>
                   </div>
                 </div>
+              </StudioField>
+              <StudioField
+                label="Política de roteador padrão"
+                hint="Usada como default em rotinas que escolherem este agente."
+              >
+                <select
+                  value={draft.router_policy ?? ""}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      router_policy: event.target.value || null,
+                    })
+                  }
+                  className={inputClass}
+                >
+                  <option value="">herdar do workspace</option>
+                  <option value="COST_BENEFIT">Custo-benefício</option>
+                  <option value="CHEAPEST">Mais barato</option>
+                  <option value="BEST_QUALITY">Máxima qualidade</option>
+                  <option value="MANUAL">Manual</option>
+                  <option value="CUSTOM_RULES">Regras customizadas</option>
+                </select>
               </StudioField>
               <StudioField label="Modo">
                 <select

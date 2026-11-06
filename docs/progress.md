@@ -734,3 +734,42 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `scripts/verify-real.sh` aceita modelo/prompt e imprime duração.
 - Verificação longa: `deepseek-v4.1-flash`, **148s**, SUCCESS, REVIEW,
   7 artefatos.
+
+## 2026-11-06 — 0.12.0: rotinas intuitivas, notificações e edição
+
+### Rotinas
+
+- Formulário com recorrência estruturada (uma vez, horária, diária, semanal,
+  dias úteis, mensal e cron custom) e prévia dos próximos disparos.
+- `POST /api/schedules/preview` valida e devolve cron, descrição humana e as 5
+  próximas ocorrências.
+- `recurrence_json` é a fonte de verdade; `cron_expression` é regenerado no
+  create/update e continua sendo o contrato do motor.
+- Timezone padrão é o do sistema (`iana-time-zone`) e permanece editável.
+- Rotinas de uma vez são desativadas após enfileirar; datas passadas são
+  rejeitadas; `end_date` desativa a rotina quando expira.
+- Disparo com motor offline é marcado `SKIPPED_OFFLINE` e o próximo slot é
+  preservado.
+- Rotinas continuam por workspace: a UI mostra o workspace ativo e orienta a
+  trocar de workspace para gerenciar outro conjunto.
+- Criar e editar usam o mesmo modal; a lista mostra recorrência humana, uma vez,
+  Signal e “só novidades”.
+
+### Notificações e agente
+
+- `notify_signal` + destinatários (vazio usa a allowlist do Signal).
+- `notify_only_on_change` compara SHA-256 do artefato principal/resumo com
+  `last_output_hash`; sem novidade, exporta Google mas omite e-mail/Signal.
+- Agente é um combobox opcional com busca que filtra por ID/nome; escolher um
+  agente herda a política do roteador até edição manual.
+- Prompt abre menu `/` com comandos e skills do runtime.
+- Template da pasta de saída tem default e fica abaixo do prompt com descrição.
+
+### Testes
+
+- `cargo test` — 103 passed.
+- `vitest` — 31 passed (inclui `src/lib/recurrence.test.ts`).
+- Playwright — 10 passed, incluindo recorrência, busca de agente, menu `/`,
+  notificações e edição de rotina.
+- Modal ganhou rolagem vertical para formulários altos.
+- `cargo clippy --all-targets -- -D warnings` limpo.

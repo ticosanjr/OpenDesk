@@ -54,7 +54,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     headers: auth.headers,
   });
   expect(about.ok()).toBeTruthy();
-  expect((await about.json()).app.version).toBe("0.11.1");
+  expect((await about.json()).app.version).toBe("0.12.0");
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });
@@ -276,7 +276,7 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   );
 });
 
-test("creates a cron routine, runs it and saves SMTP/Google settings", async ({
+test("creates and edits a recurrence routine with calendar, agent search and notifications", async ({
   page,
   request,
 }) => {
@@ -285,14 +285,137 @@ test("creates a cron routine, runs it and saves SMTP/Google settings", async ({
     headers: auth.headers,
   });
 
+  // Make this test self-contained when it runs alone.
+  const existing = (await (
+    await request.get(`${auth.baseURL}/api/workspaces`, {
+      headers: auth.headers,
+    })
+  ).json()) as Array<{ id: string }>;
+  if (existing.length === 0) {
+    const created = await request.post(`${auth.baseURL}/api/workspaces`, {
+      headers: auth.headers,
+      data: {
+        name: "Rotinas E2E",
+        root_path: "/tmp/opendesk-e2e/workspaces-routines",
+      },
+    });
+    expect(created.ok()).toBeTruthy();
+  }
+
+  // Recurrence preview is computed server-side before any schedule is stored.
+  const preview = await request.post(`${auth.baseURL}/api/schedules/preview`, {
+    headers: auth.headers,
+    data: {
+      timezone: "America/Sao_Paulo",
+      recurrence: {
+        frequency: "weekdays",
+        interval: 1,
+        time: "07:45",
+        weekdays: [],
+      },
+    },
+  });
+  expect(preview.ok()).toBeTruthy();
+  const previewBody = (await preview.json()) as {
+    cron_expression: string;
+    human: string;
+    next_runs: string[];
+  };
+  expect(previewBody.cron_expression).toBe("45 7 * * 1-5");
+  expect(previewBody.human).toContain("dias úteis");
+  expect(previewBody.next_runs).toHaveLength(5);
+
+  const invalid = await request.post(`${auth.baseURL}/api/schedules/preview`, {
+    headers: auth.headers,
+    data: {
+      timezone: "America/Sao_Paulo",
+      recurrence: {
+        frequency: "daily",
+        interval: 1,
+        time: "25:00",
+        weekdays: [],
+      },
+    },
+  });
+  expect(invalid.status()).toBe(400);
+
   await page.goto("/#/routines");
   await expect(page.getByRole("heading", { name: "Rotinas (Cron)" })).toBeVisible();
   await page.getByRole("main").getByRole("button", { name: "Nova rotina" }).click();
-  await page.getByLabel("Nome").fill("Rotina E2E");
-  await page.getByLabel("Comando ou prompt").fill("Produza um relatório de teste.");
-  await page.getByLabel("Destinatários de e-mail").fill("e2e@example.com");
-  await page.getByRole("dialog").getByRole("button", { name: "Criar rotina" }).click();
+
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Nome da rotina").fill("Rotina E2E");
+  await dialog.getByRole("button", { name: "Dias úteis" }).click();
+  await expect(dialog.getByText("dias úteis às", { exact: false })).toBeVisible();
+
+  // Timezone defaults to the local machine timezone and stays editable.
+  const timezone = await dialog.getByLabel("Timezone").inputValue();
+  expect(timezone.length).toBeGreaterThan(0);
+
+  // Agent picker is optional and filters as the user types.
+  const agentInput = dialog.getByPlaceholder("automático (router)");
+  await agentInput.fill("global");
+  await expect(
+    dialog.getByRole("button", { name: /@global-agent/ }),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: /@global-agent/ }).click();
+  await expect(agentInput).toHaveValue("global-agent");
+
+  await dialog.getByLabel("E-mail").fill("e2e@example.com");
+  await dialog.getByLabel("notificar por Signal").check();
+  await dialog
+    .getByLabel("notificar somente se houver novidade")
+    .check();
+  await dialog
+    .getByLabel("Comando ou prompt")
+    .fill("Produza um relatório de teste. /global-command");
+  await expect(dialog.getByText("Nenhum comando/skill encontrado.")).toBeVisible();
+  await dialog.getByRole("button", { name: "Criar rotina" }).click();
   await expect(page.getByText("Rotina E2E").first()).toBeVisible();
+  await expect(page.getByText("dias úteis às", { exact: false }).first()).toBeVisible();
+  await expect(page.getByText("só novidades").first()).toBeVisible();
+
+  type ScheduleShape = {
+    id: string;
+    name: string;
+    cron_expression: string;
+    timezone: string;
+    agent_name?: string | null;
+    notify_signal: boolean;
+    notify_only_on_change: boolean;
+    recurrence_json?: string | null;
+    one_time: boolean;
+  };
+  let routine: ScheduleShape | undefined;
+  await expect
+    .poll(
+      async () => {
+        const response = await request.get(`${auth.baseURL}/api/schedules`, {
+          headers: auth.headers,
+        });
+        if (!response.ok()) return false;
+        const list = (await response.json()) as ScheduleShape[];
+        routine = list.find((item) => item.name === "Rotina E2E");
+        return Boolean(routine);
+      },
+      { timeout: 5_000 },
+    )
+    .toBeTruthy();
+  expect(routine?.cron_expression).toBe("0 8 * * 1-5");
+  expect(routine?.timezone).toBe(timezone);
+  expect(routine?.agent_name).toBe("global-agent");
+  expect(routine?.notify_signal).toBe(true);
+  expect(routine?.notify_only_on_change).toBe(true);
+  expect(routine?.one_time).toBe(false);
+  expect(routine?.recurrence_json).toContain('"frequency":"weekdays"');
+
+  // Editing reuses the same calendar UI and persists the new name.
+  await page.getByRole("button", { name: "Editar" }).first().click();
+  await expect(dialog.getByLabel("Nome da rotina")).toHaveValue("Rotina E2E");
+  await dialog.getByLabel("Nome da rotina").fill("Rotina E2E editada");
+  await dialog.getByRole("button", { name: "Salvar rotina" }).click();
+  await expect(page.getByText("Rotina E2E editada").first()).toBeVisible();
+
   await page.getByRole("button", { name: "Executar agora" }).first().click();
   await expect(page.getByText("schedule").first()).toBeVisible();
 
@@ -641,11 +764,23 @@ test("kanban drag-and-drop persists the column", async ({ page, request }) => {
     .dragTo(page.locator('[data-column="DONE"]'));
   await expect(page.locator('[data-column="DONE"]').getByText("Drag E2E")).toBeVisible();
 
-  const tasks = await request.get(`${auth.baseURL}/api/tasks`, {
-    headers: auth.headers,
-  });
-  const list = (await tasks.json()) as Array<{ id: string; column_stage: string }>;
-  expect(list.find((item) => item.id === taskId)?.column_stage).toBe("DONE");
+  // The column change is persisted through an async API call; poll briefly.
+  await expect
+    .poll(
+      async () => {
+        const tasks = await request.get(`${auth.baseURL}/api/tasks`, {
+          headers: auth.headers,
+        });
+        if (!tasks.ok()) return null;
+        const list = (await tasks.json()) as Array<{
+          id: string;
+          column_stage: string;
+        }>;
+        return list.find((item) => item.id === taskId)?.column_stage ?? null;
+      },
+      { timeout: 5_000 },
+    )
+    .toBe("DONE");
 });
 
 test("studio backup lists and restores an item", async ({ request }) => {

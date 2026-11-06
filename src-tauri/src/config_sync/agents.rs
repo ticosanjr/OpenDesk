@@ -31,6 +31,7 @@ pub struct AgentFile {
     pub mode: Option<String>,
     pub model: Option<String>,
     pub color: Option<String>,
+    pub router_policy: Option<String>,
     pub hidden: bool,
     pub steps: Option<u32>,
     pub disabled: bool,
@@ -53,6 +54,8 @@ pub struct AgentWriteInput {
     pub model: Option<String>,
     #[serde(default)]
     pub color: Option<String>,
+    #[serde(default)]
+    pub router_policy: Option<String>,
     #[serde(default)]
     pub hidden: bool,
     #[serde(default)]
@@ -116,6 +119,7 @@ pub fn write(
     markdown::set_string(mapping, "mode", input.mode.as_deref());
     markdown::set_string(mapping, "model", input.model.as_deref());
     markdown::set_string(mapping, "color", input.color.as_deref());
+    markdown::set_string(mapping, "router_policy", input.router_policy.as_deref());
     markdown::set_bool(mapping, "hidden", input.hidden);
     markdown::set_u32(mapping, "steps", input.steps);
     markdown::set_bool(mapping, "disabled", input.disabled);
@@ -185,6 +189,7 @@ fn parse_agent(scope: &str, id: &str, path: &Path) -> AppResult<AgentFile> {
         mode: markdown::get_string(mapping, "mode"),
         model: markdown::get_string(mapping, "model"),
         color: markdown::get_string(mapping, "color"),
+        router_policy: markdown::get_string(mapping, "router_policy"),
         hidden: markdown::get_bool(mapping, "hidden").unwrap_or(false),
         steps: markdown::get_u32(mapping, "steps"),
         disabled: markdown::get_bool(mapping, "disabled").unwrap_or(false),
@@ -225,6 +230,7 @@ mod tests {
             mode: Some("subagent".into()),
             model: Some("opencode-go/glm-5.3".into()),
             color: Some("#ff6b6b".into()),
+            router_policy: Some("BEST_QUALITY".into()),
             hidden: false,
             steps: Some(8),
             disabled: false,

@@ -83,7 +83,21 @@ impl CronEngine {
         let now = Utc::now();
         let mut enqueued = 0;
 
+        let engine_online = self.daemon.status().await.online;
+
         for schedule in &schedules {
+            if let Some(recurrence) = crate::queue_scheduler::recurrence::parse_recurrence(
+                schedule.recurrence_json.as_deref(),
+            ) && recurrence.is_expired(now, &schedule.timezone)
+            {
+                let _ = schedules::set_active(&self.pool, &schedule.id, false).await;
+                let _ = schedules::set_next_run(&self.pool, &schedule.id, None).await;
+                self.events.publish(OpenDeskWsEvent::ScheduleUpdated {
+                    schedule_id: schedule.id.clone(),
+                    workspace_id: schedule.workspace_id.clone(),
+                });
+                continue;
+            }
             let next = match next_occurrence(&schedule.cron_expression, &schedule.timezone, now) {
                 Ok(next) => next,
                 Err(error) => {
@@ -107,6 +121,23 @@ impl CronEngine {
                 .unwrap_or(false);
 
             if due {
+                if !engine_online {
+                    let _ = schedules::mark_run(
+                        &self.pool,
+                        &schedule.id,
+                        "SKIPPED_OFFLINE",
+                        &now.to_rfc3339(),
+                    )
+                    .await;
+                    let _ =
+                        schedules::set_next_run(&self.pool, &schedule.id, Some(&next.to_rfc3339()))
+                            .await;
+                    self.events.publish(OpenDeskWsEvent::ScheduleUpdated {
+                        schedule_id: schedule.id.clone(),
+                        workspace_id: schedule.workspace_id.clone(),
+                    });
+                    continue;
+                }
                 let scheduled_for = schedule
                     .next_run_at
                     .clone()
@@ -121,6 +152,10 @@ impl CronEngine {
                             &now.to_rfc3339(),
                         )
                         .await;
+                        if schedule.one_time {
+                            let _ = schedules::set_active(&self.pool, &schedule.id, false).await;
+                            let _ = schedules::set_next_run(&self.pool, &schedule.id, None).await;
+                        }
                     }
                     Ok(None) => {
                         let _ = schedules::mark_run(
@@ -142,8 +177,11 @@ impl CronEngine {
                         .await;
                     }
                 }
-                let _ = schedules::set_next_run(&self.pool, &schedule.id, Some(&next.to_rfc3339()))
-                    .await;
+                if !schedule.one_time {
+                    let _ =
+                        schedules::set_next_run(&self.pool, &schedule.id, Some(&next.to_rfc3339()))
+                            .await;
+                }
                 self.events.publish(OpenDeskWsEvent::ScheduleUpdated {
                     schedule_id: schedule.id.clone(),
                     workspace_id: schedule.workspace_id.clone(),
@@ -357,6 +395,12 @@ mod tests {
             router_policy: "COST_BENEFIT".into(),
             output_folder_template: "output/{YYYY}-{MM}/{schedule_slug}".into(),
             notify_email_recipients: None,
+            notify_signal: false,
+            notify_signal_recipients: None,
+            notify_only_on_change: false,
+            recurrence_json: None,
+            one_time: false,
+            last_output_hash: None,
             sync_to_google_docs: false,
             sync_to_google_calendar: false,
             is_active: true,

@@ -41,7 +41,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby="modal-title"
         className={cn(
-          "relative w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl",
+          "relative w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl",
           className,
         )}
       >

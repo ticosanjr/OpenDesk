@@ -142,6 +142,7 @@ pub fn build(
                     mode: Some("subagent".into()),
                     model,
                     color: Some("#60a5fa".into()),
+                    router_policy: None,
                     hidden: false,
                     steps: None,
                     disabled: false,

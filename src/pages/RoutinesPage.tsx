@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarClock,
   Clock3,
@@ -19,8 +19,16 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
-import { apiDelete, apiGet, apiPost } from "@/lib/api";
-import type { Schedule } from "@/lib/types";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
+import type {
+  AgentFile,
+  Recurrence,
+  Schedule,
+  SchedulePreview,
+  StudioRuntime,
+} from "@/lib/types";
+import { RecurrenceEditor } from "@/components/routines/RecurrenceEditor";
+import { describeRecurrence, parseRecurrence } from "@/lib/recurrence";
 import { ROUTER_POLICY_LABELS } from "@/lib/types";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -37,6 +45,7 @@ export function RoutinesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editing, setEditing] = useState<Schedule | null>(null);
 
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
   const query = useMemo(
@@ -125,7 +134,13 @@ export function RoutinesPage() {
               <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
               Atualizar
             </Button>
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditing(null);
+                setCreateOpen(true);
+              }}
+            >
               <Plus size={15} />
               Nova rotina
             </Button>
@@ -184,7 +199,13 @@ export function RoutinesPage() {
               title="Nenhuma rotina configurada"
               description="Crie uma rotina com expressão cron, comando/prompt e destinatários. O motor roda a cada 15 s e usa o slot agendado como chave de idempotência."
               action={
-                <Button size="sm" onClick={() => setCreateOpen(true)}>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setEditing(null);
+                    setCreateOpen(true);
+                  }}
+                >
                   <Plus size={14} />
                   Criar rotina
                 </Button>
@@ -211,6 +232,21 @@ export function RoutinesPage() {
                         </Badge>
                         <Badge variant="blue">{schedule.cron_expression}</Badge>
                         <Badge variant="default">{schedule.timezone}</Badge>
+                        <Badge variant="default">
+                          {describeRecurrence(
+                            parseRecurrence(schedule.recurrence_json),
+                            schedule.cron_expression,
+                          )}
+                        </Badge>
+                        {schedule.one_time ? (
+                          <Badge variant="purple">uma vez</Badge>
+                        ) : null}
+                        {schedule.notify_only_on_change ? (
+                          <Badge variant="green">só novidades</Badge>
+                        ) : null}
+                        {schedule.notify_signal ? (
+                          <Badge variant="green">Signal</Badge>
+                        ) : null}
                         {schedule.agent_name ? (
                           <Badge variant="purple">@{schedule.agent_name}</Badge>
                         ) : null}
@@ -250,6 +286,17 @@ export function RoutinesPage() {
                         variant="outline"
                         size="sm"
                         className="h-7"
+                        onClick={() => {
+                          setEditing(schedule);
+                          setCreateOpen(true);
+                        }}
+                      >
+                        Editar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7"
                         onClick={() => void runNow(schedule)}
                       >
                         <Play size={12} />
@@ -284,9 +331,14 @@ export function RoutinesPage() {
       <CreateScheduleModal
         open={createOpen}
         workspaceId={activeWorkspaceId}
-        onClose={() => setCreateOpen(false)}
+        schedule={editing}
+        onClose={() => {
+          setCreateOpen(false);
+          setEditing(null);
+        }}
         onCreated={async () => {
           setCreateOpen(false);
+          setEditing(null);
           await load();
         }}
       />
@@ -297,52 +349,215 @@ export function RoutinesPage() {
 function CreateScheduleModal({
   open,
   workspaceId,
+  schedule,
   onClose,
   onCreated,
 }: {
   open: boolean;
   workspaceId: string;
+  schedule: Schedule | null;
   onClose: () => void;
   onCreated: () => Promise<void>;
 }) {
+  const workspaces = useAppStore((state) => state.workspaces);
+  const workspace = workspaces.find((item) => item.id === workspaceId);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [cron, setCron] = useState("0 8 * * 1-5");
-  const [timezone, setTimezone] = useState("America/Sao_Paulo");
   const [prompt, setPrompt] = useState("");
   const [agent, setAgent] = useState("");
+  const [agentOpen, setAgentOpen] = useState(false);
+  const [agents, setAgents] = useState<AgentFile[]>([]);
   const [policy, setPolicy] = useState("COST_BENEFIT");
+  const [policyTouched, setPolicyTouched] = useState(false);
   const [template, setTemplate] = useState("output/{YYYY}-{MM}/{schedule_slug}");
   const [recipients, setRecipients] = useState("");
+  const [signalEnabled, setSignalEnabled] = useState(false);
+  const [signalRecipients, setSignalRecipients] = useState("");
+  const [onlyOnChange, setOnlyOnChange] = useState(false);
+  const [timezone, setTimezone] = useState(
+    Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  );
+  const [recurrence, setRecurrence] = useState<Recurrence>(() => ({
+    frequency: "daily",
+    interval: 1,
+    time: "08:00",
+    weekdays: [],
+    day_of_month: 1,
+    start_date: new Date().toISOString().slice(0, 10),
+    end_date: null,
+    cron_expression: null,
+  }));
+  const [preview, setPreview] = useState<SchedulePreview | null>(null);
+  const [runtime, setRuntime] = useState<StudioRuntime | null>(null);
+  const [slash, setSlash] = useState<{ query: string; start: number } | null>(null);
+  const promptRef = useRef<HTMLTextAreaElement | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setError(null);
+    setName(schedule?.name ?? "");
+    setDescription(schedule?.description ?? "");
+    setPrompt(schedule?.command_or_prompt ?? "");
+    setAgent(schedule?.agent_name ?? "");
+    setPolicy(schedule?.router_policy ?? workspace?.default_router_policy ?? "COST_BENEFIT");
+    setPolicyTouched(false);
+    setTemplate(schedule?.output_folder_template ?? "output/{YYYY}-{MM}/{schedule_slug}");
+    setRecipients(schedule?.notify_email_recipients ?? workspace?.default_email_recipient ?? "");
+    setSignalEnabled(schedule?.notify_signal ?? false);
+    setSignalRecipients(schedule?.notify_signal_recipients ?? "");
+    setOnlyOnChange(schedule?.notify_only_on_change ?? false);
+    setTimezone(schedule?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC");
+    if (schedule?.recurrence_json) {
+      try {
+        setRecurrence(JSON.parse(schedule.recurrence_json) as Recurrence);
+      } catch {
+        setRecurrence({
+          frequency: "custom",
+          interval: 1,
+          time: "08:00",
+          weekdays: [],
+          day_of_month: 1,
+          start_date: null,
+          end_date: null,
+          cron_expression: schedule.cron_expression,
+        });
+      }
+    } else if (schedule) {
+      setRecurrence({
+        frequency: "custom",
+        interval: 1,
+        time: "08:00",
+        weekdays: [],
+        day_of_month: 1,
+        start_date: null,
+        end_date: null,
+        cron_expression: schedule.cron_expression,
+      });
+    }
+    const workspaceQuery = `scope=workspace&workspace_id=${encodeURIComponent(workspaceId)}`;
+    Promise.all([
+      apiGet<AgentFile[]>(`/api/studio/agents?${workspaceQuery}`).catch(() => []),
+      apiGet<AgentFile[]>("/api/studio/agents?scope=global").catch(() => []),
+      apiGet<StudioRuntime>(
+        `/api/studio/runtime?workspace_id=${encodeURIComponent(workspaceId)}`,
+      ).catch(() => null),
+    ]).then(([workspaceAgents, globalAgents, runtimeResponse]) => {
+      const seen = new Set<string>();
+      setAgents(
+        [...workspaceAgents, ...globalAgents].filter((item) => {
+          if (seen.has(item.id)) return false;
+          seen.add(item.id);
+          return true;
+        }),
+      );
+      setRuntime(runtimeResponse);
+    });
+  }, [open, schedule, workspaceId, workspace?.default_router_policy, workspace?.default_email_recipient]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handle = window.setTimeout(() => {
+      apiPost<SchedulePreview>("/api/schedules/preview", { recurrence, timezone })
+        .then((value) => {
+          setPreview(value);
+          setError(null);
+        })
+        .catch((cause) =>
+          setError(cause instanceof Error ? cause.message : String(cause)),
+        );
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [open, recurrence, timezone]);
+
+  function chooseAgent(value: AgentFile | null) {
+    setAgent(value?.id ?? "");
+    setAgentOpen(false);
+    if (!policyTouched) {
+      setPolicy(value?.router_policy || workspace?.default_router_policy || "COST_BENEFIT");
+    }
+  }
+
+  function updatePrompt(value: string, cursor: number) {
+    setPrompt(value);
+    const before = value.slice(0, cursor);
+    const match = before.match(/(?:^|\s)\/([\w:.-]*)$/);
+    if (match) {
+      setSlash({ query: match[1], start: cursor - match[1].length - 1 });
+    } else {
+      setSlash(null);
+    }
+  }
+
+  function insertSlash(value: string) {
+    if (!slash) return;
+    const before = prompt.slice(0, slash.start);
+    const after = prompt.slice(slash.start + slash.query.length + 1);
+    setPrompt(`${before}${value} ${after}`);
+    setSlash(null);
+    window.setTimeout(() => promptRef.current?.focus(), 0);
+  }
+
+  const slashItems = useMemo(() => {
+    if (!slash) return [];
+    const query = slash.query.toLowerCase();
+    const commands = (runtime?.commands ?? [])
+      .filter((command) => command.name.toLowerCase().includes(query))
+      .slice(0, 12)
+      .map((command) => ({
+        value: `/${command.name}`,
+        label: `/${command.name}`,
+        detail: command.description ?? "comando",
+      }));
+    const skills = (runtime?.skills ?? [])
+      .filter((skill) => skill.id.toLowerCase().includes(query))
+      .slice(0, 12)
+      .map((skill) => ({
+        value: `skill:${skill.id}`,
+        label: `skill: ${skill.id}`,
+        detail: skill.description ?? "skill",
+      }));
+    return [...commands, ...skills];
+  }, [slash, runtime]);
 
   async function submit() {
     if (!name.trim() || !prompt.trim()) {
       setError("Informe nome e comando/prompt.");
       return;
     }
+    if (!preview) {
+      setError("A recorrência ainda não foi validada.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await apiPost("/api/schedules", {
+      const payload = {
         workspace_id: workspaceId,
         name: name.trim(),
         description: description.trim() || null,
-        cron_expression: cron.trim(),
+        cron_expression: preview.cron_expression,
         timezone: timezone.trim(),
         agent_name: agent.trim() || null,
         command_or_prompt: prompt.trim(),
         router_policy: policy,
         output_folder_template: template.trim(),
         notify_email_recipients: recipients.trim() || null,
-        sync_to_google_docs: false,
-        sync_to_google_calendar: false,
-        is_active: true,
-      });
-      setName("");
-      setPrompt("");
-      setRecipients("");
+        notify_signal: signalEnabled,
+        notify_signal_recipients: signalEnabled ? signalRecipients.trim() || null : null,
+        notify_only_on_change: onlyOnChange,
+        recurrence_json: JSON.stringify(recurrence),
+        one_time: recurrence.frequency === "once",
+        sync_to_google_docs: schedule?.sync_to_google_docs ?? false,
+        sync_to_google_calendar: schedule?.sync_to_google_calendar ?? false,
+        is_active: schedule?.is_active ?? true,
+      };
+      if (schedule) {
+        await apiPatch(`/api/schedules/${schedule.id}`, payload);
+      } else {
+        await apiPost("/api/schedules", payload);
+      }
       await onCreated();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -351,104 +566,182 @@ function CreateScheduleModal({
     }
   }
 
+  const filteredAgents = agents.filter((item) =>
+    `${item.id} ${item.name ?? ""}`.toLowerCase().includes(agent.toLowerCase()),
+  );
+
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Nova rotina"
-      description="A rotina cria a pasta determinística, aplica o roteador e enfileira no horário agendado. Use /comando para expandir um comando do Studio."
+      title={schedule ? "Editar rotina" : "Nova rotina"}
+      description="A rotina pertence ao workspace ativo. Mude de workspace na barra superior para gerenciar as rotinas de outro workspace."
       className="max-w-3xl"
     >
-      <div className="grid gap-3 md:grid-cols-2">
-        <label>
-          <span className={labelClass}>Nome</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
-        </label>
-        <label>
-          <span className={labelClass}>Expressão cron</span>
-          <input
-            value={cron}
-            onChange={(e) => setCron(e.target.value)}
-            placeholder="0 8 * * 1-5"
-            className={cn(inputClass, "font-mono")}
-          />
-        </label>
-        <label>
-          <span className={labelClass}>Timezone</span>
-          <input
-            value={timezone}
-            onChange={(e) => setTimezone(e.target.value)}
-            placeholder="America/Sao_Paulo"
-            className={cn(inputClass, "font-mono")}
-          />
-        </label>
-        <label>
-          <span className={labelClass}>Agente (opcional)</span>
-          <input
-            value={agent}
-            onChange={(e) => setAgent(e.target.value)}
-            placeholder="build, plan, explorar…"
-            className={inputClass}
-          />
-        </label>
-        <label className="md:col-span-2">
+      <div className="space-y-3">
+        <div className="grid gap-2 md:grid-cols-2">
+          <label>
+            <span className={labelClass}>Workspace</span>
+            <input value={workspace?.name ?? workspaceId} disabled className={inputClass} />
+          </label>
+          <label>
+            <span className={labelClass}>Nome da rotina</span>
+            <input value={name} onChange={(event) => setName(event.target.value)} className={inputClass} />
+          </label>
+        </div>
+
+        <RecurrenceEditor value={recurrence} preview={preview} onChange={setRecurrence} />
+
+        <div className="grid gap-2 md:grid-cols-2">
+          <label>
+            <span className={labelClass}>Timezone</span>
+            <input value={timezone} onChange={(event) => setTimezone(event.target.value)} className={cn(inputClass, "font-mono")} />
+          </label>
+          <label className="relative">
+            <span className={labelClass}>Agente (opcional)</span>
+            <input
+              value={agent}
+              onChange={(event) => {
+                setAgent(event.target.value);
+                setAgentOpen(true);
+              }}
+              onFocus={() => setAgentOpen(true)}
+              onBlur={() => window.setTimeout(() => setAgentOpen(false), 150)}
+              placeholder="automático (router)"
+              className={inputClass}
+            />
+            {agentOpen ? (
+              <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
+                <button
+                  type="button"
+                  className="block w-full rounded px-2 py-1 text-left text-[10px] text-zinc-400 hover:bg-zinc-800"
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    chooseAgent(null);
+                  }}
+                >
+                  automático (router)
+                </button>
+                {filteredAgents.slice(0, 60).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="block w-full rounded px-2 py-1 text-left text-[10px] hover:bg-zinc-800"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      chooseAgent(item);
+                    }}
+                  >
+                    <span className="font-mono text-zinc-200">@{item.id}</span>
+                    <span className="ml-1 text-zinc-500">{item.name}</span>
+                    {item.router_policy ? (
+                      <span className="ml-1 text-zinc-600">{item.router_policy}</span>
+                    ) : null}
+                  </button>
+                ))}
+                {filteredAgents.length === 0 ? (
+                  <p className="px-2 py-1 text-[10px] text-zinc-600">Nenhum agente encontrado.</p>
+                ) : null}
+              </div>
+            ) : null}
+          </label>
+          <label>
+            <span className={labelClass}>Política do roteador</span>
+            <select
+              value={policy}
+              onChange={(event) => {
+                setPolicy(event.target.value);
+                setPolicyTouched(true);
+              }}
+              className={inputClass}
+            >
+              {Object.entries(ROUTER_POLICY_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className={labelClass}>Template da pasta de saída</span>
+            <input value={template} onChange={(event) => setTemplate(event.target.value)} className={cn(inputClass, "font-mono text-[10px]")} />
+          </label>
+        </div>
+
+        <label className="relative">
           <span className={labelClass}>Comando ou prompt</span>
           <textarea
+            ref={promptRef}
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            rows={4}
-            placeholder="/relatorio-diario ou descreva a tarefa completa"
-            className={cn(inputClass, "h-auto resize-y py-2")}
+            onChange={(event) => updatePrompt(event.target.value, event.target.selectionStart ?? 0)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setSlash(null);
+            }}
+            rows={5}
+            placeholder="Digite / para comandos e skills, ou descreva a tarefa"
+            className={cn(inputClass, "h-auto resize-y py-2 font-mono text-[11px]")}
           />
+          {slash ? (
+            <div className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
+              {slashItems.length === 0 ? (
+                <p className="px-2 py-1 text-[10px] text-zinc-600">Nenhum comando/skill encontrado.</p>
+              ) : (
+                slashItems.map((item) => (
+                  <button
+                    key={`${item.label}:${item.detail}`}
+                    type="button"
+                    className="block w-full rounded px-2 py-1 text-left hover:bg-zinc-800"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      insertSlash(item.value);
+                    }}
+                  >
+                    <span className="font-mono text-[10px] text-zinc-200">{item.label}</span>
+                    <span className="ml-2 text-[9px] text-zinc-600">{item.detail}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          ) : null}
         </label>
         <label>
-          <span className={labelClass}>Política do roteador</span>
-          <select value={policy} onChange={(e) => setPolicy(e.target.value)} className={inputClass}>
-            {Object.entries(ROUTER_POLICY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className={labelClass}>Destinatários de e-mail</span>
-          <input
-            value={recipients}
-            onChange={(e) => setRecipients(e.target.value)}
-            placeholder="a@empresa.com, b@empresa.com"
-            className={inputClass}
-          />
-        </label>
-        <label className="md:col-span-2">
-          <span className={labelClass}>Template da pasta de saída</span>
-          <input
-            value={template}
-            onChange={(e) => setTemplate(e.target.value)}
-            className={cn(inputClass, "font-mono text-[11px]")}
-          />
-        </label>
-        <label className="md:col-span-2">
           <span className={labelClass}>Descrição</span>
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className={inputClass}
-          />
+          <input value={description} onChange={(event) => setDescription(event.target.value)} className={inputClass} />
         </label>
+
+        <div className="rounded-xl border border-zinc-800/70 bg-zinc-950/30 p-3">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Notificações</p>
+          <div className="mt-2 grid gap-2 md:grid-cols-2">
+            <label>
+              <span className={labelClass}>E-mail</span>
+              <input value={recipients} onChange={(event) => setRecipients(event.target.value)} placeholder="a@empresa.com, b@empresa.com" className={inputClass} />
+            </label>
+            <label>
+              <span className={labelClass}>Signal (números, opcional)</span>
+              <input value={signalRecipients} onChange={(event) => setSignalRecipients(event.target.value)} placeholder="vazio usa a allowlist do Signal" className={inputClass} />
+            </label>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-4 text-[11px] text-zinc-400">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={signalEnabled} onChange={(event) => setSignalEnabled(event.target.checked)} className="accent-blue-500" />
+              notificar por Signal
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={onlyOnChange} onChange={(event) => setOnlyOnChange(event.target.checked)} className="accent-blue-500" />
+              notificar somente se houver novidade
+            </label>
+          </div>
+        </div>
+
+        {error ? (
+          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">{error}</p>
+        ) : null}
       </div>
-      {error ? (
-        <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
-          {error}
-        </p>
-      ) : null}
       <div className="mt-4 flex justify-end gap-2 border-t border-zinc-800/70 pt-4">
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button size="sm" onClick={() => void submit()} disabled={saving}>
+        <Button variant="ghost" size="sm" onClick={onClose}>Cancelar</Button>
+        <Button size="sm" onClick={() => void submit()} disabled={saving || !preview}>
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-          Criar rotina
+          {schedule ? "Salvar rotina" : "Criar rotina"}
         </Button>
       </div>
     </Modal>

@@ -5,12 +5,14 @@ use crate::{
     integrations::{
         google_api::GoogleApi,
         google_oauth::GoogleOAuth,
+        signal,
         smtp_mailer::{self, EmailAttachment},
     },
     paths::AppPaths,
     secrets::SecretStore,
 };
 use html_escape::encode_text;
+use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -33,6 +35,11 @@ pub async fn deliver_run(
         return Ok(());
     }
 
+    let schedule = match schedule_id {
+        Some(id) => schedules::get(pool, id).await.ok(),
+        None => None,
+    };
+
     let mut recipients = Vec::new();
     let mut export_to_gdocs = false;
     let mut sync_to_drive = false;
@@ -52,32 +59,17 @@ pub async fn deliver_run(
         }
     }
 
-    if let Some(schedule_id) = schedule_id
-        && let Ok(schedule) = schedules::get(pool, schedule_id).await
-    {
+    if let Some(schedule) = &schedule {
         title = schedule.name.clone();
         export_to_gdocs = schedule.sync_to_google_docs;
         sync_to_drive = schedule.sync_to_google_docs;
-        if let Some(email) = schedule.notify_email_recipients {
-            recipients.extend(split_recipients(&email));
+        if let Some(email) = &schedule.notify_email_recipients {
+            recipients.extend(split_recipients(email));
         }
     }
 
     recipients.sort();
     recipients.dedup();
-
-    if recipients.is_empty() {
-        return Ok(());
-    }
-
-    let secrets = SecretStore::new(paths);
-    let Some(config) = smtp_mailer::load_config(pool, &secrets, workspace_id).await? else {
-        tracing::info!(
-            workspace = workspace_id,
-            "SMTP is not configured; skipping delivery"
-        );
-        return Ok(());
-    };
 
     let workspace_root = workspaces::get(pool, workspace_id)
         .await
@@ -90,6 +82,19 @@ pub async fn deliver_run(
         .into_iter()
         .filter(|artifact| artifact.run_id == run_id)
         .collect::<Vec<_>>();
+
+    let novelty_hash = novelty_hash(&artifact_list, run.summary_response.as_deref());
+    let unchanged_output = schedule.as_ref().is_some_and(|schedule| {
+        schedule.notify_only_on_change
+            && novelty_hash.is_some()
+            && schedule.last_output_hash.as_deref() == novelty_hash.as_deref()
+    });
+    if unchanged_output {
+        tracing::info!(
+            run = run_id,
+            "no output change; keeping exports and skipping notifications"
+        );
+    }
 
     if export_to_gdocs || sync_to_drive {
         export_google(
@@ -114,58 +119,160 @@ pub async fn deliver_run(
         .filter(|artifact| artifact.action_type != "DELETED")
         .map(|artifact| artifact.absolute_path.clone())
         .collect::<Vec<_>>();
-
-    for recipient in recipients {
-        let key = format!("smtp:{run_id}:{recipient}");
-        let Some(delivery) = deliveries::create_pending(
-            pool,
-            workspace_id,
-            artifact_list.first().map(|artifact| artifact.id.as_str()),
-            "SMTP",
-            &key,
-        )
-        .await?
-        else {
-            continue;
-        };
-
-        match with_retry(3, || {
-            smtp_mailer::send_email(
-                &config,
-                &recipient,
-                &subject,
-                html.clone(),
-                attachments.clone(),
-            )
-        })
+    let secrets = SecretStore::new(paths);
+    let smtp_config = smtp_mailer::load_config(pool, &secrets, workspace_id)
         .await
-        {
-            Ok(()) => {
-                let _ = deliveries::mark_success(pool, &delivery.id, None, None).await;
-                tracing::info!(run = run_id, recipient, "run summary emailed");
-            }
-            Err(error) => {
-                let payload = serde_json::json!({
-                    "recipient": recipient,
-                    "subject": subject,
-                    "html": html,
-                    "artifact_paths": retry_artifacts,
-                })
-                .to_string();
-                let _ = deliveries::mark_failed_retryable(
-                    pool,
-                    &delivery.id,
-                    &format!("{error:#}"),
-                    &payload,
-                    5,
+        .ok()
+        .flatten();
+
+    if !unchanged_output && !recipients.is_empty() && smtp_config.is_none() {
+        tracing::info!(
+            workspace = workspace_id,
+            "SMTP is not configured; skipping email delivery"
+        );
+    }
+
+    if let Some(config) = &smtp_config
+        && !unchanged_output
+    {
+        for recipient in recipients {
+            let key = format!("smtp:{run_id}:{recipient}");
+            let Some(delivery) = deliveries::create_pending(
+                pool,
+                workspace_id,
+                artifact_list.first().map(|artifact| artifact.id.as_str()),
+                "SMTP",
+                &key,
+            )
+            .await?
+            else {
+                continue;
+            };
+
+            match with_retry(3, || {
+                smtp_mailer::send_email(
+                    config,
+                    &recipient,
+                    &subject,
+                    html.clone(),
+                    attachments.clone(),
                 )
-                .await;
-                tracing::warn!(run = run_id, recipient, error = %error, "email delivery failed; scheduled for retry");
+            })
+            .await
+            {
+                Ok(()) => {
+                    let _ = deliveries::mark_success(pool, &delivery.id, None, None).await;
+                    tracing::info!(run = run_id, recipient, "run summary emailed");
+                }
+                Err(error) => {
+                    let payload = serde_json::json!({
+                        "recipient": recipient,
+                        "subject": subject,
+                        "html": html,
+                        "artifact_paths": retry_artifacts,
+                    })
+                    .to_string();
+                    let _ = deliveries::mark_failed_retryable(
+                        pool,
+                        &delivery.id,
+                        &format!("{error:#}"),
+                        &payload,
+                        5,
+                    )
+                    .await;
+                    tracing::warn!(run = run_id, recipient, error = %error, "email delivery failed; scheduled for retry");
+                }
             }
         }
     }
 
+    if let Some(schedule) = &schedule
+        && schedule.notify_signal
+        && !unchanged_output
+    {
+        let config = signal::load(pool).await?;
+        let mut signal_recipients = schedule
+            .notify_signal_recipients
+            .as_deref()
+            .map(split_recipients)
+            .unwrap_or_default();
+        if signal_recipients.is_empty() {
+            signal_recipients = config.allowlist.clone();
+        }
+        let message = format!(
+            "[OpenDesk] {title}\nstatus: {}\n{}\n{}",
+            run.status,
+            run.summary_response.as_deref().unwrap_or("sem resumo"),
+            artifact_list
+                .first()
+                .map(|artifact| artifact.absolute_path.as_str())
+                .unwrap_or("sem artefato")
+        );
+        if config.account.trim().is_empty() {
+            tracing::warn!(schedule = %schedule.id, "Signal notification skipped: account is not configured");
+        } else {
+            for recipient in signal_recipients {
+                let key = format!("signal:{run_id}:{recipient}");
+                let Some(delivery) = deliveries::create_pending(
+                    pool,
+                    workspace_id,
+                    artifact_list.first().map(|artifact| artifact.id.as_str()),
+                    "SIGNAL",
+                    &key,
+                )
+                .await?
+                else {
+                    continue;
+                };
+                match signal::send_text(&config.cli_path, &config.account, &recipient, &message)
+                    .await
+                {
+                    Ok(()) => {
+                        let _ = deliveries::mark_success(pool, &delivery.id, None, None).await;
+                    }
+                    Err(error) => {
+                        let _ = deliveries::mark_failed(pool, &delivery.id, &format!("{error:#}"))
+                            .await;
+                        tracing::warn!(run = run_id, recipient, error = %error, "Signal notification failed");
+                    }
+                }
+            }
+        }
+    }
+
+    if let (Some(schedule), Some(hash)) = (&schedule, novelty_hash.as_deref()) {
+        let _ = schedules::set_last_output_hash(pool, &schedule.id, Some(hash)).await;
+    }
+
     Ok(())
+}
+
+fn novelty_hash(
+    artifacts: &[artifacts::ArtifactProvenance],
+    summary: Option<&str>,
+) -> Option<String> {
+    let artifact = artifacts
+        .iter()
+        .filter(|artifact| artifact.action_type != "DELETED")
+        .find(|artifact| artifact.file_path.ends_with(".md"))
+        .or_else(|| {
+            artifacts
+                .iter()
+                .find(|artifact| artifact.action_type != "DELETED")
+        });
+    if let Some(artifact) = artifact
+        && let Ok(bytes) = std::fs::read(&artifact.absolute_path)
+    {
+        return Some(hex_digest(&bytes));
+    }
+    summary.map(|value| hex_digest(value.as_bytes()))
+}
+
+fn hex_digest(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 #[allow(clippy::too_many_arguments)]

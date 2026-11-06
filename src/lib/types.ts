@@ -190,6 +190,7 @@ export interface AgentFile {
   mode?: string | null;
   model?: string | null;
   color?: string | null;
+  router_policy?: string | null;
   hidden: boolean;
   steps?: number | null;
   disabled: boolean;
@@ -415,6 +416,12 @@ export interface Schedule {
   router_policy: string;
   output_folder_template: string;
   notify_email_recipients?: string | null;
+  notify_signal: boolean;
+  notify_signal_recipients?: string | null;
+  notify_only_on_change: boolean;
+  recurrence_json?: string | null;
+  one_time: boolean;
+  last_output_hash?: string | null;
   sync_to_google_docs: boolean;
   sync_to_google_calendar: boolean;
   is_active: boolean;
@@ -654,4 +661,28 @@ export interface ModelHealth {
   code: string;
   failures: number;
   failed_at: string;
+}
+
+export interface Recurrence {
+  frequency:
+    | "once"
+    | "hourly"
+    | "daily"
+    | "weekly"
+    | "weekdays"
+    | "monthly"
+    | "custom";
+  interval: number;
+  time: string;
+  weekdays: number[];
+  day_of_month?: number | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  cron_expression?: string | null;
+}
+
+export interface SchedulePreview {
+  cron_expression: string;
+  human: string;
+  next_runs: string[];
 }
