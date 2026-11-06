@@ -26,6 +26,7 @@ impl ConfigWatcher {
         }
     }
 
+    #[allow(dead_code)]
     pub fn watched(&self) -> &[PathBuf] {
         &self.watched
     }
@@ -209,10 +210,10 @@ mod tests {
                     workspace_id,
                     path,
                 } = envelope.event
+                    && entity == "agent"
+                    && workspace_id == "ws-test"
                 {
-                    if entity == "agent" && workspace_id == "ws-test" {
-                        return path;
-                    }
+                    return path;
                 }
             }
         })

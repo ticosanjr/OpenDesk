@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bot, Loader2, Save, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPut } from "@/lib/api";
+import { slugifyWorkspace } from "@/lib/folder";
 import type {
   AgentFile,
   ModelInfo,
@@ -33,6 +34,40 @@ const ACTIONS = [
 ];
 
 const EFFECTS = ["allow", "ask", "deny"];
+
+const AVATAR_PRESETS = [
+  "🤖",
+  "🧠",
+  "🛡️",
+  "🧾",
+  "📊",
+  "✍️",
+  "🔍",
+  "⚙️",
+  "🚀",
+  "💡",
+  "🎯",
+  "📚",
+  "🦉",
+  "🧩",
+  "🕵️",
+  "🧑‍💻",
+  "📈",
+  "🧪",
+  "🗂️",
+  "🔧",
+];
+
+const COLOR_PRESETS = [
+  "#60a5fa",
+  "#34d399",
+  "#fbbf24",
+  "#f87171",
+  "#a78bfa",
+  "#22d3ee",
+  "#fb923c",
+  "#f472b6",
+];
 
 function blankAgent(scope: StudioScope): AgentFile {
   return {
@@ -75,6 +110,7 @@ export function AgentPanel({
   const [agents, setAgents] = useState<AgentFile[]>([]);
   const [draft, setDraft] = useState<AgentFile | null>(null);
   const [isNew, setIsNew] = useState(false);
+  const [idTouched, setIdTouched] = useState(false);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -110,6 +146,7 @@ export function AgentPanel({
   function startNew() {
     setDraft(blankAgent(scope));
     setIsNew(true);
+    setIdTouched(false);
     setError(null);
   }
 
@@ -308,40 +345,105 @@ export function AgentPanel({
               <StudioField label="Nome de exibição" hint="Usado pelo OpenDesk para identificar o agente; o OpenCode ignora este campo.">
                 <input
                   value={draft.name ?? ""}
-                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                  onChange={(event) => {
+                    const name = event.target.value;
+                    const next = { ...draft, name };
+                    if (isNew && !idTouched) {
+                      next.id = slugifyWorkspace(name);
+                    }
+                    setDraft(next);
+                  }}
                   placeholder="Auditor de Qualidade"
                   className={inputClass}
                 />
               </StudioField>
-              <StudioField label="ID / slug" hint={isNew ? "Vira o nome do arquivo .md." : "O ID não é renomeado por esta tela."}>
+              <StudioField
+                label="ID / slug"
+                hint={
+                  isNew
+                    ? "Gerado automaticamente do nome. Edite apenas se precisar."
+                    : "O ID não é renomeado por esta tela."
+                }
+              >
                 <input
                   value={draft.id}
                   disabled={!isNew}
-                  onChange={(event) => setDraft({ ...draft, id: event.target.value })}
-                  placeholder="auditor"
+                  onChange={(event) => {
+                    setIdTouched(true);
+                    setDraft({ ...draft, id: event.target.value });
+                  }}
+                  placeholder="auditor-de-qualidade"
                   className={cn(inputClass, "font-mono disabled:opacity-60")}
                 />
               </StudioField>
-              <StudioField label="Avatar" hint="Emoji ou até 2 caracteres.">
-                <input
-                  value={draft.avatar ?? ""}
-                  onChange={(event) => setDraft({ ...draft, avatar: event.target.value })}
-                  placeholder="🛡️"
-                  maxLength={8}
-                  className={inputClass}
-                />
+              <StudioField label="Avatar" hint="Escolha um preset ou digite outro emoji.">
+                <div className="space-y-2">
+                  <div className="grid grid-cols-10 gap-1">
+                    {AVATAR_PRESETS.map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        title={preset}
+                        onClick={() => setDraft({ ...draft, avatar: preset })}
+                        className={cn(
+                          "flex h-7 items-center justify-center rounded-md border text-[13px] transition",
+                          draft.avatar === preset
+                            ? "border-blue-500/60 bg-blue-500/10"
+                            : "border-zinc-800 bg-zinc-900/40 hover:border-zinc-600",
+                        )}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={draft.avatar ?? ""}
+                      onChange={(event) =>
+                        setDraft({ ...draft, avatar: event.target.value })
+                      }
+                      placeholder="🛡️"
+                      maxLength={8}
+                      className={cn(inputClass, "flex-1")}
+                    />
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/50 text-lg">
+                      {draft.avatar || "🤖"}
+                    </span>
+                  </div>
+                </div>
               </StudioField>
-              <StudioField label="Cor">
-                <div className="flex h-9 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2">
-                  <input
-                    type="color"
-                    value={draft.color || "#60a5fa"}
-                    onChange={(event) => setDraft({ ...draft, color: event.target.value })}
-                    className="h-5 w-8 cursor-pointer rounded border-0 bg-transparent p-0"
-                  />
-                  <span className="font-mono text-[10px] text-zinc-500">
-                    {draft.color || "#60a5fa"}
-                  </span>
+              <StudioField label="Cor" hint="Presets ou cor personalizada.">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {COLOR_PRESETS.map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        title={preset}
+                        onClick={() => setDraft({ ...draft, color: preset })}
+                        className={cn(
+                          "h-6 w-6 rounded-full border-2 transition",
+                          (draft.color || "#60a5fa") === preset
+                            ? "border-white/80"
+                            : "border-transparent hover:border-zinc-500",
+                        )}
+                        style={{ background: preset }}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex h-9 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2">
+                    <input
+                      type="color"
+                      value={draft.color || "#60a5fa"}
+                      onChange={(event) =>
+                        setDraft({ ...draft, color: event.target.value })
+                      }
+                      className="h-5 w-8 cursor-pointer rounded border-0 bg-transparent p-0"
+                    />
+                    <span className="font-mono text-[10px] text-zinc-500">
+                      {draft.color || "#60a5fa"}
+                    </span>
+                  </div>
                 </div>
               </StudioField>
               <StudioField label="Modo">

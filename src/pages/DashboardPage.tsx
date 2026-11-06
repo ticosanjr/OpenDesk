@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Activity,
   Archive,
@@ -40,6 +41,7 @@ import {
   shortPath,
 } from "@/lib/format";
 import type { LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const DAILY_LIMIT = 5;
 
@@ -64,6 +66,7 @@ export function DashboardPage() {
   const [recentArtifacts, setRecentArtifacts] = useState<Artifact[]>([]);
   const lastRunEvent = useAppStore((state) => state.lastRunEvent);
   const lastArtifactEvent = useAppStore((state) => state.lastArtifactEvent);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!activeWorkspace || !daemon?.online) {
@@ -178,6 +181,21 @@ export function DashboardPage() {
       {},
     ),
   ).sort((a, b) => b.cost - a.cost);
+
+  const activities = [
+    ...recentRuns.map((run) => ({
+      kind: "run" as const,
+      at: run.completed_at ?? run.started_at,
+      run,
+    })),
+    ...recentArtifacts.map((artifact) => ({
+      kind: "artifact" as const,
+      at: artifact.created_at,
+      artifact,
+    })),
+  ]
+    .sort((left, right) => right.at.localeCompare(left.at))
+    .slice(0, 8);
 
   return (
     <PageBody>
@@ -427,13 +445,13 @@ export function DashboardPage() {
                 Atividades recentes
               </CardTitle>
               <CardDescription>
-                Tarefas, artefatos, e-mails e rotinas em uma linha do tempo.
+                Clique em um run ou artefato para abrir o detalhe.
               </CardDescription>
             </div>
-            <Badge variant="default">em breve</Badge>
+            <Badge variant="default">{activities.length}</Badge>
           </CardHeader>
           <CardContent>
-            {recentArtifacts.length === 0 && recentRuns.length === 0 ? (
+            {activities.length === 0 ? (
               <EmptyState
                 icon={Archive}
                 title="Nenhuma atividade ainda"
@@ -441,45 +459,90 @@ export function DashboardPage() {
               />
             ) : (
               <div className="space-y-2">
-                {recentArtifacts.slice(0, 4).map((artifact) => (
-                  <div
-                    key={artifact.id}
-                    className="flex items-center gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
-                  >
-                    <Archive size={13} className="text-emerald-400/70" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-mono text-[10px] text-zinc-300">
-                        {artifact.file_path}
-                      </p>
-                      <p className="truncate text-[9px] text-zinc-600">
-                        @{artifact.created_by_agent} · {artifact.creation_reason}
-                      </p>
-                    </div>
-                    <span className="font-mono text-[8px] text-zinc-600">
-                      {relativeTime(artifact.created_at)}
-                    </span>
-                  </div>
-                ))}
-                {recentRuns.slice(0, 3).map((run) => (
-                  <div
-                    key={run.id}
-                    className="flex items-center gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
-                  >
-                    <Cpu size={13} className="text-blue-400/70" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[10px] text-zinc-300">
-                        {run.task_title ?? run.agent_name} · {run.phase ?? run.execution_mode}
-                      </p>
-                      <p className="truncate font-mono text-[9px] text-zinc-600">
-                        {run.status} · {formatUsd(run.estimated_cost_usd)} ·{" "}
-                        {formatNumber(run.tokens_input + run.tokens_output)} tokens
-                      </p>
-                    </div>
-                    <span className="font-mono text-[8px] text-zinc-600">
-                      {relativeTime(run.started_at)}
-                    </span>
-                  </div>
-                ))}
+                {activities.map((activity) =>
+                  activity.kind === "artifact" ? (
+                    <button
+                      type="button"
+                      key={`artifact-${activity.artifact.id}`}
+                      onClick={() => navigate(`/artifacts?id=${activity.artifact.id}`)}
+                      className="flex w-full items-center gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-left transition hover:border-emerald-500/30 hover:bg-emerald-500/[0.04]"
+                    >
+                      <Archive size={13} className="shrink-0 text-emerald-400/70" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-mono text-[10px] text-zinc-300">
+                          {activity.artifact.file_path}
+                        </p>
+                        <p className="truncate text-[9px] text-zinc-600">
+                          @{activity.artifact.created_by_agent} ·{" "}
+                          {activity.artifact.creation_reason}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-mono text-[8px] text-zinc-600">
+                        {relativeTime(activity.at)}
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      key={`run-${activity.run.id}`}
+                      onClick={() => {
+                        if (activity.run.task_id) {
+                          navigate(
+                            `/kanban?task=${encodeURIComponent(activity.run.task_id)}&run=${encodeURIComponent(activity.run.id)}`,
+                          );
+                        } else {
+                          navigate("/kanban");
+                        }
+                      }}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-lg border bg-zinc-950/40 px-3 py-2 text-left transition hover:bg-zinc-900/60",
+                        activity.run.status === "FAILED"
+                          ? "border-red-500/40"
+                          : activity.run.status === "SUCCESS"
+                            ? "border-emerald-500/25"
+                            : "border-zinc-800/70",
+                      )}
+                    >
+                      <Cpu
+                        size={13}
+                        className={cn(
+                          "shrink-0",
+                          activity.run.status === "FAILED"
+                            ? "text-red-400"
+                            : activity.run.status === "SUCCESS"
+                              ? "text-emerald-400/80"
+                              : "text-blue-400/70",
+                        )}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[10px] text-zinc-300">
+                          {activity.run.task_title ?? activity.run.agent_name} ·{" "}
+                          {activity.run.phase ?? activity.run.execution_mode}
+                        </p>
+                        <p
+                          className={cn(
+                            "truncate font-mono text-[9px]",
+                            activity.run.status === "FAILED"
+                              ? "text-red-300/80"
+                              : "text-zinc-600",
+                          )}
+                        >
+                          {activity.run.status} · {formatUsd(activity.run.estimated_cost_usd)} ·{" "}
+                          {formatNumber(
+                            activity.run.tokens_input + activity.run.tokens_output,
+                          )}{" "}
+                          tokens
+                          {activity.run.error_message
+                            ? ` · ${activity.run.error_message}`
+                            : ""}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-mono text-[8px] text-zinc-600">
+                        {relativeTime(activity.at)}
+                      </span>
+                    </button>
+                  ),
+                )}
               </div>
             )}
           </CardContent>

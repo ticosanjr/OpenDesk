@@ -49,6 +49,12 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
   // mode deliberately keeps the daemon offline.
   await expect(page.getByText("OpenCode Engine")).toBeVisible();
   await expect(page.getByText("Atualizações do OpenDesk")).toBeVisible();
+  await expect(page.getByText("Sobre & diagnóstico")).toBeVisible();
+  const about = await request.get(`${auth.baseURL}/api/about`, {
+    headers: auth.headers,
+  });
+  expect(about.ok()).toBeTruthy();
+  expect((await about.json()).app.version).toBe("0.7.0");
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });
@@ -65,11 +71,15 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
   await page.getByRole("link", { name: "OpenCode Studio" }).click();
   await expect(page.getByRole("heading", { name: "OpenCode Studio" })).toBeVisible();
   await page.getByTitle("Novo agente").click();
-  await page.locator('input[placeholder="auditor"]').fill("revisor-fiscal");
   await page
     .locator('input[placeholder="Auditor de Qualidade"]')
     .fill("Revisor Fiscal");
-  await page.locator('input[placeholder="🛡️"]').fill("🧾");
+  // The slug is derived from the display name; no manual ID is required.
+  await expect(page.locator('input[placeholder="auditor-de-qualidade"]')).toHaveValue(
+    "revisor-fiscal",
+  );
+  await page.getByTitle("🧾").click();
+  await page.getByTitle("#fbbf24").click();
   await page
     .locator('textarea[placeholder^="Você é o Auditor"]')
     .fill("Você é o revisor fiscal do workspace.");
@@ -102,7 +112,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
 
   expect(agent?.name).toBe("Revisor Fiscal");
   expect(agent?.avatar).toBe("🧾");
-  expect(agent?.color).toMatch(/^#[0-9a-f]{6}$/);
+  expect(agent?.color).toBe("#fbbf24");
 
   // External edit must reach the UI through the watcher/WS.
   const content = readFileSync(agent!.path, "utf8").replace(
@@ -145,6 +155,17 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   });
   expect(pause.ok()).toBeTruthy();
 
+  const concurrency = await request.put(`${auth.baseURL}/api/queue/concurrency`, {
+    headers: auth.headers,
+    data: { concurrency: 3 },
+  });
+  expect(concurrency.ok()).toBeTruthy();
+  expect((await concurrency.json()).concurrency).toBe(3);
+  await request.put(`${auth.baseURL}/api/queue/concurrency`, {
+    headers: auth.headers,
+    data: { concurrency: 1 },
+  });
+
   await page.goto("/#/kanban");
   await expect(page.getByRole("heading", { name: "Kanban & Fila" })).toBeVisible();
 
@@ -174,6 +195,44 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   expect(task).toBeTruthy();
   expect(task?.column_stage).toBe("BUILD");
   expect(task?.output_dir_path).toContain("/output/");
+
+  expect(task).toBeTruthy();
+  const diagnostics = await request.get(
+    `${auth.baseURL}/api/tasks/${task!.id}/diagnostics`,
+    { headers: auth.headers },
+  );
+  expect(diagnostics.ok()).toBeTruthy();
+  const diagnosticsBody = await diagnostics.json();
+  expect(diagnosticsBody.task.id).toBe(task!.id);
+  expect(Array.isArray(diagnosticsBody.runs)).toBe(true);
+
+  // DONE is a workflow action that does not require the engine.
+  const done = await request.post(
+    `${auth.baseURL}/api/tasks/${task!.id}/transition`,
+    { headers: auth.headers, data: { column_stage: "DONE" } },
+  );
+  expect(done.ok()).toBeTruthy();
+  expect((await done.json()).task.column_stage).toBe("DONE");
+
+  await page.reload();
+  await expect(page.getByText("Tarefa E2E do Kanban").first()).toBeVisible();
+  await page.getByText("Tarefa E2E do Kanban").first().click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: "Editar" }).click();
+  await expect(page.getByText("Editar tarefa")).toBeVisible();
+  await page.getByLabel("Agente").fill("explore");
+  await page.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(page.getByText("Editar tarefa")).not.toBeVisible();
+  const tasksAfterEdit = await request.get(`${auth.baseURL}/api/tasks`, {
+    headers: auth.headers,
+  });
+  const edited = (await tasksAfterEdit.json()) as Array<{
+    id: string;
+    assigned_agent?: string | null;
+  }>;
+  expect(edited.find((item) => item.id === task!.id)?.assigned_agent).toBe(
+    "explore",
+  );
 });
 
 test("creates a cron routine, runs it and saves SMTP/Google settings", async ({

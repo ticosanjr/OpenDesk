@@ -138,6 +138,7 @@ pub async fn exists(pool: &SqlitePool, run_id: &str, file_path: &str) -> AppResu
     Ok(count > 0)
 }
 
+#[allow(dead_code)]
 pub async fn count_for_task(pool: &SqlitePool, task_id: &str) -> AppResult<i64> {
     Ok(
         sqlx::query_scalar("SELECT COUNT(*) FROM artifacts_provenance WHERE task_id = ?")
@@ -168,4 +169,115 @@ pub async fn set_destinations(
     .execute(pool)
     .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    async fn setup() -> (TempDir, SqlitePool) {
+        let temp = TempDir::new().expect("temp");
+        let pool = crate::db::init(&temp.path().join("artifacts.db"))
+            .await
+            .expect("db");
+        sqlx::query("INSERT INTO workspaces (id, name, root_path) VALUES ('ws-1', 'WS', ?)")
+            .bind(temp.path().to_string_lossy().to_string())
+            .execute(&pool)
+            .await
+            .expect("workspace");
+        sqlx::query(
+            "INSERT INTO tasks (id, workspace_id, title, description) VALUES ('task-1', 'ws-1', 'Task', 'Desc')",
+        )
+        .execute(&pool)
+        .await
+        .expect("task");
+        sqlx::query(
+            "INSERT INTO task_runs (id, workspace_id, task_id, agent_name, execution_mode, model_id, effort_level, status)
+             VALUES ('run-1', 'ws-1', 'task-1', 'build', 'build', 'glm', 'high', 'RUNNING')",
+        )
+        .execute(&pool)
+        .await
+        .expect("run");
+        (temp, pool)
+    }
+
+    fn input(action: &str) -> CreateArtifactInput {
+        CreateArtifactInput {
+            workspace_id: "ws-1".into(),
+            task_id: Some("task-1".into()),
+            run_id: "run-1".into(),
+            file_path: "output/report.md".into(),
+            absolute_path: "/tmp/report.md".into(),
+            file_type: "md".into(),
+            file_size_bytes: 120,
+            content_sha256: Some("abc".into()),
+            previous_sha256: None,
+            action_type: action.into(),
+            created_by_agent: "build".into(),
+            creation_reason: "fase build".into(),
+            diff_patch: Some("+oi".into()),
+        }
+    }
+
+    #[tokio::test]
+    async fn artifact_lifecycle_and_filters() {
+        let (_temp, pool) = setup().await;
+        let artifact = create(&pool, input("CREATED")).await.expect("create");
+        assert!(
+            exists(&pool, "run-1", "output/report.md")
+                .await
+                .expect("exists")
+        );
+        assert!(
+            !exists(&pool, "run-2", "output/report.md")
+                .await
+                .expect("exists")
+        );
+
+        set_destinations(
+            &pool,
+            &artifact.id,
+            Some("https://docs.google.com/x"),
+            Some("https://drive.google.com/y"),
+            Some("a@b.c"),
+        )
+        .await
+        .expect("destinations");
+        let updated = get(&pool, &artifact.id).await.expect("get");
+        assert_eq!(
+            updated.google_doc_url.as_deref(),
+            Some("https://docs.google.com/x")
+        );
+        assert_eq!(updated.emailed_to.as_deref(), Some("a@b.c"));
+
+        assert_eq!(
+            list(
+                &pool,
+                "ws-1",
+                Some("build"),
+                Some("task-1"),
+                Some("CREATED"),
+                10
+            )
+            .await
+            .expect("list")
+            .len(),
+            1
+        );
+        assert!(
+            list(&pool, "ws-1", Some("explore"), None, None, 10)
+                .await
+                .expect("list")
+                .is_empty()
+        );
+        assert_eq!(count_for_task(&pool, "task-1").await.expect("count"), 1);
+        assert!(get(&pool, "missing").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_actions() {
+        let (_temp, pool) = setup().await;
+        assert!(create(&pool, input("TOUCHED")).await.is_err());
+    }
 }

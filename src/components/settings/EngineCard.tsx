@@ -31,6 +31,7 @@ export function EngineCard() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [manualPath, setManualPath] = useState("");
+  const [method, setMethod] = useState("curl");
   const [check, setCheck] = useState<OpenCodeUpdateCheck | null>(null);
   const [updateOutput, setUpdateOutput] = useState<string | null>(null);
   const [diagnosticsData, setDiagnosticsData] = useState<Record<
@@ -49,6 +50,9 @@ export function EngineCard() {
           status.configured_binary ||
           "",
       );
+      if (status.resolved?.method) {
+        setMethod(status.resolved.method);
+      }
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -177,6 +181,7 @@ export function EngineCard() {
     try {
       const result = await apiPost<EngineUpdateResult>("/api/engine/update", {
         version: check.latest,
+        method,
       });
       setUpdateOutput(result.output.trim());
       if (result.ok) {
@@ -391,18 +396,36 @@ export function EngineCard() {
               Verificar atualização
             </Button>
             {check?.update_available ? (
-              <Button
-                size="sm"
-                onClick={() => void updateOpenCode()}
-                disabled={busy !== null}
-              >
-                {busy === "update" ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Download size={13} />
-                )}
-                Atualizar OpenCode
-              </Button>
+              <>
+                <label className="flex items-center gap-1 text-[9px] text-zinc-500">
+                  método
+                  <select
+                    value={method}
+                    onChange={(event) => setMethod(event.target.value)}
+                    className="h-7 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 text-[10px] text-zinc-200 outline-none focus:border-blue-500/60"
+                  >
+                    {["curl", "npm", "pnpm", "bun", "yarn", "brew", "winget"].map(
+                      (value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </label>
+                <Button
+                  size="sm"
+                  onClick={() => void updateOpenCode()}
+                  disabled={busy !== null}
+                >
+                  {busy === "update" ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Download size={13} />
+                  )}
+                  Atualizar OpenCode
+                </Button>
+              </>
             ) : null}
           </div>
           {check?.release?.notes ? (

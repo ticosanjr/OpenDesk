@@ -43,10 +43,10 @@ pub async fn all(pool: &SqlitePool) -> AppResult<Vec<AppSetting>> {
 }
 
 pub async fn active_workspace_id(pool: &SqlitePool) -> AppResult<Option<String>> {
-    if let Some(value) = get(pool, "active_workspace_id").await? {
-        if let Some(id) = value.as_str() {
-            return Ok(Some(id.to_string()));
-        }
+    if let Some(value) = get(pool, "active_workspace_id").await?
+        && let Some(id) = value.as_str()
+    {
+        return Ok(Some(id.to_string()));
     }
 
     let first: Option<String> =

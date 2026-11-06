@@ -113,6 +113,7 @@ pub async fn set_schedule_active(
 
 #[derive(Debug, Deserialize)]
 pub struct TickQuery {
+    #[allow(dead_code)]
     pub force: Option<bool>,
 }
 

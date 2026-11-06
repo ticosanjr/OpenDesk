@@ -40,25 +40,25 @@ pub async fn deliver_run(
         .clone()
         .unwrap_or_else(|| "OpenDesk run".to_string());
 
-    if let Some(task_id) = task_id {
-        if let Ok(task) = tasks::get(pool, task_id).await {
-            title = task.title.clone();
-            export_to_gdocs = task.export_to_gdocs;
-            sync_to_drive = task.export_to_gdocs;
-            if let Some(email) = task.notify_email {
-                recipients.extend(split_recipients(&email));
-            }
+    if let Some(task_id) = task_id
+        && let Ok(task) = tasks::get(pool, task_id).await
+    {
+        title = task.title.clone();
+        export_to_gdocs = task.export_to_gdocs;
+        sync_to_drive = task.export_to_gdocs;
+        if let Some(email) = task.notify_email {
+            recipients.extend(split_recipients(&email));
         }
     }
 
-    if let Some(schedule_id) = schedule_id {
-        if let Ok(schedule) = schedules::get(pool, schedule_id).await {
-            title = schedule.name.clone();
-            export_to_gdocs = schedule.sync_to_google_docs;
-            sync_to_drive = schedule.sync_to_google_docs;
-            if let Some(email) = schedule.notify_email_recipients {
-                recipients.extend(split_recipients(&email));
-            }
+    if let Some(schedule_id) = schedule_id
+        && let Ok(schedule) = schedules::get(pool, schedule_id).await
+    {
+        title = schedule.name.clone();
+        export_to_gdocs = schedule.sync_to_google_docs;
+        sync_to_drive = schedule.sync_to_google_docs;
+        if let Some(email) = schedule.notify_email_recipients {
+            recipients.extend(split_recipients(&email));
         }
     }
 
@@ -123,13 +123,15 @@ pub async fn deliver_run(
             continue;
         };
 
-        match smtp_mailer::send_email(
-            &config,
-            &recipient,
-            &subject,
-            html.clone(),
-            attachments.clone(),
-        )
+        match with_retry(3, || {
+            smtp_mailer::send_email(
+                &config,
+                &recipient,
+                &subject,
+                html.clone(),
+                attachments.clone(),
+            )
+        })
         .await
         {
             Ok(()) => {
@@ -169,41 +171,35 @@ async fn export_google(
             .iter()
             .filter(|artifact| artifact.action_type != "DELETED")
             .find(|artifact| artifact.absolute_path.to_lowercase().ends_with(".md"));
-        if let Some(artifact) = main {
-            if let Ok(markdown) = std::fs::read_to_string(&artifact.absolute_path) {
-                let key = format!("gdocs:{run_id}");
-                if let Ok(Some(delivery)) = deliveries::create_pending(
-                    pool,
-                    workspace_id,
-                    Some(&artifact.id),
-                    "GDOCS",
-                    &key,
-                )
+        if let Some(artifact) = main
+            && let Ok(markdown) = std::fs::read_to_string(&artifact.absolute_path)
+        {
+            let key = format!("gdocs:{run_id}");
+            if let Ok(Some(delivery)) =
+                deliveries::create_pending(pool, workspace_id, Some(&artifact.id), "GDOCS", &key)
+                    .await
+            {
+                match with_retry(3, || {
+                    api.gdocs_create_from_markdown(workspace_id, title, &markdown, folder_id)
+                })
                 .await
                 {
-                    match api
-                        .gdocs_create_from_markdown(workspace_id, title, &markdown, folder_id)
-                        .await
-                    {
-                        Ok(value) => {
-                            let url = value.get("webViewLink").and_then(serde_json::Value::as_str);
-                            let _ =
-                                artifacts::set_destinations(pool, &artifact.id, url, None, None)
-                                    .await;
-                            let _ = deliveries::mark_success(
-                                pool,
-                                &delivery.id,
-                                value.get("id").and_then(serde_json::Value::as_str),
-                                url,
-                            )
+                    Ok(value) => {
+                        let url = value.get("webViewLink").and_then(serde_json::Value::as_str);
+                        let _ =
+                            artifacts::set_destinations(pool, &artifact.id, url, None, None).await;
+                        let _ = deliveries::mark_success(
+                            pool,
+                            &delivery.id,
+                            value.get("id").and_then(serde_json::Value::as_str),
+                            url,
+                        )
+                        .await;
+                    }
+                    Err(error) => {
+                        let _ = deliveries::mark_failed(pool, &delivery.id, &format!("{error:#}"))
                             .await;
-                        }
-                        Err(error) => {
-                            let _ =
-                                deliveries::mark_failed(pool, &delivery.id, &format!("{error:#}"))
-                                    .await;
-                            tracing::warn!(run = run_id, error = %error, "Google Docs export failed");
-                        }
+                        tracing::warn!(run = run_id, error = %error, "Google Docs export failed");
                     }
                 }
             }
@@ -232,9 +228,18 @@ async fn export_google(
                 .and_then(|name| name.to_str())
                 .unwrap_or("artifact");
             let mime = mime_for(Path::new(&artifact.absolute_path));
-            match api
-                .drive_upload(workspace_id, name, mime, bytes, folder_id, false)
-                .await
+            let bytes_for_retry = bytes.clone();
+            match with_retry(3, || {
+                api.drive_upload(
+                    workspace_id,
+                    name,
+                    mime,
+                    bytes_for_retry.clone(),
+                    folder_id,
+                    false,
+                )
+            })
+            .await
             {
                 Ok(value) => {
                     let url = value.get("webViewLink").and_then(serde_json::Value::as_str);
@@ -257,6 +262,30 @@ async fn export_google(
     }
 
     let _ = task_id;
+}
+
+/// Best-effort retry for transient network failures. The delivery rows are
+/// idempotent, so a retry never duplicates a successful destination.
+async fn with_retry<F, Fut, T>(attempts: usize, mut operation: F) -> anyhow::Result<T>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = anyhow::Result<T>>,
+{
+    let attempts = attempts.max(1);
+    let mut last_error = None;
+    for attempt in 1..=attempts {
+        match operation().await {
+            Ok(value) => return Ok(value),
+            Err(error) => {
+                last_error = Some(error);
+                if attempt < attempts {
+                    tokio::time::sleep(std::time::Duration::from_millis(400 * attempt as u64))
+                        .await;
+                }
+            }
+        }
+    }
+    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("retry operation produced no result")))
 }
 
 fn split_recipients(value: &str) -> Vec<String> {
@@ -325,10 +354,10 @@ fn build_attachments(
         .filter_map(|artifact| {
             let path = PathBuf::from(&artifact.absolute_path);
             let canonical = std::fs::canonicalize(&path).ok()?;
-            if let Some(root) = &root {
-                if !canonical.starts_with(root) {
-                    return None;
-                }
+            if let Some(root) = &root
+                && !canonical.starts_with(root)
+            {
+                return None;
             }
             let bytes = std::fs::read(&path).ok()?;
             if !smtp_mailer::attachment_limit(bytes.len()) {
@@ -358,5 +387,40 @@ fn mime_for(path: &Path) -> &'static str {
         Some("png") => "image/png",
         Some("jpg") | Some("jpeg") => "image/jpeg",
         _ => "application/octet-stream",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[tokio::test]
+    async fn retries_until_the_operation_succeeds() {
+        let attempts = AtomicUsize::new(0);
+        let result: anyhow::Result<&'static str> = with_retry(3, || {
+            let attempt = attempts.fetch_add(1, Ordering::SeqCst) + 1;
+            async move {
+                if attempt < 3 {
+                    anyhow::bail!("transient")
+                }
+                Ok("ok")
+            }
+        })
+        .await;
+        assert_eq!(result.expect("third attempt"), "ok");
+        assert_eq!(attempts.load(Ordering::SeqCst), 3);
+    }
+
+    #[tokio::test]
+    async fn returns_the_last_error_after_all_attempts() {
+        let attempts = AtomicUsize::new(0);
+        let result: anyhow::Result<()> = with_retry(2, || {
+            attempts.fetch_add(1, Ordering::SeqCst);
+            async move { anyhow::bail!("still down") }
+        })
+        .await;
+        assert!(result.is_err());
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
     }
 }

@@ -425,11 +425,11 @@ fn extract_doc_text(node: &Value) -> String {
     if let Some(text) = node.pointer("/textRun/content").and_then(Value::as_str) {
         output.push_str(text);
     }
-    if let Some(paragraph) = node.pointer("/paragraph") {
-        if let Some(elements) = paragraph.get("elements").and_then(Value::as_array) {
-            for element in elements {
-                output.push_str(&extract_doc_text(element));
-            }
+    if let Some(paragraph) = node.pointer("/paragraph")
+        && let Some(elements) = paragraph.get("elements").and_then(Value::as_array)
+    {
+        for element in elements {
+            output.push_str(&extract_doc_text(element));
         }
     }
     if let Some(content) = node.get("content").and_then(Value::as_array) {

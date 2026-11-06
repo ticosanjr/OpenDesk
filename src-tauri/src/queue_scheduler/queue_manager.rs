@@ -34,6 +34,7 @@ pub struct QueueStatus {
     pub paused: bool,
     pub pause_reason: Option<String>,
     pub active_jobs: usize,
+    pub concurrency: usize,
     pub running: i64,
     pub waiting: i64,
 }
@@ -46,6 +47,7 @@ pub struct QueueManager {
     google: Arc<GoogleOAuth>,
     paused: AtomicBool,
     pause_reason: Mutex<Option<String>>,
+    concurrency: AtomicUsize,
     active: AtomicUsize,
     notify: Notify,
     shutdown: CancellationToken,
@@ -59,6 +61,7 @@ impl QueueManager {
         events: EventBus,
         daemon: Arc<DaemonManager>,
         google: Arc<GoogleOAuth>,
+        concurrency: usize,
     ) -> Arc<Self> {
         Arc::new(Self {
             pool,
@@ -68,6 +71,7 @@ impl QueueManager {
             google,
             paused: AtomicBool::new(false),
             pause_reason: Mutex::new(None),
+            concurrency: AtomicUsize::new(clamp_concurrency(concurrency)),
             active: AtomicUsize::new(0),
             notify: Notify::new(),
             shutdown: CancellationToken::new(),
@@ -101,6 +105,16 @@ impl QueueManager {
         self.paused.load(Ordering::Relaxed)
     }
 
+    pub fn concurrency(&self) -> usize {
+        self.concurrency.load(Ordering::Relaxed)
+    }
+
+    pub fn set_concurrency(&self, value: usize) {
+        self.concurrency
+            .store(clamp_concurrency(value), Ordering::Relaxed);
+        self.notify.notify_waiters();
+    }
+
     pub async fn status(&self, workspace_id: Option<&str>) -> AppResult<QueueStatus> {
         let (running, waiting) = queue::counts(&self.pool, workspace_id).await?;
         Ok(QueueStatus {
@@ -111,6 +125,7 @@ impl QueueManager {
                 .expect("pause reason mutex")
                 .clone(),
             active_jobs: self.active.load(Ordering::Relaxed),
+            concurrency: self.concurrency(),
             running,
             waiting,
         })
@@ -195,38 +210,60 @@ impl QueueManager {
                 continue;
             }
 
-            match budget::check(&self.pool).await {
-                Ok(check) if !check.allowed => {
-                    self.pause(check.message.clone()).await;
-                    self.events.publish(OpenDeskWsEvent::BudgetAlert {
-                        level: check.level.into(),
-                        daily_spent: check.status.daily_spent,
-                        daily_limit: check.status.daily_limit,
-                        message: check.message,
-                    });
+            // Fill every available concurrency slot before going back to
+            // sleep. Each job runs in its own task so a slow model call does
+            // not block the next queued job.
+            loop {
+                if self.active.load(Ordering::Relaxed) >= self.concurrency() {
+                    break;
+                }
+
+                match budget::check(&self.pool).await {
+                    Ok(check) if !check.allowed => {
+                        self.pause(check.message.clone()).await;
+                        self.events.publish(OpenDeskWsEvent::BudgetAlert {
+                            level: check.level.into(),
+                            daily_spent: check.status.daily_spent,
+                            daily_limit: check.status.daily_limit,
+                            message: check.message,
+                        });
+                        break;
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        tracing::warn!(error = %error, "could not check budget");
+                    }
+                }
+
+                let Some(job) = (match queue::next_queued(&self.pool).await {
+                    Ok(job) => job,
+                    Err(error) => {
+                        tracing::error!(error = %error, "could not read queue");
+                        None
+                    }
+                }) else {
+                    break;
+                };
+
+                if !queue::claim(&self.pool, &job.id).await.unwrap_or(false) {
                     continue;
                 }
-                Ok(_) => {}
-                Err(error) => {
-                    tracing::warn!(error = %error, "could not check budget");
-                }
+
+                let workspace_id = job.workspace_id.clone();
+                let manager = Arc::clone(&self);
+                let active = self.active.fetch_add(1, Ordering::Relaxed) + 1;
+                self.daemon.set_active_jobs(active).await;
+                tauri::async_runtime::spawn(async move {
+                    manager.execute_job(job).await;
+                    let remaining = manager
+                        .active
+                        .fetch_sub(1, Ordering::Relaxed)
+                        .saturating_sub(1);
+                    manager.daemon.set_active_jobs(remaining).await;
+                    manager.publish_queue(&workspace_id).await;
+                    manager.notify.notify_waiters();
+                });
             }
-
-            let Some(job) = (match queue::next_queued(&self.pool).await {
-                Ok(job) => job,
-                Err(error) => {
-                    tracing::error!(error = %error, "could not read queue");
-                    None
-                }
-            }) else {
-                continue;
-            };
-
-            if !queue::claim(&self.pool, &job.id).await.unwrap_or(false) {
-                continue;
-            }
-
-            self.execute_job(job).await;
         }
     }
 
@@ -334,6 +371,14 @@ impl QueueManager {
                 None,
             )
             .await;
+            let _ = runs::set_error(
+                &self.pool,
+                &run.id,
+                "engine_offline",
+                "OpenCode daemon is offline",
+                "Abra Configurações → OpenCode Engine, configure o binário ou reinicie o motor.",
+            )
+            .await;
             let _ = queue::finish(
                 &self.pool,
                 &job.id,
@@ -359,7 +404,6 @@ impl QueueManager {
             .lock()
             .expect("running jobs mutex")
             .insert(job.id.clone(), cancel.clone());
-        self.set_active(1).await;
 
         let started = Instant::now();
         let request = RunRequest {
@@ -452,6 +496,16 @@ impl QueueManager {
             outcome.log_tail.as_deref(),
         )
         .await;
+
+        if outcome.status != RunStatus::Success {
+            let message = outcome
+                .error
+                .as_deref()
+                .or(outcome.summary.as_deref())
+                .unwrap_or("run failed without a message");
+            let (code, hint) = classify_run_error(message);
+            let _ = runs::set_error(&self.pool, &run_id, code, message, hint).await;
+        }
 
         let queue_status = match outcome.status {
             RunStatus::Success => "COMPLETED",
@@ -623,19 +677,18 @@ impl QueueManager {
             .lock()
             .expect("running jobs mutex")
             .remove(&job.id);
-        self.set_active(0).await;
         self.publish_queue(&job.workspace_id).await;
 
-        if let Ok(check) = budget::check(&self.pool).await {
-            if !check.allowed {
-                self.pause(check.message.clone()).await;
-                self.events.publish(OpenDeskWsEvent::BudgetAlert {
-                    level: check.level.into(),
-                    daily_spent: check.status.daily_spent,
-                    daily_limit: check.status.daily_limit,
-                    message: check.message,
-                });
-            }
+        if let Ok(check) = budget::check(&self.pool).await
+            && !check.allowed
+        {
+            self.pause(check.message.clone()).await;
+            self.events.publish(OpenDeskWsEvent::BudgetAlert {
+                level: check.level.into(),
+                daily_spent: check.status.daily_spent,
+                daily_limit: check.status.daily_limit,
+                message: check.message,
+            });
         }
     }
 
@@ -702,11 +755,6 @@ impl QueueManager {
         }
     }
 
-    async fn set_active(&self, value: usize) {
-        self.active.store(value, Ordering::Relaxed);
-        self.daemon.set_active_jobs(value).await;
-    }
-
     async fn publish_queue(&self, workspace_id: &str) {
         if let Ok(jobs) = queue::list(&self.pool, Some(workspace_id)).await {
             self.events.publish(OpenDeskWsEvent::QueueUpdated {
@@ -719,6 +767,62 @@ impl QueueManager {
     async fn publish_status_for_all(&self) {
         let _ = self.status(None).await;
     }
+}
+
+fn classify_run_error(message: &str) -> (&'static str, &'static str) {
+    let lower = message.to_lowercase();
+    if lower.contains("daemon is offline") || lower.contains("connection refused") {
+        (
+            "engine_offline",
+            "O motor OpenCode não está acessível. Reinicie o motor em Configurações → OpenCode Engine.",
+        )
+    } else if lower.contains("401") || lower.contains("unauthorized") || lower.contains("password")
+    {
+        (
+            "auth_failed",
+            "O OpenCode rejeitou a autenticação. Reinicie o motor para renovar a senha do daemon.",
+        )
+    } else if lower.contains("model") && (lower.contains("not found") || lower.contains("unknown"))
+    {
+        (
+            "model_not_found",
+            "O modelo configurado não existe ou não está disponível para este workspace. Edite a tarefa e escolha outro modelo.",
+        )
+    } else if lower.contains("agent") && lower.contains("not found") {
+        (
+            "agent_not_found",
+            "O agente configurado não existe no workspace. Edite a tarefa e escolha outro agente.",
+        )
+    } else if lower.contains("timed out") || lower.contains("timeout") {
+        (
+            "timeout",
+            "A execução excedeu o tempo limite. Tente novamente ou reduza o escopo da tarefa.",
+        )
+    } else if lower.contains("cancel") {
+        (
+            "cancelled",
+            "A execução foi cancelada. Use Tentar de novo para enfileirar outra execução.",
+        )
+    } else if lower.contains("budget") {
+        (
+            "budget_blocked",
+            "O budget guard bloqueou a execução. Ajuste o limite em Roteador & Custos ou aguarde o próximo período.",
+        )
+    } else if lower.contains("no such file") || lower.contains("enoent") {
+        (
+            "binary_missing",
+            "O binário do OpenCode não foi encontrado. Configure o caminho em Configurações → OpenCode Engine.",
+        )
+    } else {
+        (
+            "run_failed",
+            "Abra o log completo e o diagnóstico da tarefa. Se o erro citar modelo/agente, edite a tarefa e tente novamente.",
+        )
+    }
+}
+
+fn clamp_concurrency(value: usize) -> usize {
+    value.clamp(1, 4)
 }
 
 fn split_model(model: &str) -> (Option<String>, String) {
@@ -762,6 +866,10 @@ fn job_dto(job: queue::QueueJob) -> QueueJobDto {
         scheduled_for: job.scheduled_for,
         enqueued_at: job.enqueued_at,
         started_at: job.started_at,
+        finished_at: job.finished_at,
+        retry_count: job.retry_count,
+        max_retries: job.max_retries,
+        error_message: job.error_message,
     }
 }
 
@@ -779,5 +887,44 @@ fn artifact_dto(artifact: &artifacts::ArtifactProvenance) -> ArtifactProvenanceD
         creation_reason: artifact.creation_reason.clone(),
         diff_patch: artifact.diff_patch.clone(),
         created_at: artifact.created_at.clone(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn classifies_common_run_failures() {
+        assert_eq!(
+            classify_run_error("OpenCode daemon is offline").0,
+            "engine_offline"
+        );
+        assert_eq!(classify_run_error("HTTP 401 Unauthorized").0, "auth_failed");
+        assert_eq!(
+            classify_run_error("model not found: x").0,
+            "model_not_found"
+        );
+        assert_eq!(
+            classify_run_error("agent not found: x").0,
+            "agent_not_found"
+        );
+        assert_eq!(classify_run_error("request timed out").0, "timeout");
+        assert_eq!(classify_run_error("cancelled by user").0, "cancelled");
+        assert_eq!(classify_run_error("budget hard stop").0, "budget_blocked");
+        assert_eq!(
+            classify_run_error("No such file or directory").0,
+            "binary_missing"
+        );
+        assert_eq!(classify_run_error("something else").0, "run_failed");
+    }
+
+    #[test]
+    fn concurrency_is_clamped_to_a_safe_range() {
+        assert_eq!(clamp_concurrency(0), 1);
+        assert_eq!(clamp_concurrency(1), 1);
+        assert_eq!(clamp_concurrency(3), 3);
+        assert_eq!(clamp_concurrency(4), 4);
+        assert_eq!(clamp_concurrency(99), 4);
     }
 }

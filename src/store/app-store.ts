@@ -236,7 +236,7 @@ function scheduleReconnect() {
   }, delay);
 }
 
-function handleEvent(event: WsEvent) {
+export function handleEvent(event: WsEvent) {
   const state = useAppStore.getState();
   if (event.event_id > state.lastEventId) {
     useAppStore.setState({ lastEventId: event.event_id });

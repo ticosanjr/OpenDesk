@@ -30,6 +30,7 @@ pub fn read_text(path: &Path) -> AppResult<Option<FileSnapshot>> {
     }
 }
 
+#[allow(dead_code)]
 pub fn read_required(path: &Path) -> AppResult<FileSnapshot> {
     read_text(path)?.ok_or_else(|| AppError::NotFound(format!("file {}", path.display())))
 }

@@ -24,6 +24,8 @@ use uuid::Uuid;
 /// persisted so the AppImage keeps working across restarts even when the
 /// binary directory is not on the inherited PATH.
 pub const OPENCODE_BIN_SETTING: &str = "opencode_bin_path";
+/// Number of queue jobs that may run concurrently (1–4).
+pub const QUEUE_CONCURRENCY_SETTING: &str = "queue_concurrency";
 
 pub struct AppState {
     pub paths: AppPaths,
@@ -89,12 +91,17 @@ impl AppState {
         let secrets = Arc::new(SecretStore::new(&paths));
 
         let google = GoogleOAuth::new(db.clone(), secrets.clone(), events.clone());
+        let concurrency = settings::get(&db, QUEUE_CONCURRENCY_SETTING)
+            .await?
+            .and_then(|value| value.as_u64())
+            .unwrap_or(1) as usize;
         let queue = QueueManager::new(
             db.clone(),
             paths.clone(),
             events.clone(),
             daemon.clone(),
             google.clone(),
+            concurrency,
         );
         let cron = CronEngine::new(
             db.clone(),

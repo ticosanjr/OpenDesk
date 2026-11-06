@@ -1,3 +1,4 @@
+pub mod about;
 pub mod artifacts;
 pub mod budget;
 pub mod commands;
@@ -71,6 +72,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/healthz", get(healthz))
         .route("/api/health", get(health))
         .route("/api/meta", get(meta))
+        .route("/api/about", get(about::about))
         .route("/api/meta/build", post(meta::build))
         .route("/api/daemon/status", get(daemon_status))
         .route("/api/daemon/restart", post(restart_daemon))
@@ -148,6 +150,8 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/tasks/{id}/dispatch", post(tasks::dispatch_task))
         .route("/api/tasks/{id}/approve-plan", post(tasks::approve_plan))
         .route("/api/tasks/{id}/move", post(tasks::move_task))
+        .route("/api/tasks/{id}/transition", post(tasks::transition_task))
+        .route("/api/tasks/{id}/diagnostics", get(tasks::task_diagnostics))
         .route("/api/queue", get(queue::list_queue))
         .route("/api/queue/status", get(queue::queue_status))
         .route("/api/queue/pause", post(queue::pause_queue))
@@ -155,6 +159,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/queue/{id}/cancel", post(queue::cancel_job))
         .route("/api/queue/{id}/retry", post(queue::retry_job))
         .route("/api/queue/{id}/priority", patch(queue::update_priority))
+        .route("/api/queue/concurrency", put(queue::set_concurrency))
         .route("/api/runs", get(runs::list_runs))
         .route("/api/runs/{id}", get(runs::get_run))
         .route("/api/runs/{id}/log", get(runs::run_log))

@@ -154,12 +154,11 @@ pub fn delete_mcp_server(
 
     let root = parse_cst(&snapshot.content)?;
     let root_object = root.object_value_or_set();
-    if let Some(mcp) = root_object.object_value("mcp") {
-        if let Some(servers) = mcp.object_value("servers") {
-            if let Some(property) = servers.get(&name) {
-                property.remove();
-            }
-        }
+    if let Some(mcp) = root_object.object_value("mcp")
+        && let Some(servers) = mcp.object_value("servers")
+        && let Some(property) = servers.get(&name)
+    {
+        property.remove();
     }
 
     let content = root.to_string();
@@ -168,6 +167,7 @@ pub fn delete_mcp_server(
 }
 
 /// Generic nested value update used by permissions and future Studio tabs.
+#[allow(dead_code)]
 pub fn set_config_value(
     path: &Path,
     keys: &[&str],
@@ -212,6 +212,7 @@ pub fn set_config_value(
     read_document(path)
 }
 
+#[allow(dead_code)]
 pub fn content_hash(content: &str) -> String {
     sha256_hex(content.as_bytes())
 }

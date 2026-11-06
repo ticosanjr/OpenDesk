@@ -45,6 +45,7 @@ struct Complexity {
     score: u8,
 }
 
+#[allow(unused_assignments)]
 pub fn classify(input: &RouterInput<'_>) -> RouterDecision {
     let complexity = estimate_complexity(input);
     let mode = input.execution_mode.to_uppercase();
@@ -379,7 +380,7 @@ fn model_price(model: &ModelDto) -> f64 {
     model
         .cost
         .iter()
-        .filter_map(|cost| {
+        .map(|cost| {
             let input = cost
                 .get("input")
                 .and_then(Value::as_f64)
@@ -388,7 +389,7 @@ fn model_price(model: &ModelDto) -> f64 {
                 .get("output")
                 .and_then(Value::as_f64)
                 .unwrap_or(f64::MAX);
-            Some(input + output)
+            input + output
         })
         .fold(f64::MAX, f64::min)
 }
@@ -461,8 +462,6 @@ pub fn slugify(value: &str) -> String {
         .map(|character| {
             if character.is_ascii_alphanumeric() {
                 character
-            } else if character.is_whitespace() || character == '-' || character == '_' {
-                '-'
             } else {
                 '-'
             }

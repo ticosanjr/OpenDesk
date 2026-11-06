@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Archive,
   ExternalLink,
@@ -45,6 +46,7 @@ export function ArtifactsPage() {
   const [tab, setTab] = useState<"content" | "diff">("content");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
   const query = useMemo(() => {
@@ -75,6 +77,17 @@ export function ArtifactsPage() {
   useEffect(() => {
     void load();
   }, [load, lastArtifactEvent]);
+
+  // Deep link from the dashboard: /artifacts?id=<artifact-id>
+  useEffect(() => {
+    const id = searchParams.get("id");
+    if (!id || artifacts.length === 0) return;
+    const artifact = artifacts.find((item) => item.id === id);
+    if (artifact) {
+      setSelected(artifact);
+      setSearchParams({}, { replace: true });
+    }
+  }, [artifacts, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!selected) {

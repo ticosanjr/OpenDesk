@@ -196,8 +196,8 @@ pub async fn execute_run(
                                             break;
                                         }
                                     }
-                                    Some("session.execution.failed") => {
-                                        if session_matches(&event, &session_id) {
+                                    Some("session.execution.failed")
+                                        if session_matches(&event, &session_id) => {
                                             status = RunStatus::Failed;
                                             error_message = Some(
                                                 event
@@ -208,7 +208,6 @@ pub async fn execute_run(
                                             completed = true;
                                             break;
                                         }
-                                    }
                                     _ => {}
                                 }
                             }
@@ -357,6 +356,7 @@ fn failed_outcome(session_id: String, error: String, log_path: &Path) -> RunOutc
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_event(
     event: &Value,
     session_id: &str,
@@ -507,10 +507,7 @@ fn session_matches(event: &Value, session_id: &str) -> bool {
 fn extract_events(buffer: &mut String) -> Vec<Value> {
     let mut events = Vec::new();
 
-    loop {
-        let Some(position) = buffer.find("\n\n") else {
-            break;
-        };
+    while let Some(position) = buffer.find("\n\n") {
         let block = buffer[..position].to_string();
         buffer.drain(..position + 2);
 

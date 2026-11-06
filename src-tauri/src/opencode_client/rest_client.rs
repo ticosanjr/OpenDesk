@@ -132,10 +132,10 @@ impl RestClient {
             let body = response.text().await.unwrap_or_default();
             anyhow::bail!("OpenCode returned {status}: {body}");
         }
-        Ok(response
+        response
             .json::<T>()
             .await
-            .context("could not decode OpenCode response")?)
+            .context("could not decode OpenCode response")
     }
 
     pub async fn info(&self) -> Result<ServerInfo> {
@@ -303,5 +303,161 @@ impl RestClient {
             anyhow::bail!("OpenCode returned {status}: {value}");
         }
         Ok(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        Json, Router,
+        http::{HeaderMap, StatusCode},
+        response::IntoResponse,
+        routing::{get, post},
+    };
+
+    fn authorized(headers: &HeaderMap) -> bool {
+        headers
+            .get("authorization")
+            .and_then(|value| value.to_str().ok())
+            .map(|value| value.starts_with("Basic "))
+            .unwrap_or(false)
+    }
+
+    async fn mock_server() -> (String, tokio::task::JoinHandle<()>) {
+        let app = Router::new()
+            .route(
+                "/api/info",
+                get(|headers: HeaderMap| async move {
+                    if !authorized(&headers) {
+                        return StatusCode::UNAUTHORIZED.into_response();
+                    }
+                    Json(serde_json::json!({ "version": "2.2.5", "pid": 42 })).into_response()
+                }),
+            )
+            .route(
+                "/api/model",
+                get(|headers: HeaderMap| async move {
+                    if !authorized(&headers) {
+                        return StatusCode::UNAUTHORIZED.into_response();
+                    }
+                    Json(serde_json::json!({
+                        "data": [{
+                            "id": "glm",
+                            "modelID": "glm-5.3",
+                            "providerID": "opencode-go",
+                            "cost": [{ "input": 1.0, "output": 2.0 }]
+                        }]
+                    }))
+                    .into_response()
+                }),
+            )
+            .route(
+                "/api/agent",
+                get(|headers: HeaderMap| async move {
+                    if !authorized(&headers) {
+                        return StatusCode::UNAUTHORIZED.into_response();
+                    }
+                    Json(serde_json::json!({ "data": [{ "id": "build", "permissions": {} }] }))
+                        .into_response()
+                }),
+            )
+            .route(
+                "/api/session",
+                post(|headers: HeaderMap, Json(_body): Json<Value>| async move {
+                    if !authorized(&headers) {
+                        return StatusCode::UNAUTHORIZED.into_response();
+                    }
+                    Json(serde_json::json!({ "data": { "id": "ses-1" } })).into_response()
+                }),
+            )
+            .route(
+                "/api/session/{id}/prompt",
+                post(|| async { StatusCode::NO_CONTENT }),
+            )
+            .route(
+                "/api/session/{id}/interrupt",
+                post(|| async { StatusCode::NO_CONTENT }),
+            )
+            .route(
+                "/api/experimental/session/{id}/wait",
+                post(|| async { StatusCode::NO_CONTENT }),
+            )
+            .route(
+                "/api/session/{id}/message",
+                get(|| async { Json(serde_json::json!({ "data": [] })) }),
+            )
+            .route(
+                "/api/session/{id}/diff",
+                get(|| async {
+                    Json(serde_json::json!({
+                        "data": [{ "file": "a.md", "patch": "+x", "status": "added" }]
+                    }))
+                }),
+            )
+            .route(
+                "/api/session/{id}/permission/{request}/reply",
+                post(|| async { StatusCode::NO_CONTENT }),
+            )
+            .route(
+                "/api/event",
+                get(|| async { ([("content-type", "text/event-stream")], "data: ok\n\n") }),
+            );
+
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .expect("listener");
+        let address = listener.local_addr().expect("address");
+        let handle = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        (format!("http://{address}"), handle)
+    }
+
+    #[tokio::test]
+    async fn exercises_the_v2_rest_surface_with_basic_auth() {
+        let (url, handle) = mock_server().await;
+        let client = RestClient::new_with_url(&url, "secret".into());
+        assert_eq!(
+            client.base_url().trim_end_matches('/'),
+            url.trim_end_matches('/')
+        );
+
+        let info = client.info().await.expect("info");
+        assert_eq!(info.version, "2.2.5");
+        assert_eq!(info.pid, 42);
+
+        let models = client.models(Some("/tmp/ws")).await.expect("models");
+        assert_eq!(models[0].model_id.as_deref(), Some("glm-5.3"));
+        let agents = client.agents(None).await.expect("agents");
+        assert_eq!(agents[0].id, "build");
+
+        let session = client
+            .create_session("/tmp/ws", "Test", "build", None)
+            .await
+            .expect("session");
+        assert_eq!(session, "ses-1");
+        client.prompt(&session, "oi").await.expect("prompt");
+        client.interrupt(&session).await.expect("interrupt");
+        client.wait_session(&session).await.expect("wait");
+
+        let messages = client.messages(&session).await.expect("messages");
+        assert!(messages.get("data").is_some());
+        let diff = client.diff(&session).await.expect("diff");
+        assert_eq!(diff[0].file, "a.md");
+        client
+            .reply_permission(&session, "req-1", "allow")
+            .await
+            .expect("permission");
+        let event = client.event_response().await.expect("event");
+        assert!(event.status().is_success());
+
+        handle.abort();
+    }
+
+    #[tokio::test]
+    async fn reports_transport_errors() {
+        let client = RestClient::new_with_url("http://127.0.0.1:1", "secret".into());
+        assert!(client.info().await.is_err());
     }
 }

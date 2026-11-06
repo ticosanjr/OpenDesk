@@ -482,3 +482,79 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   - `GET /api/updates/status` detectou `update_available: true`;
   - download privado, SHA256 confere, binário substituído e `.bak` criado;
   - hash final idêntico ao asset 0.6.1.
+
+## 2026-11-06 — Fase 7: usabilidade básica (0.7.0)
+
+### Corrigido
+
+- **Erros de tarefa acionáveis**:
+  - `task_runs.error_code`, `error_message`, `error_hint` (migration 0003);
+  - `QueueJobDto` agora expõe `error_message`, `retry_count`, `max_retries` e `finished_at`;
+  - classificação automática de falhas (engine offline, auth, modelo/agente, timeout,
+    cancelamento, budget, binário ausente);
+  - `GET /api/tasks/{id}/diagnostics` com tarefa, jobs, runs, engine e tail do log;
+  - modal da tarefa mostra “O que falhou”, “Como resolver”, copiar erro e últimas execuções;
+  - LogDrawer mostra status colorido, erro, dica e resumo do run;
+  - card do Kanban e itens da fila ficam vermelhos em falha.
+
+- **Edição de tarefa**:
+  - modal com título, descrição, modo, prioridade, agente, modelo, effort, tags,
+    e-mail e exportação Google;
+  - “Salvar” e “Salvar e reexecutar”;
+  - `PATCH` permite limpar agente/modelo/plano (`clear_agent`, `clear_model`, `clear_plan`);
+  - bloqueio de edição durante execução, com orientação para cancelar.
+
+- **Kanban funcional**:
+  - drag-and-drop com `dataTransfer` e fallback por menu “mover…”;
+  - endpoint `POST /api/tasks/{id}/transition`:
+    - PLAN inicia plano;
+    - BUILD inicia build (aproveitando plano existente);
+    - REVIEW inicia auditoria;
+    - DONE conclui sem run;
+    - BACKLOG cancela jobs ativos e limpa a fase;
+  - confirmação antes de transições que consomem budget;
+  - atualização otimista com rollback em erro;
+  - deep link `/kanban?task=...&run=...` abre tarefa e log.
+
+- **Agentes**:
+  - ID gerado automaticamente do nome (ex.: “Revisor Fiscal” → `revisor-fiscal`);
+  - ID manual fica opcional e não bloqueia a criação;
+  - 20 presets de avatar + emoji livre;
+  - 8 presets de cor + cor personalizada;
+  - validação de ID duplicado.
+
+- **Dashboard**:
+  - atividades recentes unificadas (runs + artefatos) e ordenadas por data;
+  - clique abre a tarefa/run no Kanban ou o artefato;
+  - cores por status: falha vermelha, sucesso verde, execução azul, cancelado amarelo;
+  - falha mostra a mensagem do erro na própria atividade.
+
+- **Sobre & diagnóstico**:
+  - `GET /api/about` com versões (OpenDesk, OpenCode, Tauri, Rust, OS/kernel),
+    banco/schema, caminhos, engine, updates e logs;
+  - card em Configurações com modos **simples** e **avançado**;
+  - copiar resumo/JSON, abrir logs e abrir pasta de dados;
+  - link direto para o diagnóstico do motor.
+
+- **Base da 0.6.3 incorporada**:
+  - concorrência configurável da fila (1–4) com API e seletor no Kanban;
+  - retry inline de SMTP/Google com backoff;
+  - `opendesk doctor`;
+  - gate local de release e cobertura (frontend lógica ~90%, Rust ~41%);
+  - clippy sem warnings.
+
+### Verificado
+
+- `cargo test` — **74 passed**.
+- `npm run check` — ok.
+- `npm run test:ui` — 16 passed; cobertura de lógica frontend 90,3% linhas.
+- Gate local: `scripts/gate.sh`.
+- E2E cobre: agente com slug automático e avatar preset, card Sobre, `/api/about`,
+  diagnóstico de tarefa, transição para DONE e concorrência da fila.
+
+### Próximo
+
+1. Release 0.7.0 e validação visual no AppImage.
+2. Chat real com qualquer agente.
+3. Signal bridge via `signal-cli`.
+4. Retry durável, rollback e assinatura de atualização.

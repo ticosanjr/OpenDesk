@@ -23,6 +23,10 @@ pub struct QueueJobDto {
     pub scheduled_for: Option<String>,
     pub enqueued_at: String,
     pub started_at: Option<String>,
+    pub finished_at: Option<String>,
+    pub retry_count: i64,
+    pub max_retries: i64,
+    pub error_message: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

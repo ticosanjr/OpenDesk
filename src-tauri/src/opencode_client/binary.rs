@@ -200,7 +200,11 @@ pub fn parse_version(output: &str) -> Option<Version> {
 }
 
 pub fn install_method(path: &Path) -> Option<&'static str> {
-    let value = path.to_string_lossy().to_lowercase();
+    // Resolve symlinks first: the common workaround
+    // `ln -sf ~/.opencode/bin/opencode /usr/local/bin/opencode` would otherwise
+    // hide the real install method and block the in-app upgrade.
+    let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let value = canonical.to_string_lossy().to_lowercase();
     if value.contains("/.opencode/bin/") {
         Some("curl")
     } else if value.contains("node_modules") || value.contains("/npm/") {

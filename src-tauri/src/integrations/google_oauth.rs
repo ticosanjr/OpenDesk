@@ -32,6 +32,7 @@ https://www.googleapis.com/auth/tasks";
 
 const AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
+const REVOKE_URL: &str = "https://oauth2.googleapis.com/revoke";
 const USERINFO_URL: &str = "https://www.googleapis.com/oauth2/v3/userinfo";
 
 #[derive(Debug, Clone)]
@@ -208,6 +209,28 @@ impl GoogleOAuth {
     }
 
     pub async fn disconnect(&self, workspace_id: &str) -> AppResult<()> {
+        // Revoke the grant at Google before forgetting the local refresh token.
+        // A failure here must not block disconnecting locally, but the user
+        // should still be able to see that the remote grant survived.
+        if let Some(refresh_token) = self.secrets.get("google", &refresh_key(workspace_id))? {
+            match self
+                .http
+                .post(REVOKE_URL)
+                .form(&[("token", refresh_token.as_str())])
+                .send()
+                .await
+            {
+                Ok(response) if response.status().is_success() => {}
+                Ok(response) => tracing::warn!(
+                    status = %response.status(),
+                    "Google token revocation was rejected; the local token was removed anyway"
+                ),
+                Err(error) => tracing::warn!(
+                    error = %error,
+                    "Google token revocation failed; the local token was removed anyway"
+                ),
+            }
+        }
         self.secrets.delete("google", &refresh_key(workspace_id))?;
         self.cache
             .lock()

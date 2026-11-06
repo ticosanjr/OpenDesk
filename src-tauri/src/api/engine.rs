@@ -60,8 +60,9 @@ pub struct UpdateResult {
 /// "run now" never enqueue work that is guaranteed to fail.
 pub async fn require_engine(state: &AppState) -> AppResult<()> {
     // Headless test mode deliberately disables the engine; the UI/queue tests
-    // still need to enqueue work, so skip the gate only for that explicit mode.
-    if std::env::var("OPENDESK_SKIP_DAEMON").is_ok() {
+    // still need to enqueue work. Only honor the bypass in debug builds so a
+    // stray environment variable can never make a release enqueue doomed jobs.
+    if cfg!(debug_assertions) && std::env::var("OPENDESK_SKIP_DAEMON").is_ok() {
         return Ok(());
     }
     let status = state.daemon.status().await;
@@ -88,11 +89,9 @@ pub async fn status(State(state): State<Arc<AppState>>) -> Json<EngineStatus> {
         .locator
         .configured()
         .map(|path| path.to_string_lossy().to_string());
-    let resolved = locator.resolve().ok();
-    let resolve_error = if resolved.is_none() {
-        locator.resolve().err().map(|error| format!("{error:#}"))
-    } else {
-        None
+    let (resolved, resolve_error) = match locator.resolve() {
+        Ok(binary) => (Some(binary), None),
+        Err(error) => (None, Some(format!("{error:#}"))),
     };
     let candidates = locator
         .candidates()
@@ -300,7 +299,7 @@ pub async fn update(
         && daemon.online
         && installed
             .as_ref()
-            .map(|binary| updater::update_available(Some(&binary.version), &version) == false)
+            .map(|binary| !updater::update_available(Some(&binary.version), &version))
             .unwrap_or(false);
 
     state.events.publish(OpenDeskWsEvent::EngineUpdateProgress {
@@ -413,7 +412,7 @@ fn log_files(dir: &std::path::Path) -> Vec<(String, PathBuf)> {
             Some((modified, path))
         })
         .collect::<Vec<_>>();
-    files.sort_by(|left, right| right.0.cmp(&left.0));
+    files.sort_by_key(|(modified, _)| std::cmp::Reverse(*modified));
     files
         .into_iter()
         .map(|(_, path)| {
@@ -427,9 +426,57 @@ fn log_files(dir: &std::path::Path) -> Vec<(String, PathBuf)> {
 }
 
 fn tail(path: &std::path::Path, lines: usize) -> String {
-    let Ok(text) = std::fs::read_to_string(path) else {
+    use std::io::{Read, Seek, SeekFrom};
+
+    const MAX_BYTES: u64 = 256 * 1024;
+    let Ok(mut file) = std::fs::File::open(path) else {
         return String::new();
     };
+    let Ok(metadata) = file.metadata() else {
+        return String::new();
+    };
+    let length = metadata.len();
+    let start = length.saturating_sub(MAX_BYTES);
+    if file.seek(SeekFrom::Start(start)).is_err() {
+        return String::new();
+    }
+    let mut buffer = Vec::with_capacity((length - start) as usize);
+    if file.read_to_end(&mut buffer).is_err() {
+        return String::new();
+    }
+    let mut text = String::from_utf8_lossy(&buffer).to_string();
+    if start > 0 {
+        // Drop the first partial line from the middle of the file.
+        if let Some(index) = text.find('\n') {
+            text.drain(..=index);
+        }
+    }
     let collected = text.lines().rev().take(lines).collect::<Vec<_>>();
     collected.into_iter().rev().collect::<Vec<_>>().join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tail_reads_only_the_requested_lines() {
+        let temp = tempfile::TempDir::new().expect("temp");
+        let path = temp.path().join("opendesk.log");
+        let content = (0..1000)
+            .map(|index| format!("line-{index}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        std::fs::write(&path, content).expect("log");
+
+        let value = tail(&path, 5);
+        let lines = value.lines().collect::<Vec<_>>();
+        assert_eq!(lines.len(), 5);
+        assert_eq!(lines.last().copied(), Some("line-999"));
+    }
+
+    #[test]
+    fn tail_returns_empty_for_missing_files() {
+        assert_eq!(tail(std::path::Path::new("/nope/missing.log"), 10), "");
+    }
 }

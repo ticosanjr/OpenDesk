@@ -1,4 +1,9 @@
-use crate::{app_state::AppState, db::queue::QueueJob, error::AppResult, events::QueueJobDto};
+use crate::{
+    app_state::{AppState, QUEUE_CONCURRENCY_SETTING},
+    db::{queue::QueueJob, settings},
+    error::AppResult,
+    events::QueueJobDto,
+};
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -75,4 +80,24 @@ pub async fn update_priority(
     Json(body): Json<PriorityBody>,
 ) -> AppResult<Json<QueueJob>> {
     Ok(Json(state.queue.update_priority(&id, body.priority).await?))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ConcurrencyBody {
+    pub concurrency: usize,
+}
+
+pub async fn set_concurrency(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<ConcurrencyBody>,
+) -> AppResult<Json<crate::queue_scheduler::QueueStatus>> {
+    let value = body.concurrency.clamp(1, 4);
+    settings::set(
+        &state.db,
+        QUEUE_CONCURRENCY_SETTING,
+        &serde_json::json!(value),
+    )
+    .await?;
+    state.queue.set_concurrency(value);
+    Ok(Json(state.queue.status(None).await?))
 }

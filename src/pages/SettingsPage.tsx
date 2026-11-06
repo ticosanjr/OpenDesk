@@ -8,7 +8,6 @@ import {
   Info,
   Loader2,
   Save,
-  Settings as SettingsIcon,
 } from "lucide-react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
@@ -18,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EngineCard } from "@/components/settings/EngineCard";
 import { UpdatesCard } from "@/components/settings/UpdatesCard";
+import { AboutCard } from "@/components/settings/AboutCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiGet, apiPut } from "@/lib/api";
@@ -101,6 +101,7 @@ export function SettingsPage() {
 
       <EngineCard />
       <UpdatesCard />
+      <AboutCard />
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Card>
@@ -171,27 +172,7 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <SettingsIcon size={15} className="text-zinc-500" />
-                Sobre
-              </CardTitle>
-              <p className="mt-1 text-xs text-zinc-500">
-                OpenDesk grava configuração nativa e mantém apenas estado operacional no SQLite.
-              </p>
-            </div>
-            <Badge variant="blue">V2-only</Badge>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <InfoRow label="Versão" value="0.6.2" />
-            <InfoRow label="OpenCode API" value="v2 (/api/*)" />
-            <InfoRow label="Fase" value="resiliência (Fase 6)" />
-            <InfoRow label="Banco" value="~/.local/share/opendesk/opendesk.db" />
-            <InfoRow label="Workspaces" value={String(workspaces.length)} />
-          </CardContent>
-        </Card>
+
       </div>
 
       <Card>
@@ -279,14 +260,5 @@ export function SettingsPage() {
         </CardContent>
       </Card>
     </PageBody>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 text-[11px]">
-      <span className="text-zinc-600">{label}</span>
-      <span className="truncate font-mono text-[10px] text-zinc-300">{value}</span>
-    </div>
   );
 }

@@ -2,6 +2,7 @@ mod api;
 mod app_state;
 mod config_sync;
 mod db;
+mod doctor;
 mod dsh_router;
 mod error;
 mod events;
@@ -149,15 +150,15 @@ pub fn run() {
         .expect("error while building the OpenDesk application");
 
     app.run(|app_handle, event| {
-        if let tauri::RunEvent::Exit = event {
-            if let Some(state) = app_handle.try_state::<Arc<AppState>>() {
-                let state = state.inner().clone();
-                tauri::async_runtime::block_on(async {
-                    state.cron.shutdown();
-                    state.queue.shutdown().await;
-                    state.daemon.shutdown().await;
-                });
-            }
+        if let tauri::RunEvent::Exit = event
+            && let Some(state) = app_handle.try_state::<Arc<AppState>>()
+        {
+            let state = state.inner().clone();
+            tauri::async_runtime::block_on(async {
+                state.cron.shutdown();
+                state.queue.shutdown().await;
+                state.daemon.shutdown().await;
+            });
         }
     });
 }
@@ -203,6 +204,11 @@ pub fn run_headless() {
         state.queue.shutdown().await;
         state.daemon.shutdown().await;
     });
+}
+
+/// `opendesk doctor` — preflight for the engine and local state without a GUI.
+pub fn run_doctor(json: bool) {
+    std::process::exit(doctor::run(json));
 }
 
 /// MCP server over stdio used by OpenCode's `mcp.servers.opendesk-google`.

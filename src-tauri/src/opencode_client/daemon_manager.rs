@@ -84,10 +84,6 @@ impl DaemonManager {
         })
     }
 
-    pub fn locator(&self) -> Arc<OpenCodeLocator> {
-        Arc::clone(&self.locator)
-    }
-
     pub fn spawn_supervisor(self: &Arc<Self>) {
         let manager = Arc::clone(self);
         tauri::async_runtime::spawn(async move {
@@ -238,13 +234,13 @@ impl DaemonManager {
         };
 
         match self.attach_shared_service().await {
-            Ok(()) => return Ok(()),
+            Ok(()) => Ok(()),
             Err(shared_error) => {
                 let binary_message =
                     binary_error.unwrap_or_else(|| "no OpenCode binary was resolved".into());
-                return Err(anyhow!(
+                Err(anyhow!(
                     "{binary_message} Shared service fallback also failed: {shared_error:#}"
-                ));
+                ))
             }
         }
     }
@@ -407,6 +403,7 @@ impl DaemonManager {
         ))
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn install_online(
         &self,
         port: u16,
@@ -532,11 +529,16 @@ impl DaemonManager {
     }
 
     async fn stop_child(&self) {
-        let (child, pid, port) = {
+        let (child, pid, port, mode) = {
             let mut inner = self.inner.write().await;
             inner.rest = None;
             inner.password = None;
-            (inner.child.take(), inner.pid.take(), inner.status.port)
+            (
+                inner.child.take(),
+                inner.pid.take(),
+                inner.status.port,
+                inner.status.mode.clone(),
+            )
         };
 
         if let Some(mut child) = child {
@@ -546,13 +548,15 @@ impl DaemonManager {
             terminate_pid(pid).await;
         }
 
-        // Give the OS a moment to release the port before the supervisor
-        // attempts to spawn a replacement.
-        for _ in 0..30 {
-            if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
-                break;
+        // A shared service owns its port; waiting for it to be free would just
+        // delay the restart by three seconds. Only wait for a dedicated child.
+        if mode != "shared" {
+            for _ in 0..30 {
+                if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
             }
-            tokio::time::sleep(Duration::from_millis(100)).await;
         }
 
         let _ = std::fs::remove_file(&self.paths.daemon_lock_path);

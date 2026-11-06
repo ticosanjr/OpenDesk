@@ -6,9 +6,29 @@ cd "$ROOT"
 
 VERSION="$(node -p "require('./package.json').version")"
 DEST="$ROOT/releases/${VERSION}"
-SKIP_BUILD="${1:-}"
+SKIP_BUILD=0
+SKIP_GATE=0
 
-if [[ "$SKIP_BUILD" != "--skip-build" ]]; then
+for argument in "$@"; do
+  case "$argument" in
+    --skip-build) SKIP_BUILD=1 ;;
+    --skip-gate) SKIP_GATE=1 ;;
+    *)
+      echo "unknown argument: $argument" >&2
+      echo "usage: $0 [--skip-build] [--skip-gate]" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ "$SKIP_GATE" != "1" ]]; then
+  echo "==> Running the local release gate"
+  "$ROOT/scripts/gate.sh"
+else
+  echo "==> Release gate skipped (--skip-gate)"
+fi
+
+if [[ "$SKIP_BUILD" != "1" ]]; then
   echo "==> Building OpenDesk v${VERSION}"
   npm run tauri build
 fi

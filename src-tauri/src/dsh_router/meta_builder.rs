@@ -14,6 +14,7 @@ use std::path::Path;
 pub struct MetaBuildRequest {
     pub prompt: String,
     #[serde(default)]
+    #[allow(dead_code)]
     pub scope: Option<String>,
 }
 
@@ -244,7 +245,7 @@ fn extract_id(prompt: &str) -> Option<String> {
         .find(|token| token.starts_with('@') || token.starts_with('/'))
         .map(|token| {
             token
-                .trim_start_matches(|character: char| character == '@' || character == '/')
+                .trim_start_matches(['@', '/'])
                 .trim_matches(|character: char| {
                     !character.is_ascii_alphanumeric()
                         && character != '-'

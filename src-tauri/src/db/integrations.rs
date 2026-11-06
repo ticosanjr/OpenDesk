@@ -122,3 +122,62 @@ pub async fn clear_google(pool: &SqlitePool, workspace_id: &str) -> AppResult<()
     .await?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    async fn setup() -> (TempDir, SqlitePool) {
+        let temp = TempDir::new().expect("temp");
+        let pool = crate::db::init(&temp.path().join("integrations.db"))
+            .await
+            .expect("db");
+        sqlx::query("INSERT INTO workspaces (id, name, root_path) VALUES ('ws-1', 'WS', ?)")
+            .bind(temp.path().to_string_lossy().to_string())
+            .execute(&pool)
+            .await
+            .expect("workspace");
+        (temp, pool)
+    }
+
+    #[tokio::test]
+    async fn smtp_and_google_upsert_share_the_same_row() {
+        let (_temp, pool) = setup().await;
+        assert!(get(&pool, "ws-1").await.expect("get").is_none());
+
+        upsert_smtp(
+            &pool,
+            "ws-1",
+            &SmtpSettingsInput {
+                host: "smtp.example.com".into(),
+                port: 587,
+                username: Some("user".into()),
+                from_email: "ops@example.com".into(),
+                use_tls: true,
+            },
+            Some("smtp_secret"),
+        )
+        .await
+        .expect("smtp");
+
+        let with_google = upsert_google(&pool, "ws-1", "me@example.com", "drive.file tasks")
+            .await
+            .expect("google");
+        assert_eq!(with_google.smtp_host.as_deref(), Some("smtp.example.com"));
+        assert_eq!(
+            with_google.google_account_email.as_deref(),
+            Some("me@example.com")
+        );
+        assert_eq!(
+            with_google.google_scopes.as_deref(),
+            Some("drive.file tasks")
+        );
+
+        clear_google(&pool, "ws-1").await.expect("clear");
+        let cleared = get(&pool, "ws-1").await.expect("get").expect("row");
+        assert!(cleared.google_account_email.is_none());
+        assert!(cleared.google_scopes.is_none());
+        assert_eq!(cleared.smtp_host.as_deref(), Some("smtp.example.com"));
+    }
+}

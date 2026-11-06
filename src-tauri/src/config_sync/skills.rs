@@ -61,21 +61,19 @@ pub fn list(paths: &StudioPaths, scope: &str) -> AppResult<Vec<SkillFile>> {
         }
         let path = entry.path();
         if path.file_name().and_then(|name| name.to_str()) == Some("SKILL.md") {
-            if let Some(parent) = path.parent() {
-                if let Ok(id) = relative_id(&dir, parent) {
-                    if !id.is_empty() {
-                        found.insert(id, path.to_path_buf());
-                    }
-                }
+            if let Some(parent) = path.parent()
+                && let Ok(id) = relative_id(&dir, parent)
+                && !id.is_empty()
+            {
+                found.insert(id, path.to_path_buf());
             }
         } else if path.parent() == Some(dir.as_path())
             && path.extension().and_then(|value| value.to_str()) == Some("md")
+            && let Some(stem) = path.file_stem().and_then(|value| value.to_str())
         {
-            if let Some(stem) = path.file_stem().and_then(|value| value.to_str()) {
-                found
-                    .entry(stem.to_string())
-                    .or_insert_with(|| path.to_path_buf());
-            }
+            found
+                .entry(stem.to_string())
+                .or_insert_with(|| path.to_path_buf());
         }
     }
 
@@ -182,27 +180,27 @@ fn parse_skill(scope: &str, id: &str, path: &Path) -> AppResult<SkillFile> {
     let mapping = &document.frontmatter;
 
     let mut files = Vec::new();
-    if path.file_name().and_then(|name| name.to_str()) == Some("SKILL.md") {
-        if let Some(parent) = path.parent() {
-            for entry in WalkDir::new(parent).min_depth(1).follow_links(false) {
-                let entry = entry.map_err(|error| AppError::Internal(error.to_string()))?;
-                if !entry.file_type().is_file() || entry.path() == path {
-                    continue;
-                }
-                let relative = entry
-                    .path()
-                    .strip_prefix(parent)
-                    .map_err(|error| AppError::Internal(error.to_string()))?
-                    .to_string_lossy()
-                    .replace('\\', "/");
-                let content = std::fs::read_to_string(entry.path()).unwrap_or_default();
-                files.push(SkillExtraFile {
-                    path: relative,
-                    content,
-                });
+    if path.file_name().and_then(|name| name.to_str()) == Some("SKILL.md")
+        && let Some(parent) = path.parent()
+    {
+        for entry in WalkDir::new(parent).min_depth(1).follow_links(false) {
+            let entry = entry.map_err(|error| AppError::Internal(error.to_string()))?;
+            if !entry.file_type().is_file() || entry.path() == path {
+                continue;
             }
-            files.sort_by(|a, b| a.path.cmp(&b.path));
+            let relative = entry
+                .path()
+                .strip_prefix(parent)
+                .map_err(|error| AppError::Internal(error.to_string()))?
+                .to_string_lossy()
+                .replace('\\', "/");
+            let content = std::fs::read_to_string(entry.path()).unwrap_or_default();
+            files.push(SkillExtraFile {
+                path: relative,
+                content,
+            });
         }
+        files.sort_by(|a, b| a.path.cmp(&b.path));
     }
 
     Ok(SkillFile {

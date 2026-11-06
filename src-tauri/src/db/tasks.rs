@@ -71,6 +71,12 @@ pub struct UpdateTaskInput {
     pub export_to_gdocs: Option<bool>,
     pub tags: Option<Vec<String>>,
     pub position_index: Option<i64>,
+    #[serde(default)]
+    pub clear_agent: bool,
+    #[serde(default)]
+    pub clear_model: bool,
+    #[serde(default)]
+    pub clear_plan: bool,
 }
 
 const COLUMNS: &str = "id, workspace_id, title, description, column_stage, phase_status, \
@@ -230,10 +236,22 @@ pub async fn update(pool: &SqlitePool, id: &str, input: UpdateTaskInput) -> AppR
     .bind(input.phase_status.or(current.phase_status))
     .bind(input.priority.unwrap_or(current.priority).clamp(1, 4))
     .bind(&mode)
-    .bind(input.assigned_agent.or(current.assigned_agent))
-    .bind(input.preferred_model.or(current.preferred_model))
+    .bind(if input.clear_agent {
+        None
+    } else {
+        input.assigned_agent.or(current.assigned_agent)
+    })
+    .bind(if input.clear_model {
+        None
+    } else {
+        input.preferred_model.or(current.preferred_model)
+    })
     .bind(&effort)
-    .bind(input.plan_markdown.or(current.plan_markdown))
+    .bind(if input.clear_plan {
+        None
+    } else {
+        input.plan_markdown.or(current.plan_markdown)
+    })
     .bind(input.output_dir_path.or(current.output_dir_path))
     .bind(input.notify_email.or(current.notify_email))
     .bind(input.export_to_gdocs.unwrap_or(current.export_to_gdocs))
@@ -321,6 +339,29 @@ pub async fn set_phase_status(
     Ok(())
 }
 
+/// Replace (not merge) the phase status. Used by explicit workflow
+/// transitions such as moving a card back to Backlog or to Done.
+pub async fn replace_phase_status(
+    pool: &SqlitePool,
+    id: &str,
+    phase_status: Option<&str>,
+    stage: Option<&str>,
+) -> AppResult<Task> {
+    sqlx::query(
+        "UPDATE tasks SET
+            phase_status = ?,
+            column_stage = COALESCE(?, column_stage),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE id = ?",
+    )
+    .bind(phase_status)
+    .bind(stage)
+    .bind(id)
+    .execute(pool)
+    .await?;
+    get(pool, id).await
+}
+
 pub async fn set_output_dir(pool: &SqlitePool, id: &str, output_dir: &str) -> AppResult<()> {
     sqlx::query(
         "UPDATE tasks SET output_dir_path = ?,
@@ -345,6 +386,7 @@ pub async fn delete(pool: &SqlitePool, id: &str) -> AppResult<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub async fn count_artifacts(pool: &SqlitePool, task_id: &str) -> AppResult<i64> {
     Ok(
         sqlx::query_scalar("SELECT COUNT(*) FROM artifacts_provenance WHERE task_id = ?")

@@ -135,6 +135,10 @@ export interface QueueJob {
   scheduled_for?: string | null;
   enqueued_at: string;
   started_at?: string | null;
+  finished_at?: string | null;
+  retry_count?: number;
+  max_retries?: number;
+  error_message?: string | null;
 }
 
 export interface ModelInfo {
@@ -307,7 +311,27 @@ export interface TaskRun {
   summary_response?: string | null;
   started_at: string;
   completed_at?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  error_hint?: string | null;
   task_title?: string | null;
+}
+
+export interface TaskDiagnostics {
+  task: Task;
+  jobs: QueueJob[];
+  runs: TaskRun[];
+  engine: DaemonStatus;
+  error: {
+    code: string;
+    message: string;
+    hint: string;
+    source: "run" | "queue";
+    run_id?: string;
+    job_id?: string;
+  } | null;
+  latest_log_tail?: string | null;
+  generated_at: string;
 }
 
 export interface Artifact {
@@ -370,6 +394,7 @@ export interface QueueStatus {
   paused: boolean;
   pause_reason?: string | null;
   active_jobs: number;
+  concurrency: number;
   running: number;
   waiting: number;
 }
@@ -435,4 +460,53 @@ export interface GoogleConfig {
   client_secret_set: boolean;
   scopes: string;
   callback_url: string;
+}
+
+export interface AboutInfo {
+  app: {
+    name: string;
+    version: string;
+    phase: string;
+    api: string;
+  };
+  runtime: {
+    tauri: string;
+    rustc?: string | null;
+    os: string;
+    arch: string;
+    kernel?: string | null;
+  };
+  engine: {
+    daemon: DaemonStatus;
+    configured_binary?: string | null;
+    resolved?: OpenCodeBinaryInfo | null;
+    installer: string;
+  };
+  database: {
+    path: string;
+    size_bytes: number;
+    schema_version?: number | null;
+    workspaces: number;
+  };
+  paths: {
+    data_dir: string;
+    config_dir: string;
+    log_dir: string;
+    db_path: string;
+    backups_dir: string;
+    run_logs_dir: string;
+  };
+  updates: {
+    current: string;
+    installer: string;
+    token_configured: boolean;
+  };
+  logs: Array<{
+    name?: string | null;
+    path: string;
+    size_bytes: number;
+    modified?: string | null;
+  }>;
+  started_at: string;
+  api_port: number;
 }

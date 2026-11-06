@@ -27,6 +27,7 @@ use tokio_util::sync::CancellationToken;
 
 pub struct CronEngine {
     pool: SqlitePool,
+    #[allow(dead_code)]
     paths: AppPaths,
     events: EventBus,
     queue: Arc<QueueManager>,
@@ -270,10 +271,7 @@ impl CronEngine {
             return trimmed.to_string();
         }
 
-        let (command, arguments) = trimmed[1..]
-            .split_once(' ')
-            .map(|(command, arguments)| (command, arguments))
-            .unwrap_or((&trimmed[1..], ""));
+        let (command, arguments) = trimmed[1..].split_once(' ').unwrap_or((&trimmed[1..], ""));
         let paths = StudioPaths::new(Some(workspace_root.to_path_buf()));
         for scope in ["workspace", "global"] {
             if let Ok(command) = commands::get(&paths, scope, command) {

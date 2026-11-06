@@ -30,6 +30,12 @@ pub struct TaskRun {
     pub started_at: String,
     pub completed_at: Option<String>,
     #[sqlx(default)]
+    pub error_code: Option<String>,
+    #[sqlx(default)]
+    pub error_message: Option<String>,
+    #[sqlx(default)]
+    pub error_hint: Option<String>,
+    #[sqlx(default)]
     pub task_title: Option<String>,
 }
 
@@ -162,12 +168,32 @@ pub async fn finish(
     Ok(())
 }
 
+#[allow(dead_code)]
 pub async fn set_log_path(pool: &SqlitePool, id: &str, log_path: &str) -> AppResult<()> {
     sqlx::query("UPDATE task_runs SET log_path = ? WHERE id = ?")
         .bind(log_path)
         .bind(id)
         .execute(pool)
         .await?;
+    Ok(())
+}
+
+pub async fn set_error(
+    pool: &SqlitePool,
+    id: &str,
+    code: &str,
+    message: &str,
+    hint: &str,
+) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE task_runs SET error_code = ?, error_message = ?, error_hint = ? WHERE id = ?",
+    )
+    .bind(code)
+    .bind(message)
+    .bind(hint)
+    .bind(id)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
@@ -183,6 +209,7 @@ pub async fn recover_running(pool: &SqlitePool) -> AppResult<u64> {
     Ok(result.rows_affected())
 }
 
+#[allow(dead_code)]
 pub async fn count_for_task(pool: &SqlitePool, task_id: &str) -> AppResult<i64> {
     Ok(
         sqlx::query_scalar("SELECT COUNT(*) FROM task_runs WHERE task_id = ?")
@@ -190,4 +217,89 @@ pub async fn count_for_task(pool: &SqlitePool, task_id: &str) -> AppResult<i64> 
             .fetch_one(pool)
             .await?,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    async fn setup() -> (TempDir, SqlitePool) {
+        let temp = TempDir::new().expect("temp");
+        let pool = crate::db::init(&temp.path().join("runs.db"))
+            .await
+            .expect("db");
+        sqlx::query("INSERT INTO workspaces (id, name, root_path) VALUES ('ws-1', 'WS', ?)")
+            .bind(temp.path().to_string_lossy().to_string())
+            .execute(&pool)
+            .await
+            .expect("workspace");
+        (temp, pool)
+    }
+
+    fn input(id: &str) -> CreateRunInput {
+        CreateRunInput {
+            id: id.into(),
+            queue_job_id: None,
+            workspace_id: "ws-1".into(),
+            task_id: None,
+            parent_run_id: None,
+            phase: Some("build".into()),
+            agent_name: "build".into(),
+            execution_mode: "build".into(),
+            provider_id: Some("opencode-go".into()),
+            model_id: "glm-5.3".into(),
+            effort_level: "high".into(),
+            pricing_snapshot_json: None,
+            log_path: Some("/tmp/run.jsonl".into()),
+        }
+    }
+
+    #[tokio::test]
+    async fn run_lifecycle_and_recovery() {
+        let (_temp, pool) = setup().await;
+        let run = create(&pool, input("run-1")).await.expect("create");
+        assert_eq!(run.status, "RUNNING");
+        assert_eq!(get(&pool, "run-1").await.expect("get").agent_name, "build");
+
+        let usage = RunUsage {
+            tokens_input: 10,
+            tokens_output: 20,
+            tokens_reasoning: 5,
+            tokens_cache_read: 1,
+            tokens_cache_write: 2,
+            estimated_cost_usd: 0.03,
+        };
+        finish(
+            &pool,
+            "run-1",
+            "SUCCESS",
+            &usage,
+            1500,
+            Some("resumo"),
+            Some("tail"),
+        )
+        .await
+        .expect("finish");
+        let done = get(&pool, "run-1").await.expect("get");
+        assert_eq!(done.status, "SUCCESS");
+        assert_eq!(done.tokens_output, 20);
+        assert_eq!(done.duration_ms, 1500);
+        assert!(done.completed_at.is_some());
+
+        create(&pool, input("run-2")).await.expect("create 2");
+        assert_eq!(recover_running(&pool).await.expect("recover"), 1);
+        assert_eq!(get(&pool, "run-2").await.expect("get 2").status, "FAILED");
+
+        set_log_path(&pool, "run-1", "/tmp/new.jsonl")
+            .await
+            .expect("log");
+        assert_eq!(list(&pool, "ws-1", None).await.expect("list").len(), 2);
+        assert_eq!(count_for_task(&pool, "none").await.expect("count"), 0);
+        assert!(
+            finish(&pool, "run-1", "UNKNOWN", &usage, 0, None, None)
+                .await
+                .is_err()
+        );
+    }
 }

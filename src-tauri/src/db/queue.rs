@@ -177,6 +177,7 @@ pub async fn finish(
     Ok(())
 }
 
+#[allow(dead_code)]
 pub async fn set_status(pool: &SqlitePool, id: &str, status: &str) -> AppResult<()> {
     sqlx::query("UPDATE execution_queue SET status = ? WHERE id = ?")
         .bind(status)

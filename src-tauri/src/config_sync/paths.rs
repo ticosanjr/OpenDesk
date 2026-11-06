@@ -80,10 +80,12 @@ impl StudioPaths {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn workspace_output_dir(&self) -> Option<PathBuf> {
         self.workspace_root.as_ref().map(|root| root.join("output"))
     }
 
+    #[allow(dead_code)]
     pub fn contains(&self, scope: &str, path: &Path) -> AppResult<bool> {
         let base = self.opencode_dir(scope)?;
         let base = std::fs::canonicalize(&base).unwrap_or(base);
@@ -109,4 +111,84 @@ pub fn opencode_global_dir() -> PathBuf {
         .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from))
         .unwrap_or_else(|| PathBuf::from("."));
     home.join(".config").join("opencode")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn paths(temp: &TempDir) -> StudioPaths {
+        StudioPaths {
+            global_dir: temp.path().join("global"),
+            workspace_root: Some(temp.path().join("workspace")),
+        }
+    }
+
+    #[test]
+    fn resolves_scope_directories_and_rejects_unknown_scopes() {
+        let temp = TempDir::new().expect("temp");
+        let studio = paths(&temp);
+        assert_eq!(
+            studio.base_dir("global").unwrap(),
+            temp.path().join("global")
+        );
+        assert_eq!(
+            studio.base_dir("workspace").unwrap(),
+            temp.path().join("workspace")
+        );
+        assert!(studio.base_dir("other").is_err());
+        assert!(
+            studio
+                .opencode_dir("workspace")
+                .unwrap()
+                .ends_with(".opencode")
+        );
+        assert!(studio.agents_dir("workspace").unwrap().ends_with("agents"));
+        assert!(studio.skills_dir("global").unwrap().ends_with("skills"));
+        assert!(
+            studio
+                .commands_dir("workspace")
+                .unwrap()
+                .ends_with("commands")
+        );
+        assert!(
+            studio
+                .config_path("workspace")
+                .unwrap()
+                .ends_with("opencode.jsonc")
+        );
+        assert_eq!(
+            studio.workspace_output_dir().unwrap(),
+            temp.path().join("workspace/output")
+        );
+    }
+
+    #[test]
+    fn prefers_existing_config_files_and_creates_scope_layout() {
+        let temp = TempDir::new().expect("temp");
+        let studio = paths(&temp);
+        studio.ensure_scope_layout("workspace").expect("layout");
+        let workspace = temp.path().join("workspace");
+        assert!(workspace.join(".opencode/agents").is_dir());
+        assert!(workspace.join(".opencode/skills").is_dir());
+        assert!(workspace.join(".opencode/commands").is_dir());
+
+        std::fs::write(workspace.join("opencode.json"), "{}").expect("json");
+        assert_eq!(
+            studio.config_path("workspace").unwrap(),
+            workspace.join("opencode.json")
+        );
+        assert!(
+            studio
+                .contains("workspace", &workspace.join(".opencode/agents/a.md"))
+                .unwrap()
+        );
+        assert!(!studio.contains("workspace", temp.path()).unwrap());
+    }
+
+    #[test]
+    fn global_dir_is_absolute() {
+        assert!(opencode_global_dir().is_absolute());
+    }
 }

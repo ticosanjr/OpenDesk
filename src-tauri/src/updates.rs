@@ -101,16 +101,16 @@ fn running_image() -> Option<PathBuf> {
 }
 
 pub fn token(secrets: &SecretStore) -> Option<String> {
-    if let Ok(Some(value)) = secrets.get(TOKEN_NAMESPACE, TOKEN_KEY) {
-        if !value.trim().is_empty() {
-            return Some(value.trim().to_string());
-        }
+    if let Ok(Some(value)) = secrets.get(TOKEN_NAMESPACE, TOKEN_KEY)
+        && !value.trim().is_empty()
+    {
+        return Some(value.trim().to_string());
     }
     for key in ["OPENDESK_GITHUB_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"] {
-        if let Ok(value) = std::env::var(key) {
-            if !value.trim().is_empty() {
-                return Some(value.trim().to_string());
-            }
+        if let Ok(value) = std::env::var(key)
+            && !value.trim().is_empty()
+        {
+            return Some(value.trim().to_string());
         }
     }
     // Fall back to the authenticated gh CLI when the user already uses it.
@@ -237,16 +237,14 @@ async fn fetch_latest(token: &str) -> AppResult<LatestManifest> {
     // Prefer the signed manifest asset uploaded by scripts/release.sh. It has
     // the SHA256 for every artifact; the raw release assets do not.
     let mut manifest_from_asset = None;
-    if let Some(assets) = release.get("assets").and_then(Value::as_array) {
-        if let Some(asset) = assets
+    if let Some(assets) = release.get("assets").and_then(Value::as_array)
+        && let Some(asset) = assets
             .iter()
             .find(|asset| asset.get("name").and_then(Value::as_str) == Some("latest.json"))
-        {
-            if let Some(asset_id) = asset.get("id").and_then(Value::as_u64) {
-                let bytes = download_asset(&client, token, asset_id).await?;
-                manifest_from_asset = serde_json::from_slice::<LatestManifest>(&bytes).ok();
-            }
-        }
+        && let Some(asset_id) = asset.get("id").and_then(Value::as_u64)
+    {
+        let bytes = download_asset(&client, token, asset_id).await?;
+        manifest_from_asset = serde_json::from_slice::<LatestManifest>(&bytes).ok();
     }
 
     if let Some(mut manifest) = manifest_from_asset {

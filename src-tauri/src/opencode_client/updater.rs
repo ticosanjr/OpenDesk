@@ -57,10 +57,10 @@ pub fn http_client() -> AppResult<reqwest::Client> {
 /// Fetch every stable OpenCode V2 release and pick the highest semver.
 pub async fn fetch_latest(client: &reqwest::Client) -> AppResult<OpenCodeRelease> {
     let mut request = client.get(RELEASES_URL);
-    if let Ok(token) = std::env::var("GITHUB_TOKEN") {
-        if !token.trim().is_empty() {
-            request = request.bearer_auth(token);
-        }
+    if let Ok(token) = std::env::var("GITHUB_TOKEN")
+        && !token.trim().is_empty()
+    {
+        request = request.bearer_auth(token);
     }
 
     let response = request

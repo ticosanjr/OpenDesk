@@ -4,9 +4,11 @@ Sistema operacional visual de governança, automação e observabilidade sobre o
 OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
-> **Status:** fases 1–6 prontas. O OpenDesk cobre fundação, Studio, execução,
-> automação, Google Workspace + MCP bridge e resiliência/atualizações.
-> Repositório privado: <https://github.com/ticosanjr/OpenDesk>. Consulte
+> **Status:** fases 1–7 prontas. O OpenDesk cobre fundação, Studio, execução,
+> automação, Google Workspace + MCP bridge, resiliência/atualizações e o fluxo
+> básico de tarefas (erros acionáveis, edição, Kanban com transições, agentes com
+> presets e Sobre/diagnóstico). Repositório privado:
+> <https://github.com/ticosanjr/OpenDesk>. Consulte
 > [docs/implementation-plan.md](docs/implementation-plan.md) e
 > [docs/progress.md](docs/progress.md).
 
@@ -45,6 +47,11 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Motor OpenCode resiliente: descoberta do binário fora do `PATH`,
   fallback para o serviço compartilhado, mensagens acionáveis e preflight.
 - Atualização do OpenCode V2 pela UI (checagem semver, upgrade e reinício).
+- Kanban com transições que iniciam Plan/Build/Audit e erro acionável por tarefa.
+- Edição de tarefa já executada e reexecução sem recriar o card.
+- Agentes com slug automático, 20 presets de avatar e 8 presets de cor.
+- Dashboard com atividades clicáveis e status colorido.
+- Sobre & diagnóstico com modos simples/avançado e exportação JSON.
 - Auto-atualização do OpenDesk por release privada com SHA256 e backup.
 - Google Workspace: OAuth2 loopback + PKCE, Docs, Drive, Calendar, Gmail e
   Tasks; export pós-run para Google Docs/Drive.
@@ -93,8 +100,10 @@ No primeiro boot o OpenDesk:
 ```bash
 npm run check          # TypeScript
 npm run build          # frontend
-npm run test:rust      # 55 testes Rust
+npm run test:rust      # 74 testes Rust
+npm run test:ui        # Vitest + cobertura da lógica frontend
 npm run test:e2e       # 4 testes Playwright (headless + Vite)
+scripts/gate.sh        # gate local antes de release
 cd src-tauri && cargo check
 cd src-tauri && cargo test
 scripts/release.sh     # build + release local + retenção de 3 versões
@@ -175,6 +184,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0008 — MCP bridge stdio](docs/decisions/0008-mcp-bridge-stdio.md)
 - [ADR 0009 — Resolução e fallback do motor](docs/decisions/0009-opencode-engine-resolution.md)
 - [ADR 0010 — Atualizações](docs/decisions/0010-updates.md)
+- [ADR 0011 — Workflow e erros](docs/decisions/0011-task-workflow-and-errors.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)
