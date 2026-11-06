@@ -17,7 +17,7 @@ fi
 cleanup() {
   if [[ -n "${APP_PID:-}" ]]; then
     for proc in /proc/[0-9]*; do
-      environ="$(tr '\0' '\n' <"$proc/environ" 2>/dev/null || true)"
+      environ="$(tr '\0' '\n' 2>/dev/null <"$proc/environ" || true)"
       [[ -n "$environ" ]] || continue
       if grep -q "^OPENDESK_PARENT_PID=$APP_PID$" <<<"$environ"; then
         kill "${proc##*/}" 2>/dev/null || true
