@@ -221,8 +221,8 @@ pub fn run_headless() {
 }
 
 /// `opendesk doctor` — preflight for the engine and local state without a GUI.
-pub fn run_doctor(json: bool) {
-    std::process::exit(doctor::run(json));
+pub fn run_doctor(json: bool, fix_daemons: bool) {
+    std::process::exit(doctor::run(json, fix_daemons));
 }
 
 /// MCP server over stdio used by OpenCode's `mcp.servers.opendesk-google`.

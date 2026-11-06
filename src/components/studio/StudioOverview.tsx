@@ -47,6 +47,7 @@ export function StudioOverview({
   const workspaces = useAppStore((state) => state.workspaces);
   const [items, setItems] = useState<EffectiveStudioItem[]>([]);
   const [runtime, setRuntime] = useState<StudioRuntime | null>(null);
+  const [runtimeLocation, setRuntimeLocation] = useState("");
   const [search, setSearch] = useState("");
   const [kindFilter, setKindFilter] = useState<"all" | EffectiveStudioItem["kind"]>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "enabled" | "disabled">("all");
@@ -60,19 +61,27 @@ export function StudioOverview({
   const [installOpen, setInstallOpen] = useState(false);
   const [backupsFor, setBackupsFor] = useState<EffectiveStudioItem | null>(null);
 
+  const workspaceRoot = workspaces.find((workspace) => workspace.id === workspaceId)?.root_path ?? "";
+  useEffect(() => {
+    if (!runtimeLocation && workspaceRoot) setRuntimeLocation(workspaceRoot);
+  }, [workspaceRoot, runtimeLocation]);
+
   const load = useCallback(async () => {
     if (!workspaceId) {
       setItems([]);
       return;
     }
+    const locationQuery = runtimeLocation
+      ? `&location=${encodeURIComponent(runtimeLocation)}`
+      : "";
     setLoading(true);
     try {
       const [response, runtimeResponse] = await Promise.all([
         apiGet<{ items: EffectiveStudioItem[] }>(
-          `/api/studio/effective?workspace_id=${encodeURIComponent(workspaceId)}`,
+          `/api/studio/effective?workspace_id=${encodeURIComponent(workspaceId)}${locationQuery}`,
         ),
         apiGet<StudioRuntime>(
-          `/api/studio/runtime?workspace_id=${encodeURIComponent(workspaceId)}`,
+          `/api/studio/runtime?workspace_id=${encodeURIComponent(workspaceId)}${locationQuery}`,
         ).catch(() => null),
       ]);
       setItems(response.items);
@@ -83,7 +92,7 @@ export function StudioOverview({
     } finally {
       setLoading(false);
     }
-  }, [workspaceId]);
+  }, [workspaceId, runtimeLocation]);
 
   useEffect(() => {
     void load();
@@ -104,6 +113,22 @@ export function StudioOverview({
       }),
     [items, kindFilter, statusFilter, search],
   );
+
+  async function importRuntime(kind: "skill" | "agent", id: string) {
+    setError(null);
+    try {
+      await apiPost("/api/studio/runtime/import", {
+        kind,
+        id,
+        target_scope: "workspace",
+        target_workspace_id: workspaceId,
+      });
+      setNotice(`Runtime ${kind} ${id} importado para o workspace.`);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
 
   async function duplicate(item: EffectiveStudioItem) {
     setError(null);
@@ -184,6 +209,26 @@ export function StudioOverview({
             <option value="enabled">ativos</option>
             <option value="disabled">desativados</option>
           </select>
+          <div className="flex min-w-[260px] flex-1 items-center gap-1">
+            <span className="text-[9px] uppercase tracking-wide text-zinc-600">
+              runtime
+            </span>
+            <input
+              value={runtimeLocation}
+              onChange={(event) => setRuntimeLocation(event.target.value)}
+              placeholder={workspaceRoot || "diretório do OpenCode TUI"}
+              className="h-7 min-w-0 flex-1 rounded-md border border-zinc-800 bg-zinc-950/40 px-2 font-mono text-[9px] text-zinc-300 outline-none focus:border-blue-500/60"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7"
+              onClick={() => void load()}
+              disabled={loading}
+            >
+              carregar
+            </Button>
+          </div>
           <Badge variant="default">{filtered.length}</Badge>
           <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
             <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
@@ -277,10 +322,19 @@ export function StudioOverview({
                     </summary>
                     <div className="mt-1 max-h-40 overflow-y-auto text-[9px] text-zinc-500">
                       {runtime.skills.map((skill) => (
-                        <p key={skill.id} className="truncate">
-                          <span className="font-mono text-zinc-300">{skill.id}</span>
-                          {skill.description ? ` · ${skill.description}` : ""}
-                        </p>
+                        <div key={skill.id} className="flex items-center gap-1">
+                          <p className="min-w-0 flex-1 truncate">
+                            <span className="font-mono text-zinc-300">{skill.id}</span>
+                            {skill.description ? ` · ${skill.description}` : ""}
+                          </p>
+                          <button
+                            type="button"
+                            className="shrink-0 text-[8px] text-blue-300/80 underline-offset-2 hover:underline"
+                            onClick={() => void importRuntime("skill", skill.id)}
+                          >
+                            importar
+                          </button>
+                        </div>
                       ))}
                     </div>
                   </details>

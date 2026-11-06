@@ -35,7 +35,10 @@ pub struct ServiceProbe {
     pub error: Option<String>,
 }
 
-pub fn run(json: bool) -> i32 {
+pub fn run(json: bool, fix_daemons: bool) -> i32 {
+    if fix_daemons {
+        crate::opencode_client::daemon_manager::cleanup_orphaned_daemons();
+    }
     let report = match build_report() {
         Ok(report) => report,
         Err(error) => {

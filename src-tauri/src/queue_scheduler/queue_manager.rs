@@ -486,6 +486,7 @@ impl QueueManager {
             .await;
         }
 
+        let mut fallback_enqueued = false;
         let _ = runs::finish(
             &self.pool,
             &run_id,
@@ -507,6 +508,45 @@ impl QueueManager {
             let _ = runs::set_error(&self.pool, &run_id, code, message, hint).await;
             if matches!(code, "model_unavailable" | "auth_failed") {
                 let _ = model_health::record_failure(&self.pool, &job.resolved_model, code).await;
+                if job.job_kind != "fallback"
+                    && let Some(fallback) = self
+                        .pick_fallback_model(&workspace_path, &job.resolved_model)
+                        .await
+                {
+                    let _ = self
+                        .enqueue(queue::EnqueueInput {
+                            workspace_id: job.workspace_id.clone(),
+                            task_id: job.task_id.clone(),
+                            schedule_id: job.schedule_id.clone(),
+                            prompt_payload: job.prompt_payload.clone(),
+                            resolved_mode: job.resolved_mode.clone(),
+                            resolved_agent: job.resolved_agent.clone(),
+                            resolved_model: fallback.clone(),
+                            resolved_effort: job.resolved_effort.clone(),
+                            job_kind: "fallback".into(),
+                            scheduled_for: None,
+                            output_dir: job.output_dir.clone(),
+                            priority: job.priority,
+                            max_retries: 1,
+                        })
+                        .await;
+                    if let Some(task) = &task {
+                        let _ = tasks::set_phase_status(
+                            &self.pool,
+                            &task.id,
+                            Some("fallback_queued"),
+                            None,
+                        )
+                        .await;
+                        self.events.publish(OpenDeskWsEvent::TaskUpdated {
+                            task_id: task.id.clone(),
+                            workspace_id: task.workspace_id.clone(),
+                            stage: task.column_stage.clone(),
+                            phase_status: Some("fallback_queued".into()),
+                        });
+                    }
+                    fallback_enqueued = true;
+                }
             }
         } else {
             let _ = model_health::record_success(&self.pool, &job.resolved_model).await;
@@ -519,7 +559,9 @@ impl QueueManager {
         };
         let _ = queue::finish(&self.pool, &job.id, queue_status, outcome.error.as_deref()).await;
 
-        if let Some(task) = &task {
+        if let Some(task) = &task
+            && !fallback_enqueued
+        {
             let stage: String;
             let phase_status: String;
 
@@ -771,6 +813,52 @@ impl QueueManager {
 
     async fn publish_status_for_all(&self) {
         let _ = self.status(None).await;
+    }
+}
+
+impl QueueManager {
+    async fn pick_fallback_model(&self, workspace_root: &Path, current: &str) -> Option<String> {
+        let models = self
+            .daemon
+            .models(Some(&workspace_root.to_string_lossy()))
+            .await
+            .ok()?;
+        let cooling = model_health::cooling(&self.pool, 24)
+            .await
+            .unwrap_or_default();
+        let current_base = current.split('#').next().unwrap_or(current);
+        let key = |model: &crate::opencode_client::rest_client::ModelDto| {
+            let provider = model.provider_id.clone().unwrap_or_default();
+            let id = model.model_id.clone().unwrap_or_else(|| model.id.clone());
+            format!("{provider}/{id}")
+        };
+        let preferred = [
+            "deepseek/deepseek-flash",
+            "opencode-go/glm-5.3",
+            "opencode-go/deepseek-v4.1-flash",
+        ];
+        let mut candidates = models
+            .iter()
+            .filter(|model| model.enabled.unwrap_or(true))
+            .filter(|model| {
+                let name = key(model);
+                name != current_base && !cooling.contains(&name)
+            })
+            .collect::<Vec<_>>();
+        candidates.sort_by_key(|model| {
+            let name = key(model);
+            preferred
+                .iter()
+                .position(|candidate| *candidate == name)
+                .unwrap_or(usize::MAX)
+        });
+        let model = candidates.first()?;
+        let base = key(model);
+        if model.variants.iter().any(|variant| variant.id == "low") {
+            Some(format!("{base}#low"))
+        } else {
+            Some(base)
+        }
     }
 }
 

@@ -352,6 +352,31 @@ pub async fn rollback(State(state): State<Arc<AppState>>) -> AppResult<Json<Engi
     Ok(status(State(state)).await)
 }
 
+pub async fn model_health(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>> {
+    let entries = crate::db::model_health::list(&state.db, 24).await?;
+    Ok(Json(json!({ "models": entries })))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ClearModelHealthBody {
+    #[serde(default)]
+    pub provider_id: Option<String>,
+    #[serde(default)]
+    pub model_id: Option<String>,
+}
+
+pub async fn clear_model_health(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<ClearModelHealthBody>,
+) -> AppResult<Json<Value>> {
+    if let (Some(provider_id), Some(model_id)) = (body.provider_id, body.model_id) {
+        crate::db::model_health::clear_model(&state.db, &provider_id, &model_id).await?;
+    } else {
+        crate::db::model_health::clear(&state.db).await?;
+    }
+    model_health(State(state)).await
+}
+
 pub async fn diagnostics(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>> {
     let daemon = state.daemon.status().await;
     let configured_binary = state

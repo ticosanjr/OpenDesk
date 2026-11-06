@@ -84,6 +84,8 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/engine/binary", post(engine::set_binary))
         .route("/api/engine/restart", post(engine::restart))
         .route("/api/engine/diagnostics", get(engine::diagnostics))
+        .route("/api/models/health", get(engine::model_health))
+        .route("/api/models/health/clear", post(engine::clear_model_health))
         .route("/api/engine/update/check", post(engine::update_check))
         .route("/api/engine/update", post(engine::update))
         .route("/api/engine/rollback", post(engine::rollback))
@@ -140,6 +142,10 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/studio/effective", get(studio_ops::effective))
         .route("/api/studio/catalog", get(studio_ops::catalog))
         .route("/api/studio/runtime", get(studio_ops::runtime))
+        .route(
+            "/api/studio/runtime/import",
+            post(studio_ops::import_runtime),
+        )
         .route(
             "/api/studio/install/preview",
             post(studio_ops::install_preview),

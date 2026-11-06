@@ -26,6 +26,8 @@ pub struct StudioQuery {
     pub workspace_id: Option<String>,
     pub id: Option<String>,
     pub expected_sha256: Option<String>,
+    /// Directory used for runtime discovery. Defaults to the workspace root.
+    pub location: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

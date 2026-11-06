@@ -720,3 +720,17 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Playwright — 8 passed.
 - `scripts/verify-real.sh` — REAL VERIFY OK.
 - Clippy limpo.
+
+## 2026-11-06 — 0.11.1: runtime location, fallback e verificação longa
+
+- Studio ganhou seletor de **runtime location** (diretório do TUI/projeto).
+- Importação de skill/agente runtime para disco (workspace/global).
+- Model health visível em Configurações e aviso no combobox de modelo.
+- Fallback automático para modelo saudável quando o modelo escolhido falha por
+  região/auth.
+- `opendesk doctor --fix-daemons` limpa daemons órfãos marcados.
+- Teste E2E de drag-and-drop do Kanban.
+- Testes de backup/restore e importação ZIP com assets.
+- `scripts/verify-real.sh` aceita modelo/prompt e imprime duração.
+- Verificação longa: `deepseek-v4.1-flash`, **148s**, SUCCESS, REVIEW,
+  7 artefatos.

@@ -105,9 +105,9 @@ No primeiro boot o OpenDesk:
 ```bash
 npm run check          # TypeScript
 npm run build          # frontend
-npm run test:rust      # 95 testes Rust
+npm run test:rust      # 96 testes Rust
 npm run test:ui        # Vitest + cobertura da lógica frontend
-npm run test:e2e       # 8 testes Playwright (headless + Vite)
+npm run test:e2e       # 10 testes Playwright (headless + Vite)
 scripts/gate.sh        # gate local antes de release
 npm run clean          # remove build/cobertura após release
 npm run clean:deep     # remove também node_modules

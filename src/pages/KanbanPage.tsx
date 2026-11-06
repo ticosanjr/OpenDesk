@@ -28,6 +28,7 @@ import { apiGet, apiPatch, apiPost, apiPut, apiText } from "@/lib/api";
 import type {
   AgentFile,
   DispatchDecision,
+  ModelHealth,
   ModelInfo,
   QueueJob,
   QueueStatus,
@@ -332,6 +333,7 @@ export function KanbanPage() {
           return (
             <Card
               key={column.id}
+              data-column={column.id}
               className="flex min-h-[380px] flex-col"
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
@@ -388,7 +390,11 @@ export function KanbanPage() {
                               event.dataTransfer.effectAllowed = "move";
                             }}
                             onDragEnd={() => {
-                              draggedRef.current = null;
+                              // Keep the ref until the drop handler runs; some
+                              // browsers fire dragend before drop.
+                              window.setTimeout(() => {
+                                draggedRef.current = null;
+                              }, 250);
                             }}
                             onClick={(event) => event.stopPropagation()}
                             className="mt-0.5 cursor-grab text-zinc-600 active:cursor-grabbing"
@@ -1079,6 +1085,7 @@ function EditTaskModal({
   const [error, setError] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentFile[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
+  const [modelHealth, setModelHealth] = useState<ModelHealth[]>([]);
   const [modelInput, setModelInput] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
 
@@ -1104,9 +1111,13 @@ function EditTaskModal({
     Promise.all([
       apiGet<AgentFile[]>(`/api/studio/agents?${studioQuery}`).catch(() => []),
       apiGet<{ data: ModelInfo[] }>("/api/models").catch(() => ({ data: [] })),
-    ]).then(([agentList, modelResponse]) => {
+      apiGet<{ models: ModelHealth[] }>("/api/models/health").catch(() => ({
+        models: [],
+      })),
+    ]).then(([agentList, modelResponse, health]) => {
       setAgents(agentList);
       setModels(modelResponse.data ?? []);
+      setModelHealth(health.models);
     });
   }, [task]);
 
@@ -1221,6 +1232,20 @@ function EditTaskModal({
             placeholder="digite para filtrar (ex.: deepseek, glm, opencode-go/…)"
             className={cn(inputClass, "font-mono text-[10px]")}
           />
+          {modelHealth.some(
+            (item) =>
+              `${item.provider_id}/${item.model_id}` ===
+              model.split("#")[0],
+          ) ? (
+            <p className="mt-1 text-[9px] text-amber-300">
+              Este modelo falhou recentemente ({modelHealth.find(
+                (item) =>
+                  `${item.provider_id}/${item.model_id}` ===
+                  model.split("#")[0],
+              )?.code}). Escolha outro ou limpe o cooldown em Configurações →
+              OpenCode Engine.
+            </p>
+          ) : null}
           {modelOpen ? (
             <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
               <button
@@ -1252,7 +1277,12 @@ function EditTaskModal({
                   .slice(0, 60);
                 return (
                   <>
-                    {filtered.map((value) => (
+                    {filtered.map((value) => {
+                      const base = value.split("#")[0];
+                      const failed = modelHealth.some(
+                        (item) => `${item.provider_id}/${item.model_id}` === base,
+                      );
+                      return (
                       <button
                         key={value}
                         type="button"
@@ -1268,8 +1298,10 @@ function EditTaskModal({
                         }}
                       >
                         {value}
+                        {failed ? " ⚠ falhou recentemente" : ""}
                       </button>
-                    ))}
+                      );
+                    })}
                     {modelInput.trim() &&
                     !values.some(
                       (value) => value.toLowerCase() === modelInput.trim().toLowerCase(),

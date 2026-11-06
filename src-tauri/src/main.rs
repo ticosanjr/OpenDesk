@@ -4,7 +4,8 @@
 fn main() {
     if std::env::args().any(|argument| argument == "doctor") {
         let json = std::env::args().any(|argument| argument == "--json");
-        opendesk_lib::run_doctor(json);
+        let fix_daemons = std::env::args().any(|argument| argument == "--fix-daemons");
+        opendesk_lib::run_doctor(json, fix_daemons);
     } else if std::env::args().any(|argument| argument == "mcp-google") {
         opendesk_lib::run_mcp_google();
     } else if std::env::args().any(|argument| argument == "--headless") {

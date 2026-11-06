@@ -647,3 +647,11 @@ export interface StudioRuntime {
     status?: { status?: string | null } | string | null;
   }>;
 }
+
+export interface ModelHealth {
+  provider_id: string;
+  model_id: string;
+  code: string;
+  failures: number;
+  failed_at: string;
+}

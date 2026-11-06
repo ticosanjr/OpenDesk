@@ -41,6 +41,35 @@ pub async fn record_success(pool: &SqlitePool, model: &str) -> AppResult<()> {
 }
 
 /// Models that failed recently and should be avoided by the router.
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct ModelHealth {
+    pub provider_id: String,
+    pub model_id: String,
+    pub code: String,
+    pub failures: i64,
+    pub failed_at: String,
+}
+
+pub async fn list(pool: &SqlitePool, hours: i64) -> AppResult<Vec<ModelHealth>> {
+    Ok(sqlx::query_as::<_, ModelHealth>(
+        "SELECT provider_id, model_id, code, failures, failed_at FROM model_health
+         WHERE failed_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)
+         ORDER BY failed_at DESC",
+    )
+    .bind(format!("-{hours} hours"))
+    .fetch_all(pool)
+    .await?)
+}
+
+pub async fn clear_model(pool: &SqlitePool, provider_id: &str, model_id: &str) -> AppResult<()> {
+    sqlx::query("DELETE FROM model_health WHERE provider_id = ? AND model_id = ?")
+        .bind(provider_id)
+        .bind(model_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 pub async fn cooling(pool: &SqlitePool, hours: i64) -> AppResult<Vec<String>> {
     let rows: Vec<(String, String)> = sqlx::query_as(
         "SELECT provider_id, model_id FROM model_health

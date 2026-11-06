@@ -612,7 +612,7 @@ async fn terminate_pid(pid: u32) {
 /// Remove dedicated daemons left behind by a previous OpenDesk process that
 /// crashed or was replaced by an update. Only processes explicitly tagged by
 /// OpenDesk are touched; the user's own `opencode serve` is never killed.
-fn cleanup_orphaned_daemons() {
+pub(crate) fn cleanup_orphaned_daemons() {
     #[cfg(target_os = "linux")]
     {
         let Ok(entries) = std::fs::read_dir("/proc") else {

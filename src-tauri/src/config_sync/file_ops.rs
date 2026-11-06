@@ -248,16 +248,10 @@ pub fn validate_slug(slug: &str, allow_nested: bool) -> AppResult<String> {
 }
 
 pub fn validate_skill_slug(slug: &str) -> AppResult<String> {
-    let value = validate_slug(slug, false)?;
-    let valid = value
-        .split('-')
-        .all(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_alphanumeric()));
-    if !valid {
-        return Err(AppError::BadRequest(format!(
-            "invalid skill id '{slug}'; expected kebab-case"
-        )));
-    }
-    Ok(value)
+    // OpenCode runtime ids can contain repeated separators and hash suffixes
+    // such as `agent-browser--1ffa5880cd`. Path safety is already enforced by
+    // validate_slug; do not reject valid native skill ids here.
+    validate_slug(slug, false)
 }
 
 pub fn validate_relative_file(path: &str) -> AppResult<String> {

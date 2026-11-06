@@ -55,6 +55,7 @@ async fn target(state: &AppState, body: &TargetBody, source_scope: &str) -> AppR
         workspace_id: body.target_workspace_id.clone(),
         id: None,
         expected_sha256: None,
+        location: None,
     };
     let (paths, scope, _) = context(state, &query).await?;
     Ok(Target { paths, scope })
@@ -665,7 +666,13 @@ pub async fn effective(
     }
 
     if let Some(client) = state.daemon.client().await {
-        let directory = workspace_root.to_str();
+        let runtime_root = query
+            .location
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| workspace_root.clone());
+        let directory = runtime_root.to_str();
         if let Ok(skills) = client.skills(directory).await {
             for skill in skills {
                 let id = skill
@@ -916,6 +923,116 @@ where
         .collect()
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RuntimeImportBody {
+    pub kind: String,
+    pub id: String,
+    #[serde(default)]
+    pub target_scope: Option<String>,
+    #[serde(default)]
+    pub target_workspace_id: Option<String>,
+}
+
+pub async fn import_runtime(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<RuntimeImportBody>,
+) -> AppResult<Json<Value>> {
+    let target = target(
+        &state,
+        &TargetBody {
+            target_scope: body.target_scope,
+            target_workspace_id: body.target_workspace_id,
+            new_id: None,
+            overwrite: false,
+        },
+        "workspace",
+    )
+    .await?;
+    let client = state.daemon.client().await.ok_or_else(|| {
+        AppError::Daemon("OpenCode runtime is offline; start the engine first".into())
+    })?;
+    match body.kind.as_str() {
+        "skill" => {
+            let skills = client.skills(None).await.unwrap_or_default();
+            let skill = skills
+                .into_iter()
+                .find(|skill| skill.get("id").and_then(Value::as_str) == Some(body.id.as_str()))
+                .ok_or_else(|| AppError::NotFound(format!("runtime skill {}", body.id)))?;
+            let name = skill
+                .get("name")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            let description = skill
+                .get("description")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            let content = skill
+                .get("content")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            skills::write(
+                &target.paths,
+                &target.scope,
+                &body.id,
+                SkillWriteInput {
+                    name,
+                    description,
+                    body: content,
+                    files: Vec::new(),
+                    expected_sha256: None,
+                },
+                &state.paths.backups_dir,
+            )?;
+        }
+        "agent" => {
+            let agents = client.agents(None).await.unwrap_or_default();
+            let agent = agents
+                .into_iter()
+                .find(|agent| agent.id == body.id)
+                .ok_or_else(|| AppError::NotFound(format!("runtime agent {}", body.id)))?;
+            agents::write(
+                &target.paths,
+                &target.scope,
+                &body.id,
+                AgentWriteInput {
+                    name: agent.name,
+                    avatar: None,
+                    description: agent.description,
+                    mode: agent.mode,
+                    model: agent.model.map(|model| {
+                        let mut value = format!("{}/{}", model.provider_id, model.id);
+                        if let Some(variant) = model.variant {
+                            value.push('#');
+                            value.push_str(&variant);
+                        }
+                        value
+                    }),
+                    color: None,
+                    hidden: agent.hidden,
+                    steps: None,
+                    disabled: false,
+                    permissions: serde_json::from_value(agent.permissions).unwrap_or_default(),
+                    system: String::new(),
+                    expected_sha256: None,
+                },
+                &state.paths.backups_dir,
+            )?;
+        }
+        other => {
+            return Err(AppError::BadRequest(format!(
+                "runtime import supports skill and agent, not '{other}'"
+            )));
+        }
+    }
+    Ok(Json(json!({
+        "ok": true,
+        "kind": body.kind,
+        "id": body.id,
+        "scope": target.scope,
+    })))
+}
+
 pub async fn runtime(
     State(state): State<Arc<AppState>>,
     Query(query): Query<StudioQuery>,
@@ -925,7 +1042,12 @@ pub async fn runtime(
         None => crate::api::tasks::resolve_workspace_id(&state, None).await?,
     };
     let workspace = crate::db::workspaces::get(&state.db, &workspace_id).await?;
-    let directory = Some(workspace.root_path.as_str());
+    let runtime_root = query
+        .location
+        .clone()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| workspace.root_path.clone());
+    let directory = Some(runtime_root.as_str());
     let client = state.daemon.client().await;
     let (agents, models, skills, commands, mcps) = match client {
         Some(client) => {
@@ -1718,5 +1840,42 @@ Revise $ARGUMENTS"#;
             markdown::get_string(&frontmatter, "agent").as_deref(),
             Some("auditor")
         );
+    }
+}
+
+#[cfg(test)]
+mod zip_tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn zip_import_groups_skill_assets() {
+        let mut buffer = std::io::Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut buffer);
+            let options = zip::write::SimpleFileOptions::default();
+            writer
+                .start_file("repo-main/skills/revisor/SKILL.md", options)
+                .expect("skill");
+            writer
+                .write_all(b"---\nname: Revisor\ndescription: Revisa\n---\nUse.\n")
+                .expect("write");
+            writer
+                .start_file("repo-main/skills/revisor/reference.md", options)
+                .expect("ref");
+            writer.write_all(b"referencia").expect("write ref");
+            writer.finish().expect("finish");
+        }
+        let mut items = Vec::new();
+        let mut warnings = Vec::new();
+        collect_zip(&buffer.into_inner(), &mut items, &mut warnings).expect("zip");
+        let skill = items
+            .iter()
+            .find(|item| item.kind == "skill")
+            .expect("skill item");
+        assert_eq!(skill.id, "revisor");
+        assert_eq!(skill.files.len(), 1);
+        assert_eq!(skill.files[0].path, "reference.md");
+        assert_eq!(skill.files[0].content, "referencia");
     }
 }

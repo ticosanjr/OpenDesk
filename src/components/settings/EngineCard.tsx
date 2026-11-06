@@ -23,6 +23,7 @@ import type {
   DetectResult,
   EngineStatus,
   EngineUpdateResult,
+  ModelHealth,
   OpenCodeUpdateCheck,
 } from "@/lib/types";
 
@@ -39,6 +40,7 @@ export function EngineCard() {
     string,
     unknown
   > | null>(null);
+  const [modelHealth, setModelHealth] = useState<ModelHealth[]>([]);
 
   async function load() {
     try {
@@ -62,6 +64,7 @@ export function EngineCard() {
 
   useEffect(() => {
     void load();
+    void loadModelHealth();
   }, []);
 
   const daemon = engine?.daemon;
@@ -72,6 +75,31 @@ export function EngineCard() {
       : daemon?.mode === "dedicated"
         ? "daemon dedicado"
         : "offline";
+
+  async function loadModelHealth() {
+    try {
+      const value = await apiGet<{ models: ModelHealth[] }>(
+        "/api/models/health",
+      );
+      setModelHealth(value.models);
+    } catch {
+      setModelHealth([]);
+    }
+  }
+
+  async function clearModelHealth(provider?: string, model?: string) {
+    try {
+      const value = await apiPost<{ models: ModelHealth[] }>(
+        "/api/models/health/clear",
+        provider && model
+          ? { provider_id: provider, model_id: model }
+          : {},
+      );
+      setModelHealth(value.models);
+    } catch {
+      // Keep the previous list; the error is visible in diagnostics.
+    }
+  }
 
   async function detect() {
     setBusy("detect");
@@ -392,6 +420,52 @@ export function EngineCard() {
             <Terminal size={13} />
             Abrir logs
           </Button>
+        </div>
+
+        <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="flex-1 text-[10px] uppercase tracking-wide text-zinc-600">
+              modelos em cooldown (24h)
+            </p>
+            {modelHealth.length > 0 ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void clearModelHealth()}
+              >
+                limpar todos
+              </Button>
+            ) : null}
+          </div>
+          {modelHealth.length === 0 ? (
+            <p className="mt-1 text-[10px] text-zinc-600">
+              Nenhum modelo bloqueado por região/auth recentemente.
+            </p>
+          ) : (
+            <div className="mt-1 space-y-1">
+              {modelHealth.map((item) => (
+                <div
+                  key={`${item.provider_id}/${item.model_id}`}
+                  className="flex items-center gap-2 text-[10px]"
+                >
+                  <span className="min-w-0 flex-1 truncate font-mono text-zinc-300">
+                    {item.provider_id}/{item.model_id}
+                  </span>
+                  <Badge variant="red">{item.code}</Badge>
+                  <span className="text-zinc-600">{item.failures}x</span>
+                  <button
+                    type="button"
+                    className="text-[9px] text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline"
+                    onClick={() =>
+                      void clearModelHealth(item.provider_id, item.model_id)
+                    }
+                  >
+                    limpar
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5">

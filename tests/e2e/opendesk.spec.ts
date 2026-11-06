@@ -54,7 +54,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     headers: auth.headers,
   });
   expect(about.ok()).toBeTruthy();
-  expect((await about.json()).app.version).toBe("0.11.0");
+  expect((await about.json()).app.version).toBe("0.11.1");
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });
@@ -606,4 +606,78 @@ Use a skill importada.
         file.path === "extra.md" && file.content === "conteúdo extra",
     ),
   ).toBe(true);
+});
+
+test("kanban drag-and-drop persists the column", async ({ page, request }) => {
+  const auth = api();
+  const workspaces = await request.get(`${auth.baseURL}/api/workspaces`, {
+    headers: auth.headers,
+  });
+  const workspaceId = ((await workspaces.json()) as Array<{ id: string }>)[0]?.id;
+  expect(workspaceId).toBeTruthy();
+
+  const created = await request.post(
+    `${auth.baseURL}/api/tasks?workspace_id=${workspaceId}`,
+    {
+      headers: auth.headers,
+      data: {
+        title: "Drag E2E",
+        description: "Teste de drag",
+        execution_mode: "AUTO_DSH",
+        priority: 2,
+        tags: [],
+        effort_level: "medium",
+      },
+    },
+  );
+  expect(created.ok()).toBeTruthy();
+  const taskId = (await created.json()).id as string;
+
+  await page.goto("/#/kanban");
+  await expect(page.getByRole("button", { name: "Abrir tarefa Drag E2E" })).toBeVisible();
+  await page
+    .getByRole("button", { name: "Abrir tarefa Drag E2E" })
+    .getByTitle("Arrastar tarefa")
+    .dragTo(page.locator('[data-column="DONE"]'));
+  await expect(page.locator('[data-column="DONE"]').getByText("Drag E2E")).toBeVisible();
+
+  const tasks = await request.get(`${auth.baseURL}/api/tasks`, {
+    headers: auth.headers,
+  });
+  const list = (await tasks.json()) as Array<{ id: string; column_stage: string }>;
+  expect(list.find((item) => item.id === taskId)?.column_stage).toBe("DONE");
+});
+
+test("studio backup lists and restores an item", async ({ request }) => {
+  const auth = api();
+  await request.put(`${auth.baseURL}/api/studio/agent?id=backup-e2e&scope=global`, {
+    headers: auth.headers,
+    data: { name: "V1", mode: "subagent", system: "versão 1" },
+  });
+  await request.put(`${auth.baseURL}/api/studio/agent?id=backup-e2e&scope=global`, {
+    headers: auth.headers,
+    data: { name: "V2", mode: "subagent", system: "versão 2" },
+  });
+  const backups = await request.get(
+    `${auth.baseURL}/api/studio/agent/backup-e2e/backups?scope=global`,
+    { headers: auth.headers },
+  );
+  expect(backups.ok()).toBeTruthy();
+  const entries = (await backups.json()).backups as Array<{ id: string }>;
+  expect(entries.length).toBeGreaterThan(0);
+
+  const restored = await request.post(
+    `${auth.baseURL}/api/studio/agent/backup-e2e/restore?scope=global`,
+    { headers: auth.headers, data: { backup_id: entries[0].id } },
+  );
+  expect(restored.ok()).toBeTruthy();
+  const agent = await request.get(
+    `${auth.baseURL}/api/studio/agent?id=backup-e2e&scope=global`,
+    { headers: auth.headers },
+  );
+  expect((await agent.json()).name).toBe("V1");
+
+  await request.delete(`${auth.baseURL}/api/studio/agent/backup-e2e?scope=global`, {
+    headers: auth.headers,
+  });
 });
