@@ -101,7 +101,7 @@ No primeiro boot o OpenDesk:
 ```bash
 npm run check          # TypeScript
 npm run build          # frontend
-npm run test:rust      # 81 testes Rust
+npm run test:rust      # 82 testes Rust
 npm run test:ui        # Vitest + cobertura da lógica frontend
 npm run test:e2e       # 5 testes Playwright (headless + Vite)
 scripts/gate.sh        # gate local antes de release

@@ -586,7 +586,7 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 ### Verificado
 
-- `cargo test` — 81 passed.
+- `cargo test` — 82 passed.
 - Chat real com OpenCode: pergunta “Responda apenas: OK” retornou “OK”,
   10.148 tokens de entrada e custo registrado.
 - Signal bridge: envelope fake recebido, thread `source=signal` criada e
