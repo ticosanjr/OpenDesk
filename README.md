@@ -4,10 +4,10 @@ Sistema operacional visual de governança, automação e observabilidade sobre o
 OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
-> **Status:** fases 1–10 prontas. O OpenDesk cobre fundação, Studio com gestão
+> **Status:** fases 1–11 prontas. O OpenDesk cobre fundação, Studio com gestão
 > completa (efetivo, copiar/mover, toggle, backup e instalação), execução,
-> automação, Google Workspace + MCP bridge, resiliência/atualizações, tarefas e
-> chat interativo com Signal. Repositório privado:
+> automação, Google Workspace + MCP bridge, resiliência/atualizações, tarefas,
+> chat interativo com Signal e runtime inventory do OpenCode no Studio. Repositório privado:
 > <https://github.com/ticosanjr/OpenDesk>. Consulte
 > [docs/implementation-plan.md](docs/implementation-plan.md) e
 > [docs/progress.md](docs/progress.md).
