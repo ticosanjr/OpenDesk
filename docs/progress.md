@@ -296,4 +296,12 @@
 1. Fase 5 — OAuth2 Google, Drive/Docs/Calendar/Gmail/Tasks e MCP bridge.
 2. Retry automático de entregas e política de permissões por workspace.
 3. Concorrência configurável da fila.
-4. Release 0.4.0.
+4. Release 0.5.0 com Google Workspace/MCP da Fase 5.
+
+### Release 0.4.0
+
+- `releases/0.4.0/` com `.deb` 7,74 MiB, `.rpm` 7,74 MiB, `.AppImage` 92,08 MiB
+  e binário portátil.
+- `releases/LATEST` = `0.4.0`; `v0.4.0` tagueado.
+- Retenção: `0.2.0`, `0.3.0` e `0.4.0` (máximo 3).
+- `/api/meta` reporta fase `automation` e os recursos de cron/SMTP.
