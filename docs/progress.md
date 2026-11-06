@@ -115,7 +115,7 @@
 - `npm run check` — ok.
 - `npm run build` — ok.
 - `cargo test` — 12 passed.
-- `npm run test:e2e` — 2 passed.
+- `npm run test:e2e` — 2 passed (Playwright Chromium; `npx playwright install chromium`).
 - `npm run tauri build` — gerou `.deb` (6,96 MiB), `.rpm` (6,97 MiB) e
   `.AppImage` (91,44 MiB).
 

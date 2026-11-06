@@ -44,6 +44,7 @@ OpenCode permanecendo nos arquivos nativos do disco.
   `libayatana-appindicator3-dev` e ferramentas de build do Tauri
 - Windows: WebView2
 - macOS: será validado em uma fase futura
+- Playwright (apenas para e2e): `npx playwright install chromium`
 
 ## Rodar
 
