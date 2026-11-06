@@ -296,7 +296,7 @@
 1. Fase 5 — OAuth2 Google, Drive/Docs/Calendar/Gmail/Tasks e MCP bridge.
 2. Retry automático de entregas e política de permissões por workspace.
 3. Concorrência configurável da fila.
-4. Release 0.5.0 com Google Workspace/MCP da Fase 5.
+4. Release 0.6.0 com endurecimento e testes de contrato.
 
 ### Release 0.4.0
 
@@ -367,3 +367,13 @@
 2. Concorrência configurável da fila e retry de entregas.
 3. Testes de contrato opt-in contra `opencode serve` real.
 4. Release 0.5.0.
+
+### Release 0.5.0
+
+- `releases/0.5.0/` com `.deb` 7,97 MiB, `.rpm` 7,97 MiB, `.AppImage` 92,28 MiB
+  e binário portátil.
+- `releases/LATEST` = `0.5.0`; `v0.5.0` tagueado.
+- Retenção: `0.3.0`, `0.4.0` e `0.5.0` (0.2.0 removida).
+- Repositório privado publicado: https://github.com/ticosanjr/OpenDesk
+- `/api/meta` reporta fase `integration` e os recursos de Google/MCP.
+- Bridge MCP 0.5.0 responde initialize e lista 15 ferramentas.

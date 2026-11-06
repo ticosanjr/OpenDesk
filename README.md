@@ -5,7 +5,8 @@ OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
 > **Status:** fases 1–5 prontas. O OpenDesk cobre fundação, Studio, execução,
-> automação e Google Workspace + MCP bridge. Consulte
+> automação e Google Workspace + MCP bridge. Repositório privado:
+> <https://github.com/ticosanjr/OpenDesk>. Consulte
 > [docs/implementation-plan.md](docs/implementation-plan.md) e
 > [docs/progress.md](docs/progress.md).
 

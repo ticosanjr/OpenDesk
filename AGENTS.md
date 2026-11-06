@@ -70,6 +70,7 @@ SMTP, entregas pós-run, Google Workspace e MCP bridge. Próxima frente:
 endurecimento, concorrência da fila, testes de contrato Google/OpenCode e
 empacotamento final.
 
-Releases são locais (`releases/`, máximo 3 versões) e nunca via CI. `name` e
-`avatar` de agentes são metadados do OpenDesk no frontmatter; `color` é nativo
-(ADR 0002).
+Releases são locais (`releases/`, máximo 3 versões) e nunca via CI. O remoto é
+`origin` em https://github.com/ticosanjr/OpenDesk (privado); `scripts/release.sh`
+faz commit, tag e push. `name` e `avatar` de agentes são metadados do OpenDesk no
+frontmatter; `color` é nativo (ADR 0002).
