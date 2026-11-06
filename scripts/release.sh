@@ -72,9 +72,11 @@ if ! git rev-parse "v${VERSION}" >/dev/null 2>&1; then
   git tag -a "v${VERSION}" -m "OpenDesk v${VERSION}"
 fi
 
-if git remote | grep -q .; then
-  git push
-  git push --tags
+remote="$(git remote | head -n 1)"
+if [[ -n "$remote" ]]; then
+  branch="$(git rev-parse --abbrev-ref HEAD)"
+  git push -u "$remote" "$branch"
+  git push "$remote" --tags
 else
   echo "    no git remote configured; commit and tag kept locally"
 fi
