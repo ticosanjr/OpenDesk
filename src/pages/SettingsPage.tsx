@@ -16,6 +16,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { EngineCard } from "@/components/settings/EngineCard";
+import { UpdatesCard } from "@/components/settings/UpdatesCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiGet, apiPut } from "@/lib/api";
@@ -96,6 +98,9 @@ export function SettingsPage() {
           </Button>
         }
       />
+
+      <EngineCard />
+      <UpdatesCard />
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Card>
@@ -180,9 +185,9 @@ export function SettingsPage() {
             <Badge variant="blue">V2-only</Badge>
           </CardHeader>
           <CardContent className="space-y-2">
-            <InfoRow label="Versão" value="0.5.0" />
+            <InfoRow label="Versão" value="0.6.0" />
             <InfoRow label="OpenCode API" value="v2 (/api/*)" />
-            <InfoRow label="Fase" value="integrações (Fase 5)" />
+            <InfoRow label="Fase" value="resiliência (Fase 6)" />
             <InfoRow label="Banco" value="~/.local/share/opendesk/opendesk.db" />
             <InfoRow label="Workspaces" value={String(workspaces.length)} />
           </CardContent>

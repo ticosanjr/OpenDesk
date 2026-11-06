@@ -4,9 +4,9 @@ Sistema operacional visual de governança, automação e observabilidade sobre o
 OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
-> **Status:** fases 1–5 prontas. O OpenDesk cobre fundação, Studio, execução,
-> automação e Google Workspace + MCP bridge. Repositório privado:
-> <https://github.com/ticosanjr/OpenDesk>. Consulte
+> **Status:** fases 1–6 prontas. O OpenDesk cobre fundação, Studio, execução,
+> automação, Google Workspace + MCP bridge e resiliência/atualizações.
+> Repositório privado: <https://github.com/ticosanjr/OpenDesk>. Consulte
 > [docs/implementation-plan.md](docs/implementation-plan.md) e
 > [docs/progress.md](docs/progress.md).
 
@@ -42,6 +42,10 @@ OpenCode permanecendo nos arquivos nativos do disco.
   idempotência de slot e execução manual.
 - SMTP por workspace com segredo criptografado (AES-256-GCM, 0600), teste de
   conexão e entrega pós-run com anexos e idempotência.
+- Motor OpenCode resiliente: descoberta do binário fora do `PATH`,
+  fallback para o serviço compartilhado, mensagens acionáveis e preflight.
+- Atualização do OpenCode V2 pela UI (checagem semver, upgrade e reinício).
+- Auto-atualização do OpenDesk por release privada com SHA256 e backup.
 - Google Workspace: OAuth2 loopback + PKCE, Docs, Drive, Calendar, Gmail e
   Tasks; export pós-run para Google Docs/Drive.
 - MCP bridge `opendesk mcp-google` com ferramentas de Gmail, Docs, Drive,
@@ -89,7 +93,7 @@ No primeiro boot o OpenDesk:
 ```bash
 npm run check          # TypeScript
 npm run build          # frontend
-npm run test:rust      # 30 testes Rust
+npm run test:rust      # 43 testes Rust
 npm run test:e2e       # 4 testes Playwright (headless + Vite)
 cd src-tauri && cargo check
 cd src-tauri && cargo test
@@ -169,6 +173,8 @@ docs/                       plano, decisões e histórico
 - [ADR 0006 — Cron dirigido pelo SQLite](docs/decisions/0006-cron-db-tick.md)
 - [ADR 0007 — OAuth Google loopback e credenciais](docs/decisions/0007-google-oauth-loopback.md)
 - [ADR 0008 — MCP bridge stdio](docs/decisions/0008-mcp-bridge-stdio.md)
+- [ADR 0009 — Resolução e fallback do motor](docs/decisions/0009-opencode-engine-resolution.md)
+- [ADR 0010 — Atualizações](docs/decisions/0010-updates.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)

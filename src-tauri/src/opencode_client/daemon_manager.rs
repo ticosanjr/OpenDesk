@@ -1,11 +1,14 @@
 use crate::{
     events::{EventBus, OpenDeskWsEvent},
-    opencode_client::rest_client::{AgentDto, ModelDto, RestClient},
+    opencode_client::{
+        binary::{OpenCodeBinaryInfo, OpenCodeLocator},
+        rest_client::{AgentDto, ModelDto, RestClient},
+    },
     paths::AppPaths,
 };
 use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
-use std::{process::Stdio, sync::Arc, time::Duration};
+use std::{path::PathBuf, process::Stdio, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncRead, BufReader},
     process::{Child, Command},
@@ -28,6 +31,8 @@ pub struct DaemonStatus {
     pub state: String,
     pub message: Option<String>,
     pub version: Option<String>,
+    pub mode: String,
+    pub binary_path: Option<String>,
 }
 
 struct Inner {
@@ -42,6 +47,7 @@ struct Inner {
 pub struct DaemonManager {
     paths: AppPaths,
     events: EventBus,
+    locator: Arc<OpenCodeLocator>,
     inner: RwLock<Inner>,
 }
 
@@ -53,10 +59,11 @@ struct DaemonLock {
 }
 
 impl DaemonManager {
-    pub fn new(paths: AppPaths, events: EventBus) -> Arc<Self> {
+    pub fn new(paths: AppPaths, events: EventBus, locator: Arc<OpenCodeLocator>) -> Arc<Self> {
         Arc::new(Self {
             paths,
             events,
+            locator,
             inner: RwLock::new(Inner {
                 status: DaemonStatus {
                     online: false,
@@ -65,6 +72,8 @@ impl DaemonManager {
                     state: "starting".into(),
                     message: None,
                     version: None,
+                    mode: "offline".into(),
+                    binary_path: None,
                 },
                 child: None,
                 pid: None,
@@ -73,6 +82,10 @@ impl DaemonManager {
                 shutdown: CancellationToken::new(),
             }),
         })
+    }
+
+    pub fn locator(&self) -> Arc<OpenCodeLocator> {
+        Arc::clone(&self.locator)
     }
 
     pub fn spawn_supervisor(self: &Arc<Self>) {
@@ -128,6 +141,21 @@ impl DaemonManager {
         self.stop_child().await;
     }
 
+    /// Wait until the supervisor reports a terminal state after a restart.
+    /// Used by the engine API so the UI can show the real outcome instead of
+    /// an optimistic "restarting" that never resolves.
+    pub async fn wait_for_settled(&self, timeout: Duration) -> DaemonStatus {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            let status = self.status().await;
+            let settled = status.online || matches!(status.state.as_str(), "offline" | "online");
+            if settled || tokio::time::Instant::now() >= deadline {
+                return status;
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+    }
+
     pub async fn shutdown(&self) {
         self.inner.read().await.shutdown.cancel();
         self.stop_child().await;
@@ -174,6 +202,7 @@ impl DaemonManager {
             let rest = RestClient::new(lock.port, lock.password.clone());
             if let Ok(info) = rest.info().await {
                 tracing::info!(port = lock.port, version = %info.version, "attached to existing OpenCode daemon");
+                let binary_path = self.locator.resolve().ok().map(|binary| binary.path);
                 self.install_online(
                     lock.port,
                     lock.password,
@@ -181,27 +210,54 @@ impl DaemonManager {
                     Some(info.version),
                     None,
                     Some(lock.pid),
+                    "dedicated",
+                    binary_path,
                 )
                 .await;
                 return Ok(());
             }
 
-            // The lock points at a process that is no longer healthy. Kill it
-            // before spawning a replacement so it does not hold the port.
             if lock.pid > 0 {
                 terminate_pid(lock.pid).await;
             }
             let _ = std::fs::remove_file(&self.paths.daemon_lock_path);
         }
 
+        let binary_error = match self.locator.resolve() {
+            Ok(binary) => match self.spawn_dedicated(&binary).await {
+                Ok(()) => return Ok(()),
+                Err(error) => {
+                    tracing::warn!(error = %error, "could not spawn a dedicated OpenCode daemon");
+                    Some(format!("{error:#}"))
+                }
+            },
+            Err(error) => {
+                tracing::warn!(error = %error, "OpenCode binary not found");
+                Some(format!("{error:#}"))
+            }
+        };
+
+        match self.attach_shared_service().await {
+            Ok(()) => return Ok(()),
+            Err(shared_error) => {
+                let binary_message =
+                    binary_error.unwrap_or_else(|| "no OpenCode binary was resolved".into());
+                return Err(anyhow!(
+                    "{binary_message} Shared service fallback also failed: {shared_error:#}"
+                ));
+            }
+        }
+    }
+
+    async fn spawn_dedicated(&self, binary: &OpenCodeBinaryInfo) -> Result<()> {
         let port = find_free_port()?;
         self.mark_state(
             "starting",
-            Some(format!("starting opencode serve on port {port}")),
+            Some(format!("starting {} serve on port {port}", binary.path)),
         )
         .await;
 
-        let mut command = Command::new("opencode");
+        let mut command = Command::new(&binary.path);
         command
             .args([
                 "serve",
@@ -210,6 +266,7 @@ impl DaemonManager {
                 "--port",
                 &port.to_string(),
             ])
+            .env("PATH", enriched_path(&binary.path))
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -221,7 +278,7 @@ impl DaemonManager {
 
         let mut child = command
             .spawn()
-            .context("could not start `opencode serve`; is OpenCode installed and on PATH?")?;
+            .with_context(|| format!("could not start `{} serve`", binary.path))?;
         let pid = child.id().unwrap_or_default();
 
         let stdout = child
@@ -296,10 +353,58 @@ impl DaemonManager {
             Some(info.version),
             Some(child),
             Some(pid),
+            "dedicated",
+            Some(binary.path.clone()),
         )
         .await;
 
         Ok(())
+    }
+
+    async fn attach_shared_service(&self) -> Result<()> {
+        for path in service_state_paths() {
+            let Ok(bytes) = std::fs::read(&path) else {
+                continue;
+            };
+            let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+                continue;
+            };
+            let Some(url) = value.get("url").and_then(|value| value.as_str()) else {
+                continue;
+            };
+            let Some(password) = value.get("password").and_then(|value| value.as_str()) else {
+                continue;
+            };
+
+            let rest = RestClient::new_with_url(url, password.to_string());
+            if let Ok(info) = rest.info().await {
+                if !info.version.starts_with('2') {
+                    continue;
+                }
+                let port = reqwest::Url::parse(url)
+                    .ok()
+                    .and_then(|url| url.port())
+                    .unwrap_or(DEFAULT_PORT);
+                tracing::info!(url, version = %info.version, "attached to shared OpenCode service");
+                self.install_online(
+                    port,
+                    password.to_string(),
+                    rest,
+                    Some(info.version),
+                    None,
+                    None,
+                    "shared",
+                    None,
+                )
+                .await;
+                return Ok(());
+            }
+        }
+
+        Err(anyhow!(
+            "no healthy shared OpenCode service found in {:?}",
+            service_state_paths()
+        ))
     }
 
     async fn install_online(
@@ -310,6 +415,8 @@ impl DaemonManager {
         version: Option<String>,
         child: Option<Child>,
         pid: Option<u32>,
+        mode: &str,
+        binary_path: Option<String>,
     ) {
         let status = {
             let mut inner = self.inner.write().await;
@@ -324,6 +431,8 @@ impl DaemonManager {
                 state: "online".into(),
                 message: None,
                 version,
+                mode: mode.to_string(),
+                binary_path,
             };
             inner.status.clone()
         };
@@ -396,6 +505,7 @@ impl DaemonManager {
             let mut inner = self.inner.write().await;
             inner.status.online = false;
             inner.status.state = "offline".into();
+            inner.status.mode = "offline".into();
             inner.status.message = Some(message);
             inner.rest = None;
             inner.status.clone()
@@ -416,6 +526,8 @@ impl DaemonManager {
             state: status.state,
             message: status.message,
             version: status.version,
+            mode: status.mode,
+            binary_path: status.binary_path,
         });
     }
 
@@ -488,6 +600,43 @@ async fn terminate_pid(pid: u32) {
             .status()
             .await;
     }
+}
+
+fn enriched_path(binary: &str) -> String {
+    let mut paths = Vec::new();
+    if let Some(parent) = std::path::Path::new(binary).parent() {
+        paths.push(parent.to_path_buf());
+    }
+    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+        paths.push(home.join(".opencode/bin"));
+        paths.push(home.join(".local/bin"));
+        paths.push(home.join(".bun/bin"));
+    }
+    #[cfg(windows)]
+    if let Some(appdata) = std::env::var_os("APPDATA") {
+        paths.push(PathBuf::from(appdata).join("npm"));
+    }
+    if let Some(current) = std::env::var_os("PATH") {
+        paths.extend(std::env::split_paths(&current));
+    }
+    paths.push(PathBuf::from("/usr/local/bin"));
+    paths.push(PathBuf::from("/usr/bin"));
+    paths.push(PathBuf::from("/bin"));
+    std::env::join_paths(paths)
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|_| binary.to_string())
+}
+
+fn service_state_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Some(state) = std::env::var_os("XDG_STATE_HOME") {
+        paths.push(PathBuf::from(state).join("opencode/service.json"));
+    }
+    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+        paths.push(home.join(".local/state/opencode/service.json"));
+        paths.push(home.join(".config/opencode/service.json"));
+    }
+    paths
 }
 
 fn find_free_port() -> Result<u16> {

@@ -107,6 +107,7 @@ pub async fn dispatch_task(
     Path(id): Path<String>,
     Json(body): Json<DispatchBody>,
 ) -> AppResult<Json<serde_json::Value>> {
+    crate::api::engine::require_engine(&state).await?;
     let task = tasks::get(&state.db, &id).await?;
     let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
     let decision = plan_decision(&state, &task, &workspace, &body, None).await?;
@@ -122,6 +123,7 @@ pub async fn approve_plan(
     Path(id): Path<String>,
     Json(body): Json<DispatchBody>,
 ) -> AppResult<Json<serde_json::Value>> {
+    crate::api::engine::require_engine(&state).await?;
     let task = tasks::get(&state.db, &id).await?;
     let plan = task
         .plan_markdown

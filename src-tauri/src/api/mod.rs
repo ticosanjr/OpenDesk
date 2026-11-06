@@ -1,6 +1,7 @@
 pub mod artifacts;
 pub mod budget;
 pub mod commands;
+pub mod engine;
 pub mod google;
 pub mod integrations;
 pub mod meta;
@@ -10,6 +11,7 @@ pub mod runs;
 pub mod schedules;
 pub mod studio;
 pub mod tasks;
+pub mod updates;
 pub mod ws;
 
 use crate::{
@@ -72,6 +74,20 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/meta/build", post(meta::build))
         .route("/api/daemon/status", get(daemon_status))
         .route("/api/daemon/restart", post(restart_daemon))
+        .route("/api/engine/status", get(engine::status))
+        .route("/api/engine/detect", post(engine::detect))
+        .route("/api/engine/binary", post(engine::set_binary))
+        .route("/api/engine/restart", post(engine::restart))
+        .route("/api/engine/diagnostics", get(engine::diagnostics))
+        .route("/api/engine/update/check", post(engine::update_check))
+        .route("/api/engine/update", post(engine::update))
+        .route("/api/updates/status", get(updates::status))
+        .route("/api/updates/check", post(updates::check))
+        .route(
+            "/api/updates/token",
+            axum::routing::put(updates::put_token).delete(updates::delete_token),
+        )
+        .route("/api/updates/download", post(updates::download))
         .route("/api/models", get(models))
         .route("/api/agents", get(agents))
         .route("/api/dashboard", get(dashboard))
@@ -233,7 +249,7 @@ async fn meta() -> impl IntoResponse {
     Json(json!({
         "name": "OpenDesk",
         "version": env!("CARGO_PKG_VERSION"),
-        "phase": "integration",
+        "phase": "resilience",
         "opencode_api": "v2",
         "features": [
             "daemon-manager",
@@ -255,7 +271,12 @@ async fn meta() -> impl IntoResponse {
             "encrypted-secrets",
             "google-workspace",
             "google-oauth",
-            "mcp-bridge"
+            "mcp-bridge",
+            "engine-resolver",
+            "engine-shared-attach",
+            "engine-update",
+            "opendesk-self-update",
+            "diagnostics"
         ]
     }))
 }

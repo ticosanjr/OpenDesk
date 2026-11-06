@@ -215,9 +215,21 @@ workspace persiste, API responde com e sem token.
 ## 9. Releases locais
 
 `scripts/release.sh` compila, empacota e mantém no máximo 3 versões em
-`releases/<versão>/` com `manifest.json`, `SHA256SUMS` e `LATEST`. Não há CI.
-Binários são ignorados pelo git; metadados e checksums são versionados. O script
-cria commit e tag e faz push se houver um remoto configurado.
+`releases/<versão>/` com `manifest.json`, `latest.json`, `SHA256SUMS` e
+`LATEST`. Não há CI. Binários são ignorados pelo git; metadados e checksums são
+versionados. O script cria commit, tag, GitHub Release privada e envia os assets
+com `gh` quando o remoto é GitHub.
+
+## 9.1 Fase 6 — resiliência e atualizações
+
+- [x] Resolver de binário OpenCode com persistência e validação V2.
+- [x] Fallback para o serviço compartilhado (`service.json`).
+- [x] Banner, card do motor, diagnóstico e log rotativo.
+- [x] Preflight 503 em dispatch/aprovação/run-now.
+- [x] Atualização do OpenCode V2 pela UI.
+- [x] Auto-atualização do OpenDesk via release privada, SHA256 e backup.
+- [ ] Cobertura ≥80% nos módulos de lógica.
+- [ ] Rollback automático de versão e retry de entregas.
 
 ## 10. Como contribuir
 

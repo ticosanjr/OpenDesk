@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { Outlet } from "react-router-dom";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { Outlet, useNavigate } from "react-router-dom";
+import { AlertTriangle, RefreshCw, Settings } from "lucide-react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 import { CommandPalette } from "@/components/layout/CommandPalette";
@@ -13,7 +13,15 @@ export function AppShell() {
   const boot = useAppStore((state) => state.boot);
   const loading = useAppStore((state) => state.loading);
   const error = useAppStore((state) => state.error);
+  const daemon = useAppStore((state) => state.daemon);
+  const restartDaemon = useAppStore((state) => state.restartDaemon);
+  const refresh = useAppStore((state) => state.refresh);
   const setCommandOpen = useUiStore((state) => state.setCommandOpen);
+  const navigate = useNavigate();
+  const engineOffline =
+    daemon !== null &&
+    !daemon.online &&
+    !["starting", "restarting"].includes(daemon.state);
 
   useEffect(() => {
     void boot();
@@ -49,6 +57,37 @@ export function AppShell() {
               size="sm"
               onClick={() => void boot()}
               className="h-7"
+            >
+              <RefreshCw size={12} />
+              Tentar novamente
+            </Button>
+          </div>
+        ) : null}
+        {engineOffline ? (
+          <div className="flex flex-wrap items-center gap-3 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-[11px] text-amber-200">
+            <AlertTriangle size={14} className="shrink-0" />
+            <span className="min-w-0 flex-1">
+              <strong className="font-semibold">OpenCode offline.</strong>{" "}
+              {daemon?.message ??
+                "Nenhum binário foi detectado e nenhum serviço compartilhado respondeu."}{" "}
+              Nada será enfileirado até o motor voltar.
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7"
+              onClick={() => navigate("/settings")}
+            >
+              <Settings size={12} />
+              Configurar binário
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7"
+              onClick={() => {
+                void restartDaemon().finally(() => void refresh());
+              }}
             >
               <RefreshCw size={12} />
               Tentar novamente

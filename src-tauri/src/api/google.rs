@@ -111,9 +111,7 @@ pub async fn register_mcp(
     let workspace = workspaces::get(&state.db, &body.workspace_id).await?;
     let studio = StudioPaths::new(Some(PathBuf::from(workspace.root_path)));
     let config_path = studio.config_path("workspace")?;
-    let executable = std::env::current_exe().map_err(|error| {
-        AppError::Internal(format!("could not resolve current executable: {error}"))
-    })?;
+    let executable = stable_executable()?;
 
     let server = serde_json::json!({
         "type": "local",
@@ -139,4 +137,28 @@ pub async fn register_mcp(
         "config_path": config_path.to_string_lossy(),
         "server": "opendesk-google"
     })))
+}
+
+/// The AppImage mounts itself in `/tmp/.mount_*`, which disappears when the app
+/// closes. Point MCP at the AppImage file itself (or the installed binary) so
+/// the server keeps working after a restart.
+fn stable_executable() -> AppResult<PathBuf> {
+    if let Some(appimage) = std::env::var_os("APPIMAGE") {
+        let path = PathBuf::from(appimage);
+        if path.is_file() {
+            return Ok(path);
+        }
+    }
+
+    #[cfg(unix)]
+    for candidate in ["/usr/bin/opendesk", "/usr/local/bin/opendesk"] {
+        let path = PathBuf::from(candidate);
+        if path.is_file() {
+            return Ok(path);
+        }
+    }
+
+    std::env::current_exe().map_err(|error| {
+        AppError::Internal(format!("could not resolve current executable: {error}"))
+    })
 }

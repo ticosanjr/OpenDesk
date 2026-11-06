@@ -20,6 +20,7 @@ function api() {
 }
 
 test("workspace, settings, Studio and external edit sync", async ({ page, request }) => {
+  const auth = api();
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 
@@ -41,8 +42,24 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
   await page
     .getByPlaceholder("~/Documents/OpenDesk Workspaces")
     .fill("/tmp/opendesk-e2e/default-root");
-  await page.getByRole("button", { name: "Salvar" }).first().click();
-  await expect(page.getByText("salvo")).toBeVisible();
+  await page.getByRole("button", { name: "Salvar", exact: true }).first().click();
+  await expect(page.getByText("salvo", { exact: true })).toBeVisible();
+
+  // Engine card: reports the resolved binary candidates even when headless
+  // mode deliberately keeps the daemon offline.
+  await expect(page.getByText("OpenCode Engine")).toBeVisible();
+  await expect(page.getByText("Atualizações do OpenDesk")).toBeVisible();
+  const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
+    headers: auth.headers,
+  });
+  expect(engineStatus.ok()).toBeTruthy();
+  const engine = (await engineStatus.json()) as {
+    daemon: { state: string; online: boolean };
+    candidates: string[];
+  };
+  expect(engine.daemon.online).toBe(false);
+  expect(engine.daemon.state).toBe("offline");
+  expect(engine.candidates.length).toBeGreaterThan(0);
 
   // Studio: create an agent with name, avatar and color.
   await page.getByRole("link", { name: "OpenCode Studio" }).click();
@@ -59,7 +76,6 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
   await page.getByRole("button", { name: "Salvar" }).click();
   await expect(page.getByText("Revisor Fiscal").first()).toBeVisible();
 
-  const auth = api();
   type AgentShape = {
     id: string;
     name?: string;

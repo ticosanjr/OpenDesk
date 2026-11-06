@@ -54,6 +54,11 @@ interface AppStore {
     connected: boolean;
     email?: string | null;
   } | null;
+  lastEngineUpdate: {
+    phase: string;
+    message?: string | null;
+    ok?: boolean | null;
+  } | null;
   budgetAlert: {
     level: string;
     message: string;
@@ -89,6 +94,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   lastArtifactEvent: 0,
   lastScheduleEvent: null,
   lastGoogleEvent: null,
+  lastEngineUpdate: null,
   budgetAlert: null,
 
   boot: async () => {
@@ -325,6 +331,21 @@ function handleEvent(event: WsEvent) {
           },
         });
       }
+      break;
+    }
+    case "EngineUpdateProgress": {
+      const payload = event.payload as {
+        phase?: string;
+        message?: string | null;
+        ok?: boolean | null;
+      };
+      useAppStore.setState({
+        lastEngineUpdate: {
+          phase: payload.phase ?? "running",
+          message: payload.message,
+          ok: payload.ok,
+        },
+      });
       break;
     }
     case "ScheduleUpdated": {

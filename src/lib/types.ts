@@ -5,6 +5,89 @@ export interface DaemonStatus {
   state: string;
   message?: string | null;
   version?: string | null;
+  mode?: string;
+  binary_path?: string | null;
+}
+
+export interface OpenCodeBinaryInfo {
+  path: string;
+  version: string;
+  method?: string | null;
+  candidates: string[];
+}
+
+export interface EngineStatus {
+  daemon: DaemonStatus;
+  configured_binary?: string | null;
+  resolved?: OpenCodeBinaryInfo | null;
+  resolve_error?: string | null;
+  candidates: string[];
+  app_version: string;
+}
+
+export interface DetectResult {
+  ok: boolean;
+  binary?: OpenCodeBinaryInfo | null;
+  error?: string | null;
+  candidates: string[];
+}
+
+export interface OpenCodeRelease {
+  version: string;
+  tag: string;
+  name: string;
+  notes?: string | null;
+  url: string;
+  published_at?: string | null;
+}
+
+export interface OpenCodeUpdateCheck {
+  current?: string | null;
+  latest?: string | null;
+  update_available: boolean;
+  release?: OpenCodeRelease | null;
+  checked_at: string;
+  error?: string | null;
+}
+
+export interface EngineUpdateResult {
+  ok: boolean;
+  version?: string | null;
+  output: string;
+  daemon: DaemonStatus;
+}
+
+export interface UpdateAsset {
+  name: string;
+  size: number;
+  sha256: string;
+}
+
+export interface LatestManifest {
+  version: string;
+  tag: string;
+  repo: string;
+  platform: string;
+  published_at: string;
+  notes: string;
+  assets: UpdateAsset[];
+}
+
+export interface UpdateInfo {
+  current: string;
+  latest?: LatestManifest | null;
+  update_available: boolean;
+  token_configured: boolean;
+  installer: string;
+  checked_at: string;
+  error?: string | null;
+}
+
+export interface DownloadResult {
+  ok: boolean;
+  action: string;
+  path?: string | null;
+  message: string;
 }
 
 export interface Workspace {

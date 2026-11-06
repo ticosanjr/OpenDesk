@@ -1,5 +1,7 @@
+pub mod binary;
 pub mod daemon_manager;
 pub mod rest_client;
+pub mod updater;
 
 #[allow(unused_imports)]
 pub use daemon_manager::{DaemonManager, DaemonStatus};

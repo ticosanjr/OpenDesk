@@ -19,6 +19,25 @@ export async function pickFolder(
   }
 }
 
+/** Native file picker. Returns null in browser-only mode or on cancel. */
+export async function pickFile(
+  title: string,
+  defaultPath?: string,
+): Promise<string | null> {
+  try {
+    const selected = await open({
+      directory: false,
+      multiple: false,
+      title,
+      defaultPath: defaultPath || undefined,
+    });
+    return typeof selected === "string" ? selected : null;
+  } catch (error) {
+    console.warn("OpenDesk: native file picker unavailable", error);
+    return null;
+  }
+}
+
 export function slugifyWorkspace(name: string): string {
   const normalized = name
     .normalize("NFD")

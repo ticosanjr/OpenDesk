@@ -74,6 +74,8 @@ async fn send_initial(socket: &mut WebSocket, state: &AppState) -> Result<(), ()
             state: status.state,
             message: status.message,
             version: status.version,
+            mode: status.mode,
+            binary_path: status.binary_path,
         },
     };
     send_json(socket, &envelope).await

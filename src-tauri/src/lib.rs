@@ -12,12 +12,15 @@ mod paths;
 mod queue_scheduler;
 mod secrets;
 mod tray;
+mod updates;
 
 use app_state::AppState;
 use paths::AppPaths;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tauri::{AppHandle, Manager};
 use tracing_subscriber::EnvFilter;
+
+static LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLock::new();
 
 /// Tauri does not translate Unix SIGTERM/SIGINT into RunEvent::Exit. Handle
 /// them explicitly so the managed OpenCode child is not orphaned on logout,
@@ -69,11 +72,33 @@ fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
 }
 
 fn init_logging() {
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("opendesk=debug,opencode=info,tower_http=info"));
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_target(true)
+
+    // Mirror logs to a rotating file so "why is it offline?" can be answered
+    // after the fact from Settings → Diagnostics. Terminal output stays enabled
+    // for AppImage launchers.
+    let file_layer = match AppPaths::discover() {
+        Ok(paths) => {
+            let appender = tracing_appender::rolling::daily(&paths.log_dir, "opendesk.log");
+            let (writer, guard) = tracing_appender::non_blocking(appender);
+            let _ = LOG_GUARD.set(guard);
+            Some(
+                tracing_subscriber::fmt::layer()
+                    .with_target(true)
+                    .with_writer(writer),
+            )
+        }
+        Err(_) => None,
+    };
+
+    let _ = tracing_subscriber::registry()
+        .with(filter)
+        .with(tracing_subscriber::fmt::layer().with_target(true))
+        .with(file_layer)
         .try_init();
 }
 

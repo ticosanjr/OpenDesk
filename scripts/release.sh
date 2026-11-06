@@ -31,13 +31,24 @@ cp -f "$ROOT/src-tauri/target/release/opendesk" "$DEST/opendesk-linux-x86_64"
 node - "$DEST" "$VERSION" <<'NODE'
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const dest = process.argv[2];
 const version = process.argv[3];
-const ignored = new Set(["manifest.json", "SHA256SUMS"]);
+const ignored = new Set(["manifest.json", "SHA256SUMS", "latest.json"]);
 const artifacts = fs
   .readdirSync(dest)
   .filter((file) => !ignored.has(file))
   .sort();
+
+function entry(file) {
+  const bytes = fs.readFileSync(path.join(dest, file));
+  return {
+    name: file,
+    size: bytes.length,
+    sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
+  };
+}
+
 const manifest = {
   name: "OpenDesk",
   version,
@@ -48,6 +59,21 @@ const manifest = {
 fs.writeFileSync(
   path.join(dest, "manifest.json"),
   `${JSON.stringify(manifest, null, 2)}\n`,
+);
+
+const latest = {
+  name: "OpenDesk",
+  version,
+  tag: `v${version}`,
+  repo: "ticosanjr/OpenDesk",
+  platform: "linux-x86_64",
+  published_at: manifest.built_at,
+  notes: `OpenDesk v${version}`,
+  assets: artifacts.map(entry),
+};
+fs.writeFileSync(
+  path.join(dest, "latest.json"),
+  `${JSON.stringify(latest, null, 2)}\n`,
 );
 NODE
 
@@ -81,6 +107,22 @@ if [[ -n "$remote" ]]; then
   git push "$remote" --tags
 else
   echo "    no git remote configured; commit and tag kept locally"
+fi
+
+echo "==> Publishing GitHub Release v${VERSION}"
+if command -v gh >/dev/null 2>&1 && git remote get-url "$remote" 2>/dev/null | grep -q github.com; then
+  if gh release view "v${VERSION}" >/dev/null 2>&1; then
+    echo "    release v${VERSION} already exists; uploading assets with --clobber"
+    gh release upload "v${VERSION}" "$DEST"/* --clobber
+  else
+    gh release create "v${VERSION}" \
+      --title "OpenDesk v${VERSION}" \
+      --notes "OpenDesk v${VERSION}. Assets: AppImage, .deb, .rpm, portable binary, SHA256SUMS and latest.json." \
+      "$DEST"/*
+  fi
+  echo "    https://github.com/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/releases/tag/v${VERSION}"
+else
+  echo "    gh or a GitHub remote is unavailable; release kept local"
 fi
 
 echo "==> Release v${VERSION} ready in releases/${VERSION}"

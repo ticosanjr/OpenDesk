@@ -54,6 +54,8 @@ pub enum OpenDeskWsEvent {
         state: String,
         message: Option<String>,
         version: Option<String>,
+        mode: String,
+        binary_path: Option<String>,
     },
     FsSyncTriggered {
         workspace_id: String,
@@ -95,6 +97,11 @@ pub enum OpenDeskWsEvent {
         workspace_id: String,
         connected: bool,
         email: Option<String>,
+    },
+    EngineUpdateProgress {
+        phase: String,
+        message: Option<String>,
+        ok: Option<bool>,
     },
     BudgetAlert {
         level: String,

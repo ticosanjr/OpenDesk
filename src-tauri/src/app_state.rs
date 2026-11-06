@@ -4,7 +4,7 @@ use crate::{
     error::AppResult,
     events::EventBus,
     integrations::google_oauth::GoogleOAuth,
-    opencode_client::daemon_manager::DaemonManager,
+    opencode_client::{binary::OpenCodeLocator, daemon_manager::DaemonManager},
     paths::AppPaths,
     queue_scheduler::{CronEngine, QueueManager},
     secrets::SecretStore,
@@ -20,11 +20,17 @@ use std::{
 };
 use uuid::Uuid;
 
+/// App setting that stores the user-chosen OpenCode binary path. It is
+/// persisted so the AppImage keeps working across restarts even when the
+/// binary directory is not on the inherited PATH.
+pub const OPENCODE_BIN_SETTING: &str = "opencode_bin_path";
+
 pub struct AppState {
     pub paths: AppPaths,
     pub db: SqlitePool,
     pub events: EventBus,
     pub daemon: Arc<DaemonManager>,
+    pub locator: Arc<OpenCodeLocator>,
     pub queue: Arc<QueueManager>,
     pub cron: Arc<CronEngine>,
     pub secrets: Arc<SecretStore>,
@@ -75,7 +81,11 @@ impl AppState {
         let api_token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
 
         let events = EventBus::new(2048);
-        let daemon = DaemonManager::new(paths.clone(), events.clone());
+        let configured_binary = settings::get(&db, OPENCODE_BIN_SETTING)
+            .await?
+            .and_then(|value| value.as_str().map(PathBuf::from));
+        let locator = Arc::new(OpenCodeLocator::new(configured_binary));
+        let daemon = DaemonManager::new(paths.clone(), events.clone(), locator.clone());
         let secrets = Arc::new(SecretStore::new(&paths));
 
         let google = GoogleOAuth::new(db.clone(), secrets.clone(), events.clone());
@@ -99,6 +109,7 @@ impl AppState {
             db,
             events,
             daemon,
+            locator,
             queue,
             cron,
             secrets,

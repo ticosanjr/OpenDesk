@@ -377,3 +377,89 @@
 - Repositório privado publicado: https://github.com/ticosanjr/OpenDesk
 - `/api/meta` reporta fase `integration` e os recursos de Google/MCP.
 - Bridge MCP 0.5.0 responde initialize e lista 15 ferramentas.
+
+## 2026-11-06 — Fase 6: resiliência do motor e atualizações (0.6.0)
+
+### Causa raiz corrigida
+
+O AppImage do OpenDesk herda um `PATH` que não inclui `~/.opencode/bin` e
+executava `Command::new("opencode")`. O binário existia (`v2.2.5`), mas o spawn
+falhava com `ENOENT`, o `daemon.json` nunca era criado e o app ficava offline.
+Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binário.
+
+### Entregue
+
+- **Resolver de binário** (`opencode_client/binary.rs`):
+  - ordem: caminho salvo → `OPENCODE_BIN`/`OPENDESK_OPENCODE_BIN` → `PATH` →
+    caminhos conhecidos (`~/.opencode/bin`, `~/.local/bin`, `~/.bun/bin`,
+    `/usr/local/bin`, `/usr/bin`, Homebrew e equivalentes no Windows);
+  - validação com `opencode --version` e exigência de V2;
+  - detecção do método de instalação (`curl`, `npm`, `bun`, `brew`);
+  - caminho escolhido persistido em `app_settings.opencode_bin_path`.
+- **Fallback de serviço compartilhado**:
+  - leitura de `~/.local/state/opencode/service.json` e
+    `~/.config/opencode/service.json`;
+  - attach com Basic auth, validação de `/api/info` e versão 2.x;
+  - status reporta `mode: dedicated | shared | offline`.
+- **Supervisor**:
+  - daemon dedicado com `PATH` enriquecido;
+  - lock file reutilizado quando o daemon anterior está saudável;
+  - backoff, healthcheck e restauração automática.
+- **Mensagens acionáveis**:
+  - estados `starting`, `restarting`, `offline`, `online`;
+  - banner global com motivo, “Configurar binário” e “Tentar novamente”;
+  - card OpenCode Engine em Configurações com caminho, versão, porta, modo,
+    caminhos testados, detecção, escolha de binário e reinício.
+- **Preflight**:
+  - dispatch, aprovação de plano e “executar agora” retornam 503 explicativo
+    quando o motor está offline, em vez de enfileirar trabalho condenado.
+- **Logs e diagnóstico**:
+  - log rotativo diário em `~/.local/share/opendesk/logs/opendesk.log.*`;
+  - `GET /api/engine/diagnostics` com daemon, binário, caminhos testados,
+    arquivos de serviço compartilhado (sem senha) e tail do log;
+  - botão “Copiar diagnóstico” e “Abrir logs”.
+- **MCP estável no AppImage**:
+  - o comando registrado usa `$APPIMAGE` ou `/usr/bin/opendesk` em vez do
+    caminho efêmero `/tmp/.mount_*`.
+- **Atualização do OpenCode**:
+  - checagem de releases estáveis V2 no GitHub (não usa `/releases/latest`,
+    que aponta para V1);
+  - exibição de versão atual, última, notas e data;
+  - atualização pela UI com `opencode upgrade --method <método> <versão>`,
+    pausa da fila, recusa se houver job RUNNING, reinício e validação.
+- **Atualização do OpenDesk**:
+  - release privada no GitHub com `.deb`, `.rpm`, `.AppImage`, binário portátil,
+    `SHA256SUMS` e `latest.json`;
+  - token fine-grained no secret store (fallback para `gh auth token`);
+  - verificação SHA256 antes de instalar;
+  - AppImage/binário portátil: helper destacado espera o processo sair,
+    substitui o arquivo, mantém `.bak` e relança;
+  - `.deb`: download para `~/Downloads` com instrução `sudo dpkg -i`;
+  - build de desenvolvimento apenas notifica.
+- **Release script**:
+  - gera `latest.json` com SHA256 de cada asset;
+  - cria/atualiza GitHub Release e envia assets via `gh`;
+  - mantém retenção local de 3 releases.
+
+### Verificado
+
+- `cargo test` — **43 passed** (resolver, updater, self-update, fila, budget,
+  cron, JSONC, secrets, MCP).
+- `npm run check` — ok.
+- `npm run build` — ok.
+- `npm run test:e2e` — **4 passed** (inclui card do motor e status offline).
+- Headless com daemon real:
+  - binário encontrado em `/home/rafael/.opencode/bin/opencode` (v2.2.5);
+  - daemon dedicado online na porta 3101;
+  - `mode: dedicated`, `binary_path` correto.
+- Headless com `HOME` isolado e sem `opencode` no `PATH`:
+  - spawn falhou como esperado;
+  - fallback anexou ao serviço compartilhado em `127.0.0.1:49374`;
+  - `mode: shared`, versão 2.2.5.
+
+### Próximo
+
+1. Testar atualização real do OpenCode pela UI.
+2. Publicar a release 0.6.0 com `latest.json` e validar o auto-update.
+3. Ampliar cobertura para ≥80% nos módulos de lógica.
+4. Retry automático de entregas e concorrência configurável da fila.

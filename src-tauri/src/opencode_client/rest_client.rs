@@ -89,6 +89,10 @@ pub struct RestClient {
 
 impl RestClient {
     pub fn new(port: u16, password: String) -> Self {
+        Self::new_with_url(&format!("http://127.0.0.1:{port}"), password)
+    }
+
+    pub fn new_with_url(base_url: &str, password: String) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(120))
             .connect_timeout(Duration::from_secs(5))
@@ -97,9 +101,13 @@ impl RestClient {
 
         Self {
             client,
-            base_url: format!("http://127.0.0.1:{port}"),
+            base_url: base_url.trim_end_matches('/').to_string(),
             password,
         }
+    }
+
+    pub fn base_url(&self) -> &str {
+        &self.base_url
     }
 
     fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
