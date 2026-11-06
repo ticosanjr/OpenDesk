@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   CalendarDays,
   CheckCircle2,
@@ -73,6 +74,7 @@ export function IntegrationsPage() {
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [params, setParams] = useSearchParams();
   const [googleMessage, setGoogleMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -84,6 +86,18 @@ export function IntegrationsPage() {
     () => (activeWorkspaceId ? `?workspace_id=${encodeURIComponent(activeWorkspaceId)}` : ""),
     [activeWorkspaceId],
   );
+
+  useEffect(() => {
+    const section = params.get("section");
+    if (!section) return;
+    const handle = window.setTimeout(() => {
+      document
+        .getElementById(`integrations-${section}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setParams({}, { replace: true });
+    }, 180);
+    return () => window.clearTimeout(handle);
+  }, [params, setParams]);
 
   const load = useCallback(async () => {
     if (!activeWorkspaceId) return;

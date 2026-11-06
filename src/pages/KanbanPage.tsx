@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowRightLeft,
@@ -26,10 +26,13 @@ import { AgentCombobox } from "@/components/ui/agent-combobox";
 import { ModelCombobox } from "@/components/ui/model-combobox";
 import { SlashTextarea } from "@/components/ui/slash-textarea";
 import { toast } from "@/store/toast-store";
+import { RunLogView } from "@/components/runs/RunLogView";
+import { links } from "@/lib/links";
+import { EntityLink } from "@/components/ui/entity-link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
-import { apiGet, apiPatch, apiPost, apiPut, apiText } from "@/lib/api";
+import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
 import type {
   DispatchDecision,
   QueueJob,
@@ -520,7 +523,16 @@ export function KanbanPage() {
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-1">
                         {task.assigned_agent ? (
-                          <Badge variant="purple">@{task.assigned_agent}</Badge>
+                          <EntityLink
+                            to={links.agent(
+                              task.assigned_agent,
+                              "workspace",
+                              task.workspace_id,
+                            )}
+                            chip
+                          >
+                            @{task.assigned_agent}
+                          </EntityLink>
                         ) : null}
                         <Badge variant="default">{task.effort_level}</Badge>
                         {task.phase_status ? (
@@ -932,6 +944,7 @@ function TaskFormModal({
           tone: "success",
           title: "Tarefa criada",
           description: `“${created.title}” entrou no Kanban.`,
+          href: links.task(created.id),
         });
         await onSaved(created, false);
       } else if (task) {
@@ -946,6 +959,7 @@ function TaskFormModal({
           tone: "success",
           title: rerun ? "Tarefa salva e reenfileirada" : "Tarefa atualizada",
           description: saved.title,
+          href: links.task(saved.id),
         });
         await onSaved(saved, rerun);
       }
@@ -1215,7 +1229,12 @@ function TaskDetailsModal({
               </Badge>
             ) : null}
             {task.assigned_agent ? (
-              <Badge variant="purple">@{task.assigned_agent}</Badge>
+              <EntityLink
+                to={links.agent(task.assigned_agent, "workspace", task.workspace_id)}
+                chip
+              >
+                @{task.assigned_agent}
+              </EntityLink>
             ) : null}
             {task.preferred_model ? (
               <Badge variant="default">{task.preferred_model}</Badge>
@@ -1281,9 +1300,10 @@ function TaskDetailsModal({
               <p className={labelClass}>Últimas execuções</p>
               <div className="space-y-1.5">
                 {diagnostics.runs.slice(0, 3).map((run) => (
-                  <div
+                  <Link
                     key={run.id}
-                    className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[10px]"
+                    to={links.run(run.id)}
+                    className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[10px] transition-colors hover:border-blue-500/30 hover:bg-zinc-900/50"
                   >
                     <Badge variant={runVariant(run.status)}>{run.status}</Badge>
                     <span className="font-mono text-zinc-400">{run.phase ?? "run"}</span>
@@ -1299,7 +1319,7 @@ function TaskDetailsModal({
                         {run.error_message}
                       </p>
                     ) : null}
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -1357,7 +1377,6 @@ function LogDrawer({
 }) {
   const [runs, setRuns] = useState<TaskRun[]>([]);
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
-  const [log, setLog] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1387,35 +1406,6 @@ function LogDrawer({
     };
   }, [task, initialRunId, lastRunEvent?.run_id, lastRunEvent?.status]);
 
-  const activeRun = runs.find((run) => run.id === selectedRun) ?? null;
-
-  useEffect(() => {
-    if (!selectedRun) {
-      setLog("");
-      return;
-    }
-    let cancelled = false;
-    setLog("");
-    const fetchLog = () =>
-      apiText(`/api/runs/${selectedRun}/log`)
-        .then((content) => {
-          if (!cancelled) setLog(content);
-        })
-        .catch(() => {
-          if (!cancelled) setLog("");
-        });
-    void fetchLog();
-    const active = runs.find((run) => run.id === selectedRun);
-    const handle =
-      active?.status === "RUNNING"
-        ? window.setInterval(() => void fetchLog(), 3000)
-        : null;
-    return () => {
-      cancelled = true;
-      if (handle) window.clearInterval(handle);
-    };
-  }, [selectedRun, lastRunEvent?.run_id, lastRunEvent?.status, runs]);
-
   if (!task) return null;
 
   return (
@@ -1426,23 +1416,37 @@ function LogDrawer({
         className="absolute inset-0 bg-black/60"
         onClick={onClose}
       />
-      <aside className="relative flex h-full w-full max-w-3xl flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl">
+      <aside className="relative flex h-full w-full max-w-5xl flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl">
         <div className="flex items-center justify-between border-b border-zinc-800/70 px-4 py-3">
-          <div>
-            <p className="text-[12px] font-medium text-zinc-200">{task.title}</p>
+          <div className="min-w-0">
+            <p className="truncate text-[12px] font-medium text-zinc-200">
+              {task.title}
+            </p>
             <p className="font-mono text-[9px] text-zinc-600">
               {task.column_stage} · {task.phase_status ?? "sem fase"}
             </p>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <XCircle size={14} />
-            Fechar
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            {selectedRun ? (
+              <Link
+                to={links.run(selectedRun)}
+                className="rounded-lg border border-zinc-800 px-2.5 py-1 text-[10px] text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
+              >
+                abrir página
+              </Link>
+            ) : null}
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              <XCircle size={14} />
+              Fechar
+            </Button>
+          </div>
         </div>
         <div className="flex min-h-0 flex-1">
-          <div className="w-52 shrink-0 overflow-y-auto border-r border-zinc-800/70 p-2">
+          <div className="w-56 shrink-0 overflow-y-auto border-r border-zinc-800/70 p-2">
             {loading && runs.length === 0 ? (
               <p className="p-2 text-[10px] text-zinc-600">Carregando…</p>
+            ) : error ? (
+              <p className="p-2 text-[10px] text-red-300">{error}</p>
             ) : runs.length === 0 ? (
               <p className="p-2 text-[10px] text-zinc-600">Nenhum run.</p>
             ) : (
@@ -1474,43 +1478,17 @@ function LogDrawer({
               ))
             )}
           </div>
-          <div className="min-w-0 flex-1 overflow-auto bg-zinc-950/60 p-3">
-            {error ? (
-              <p className="mb-2 rounded border border-red-500/20 bg-red-500/10 p-2 text-[10px] text-red-300">
-                {error}
-              </p>
-            ) : null}
-            {activeRun ? (
-              <div className="mb-3 rounded-lg border border-zinc-800/70 bg-zinc-900/40 p-3">
-                <div className="flex flex-wrap items-center gap-2 text-[10px]">
-                  <Badge variant={runVariant(activeRun.status)}>{activeRun.status}</Badge>
-                  <span className="text-zinc-400">{activeRun.agent_name}</span>
-                  <span className="font-mono text-zinc-500">{activeRun.model_id}</span>
-                  <span className="text-zinc-500">
-                    {formatUsd(activeRun.estimated_cost_usd)} ·{" "}
-                    {Math.round(activeRun.duration_ms / 1000)}s
-                  </span>
-                  <span className="ml-auto text-zinc-600">
-                    {relativeTime(activeRun.started_at)}
-                  </span>
-                </div>
-                {activeRun.error_message ? (
-                  <div className="mt-2 rounded border border-red-500/20 bg-red-500/10 px-2 py-1.5 text-[10px] text-red-200">
-                    <p className="font-mono">{activeRun.error_message}</p>
-                    {activeRun.error_hint ? (
-                      <p className="mt-1 text-red-100/80">{activeRun.error_hint}</p>
-                    ) : null}
-                  </div>
-                ) : activeRun.summary_response ? (
-                  <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-[10px] text-zinc-400">
-                    {activeRun.summary_response}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-            <pre className="whitespace-pre-wrap break-words font-mono text-[9px] leading-relaxed text-zinc-400">
-              {log || "Sem log ainda."}
-            </pre>
+          <div className="min-w-0 flex-1 overflow-hidden bg-zinc-950/60">
+            {selectedRun ? (
+              <RunLogView runId={selectedRun} compact />
+            ) : (
+              <EmptyState
+                icon={FileText}
+                title="Nenhum run selecionado"
+                description="Execute a tarefa ou escolha um run na lista à esquerda."
+                className="border-0 bg-transparent"
+              />
+            )}
           </div>
         </div>
       </aside>

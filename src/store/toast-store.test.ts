@@ -19,6 +19,24 @@ describe("toast store", () => {
     expect(useToastStore.getState().toasts).toHaveLength(0);
   });
 
+  it("deduplicates by key and keeps hrefs", () => {
+    const first = toast({
+      tone: "info",
+      title: "Run",
+      href: "/runs/run-1",
+      key: "run:run-1",
+    });
+    const second = toast({
+      tone: "info",
+      title: "Run",
+      href: "/runs/run-1",
+      key: "run:run-1",
+    });
+    expect(second).toBe(first);
+    expect(useToastStore.getState().toasts).toHaveLength(1);
+    expect(useToastStore.getState().toasts[0].href).toBe("/runs/run-1");
+  });
+
   it("keeps errors until dismissed and caps the stack", () => {
     const error = toast({ tone: "error", title: "Falhou" });
     expect(

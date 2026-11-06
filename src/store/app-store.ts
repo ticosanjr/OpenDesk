@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { apiGet, apiPost, websocketUrl } from "@/lib/api";
 import type {
+  Artifact,
   DaemonStatus,
   DashboardStats,
   QueueJob,
@@ -45,6 +46,7 @@ interface AppStore {
     status: string;
   } | null;
   lastArtifactEvent: number;
+  lastArtifact: Artifact | null;
   lastScheduleEvent: {
     schedule_id: string;
     workspace_id: string;
@@ -92,6 +94,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   lastTaskEvent: null,
   lastRunEvent: null,
   lastArtifactEvent: 0,
+  lastArtifact: null,
   lastScheduleEvent: null,
   lastGoogleEvent: null,
   lastEngineUpdate: null,
@@ -308,6 +311,7 @@ export function handleEvent(event: WsEvent) {
     case "ArtifactCreated":
       useAppStore.setState((current) => ({
         lastArtifactEvent: current.lastArtifactEvent + 1,
+        lastArtifact: (event.payload as { artifact?: Artifact }).artifact ?? null,
         dashboard: current.dashboard
           ? {
               ...current.dashboard,

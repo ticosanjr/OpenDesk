@@ -8,6 +8,12 @@ const DashboardPage = lazy(() =>
 const KanbanPage = lazy(() =>
   import("@/pages/KanbanPage").then((module) => ({ default: module.KanbanPage })),
 );
+const RunsPage = lazy(() =>
+  import("@/pages/RunsPage").then((module) => ({ default: module.RunsPage })),
+);
+const RunDetailPage = lazy(() =>
+  import("@/pages/RunDetailPage").then((module) => ({ default: module.RunDetailPage })),
+);
 const ChatPage = lazy(() =>
   import("@/pages/ChatPage").then((module) => ({ default: module.ChatPage })),
 );
@@ -40,6 +46,8 @@ export default function App() {
         <Route element={<AppShell />}>
           <Route index element={<DashboardPage />} />
           <Route path="kanban" element={<KanbanPage />} />
+          <Route path="runs" element={<RunsPage />} />
+          <Route path="runs/:runId" element={<RunDetailPage />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="artifacts" element={<ArtifactsPage />} />
           <Route path="files" element={<FilesPage />} />

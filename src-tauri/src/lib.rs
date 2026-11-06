@@ -12,6 +12,7 @@ mod mcp_bridge;
 mod opencode_client;
 mod paths;
 mod queue_scheduler;
+mod run_timeline;
 mod secrets;
 mod tray;
 mod updates;

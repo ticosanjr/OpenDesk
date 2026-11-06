@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   ChevronRight,
   Copy,
@@ -41,6 +42,8 @@ export function FilesPage() {
   const [loading, setLoading] = useState(false);
   const [loadingFile, setLoadingFile] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [params, setParams] = useSearchParams();
+  const deepPath = params.get("path");
 
   const loadTree = useCallback(
     async (path: string) => {
@@ -69,6 +72,38 @@ export function FilesPage() {
     setContent(null);
     void loadTree("");
   }, [activeWorkspaceId, loadTree]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId || !deepPath) return;
+    const parent = deepPath.includes("/")
+      ? deepPath.slice(0, deepPath.lastIndexOf("/"))
+      : "";
+    setSelected({
+      name: deepPath.split("/").pop() ?? deepPath,
+      path: deepPath,
+      is_dir: false,
+      size: 0,
+    });
+    setLoadingFile(true);
+    setContent(null);
+    void Promise.all([
+      loadTree(parent),
+      apiGet<FileContent>(
+        `/api/files/content?workspace_id=${encodeURIComponent(activeWorkspaceId)}&path=${encodeURIComponent(deepPath)}`,
+      ),
+    ])
+      .then(([, value]) => {
+        setContent(value);
+        setError(null);
+      })
+      .catch((cause) => {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      })
+      .finally(() => {
+        setLoadingFile(false);
+        setParams({}, { replace: true });
+      });
+  }, [activeWorkspaceId, deepPath, loadTree, setParams]);
 
   async function openEntry(entry: FileEntry) {
     if (entry.is_dir) {

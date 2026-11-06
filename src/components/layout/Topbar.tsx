@@ -1,5 +1,5 @@
 import { Check, ChevronsUpDown, Command, Plus, RefreshCw, Search } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
@@ -163,9 +163,13 @@ export function Topbar() {
 
         {activeWorkspace ? (
           <div className="hidden min-w-0 border-l border-zinc-800/70 pl-3 xl:block">
-            <p className="truncate font-mono text-[10px] text-zinc-600">
+            <Link
+              to="/files"
+              className="block truncate font-mono text-[10px] text-zinc-600 hover:text-blue-300"
+              title={activeWorkspace.root_path}
+            >
               {shortPath(activeWorkspace.root_path, 56)}
-            </p>
+            </Link>
             <p className="truncate text-[10px] text-zinc-700">
               {ROUTER_POLICY_LABELS[activeWorkspace.default_router_policy] ??
                 activeWorkspace.default_router_policy}{" "}

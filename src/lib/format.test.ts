@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatNumber, formatPercent, formatUsd, relativeTime, shortPath } from "./format";
+import {
+  formatDuration,
+  formatNumber,
+  formatPercent,
+  formatUsd,
+  relativeTime,
+  shortPath,
+} from "./format";
 
 describe("format", () => {
   it("formats USD and falls back to zero for invalid values", () => {
@@ -27,5 +34,16 @@ describe("format", () => {
     expect(shortened).toContain("…");
     expect(shortened.endsWith("file.md")).toBe(true);
     expect(shortened.length).toBeLessThanOrEqual(20);
+  });
+});
+
+
+describe("formatDuration", () => {
+  it("formats milliseconds, seconds, minutes and hours", () => {
+    expect(formatDuration(0)).toBe("0 ms");
+    expect(formatDuration(840)).toBe("840 ms");
+    expect(formatDuration(1250)).toBe("1,3 s");
+    expect(formatDuration(63_000)).toBe("1m 03s");
+    expect(formatDuration(3_723_000)).toBe("1h 02m");
   });
 });

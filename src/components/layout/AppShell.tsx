@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, RefreshCw, Settings, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
@@ -12,6 +12,9 @@ import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { toast } from "@/store/toast-store";
 import { formatUsd } from "@/lib/format";
+import { links } from "@/lib/links";
+import { apiGet } from "@/lib/api";
+import type { Schedule } from "@/lib/types";
 import {
   isPermissionGranted,
   requestPermission,
@@ -31,6 +34,11 @@ export function AppShell() {
   const budgetAlert = useAppStore((state) => state.budgetAlert);
   const lastRunEvent = useAppStore((state) => state.lastRunEvent);
   const lastEngineUpdate = useAppStore((state) => state.lastEngineUpdate);
+  const lastArtifact = useAppStore((state) => state.lastArtifact);
+  const lastTaskEvent = useAppStore((state) => state.lastTaskEvent);
+  const lastGoogleEvent = useAppStore((state) => state.lastGoogleEvent);
+  const lastScheduleEvent = useAppStore((state) => state.lastScheduleEvent);
+  const location = useLocation();
   const [dismissedBudget, setDismissedBudget] = useState<string | null>(null);
 
   useEffect(() => {
@@ -71,36 +79,24 @@ export function AppShell() {
         description: lastRunEvent.task_id
           ? "A tarefa terminou com sucesso."
           : "O run terminou com sucesso.",
-        action: lastRunEvent.task_id
-          ? {
-              label: "Abrir tarefa",
-              onClick: () =>
-                navigate(
-                  `/kanban?task=${encodeURIComponent(lastRunEvent.task_id ?? "")}`,
-                ),
-            }
-          : undefined,
+        href: links.run(lastRunEvent.run_id),
+        key: `run:${lastRunEvent.run_id}:${status}`,
       });
     } else if (status === "FAILED") {
       toast({
         tone: "error",
         title: "Execução falhou",
         description: "Abra os logs para ver o diagnóstico e tentar de novo.",
-        action: lastRunEvent.task_id
-          ? {
-              label: "Abrir logs",
-              onClick: () =>
-                navigate(
-                  `/kanban?task=${encodeURIComponent(lastRunEvent.task_id ?? "")}&run=${encodeURIComponent(lastRunEvent.run_id)}`,
-                ),
-            }
-          : undefined,
+        href: links.run(lastRunEvent.run_id),
+        key: `run:${lastRunEvent.run_id}:${status}`,
       });
     } else if (status === "CANCELLED") {
       toast({
         tone: "warning",
         title: "Execução cancelada",
         description: "O run foi interrompido.",
+        href: links.run(lastRunEvent.run_id),
+        key: `run:${lastRunEvent.run_id}:${status}`,
       });
     }
   }, [lastRunEvent, navigate]);
@@ -112,15 +108,102 @@ export function AppShell() {
         tone: lastEngineUpdate.ok === false ? "error" : "success",
         title: lastEngineUpdate.ok === false ? "Atualização falhou" : "Atualização concluída",
         description: lastEngineUpdate.message ?? undefined,
+        href: links.settings("engine"),
+        key: `engine-update:${lastEngineUpdate.phase}:${lastEngineUpdate.message ?? ""}`,
       });
     } else if (lastEngineUpdate.phase === "failed") {
       toast({
         tone: "error",
         title: "Atualização falhou",
         description: lastEngineUpdate.message ?? undefined,
+        href: links.settings("engine"),
+        key: `engine-update:${lastEngineUpdate.phase}:${lastEngineUpdate.message ?? ""}`,
       });
     }
   }, [lastEngineUpdate]);
+
+  useEffect(() => {
+    if (!lastArtifact || location.pathname === "/artifacts") return;
+    toast({
+      tone: "info",
+      title: "Artefato criado",
+      description: lastArtifact.file_path,
+      href: links.artifact(lastArtifact.id),
+      key: `artifact:${lastArtifact.id}`,
+      duration: 3200,
+    });
+  }, [lastArtifact, location.pathname]);
+
+  useEffect(() => {
+    if (!lastTaskEvent?.phase_status) return;
+    const status = lastTaskEvent.phase_status;
+    if (!status.includes("fail")) return;
+    toast({
+      tone: "error",
+      title: "Tarefa precisa de atenção",
+      description: status,
+      href: links.task(lastTaskEvent.task_id),
+      key: `task:${lastTaskEvent.task_id}:${status}`,
+    });
+  }, [lastTaskEvent]);
+
+  useEffect(() => {
+    if (!lastGoogleEvent) return;
+    toast({
+      tone: lastGoogleEvent.connected ? "success" : "warning",
+      title: lastGoogleEvent.connected
+        ? "Google conectado"
+        : "Google desconectado",
+      description: lastGoogleEvent.email ?? undefined,
+      href: links.integration("google"),
+      key: `google:${lastGoogleEvent.workspace_id}:${lastGoogleEvent.connected}`,
+    });
+  }, [lastGoogleEvent]);
+
+  useEffect(() => {
+    if (!lastScheduleEvent) return;
+    let cancelled = false;
+    void apiGet<Schedule[]>(
+      `/api/schedules?workspace_id=${encodeURIComponent(lastScheduleEvent.workspace_id)}`,
+    )
+      .then((list) => {
+        if (cancelled) return;
+        const schedule = list.find(
+          (item) => item.id === lastScheduleEvent.schedule_id,
+        );
+        const status = schedule?.last_run_status ?? "";
+        if (!["FAILED", "SKIPPED_OFFLINE", "INVALID_CRON"].includes(status)) return;
+        toast({
+          tone: status === "SKIPPED_OFFLINE" ? "warning" : "error",
+          title:
+            status === "SKIPPED_OFFLINE"
+              ? "Rotina pulada: engine offline"
+              : "Rotina falhou",
+          description: schedule?.name,
+          href: links.schedule(lastScheduleEvent.schedule_id),
+          key: `schedule:${lastScheduleEvent.schedule_id}:${status}`,
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [lastScheduleEvent]);
+
+  useEffect(() => {
+    if (!budgetAlert) return;
+    toast({
+      tone: budgetAlert.level === "hard" ? "error" : "warning",
+      title:
+        budgetAlert.level === "hard"
+          ? "Orçamento bloqueado"
+          : "Orçamento próximo do limite",
+      description: budgetAlert.message,
+      href: "/router",
+      key: `budget:${budgetAlert.level}:${budgetAlert.message}`,
+      duration: budgetAlert.level === "hard" ? 0 : 6000,
+    });
+  }, [budgetAlert]);
 
   const engineOffline =
     daemon !== null &&

@@ -828,3 +828,37 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   workspace.
 - `cargo clippy --all-targets -- -D warnings` limpo.
 - `scripts/gate.sh` passou.
+
+## 2026-11-06 — 0.14.0: timeline de execução e referências navegáveis
+
+### Timeline
+
+- `GET /api/runs/{id}/timeline` estruturou o JSONL em:
+  - raciocínio (thinking) com texto, início/fim e duração;
+  - execução com ferramentas, input/output, status, timestamps e duração;
+  - resultado não colapsado;
+  - passos com agente/modelo/tokens/custo/finish.
+- Layout no estilo OpenCode: raciocínio e executado colapsados, resultado
+  aberto, modo bruto, copiar, atualizar e polling de runs em andamento.
+- Drawer do Kanban reutiliza o mesmo `RunLogView`; nova página `/runs/:id`.
+- Nova página `/runs` com busca e filtro por status.
+- Sidebar reorganizada em Operação / Biblioteca / Governança, com “Execuções”.
+
+### Navegação e notificações
+
+- `links.ts` + `EntityLink` para tarefa, run, artefato, rotina, agente, arquivo,
+  settings e integrações.
+- Deep links com foco/destaque para rotina, arquivo, thread, agente e seções de
+  settings/integrações.
+- Toaster aceita `href` e `key`; o corpo do toast abre o destino.
+- Runs concluídos/falhosos, artefatos criados, falhas de tarefa/rotina, Google,
+  budget e engine agora linkam para onde apontam.
+- Histórico de rotinas, execuções de tarefa, dashboard, artefatos e drawer têm
+  links para `/runs/:id`.
+
+### Testes
+
+- `cargo test` — 110 passed (inclui parser de timeline com fixtures).
+- `vitest` — 48 passed (inclui timeline renderizado, links e dedupe de toasts).
+- Playwright — 13 passed.
+- `cargo clippy --all-targets -- -D warnings` limpo.

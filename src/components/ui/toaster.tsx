@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Link } from "react-router-dom";
 import { CheckCircle2, Info, TriangleAlert, X, XCircle } from "lucide-react";
 import { useToastStore, type Toast, type ToastTone } from "@/store/toast-store";
 import { cn } from "@/lib/utils";
@@ -52,12 +53,31 @@ function ToastCard({ toast }: { toast: Toast }) {
     >
       <Icon size={16} className="mt-0.5 shrink-0 opacity-90" />
       <div className="min-w-0 flex-1">
-        <p className="text-[12px] font-medium leading-snug">{toast.title}</p>
-        {toast.description ? (
-          <p className="mt-0.5 whitespace-pre-wrap text-[10px] leading-relaxed opacity-80">
-            {toast.description}
-          </p>
-        ) : null}
+        {toast.href ? (
+          <Link
+            to={toast.href}
+            onClick={() => dismiss(toast.id)}
+            className="block rounded outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-current/40"
+          >
+            <p className="text-[12px] font-medium leading-snug underline decoration-current/30 underline-offset-2">
+              {toast.title}
+            </p>
+            {toast.description ? (
+              <p className="mt-0.5 whitespace-pre-wrap text-[10px] leading-relaxed opacity-80">
+                {toast.description}
+              </p>
+            ) : null}
+          </Link>
+        ) : (
+          <>
+            <p className="text-[12px] font-medium leading-snug">{toast.title}</p>
+            {toast.description ? (
+              <p className="mt-0.5 whitespace-pre-wrap text-[10px] leading-relaxed opacity-80">
+                {toast.description}
+              </p>
+            ) : null}
+          </>
+        )}
         {toast.action ? (
           <button
             type="button"

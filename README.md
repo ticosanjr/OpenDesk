@@ -66,6 +66,10 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Command palette com tarefas, rotinas, artefatos e agentes.
 - Página de Configurações/Integrações com navegação por seções.
 - Rotas em code splitting e logs de run em atualização contínua.
+- Página Execuções com timeline estruturada: raciocínio e ferramentas
+  colapsados, resultado aberto, durações e timestamps.
+- Notificações e referências clicáveis com deep links para runs, tarefas,
+  artefatos, rotinas, agentes, arquivos e configurações.
 - Backup rotativo do SQLite antes de migrações.
 - Limpeza automática de artefatos de build após cada release.
 - Auto-atualização do OpenDesk por release privada com SHA256 e backup.
@@ -209,6 +213,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0016 — Runtime inventory e streaming](docs/decisions/0016-runtime-inventory-and-streaming.md)
 - [ADR 0017 — Recorrência intuitiva e notificações](docs/decisions/0017-intuitive-recurrence-and-notifications.md)
 - [ADR 0018 — Arquivos, feedback e gestão de workspace](docs/decisions/0018-files-feedback-and-workspace-management.md)
+- [ADR 0019 — Timeline de execução e referências navegáveis](docs/decisions/0019-run-timeline-and-entity-links.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)

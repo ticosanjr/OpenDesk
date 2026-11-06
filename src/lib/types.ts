@@ -298,6 +298,7 @@ export interface TaskRun {
   queue_job_id?: string | null;
   workspace_id: string;
   task_id?: string | null;
+  schedule_id?: string | null;
   parent_run_id?: string | null;
   phase?: string | null;
   agent_name: string;
@@ -312,8 +313,10 @@ export interface TaskRun {
   tokens_cache_read: number;
   tokens_cache_write: number;
   estimated_cost_usd: number;
+  pricing_snapshot_json?: string | null;
   duration_ms: number;
   log_path?: string | null;
+  raw_stdout_log?: string | null;
   summary_response?: string | null;
   started_at: string;
   completed_at?: string | null;
@@ -702,4 +705,55 @@ export interface FileContent {
   truncated: boolean;
   binary: boolean;
   size: number;
+}
+
+export interface TimelineTool {
+  id: string;
+  name: string;
+  summary: string;
+  input: string;
+  output: string;
+  status: string;
+  started_at?: string | null;
+  ended_at?: string | null;
+  duration_ms: number;
+  output_truncated: boolean;
+}
+
+export interface TimelineSection {
+  started_at?: string | null;
+  ended_at?: string | null;
+  duration_ms: number;
+  text: string;
+  tools: TimelineTool[];
+  truncated: boolean;
+}
+
+export interface TimelineStep {
+  index: number;
+  agent?: string | null;
+  model?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  duration_ms: number;
+  tokens_input: number;
+  tokens_output: number;
+  tokens_reasoning: number;
+  cost_usd: number;
+  finish?: string | null;
+}
+
+export interface RunTimeline {
+  run?: TaskRun | null;
+  status: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  duration_ms: number;
+  events_count: number;
+  steps: TimelineStep[];
+  thinking: TimelineSection;
+  executed: TimelineSection;
+  result: TimelineSection;
+  log_missing: boolean;
+  workspace_root?: string | null;
 }

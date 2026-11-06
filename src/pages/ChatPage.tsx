@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Bot,
   Check,
@@ -29,6 +30,8 @@ import { AgentCombobox } from "@/components/ui/agent-combobox";
 import { ModelCombobox } from "@/components/ui/model-combobox";
 import { SlashTextarea } from "@/components/ui/slash-textarea";
 import { toast } from "@/store/toast-store";
+import { links } from "@/lib/links";
+import { EntityLink } from "@/components/ui/entity-link";
 import { confirmAction } from "@/store/confirm-store";
 
 export function ChatPage() {
@@ -52,6 +55,7 @@ export function ChatPage() {
   const [titleDraft, setTitleDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [params, setParams] = useSearchParams();
 
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
   const filteredThreads = threads.filter((item) => {
@@ -87,6 +91,15 @@ export function ChatPage() {
   useEffect(() => {
     void loadThreads();
   }, [loadThreads]);
+
+  useEffect(() => {
+    const requested = params.get("thread");
+    if (!requested || threads.length === 0) return;
+    if (threads.some((item) => item.id === requested)) {
+      setSelectedId(requested);
+      setParams({}, { replace: true });
+    }
+  }, [params, setParams, threads]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -179,7 +192,11 @@ export function ChatPage() {
       });
       setThread(updated);
       setRenaming(false);
-      toast({ tone: "success", title: "Conversa renomeada" });
+      toast({
+        tone: "success",
+        title: "Conversa renomeada",
+        href: `/chat?thread=${encodeURIComponent(thread.id)}`,
+      });
       await loadThreads();
     } catch (cause) {
       toast({
@@ -196,7 +213,7 @@ export function ChatPage() {
       await apiDelete(`/api/chat/threads/${id}`);
       if (selectedId === id) setSelectedId(null);
       await loadThreads();
-      toast({ tone: "success", title: "Conversa excluída" });
+      toast({ tone: "success", title: "Conversa excluída", href: "/chat" });
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
       setError(message);
@@ -350,9 +367,14 @@ export function ChatPage() {
                 </CardTitle>
               )}
               {thread ? (
-                <p className="mt-0.5 font-mono text-[9px] text-zinc-600">
-                  @{thread.agent}
-                  {thread.model ? ` · ${thread.model}` : ""}
+                <p className="mt-0.5 flex flex-wrap items-center gap-1 font-mono text-[9px] text-zinc-600">
+                  <EntityLink
+                    to={links.agent(thread.agent, "workspace", activeWorkspaceId)}
+                    chip
+                  >
+                    @{thread.agent}
+                  </EntityLink>
+                  {thread.model ? <span>· {thread.model}</span> : null}
                   {thread.opencode_session_id
                     ? ` · sessão ${thread.opencode_session_id.slice(0, 12)}`
                     : " · sessão será criada no primeiro envio"}

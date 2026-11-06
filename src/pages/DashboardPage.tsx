@@ -42,6 +42,8 @@ import {
 } from "@/lib/format";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { links } from "@/lib/links";
+import { EntityLink } from "@/components/ui/entity-link";
 
 const DAILY_LIMIT = 5;
 
@@ -505,15 +507,7 @@ export function DashboardPage() {
                     <button
                       type="button"
                       key={`run-${activity.run.id}`}
-                      onClick={() => {
-                        if (activity.run.task_id) {
-                          navigate(
-                            `/kanban?task=${encodeURIComponent(activity.run.task_id)}&run=${encodeURIComponent(activity.run.id)}`,
-                          );
-                        } else {
-                          navigate("/kanban");
-                        }
-                      }}
+                      onClick={() => navigate(links.run(activity.run.id))}
                       className={cn(
                         "flex w-full items-center gap-3 rounded-lg border bg-zinc-950/40 px-3 py-2 text-left transition hover:bg-zinc-900/60",
                         activity.run.status === "FAILED"
@@ -572,9 +566,9 @@ export function DashboardPage() {
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/20 px-4 py-3 text-[11px] text-zinc-500">
         <Gauge size={14} className="text-zinc-600" />
         <span className="font-medium text-zinc-300">Workspace</span>
-        <span className="font-mono text-[10px] text-zinc-600">
+        <EntityLink to={links.file("")} className="font-mono text-[10px] text-zinc-600">
           {activeWorkspace.root_path}
-        </span>
+        </EntityLink>
         <Badge variant="default">
           {ROUTER_POLICY_LABELS[activeWorkspace.default_router_policy] ??
             activeWorkspace.default_router_policy}

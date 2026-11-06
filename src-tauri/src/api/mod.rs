@@ -213,6 +213,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/runs", get(runs::list_runs))
         .route("/api/runs/{id}", get(runs::get_run))
         .route("/api/runs/{id}/log", get(runs::run_log))
+        .route("/api/runs/{id}/timeline", get(runs::run_timeline))
         .route("/api/files/tree", get(files::tree))
         .route("/api/files/content", get(files::content))
         .route("/api/artifacts", get(artifacts::list_artifacts))

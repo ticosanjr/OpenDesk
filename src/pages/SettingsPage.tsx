@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Check,
   ExternalLink,
@@ -26,6 +27,7 @@ import { shortPath } from "@/lib/format";
 import { ROUTER_POLICY_LABELS } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { confirmAction } from "@/store/confirm-store";
+import { links } from "@/lib/links";
 import { toast } from "@/store/toast-store";
 import type { Workspace } from "@/lib/types";
 import { Modal } from "@/components/ui/modal";
@@ -36,6 +38,7 @@ export function SettingsPage() {
   const selectWorkspace = useAppStore((state) => state.selectWorkspace);
   const refresh = useAppStore((state) => state.refresh);
   const [editing, setEditing] = useState<Workspace | null>(null);
+  const [params, setParams] = useSearchParams();
   const setWorkspaceDialogOpen = useUiStore(
     (state) => state.setWorkspaceDialogOpen,
   );
@@ -45,6 +48,18 @@ export function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const section = params.get("section");
+    if (!section) return;
+    const handle = window.setTimeout(() => {
+      document
+        .getElementById(`settings-${section}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setParams({}, { replace: true });
+    }, 180);
+    return () => window.clearTimeout(handle);
+  }, [params, setParams]);
 
   useEffect(() => {
     apiGet<{ workspaces_root: string }>("/api/app/defaults")
@@ -320,6 +335,7 @@ export function SettingsPage() {
                             tone: "success",
                             title: "Workspace removido",
                             description: "A pasta original continua intacta no disco.",
+                            href: links.settings("workspaces"),
                           });
                         } catch (cause) {
                           toast({
@@ -346,7 +362,11 @@ export function SettingsPage() {
         onSaved={async () => {
           setEditing(null);
           await refresh();
-          toast({ tone: "success", title: "Workspace atualizado" });
+          toast({
+            tone: "success",
+            title: "Workspace atualizado",
+            href: links.settings("workspaces"),
+          });
         }}
       />
     </PageBody>

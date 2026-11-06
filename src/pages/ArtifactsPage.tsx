@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Archive,
   ExternalLink,
@@ -23,6 +23,8 @@ import { apiGet } from "@/lib/api";
 import type { Artifact } from "@/lib/types";
 import { formatNumber, relativeTime, shortPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { links } from "@/lib/links";
+import { EntityLink } from "@/components/ui/entity-link";
 
 interface ArtifactContent {
   path: string;
@@ -48,6 +50,7 @@ export function ArtifactsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
 
@@ -303,12 +306,30 @@ export function ArtifactsPage() {
                   {shortPath(selected.absolute_path, 90)}
                 </p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  <Badge variant="purple">@{selected.created_by_agent}</Badge>
+                  <EntityLink
+                    to={links.agent(
+                      selected.created_by_agent,
+                      "workspace",
+                      selected.workspace_id,
+                    )}
+                    chip
+                  >
+                    @{selected.created_by_agent}
+                  </EntityLink>
                   <Badge variant="default">{selected.action_type}</Badge>
                   <Badge variant="default">{relativeTime(selected.created_at)}</Badge>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                {selected.run_id ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(links.run(selected.run_id ?? ""))}
+                  >
+                    Ver execução
+                  </Button>
+                ) : null}
                 <Button
                   variant="outline"
                   size="sm"

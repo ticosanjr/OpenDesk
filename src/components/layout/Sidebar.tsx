@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
+  Activity,
   Archive,
   CalendarClock,
   FolderTree,
@@ -21,18 +23,43 @@ import { useUiStore } from "@/store/ui-store";
 import { StatusDot, statusTone } from "@/components/ui/status-dot";
 import { Badge } from "@/components/ui/badge";
 
-export const NAV_ITEMS = [
-  { to: "/", label: "Dashboard", icon: Gauge, end: true },
-  { to: "/kanban", label: "Kanban & Fila", icon: KanbanSquare },
-  { to: "/chat", label: "Chat & Criador", icon: MessageSquare },
-  { to: "/artifacts", label: "Artefatos", icon: Archive },
-  { to: "/files", label: "Arquivos", icon: FolderTree },
-  { to: "/routines", label: "Rotinas", icon: CalendarClock },
-  { to: "/studio", label: "OpenCode Studio", icon: Wand2 },
-  { to: "/router", label: "Roteador & Custos", icon: Route },
-  { to: "/integrations", label: "Integrações", icon: Plug },
-  { to: "/settings", label: "Configurações", icon: Settings },
-] as const;
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  end?: boolean;
+}
+
+const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
+  {
+    label: "Operação",
+    items: [
+      { to: "/", label: "Dashboard", icon: Gauge, end: true },
+      { to: "/kanban", label: "Kanban & Fila", icon: KanbanSquare },
+      { to: "/runs", label: "Execuções", icon: Activity },
+      { to: "/chat", label: "Chat & Criador", icon: MessageSquare },
+      { to: "/routines", label: "Rotinas", icon: CalendarClock },
+    ],
+  },
+  {
+    label: "Biblioteca",
+    items: [
+      { to: "/artifacts", label: "Artefatos", icon: Archive },
+      { to: "/files", label: "Arquivos", icon: FolderTree },
+      { to: "/studio", label: "OpenCode Studio", icon: Wand2 },
+    ],
+  },
+  {
+    label: "Governança",
+    items: [
+      { to: "/router", label: "Roteador & Custos", icon: Route },
+      { to: "/integrations", label: "Integrações", icon: Plug },
+      { to: "/settings", label: "Configurações", icon: Settings },
+    ],
+  },
+];
+
+export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items);
 
 export function Sidebar() {
   const collapsed = useUiStore((state) => state.sidebarCollapsed);
@@ -62,26 +89,33 @@ export function Sidebar() {
         ) : null}
       </div>
 
-      <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
-        {NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={"end" in item ? item.end : false}
-            title={collapsed ? item.label : undefined}
-            className={({ isActive }) =>
-              cn(
-                "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
-                isActive
-                  ? "bg-zinc-800/70 text-zinc-100"
-                  : "text-zinc-500 hover:bg-zinc-900/70 hover:text-zinc-200",
-                collapsed && "justify-center px-0",
-              )
-            }
-          >
-            <item.icon size={17} strokeWidth={1.8} className="shrink-0" />
-            {!collapsed ? <span className="truncate">{item.label}</span> : null}
-          </NavLink>
+      <nav className="flex-1 overflow-y-auto p-2">
+        {NAV_GROUPS.map((group) => (
+          <div key={group.label} className="mb-1">
+            {!collapsed ? <SidebarSectionLabel>{group.label}</SidebarSectionLabel> : null}
+            <div className="space-y-0.5">
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={"end" in item ? item.end : false}
+                  title={collapsed ? item.label : undefined}
+                  className={({ isActive }) =>
+                    cn(
+                      "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
+                      isActive
+                        ? "bg-zinc-800/70 text-zinc-100"
+                        : "text-zinc-500 hover:bg-zinc-900/70 hover:text-zinc-200",
+                      collapsed && "justify-center px-0",
+                    )
+                  }
+                >
+                  <item.icon size={17} strokeWidth={1.8} className="shrink-0" />
+                  {!collapsed ? <span className="truncate">{item.label}</span> : null}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 

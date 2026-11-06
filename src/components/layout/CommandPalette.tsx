@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Command } from "cmdk";
 import { useNavigate } from "react-router-dom";
 import {
+  Activity,
   Archive,
   CalendarClock,
   FolderTree,
@@ -20,7 +21,7 @@ import {
 import { useUiStore } from "@/store/ui-store";
 import { useAppStore } from "@/store/app-store";
 import { apiGet } from "@/lib/api";
-import type { AgentFile, Artifact, Schedule, Task } from "@/lib/types";
+import type { AgentFile, Artifact, Schedule, Task, TaskRun } from "@/lib/types";
 import { relativeTime } from "@/lib/format";
 import { NAV_ITEMS } from "@/components/layout/Sidebar";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ import { cn } from "@/lib/utils";
 const icons = {
   "/": Gauge,
   "/kanban": KanbanSquare,
+  "/runs": Activity,
   "/chat": MessageSquare,
   "/artifacts": Archive,
   "/files": FolderTree,
@@ -53,6 +55,7 @@ export function CommandPalette() {
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [agents, setAgents] = useState<AgentFile[]>([]);
+  const [runs, setRuns] = useState<TaskRun[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -74,12 +77,14 @@ export function CommandPalette() {
       apiGet<AgentFile[]>(
         `/api/studio/agents?scope=workspace&workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
       ).catch(() => []),
-    ]).then(([taskList, artifactList, scheduleList, agentList]) => {
+      apiGet<TaskRun[]>(`/api/runs?${query}`).catch(() => []),
+    ]).then(([taskList, artifactList, scheduleList, agentList, runList]) => {
       if (cancelled) return;
       setTasks(taskList);
       setArtifacts(artifactList);
       setSchedules(scheduleList);
       setAgents(agentList);
+      setRuns(runList);
     });
     return () => {
       cancelled = true;
@@ -163,6 +168,32 @@ export function CommandPalette() {
                   <span className="min-w-0 flex-1 truncate">{task.title}</span>
                   <span className="shrink-0 font-mono text-[9px] text-zinc-600">
                     {task.column_stage}
+                  </span>
+                </Command.Item>
+              ))}
+            </Command.Group>
+          ) : null}
+
+          {runs.length > 0 ? (
+            <Command.Group
+              heading="Execuções"
+              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-600"
+            >
+              {runs.slice(0, 10).map((item) => (
+                <Command.Item
+                  key={item.id}
+                  value={`run execução ${item.task_title ?? ""} ${item.agent_name} ${item.model_id} ${item.status}`}
+                  onSelect={() =>
+                    run(() => navigate(`/runs/${encodeURIComponent(item.id)}`))
+                  }
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+                >
+                  <Activity size={14} className="shrink-0 text-zinc-500" />
+                  <span className="min-w-0 flex-1 truncate">
+                    {item.task_title ?? item.agent_name}
+                  </span>
+                  <span className="shrink-0 font-mono text-[9px] text-zinc-600">
+                    {item.status}
                   </span>
                 </Command.Item>
               ))}
@@ -257,6 +288,14 @@ export function CommandPalette() {
             >
               <KanbanSquare size={15} className="text-zinc-500" />
               Nova tarefa
+            </Command.Item>
+            <Command.Item
+              value="Abrir execuções"
+              onSelect={() => run(() => navigate("/runs"))}
+              className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+            >
+              <Activity size={15} className="text-zinc-500" />
+              Abrir execuções
             </Command.Item>
             <Command.Item
               value="Novo workspace"

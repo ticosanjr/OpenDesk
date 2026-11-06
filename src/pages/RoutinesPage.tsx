@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   CalendarClock,
   Clock3,
@@ -35,6 +36,9 @@ import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
+import { useFocusParam } from "@/lib/use-focus-param";
+import { links } from "@/lib/links";
+import { EntityLink } from "@/components/ui/entity-link";
 
 export function RoutinesPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -52,6 +56,7 @@ export function RoutinesPage() {
   const [historySchedule, setHistorySchedule] = useState<Schedule | null>(null);
   const [historyRuns, setHistoryRuns] = useState<TaskRun[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  useFocusParam("schedule");
 
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
   const query = useMemo(
@@ -90,6 +95,7 @@ export function RoutinesPage() {
         tone: "success",
         title: schedule.is_active ? "Rotina pausada" : "Rotina retomada",
         description: schedule.name,
+        href: links.schedule(schedule.id),
       });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -98,7 +104,7 @@ export function RoutinesPage() {
 
   async function duplicate(schedule: Schedule) {
     try {
-      await apiPost("/api/schedules", {
+      const created = await apiPost<Schedule>("/api/schedules", {
         workspace_id: schedule.workspace_id,
         name: `${schedule.name} (cópia)`,
         description: schedule.description,
@@ -119,7 +125,12 @@ export function RoutinesPage() {
         is_active: schedule.is_active,
       });
       await load();
-      toast({ tone: "success", title: "Rotina duplicada", description: schedule.name });
+      toast({
+        tone: "success",
+        title: "Rotina duplicada",
+        description: schedule.name,
+        href: links.schedule(created.id),
+      });
     } catch (cause) {
       toast({
         tone: "error",
@@ -140,6 +151,7 @@ export function RoutinesPage() {
         tone: "success",
         title: "Teste enviado",
         description: `${result.sent} destino(s) via ${result.channel}.`,
+        href: links.schedule(schedule.id),
       });
     } catch (cause) {
       toast({
@@ -299,6 +311,7 @@ export function RoutinesPage() {
               {schedules.map((schedule) => (
                 <div
                   key={schedule.id}
+                  data-focus-id={schedule.id}
                   className={cn(
                     "rounded-xl border px-4 py-3",
                     schedule.is_active
@@ -331,7 +344,16 @@ export function RoutinesPage() {
                           <Badge variant="green">Signal</Badge>
                         ) : null}
                         {schedule.agent_name ? (
-                          <Badge variant="purple">@{schedule.agent_name}</Badge>
+                          <EntityLink
+                            to={links.agent(
+                              schedule.agent_name,
+                              "workspace",
+                              schedule.workspace_id,
+                            )}
+                            chip
+                          >
+                            @{schedule.agent_name}
+                          </EntityLink>
                         ) : null}
                         <Badge variant="default">
                           {ROUTER_POLICY_LABELS[schedule.router_policy] ?? schedule.router_policy}
@@ -453,9 +475,10 @@ export function RoutinesPage() {
         ) : (
           <div className="max-h-[55vh] space-y-1.5 overflow-y-auto pr-1">
             {historyRuns.map((run) => (
-              <div
+              <Link
                 key={run.id}
-                className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[10px]"
+                to={links.run(run.id)}
+                className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[10px] transition-colors hover:border-blue-500/30 hover:bg-zinc-900/50"
               >
                 <Badge
                   variant={
@@ -483,7 +506,7 @@ export function RoutinesPage() {
                     {run.error_message}
                   </p>
                 ) : null}
-              </div>
+              </Link>
             ))}
           </div>
         )}

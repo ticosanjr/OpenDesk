@@ -54,7 +54,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     headers: auth.headers,
   });
   expect(about.ok()).toBeTruthy();
-  expect((await about.json()).app.version).toBe("0.13.0");
+  expect((await about.json()).app.version).toBe("0.14.0");
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });
@@ -844,6 +844,10 @@ test("files explorer lists and previews workspace files", async ({
   await page.getByRole("button", { name: /input/ }).first().click();
   await page.getByRole("button", { name: /e2e-brief\.md/ }).click();
   await expect(page.getByText("Conteúdo do explorador.")).toBeVisible();
+
+  // Deep link used by run tool paths and file references.
+  await page.goto("/#/files?path=input/e2e-brief.md");
+  await expect(page.getByText("Conteúdo do explorador.")).toBeVisible();
 });
 
 test("edits and removes a workspace without touching its folder", async ({
@@ -909,4 +913,10 @@ test("edits and removes a workspace without touching its folder", async ({
       { headers: auth.headers },
     );
   }
+});
+
+test("runs route is reachable from the sidebar", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Execuções" }).click();
+  await expect(page.getByRole("heading", { name: "Execuções" })).toBeVisible();
 });

@@ -2,6 +2,7 @@ use crate::{
     app_state::AppState,
     db::runs::{self, TaskRun},
     error::{AppError, AppResult},
+    run_timeline::{RunTimeline, timeline_from_events},
 };
 use axum::{
     Json,
@@ -10,7 +11,7 @@ use axum::{
     response::IntoResponse,
 };
 use serde::Deserialize;
-use std::sync::Arc;
+use std::{io::BufRead, sync::Arc};
 
 #[derive(Debug, Deserialize, Default)]
 pub struct RunQuery {
@@ -51,4 +52,25 @@ pub async fn run_log(
     let start = content.len().saturating_sub(256 * 1024);
     let body = String::from_utf8_lossy(&content[start..]).to_string();
     Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], body))
+}
+
+pub async fn run_timeline(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<RunTimeline>> {
+    let run = runs::get(&state.db, &id).await?;
+    let Some(path) = run.log_path.as_deref() else {
+        return Ok(Json(timeline_from_events(Some(run), Vec::new(), true)));
+    };
+    let file = match std::fs::File::open(path) {
+        Ok(file) => file,
+        Err(_) => return Ok(Json(timeline_from_events(Some(run), Vec::new(), true))),
+    };
+    let reader = std::io::BufReader::new(file);
+    let events = reader
+        .lines()
+        .map_while(Result::ok)
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(&line).ok())
+        .collect::<Vec<_>>();
+    Ok(Json(timeline_from_events(Some(run), events, false)))
 }

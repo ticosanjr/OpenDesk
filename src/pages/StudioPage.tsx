@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   BookOpen,
   Bot,
@@ -42,7 +43,29 @@ export function StudioPage() {
   const [tab, setTab] = useState<Tab>("agents");
   const [scope, setScope] = useState<StudioScope | "effective">("effective");
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [params, setParams] = useSearchParams();
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
+
+  useEffect(() => {
+    const id = params.get("id");
+    if (!id) return;
+    const kind = params.get("kind");
+    const requested = params.get("scope");
+    if (requested === "global" || requested === "workspace") {
+      setScope(requested);
+    }
+    setFocusId(id);
+    setTab(
+      kind === "skill"
+        ? "skills"
+        : kind === "command"
+          ? "commands"
+          : kind === "mcp"
+            ? "mcp"
+            : "agents",
+    );
+    setParams({}, { replace: true });
+  }, [params, setParams]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">

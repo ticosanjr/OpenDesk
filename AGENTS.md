@@ -63,7 +63,7 @@ scripts/release.sh     # build local + retenção de 3 releases (sem CI)
 
 ## Estado atual
 
-Fases 1–13 concluídas: fundação, Studio SSOT com gestão completa (efetivo,
+Fases 1–14 concluídas: fundação, Studio SSOT com gestão completa (efetivo,
 copiar/mover/duplicar, toggle, backups e instalação), workspaces configuráveis,
 agentes com nome/avatar/cor, roteador DSH, fila, budget guard, execução OpenCode
 V2 via SSE, proveniência, Kanban com transições, erros acionáveis, edição de
@@ -76,7 +76,9 @@ Sobre/diagnóstico, runtime inventory do Studio, SSE sem timeout total, daemons
 timezone local, edição, notificações Signal e aviso só por novidade, explorador
 de arquivos, toasts/confirmação global, notificações nativas, gestão de
 workspace, formulários compartilhados de agente/modelo/prompt, command palette
-global, histórico de rotinas, code splitting e backup do SQLite.
+global, histórico de rotinas, code splitting e backup do SQLite, timeline
+estruturada de execução, página de execuções, links/deep links universais e
+notificações clicáveis.
 Próxima frente: retry durável de Google/Drive, assinatura de updates, cobertura
 Rust ≥80%, Windows/macOS e testes de contrato Google/OpenCode.
 
