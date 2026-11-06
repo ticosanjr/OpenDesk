@@ -70,6 +70,12 @@ OpenCode permanecendo nos arquivos nativos do disco.
   colapsados, resultado aberto, durações e timestamps.
 - Notificações e referências clicáveis com deep links para runs, tarefas,
   artefatos, rotinas, agentes, arquivos e configurações.
+- Kanban com sete status Paperclip, último run no card, drag-and-drop e ações de
+  cancelar/bloquear/espera/reabrir.
+- Execução conversacional com pensamento, ferramentas, comentários,
+  respostas do usuário e resultado intercalados.
+- Visualizador interno para Markdown, HTML, imagens, PDF, vídeo, áudio e código.
+- Busca global com abas por tipologia.
 - Backup rotativo do SQLite antes de migrações.
 - Limpeza automática de artefatos de build após cada release.
 - Auto-atualização do OpenDesk por release privada com SHA256 e backup.
@@ -214,6 +220,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0017 — Recorrência intuitiva e notificações](docs/decisions/0017-intuitive-recurrence-and-notifications.md)
 - [ADR 0018 — Arquivos, feedback e gestão de workspace](docs/decisions/0018-files-feedback-and-workspace-management.md)
 - [ADR 0019 — Timeline de execução e referências navegáveis](docs/decisions/0019-run-timeline-and-entity-links.md)
+- [ADR 0020 — Status Paperclip, execução e visualizadores](docs/decisions/0020-task-status-execution-viewer-and-search.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)

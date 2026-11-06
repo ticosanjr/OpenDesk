@@ -862,3 +862,48 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `vitest` — 48 passed (inclui timeline renderizado, links e dedupe de toasts).
 - Playwright — 13 passed.
 - `cargo clippy --all-targets -- -D warnings` limpo.
+
+## 2026-11-06 — 0.15.0: status Paperclip, execução conversacional e visualizadores
+
+### Tarefas e Kanban
+
+- `tasks.status` com sete estados Paperclip; `phase` separado do status.
+- `attempt_number`, `session_id`, `last_run_status`, `last_run_at`,
+  `blocked_reason` e `cancelled_at`.
+- Build bem-sucedido vai para DONE; falha vira BLOCKED; cancelamento vira
+  CANCELLED; interrupção por restart não é reenfileirada automaticamente.
+- Removidos fallback automático de modelo, auditoria automática e retry
+  automático.
+- Kanban com sete colunas, scroll interno, engrenagens animadas, último run no
+  card e ações Cancelar/Bloquear/Espera/Reabrir/Concluir.
+- Dropdown “mover” removido; movimento apenas por drag-and-drop.
+
+### Execução conversacional
+
+- `task_messages` para respostas/comentários do usuário.
+- Timeline intercalada: passo, pensamento, ferramenta, comentário e resultado.
+- Modo conversa/faixas/bruto no visualizador.
+- Rodapé de execução com agente, modelo, mensagem e “continuar execução”.
+- `POST /api/tasks/{id}/messages` grava e enfileira nova tentativa.
+
+### Arquivos, artefatos e busca
+
+- `FileViewer` com Markdown, HTML sandbox, imagens, PDF, vídeo, áudio, código e
+  binários.
+- Endpoints raw autenticados com MIME e limite de 250 MB.
+- `/search` com abas por tipologia e busca em tarefas, comentários, arquivos,
+  artefatos, agentes, projetos, rotinas e execuções.
+- Catálogo curado de repositórios no Studio e cards expansíveis.
+
+### UI
+
+- Piso global de tipografia (8–10px → 10–12px), mais peso e ícones.
+- Tooltip acessível e indicador de execução com engrenagens.
+- Scroll interno em colunas, logs, Studio, artefatos e modais.
+
+### Testes
+
+- `cargo test` — 110 passed.
+- `vitest` — 48 passed.
+- Playwright — 15 passed.
+- Clippy limpo.

@@ -54,7 +54,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     headers: auth.headers,
   });
   expect(about.ok()).toBeTruthy();
-  expect((await about.json()).app.version).toBe("0.14.0");
+  expect((await about.json()).app.version).toBe("0.15.0");
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });
@@ -180,24 +180,20 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   await page.getByRole("button", { name: "Criar tarefa" }).click();
 
   await expect(page.getByText("Tarefa E2E do Kanban").first()).toBeVisible();
-  await page.getByRole("button", { name: "Executar" }).first().click();
-  await expect(page.getByText("QUEUED").first()).toBeVisible();
 
   const tasks = await request.get(`${auth.baseURL}/api/tasks`, {
     headers: auth.headers,
   });
   expect(tasks.ok()).toBeTruthy();
   const taskList = (await tasks.json()) as Array<{
+    id: string;
     title: string;
-    column_stage: string;
-    output_dir_path?: string;
+    status: string;
   }>;
   const task = taskList.find((item) => item.title === "Tarefa E2E do Kanban");
   expect(task).toBeTruthy();
-  expect(task?.column_stage).toBe("BUILD");
-  expect(task?.output_dir_path).toContain("/output/");
+  expect(task?.status).toBe("BACKLOG");
 
-  expect(task).toBeTruthy();
   const diagnostics = await request.get(
     `${auth.baseURL}/api/tasks/${task!.id}/diagnostics`,
     { headers: auth.headers },
@@ -207,32 +203,14 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   expect(diagnosticsBody.task.id).toBe(task!.id);
   expect(Array.isArray(diagnosticsBody.runs)).toBe(true);
 
-  // DONE is a workflow action that does not require the engine.
-  const done = await request.post(
-    `${auth.baseURL}/api/tasks/${task!.id}/transition`,
-    { headers: auth.headers, data: { column_stage: "DONE" } },
-  );
-  expect(done.ok()).toBeTruthy();
-  expect((await done.json()).task.column_stage).toBe("DONE");
-
-  // Moving a card must persist even when the engine is offline; the dispatch
-  // failure is reported separately and the column stays where the user put it.
-  const planTransition = await request.post(
-    `${auth.baseURL}/api/tasks/${task!.id}/transition`,
-    { headers: auth.headers, data: { column_stage: "PLAN" } },
-  );
-  expect(planTransition.ok()).toBeTruthy();
-  const planBody = await planTransition.json();
-  expect(planBody.task.column_stage).toBe("PLAN");
-  expect(planBody.error).toBeTruthy();
-  expect(planBody.task.phase_status).toBe("dispatch_failed");
-
-  const backlog = await request.post(
-    `${auth.baseURL}/api/tasks/${task!.id}/transition`,
-    { headers: auth.headers, data: { column_stage: "BACKLOG" } },
-  );
-  expect(backlog.ok()).toBeTruthy();
-  expect((await backlog.json()).task.column_stage).toBe("BACKLOG");
+  for (const status of ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE", "BLOCKED", "CANCELLED", "TODO"]) {
+    const moved = await request.post(
+      `${auth.baseURL}/api/tasks/${task!.id}/transition`,
+      { headers: auth.headers, data: { status } },
+    );
+    expect(moved.ok()).toBeTruthy();
+    expect((await moved.json()).task.status).toBe(status);
+  }
 
   await page.reload();
   await expect(page.getByText("Tarefa E2E do Kanban").first()).toBeVisible();
@@ -734,6 +712,19 @@ Use a skill importada.
 
 test("kanban move control persists an adjacent column", async ({ page, request }) => {
   const auth = api();
+  const existingWorkspaces = (await (
+    await request.get(`${auth.baseURL}/api/workspaces`, { headers: auth.headers })
+  ).json()) as Array<{ id: string }>;
+  if (existingWorkspaces.length === 0) {
+    const createdWorkspace = await request.post(`${auth.baseURL}/api/workspaces`, {
+      headers: auth.headers,
+      data: {
+        name: "Drag Workspace",
+        root_path: "/tmp/opendesk-e2e/workspaces-drag",
+      },
+    });
+    expect(createdWorkspace.ok()).toBeTruthy();
+  }
   const workspaces = await request.get(`${auth.baseURL}/api/workspaces`, {
     headers: auth.headers,
   });
@@ -759,10 +750,10 @@ test("kanban move control persists an adjacent column", async ({ page, request }
 
   await page.goto("/#/kanban");
   await expect(page.getByRole("button", { name: "Abrir tarefa Drag E2E" })).toBeVisible();
-  await page.getByLabel("Mover Drag E2E").selectOption("PLAN");
-  await expect(page.getByText("Mover para PLAN?")).toBeVisible();
-  await page.getByRole("button", { name: "Mover e executar" }).click();
-  await expect(page.locator('[data-column="PLAN"]').getByText("Drag E2E")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Abrir tarefa Drag E2E" })
+    .dragTo(page.locator('[data-column="TODO"]'));
+  await expect(page.locator('[data-column="TODO"]').getByText("Drag E2E")).toBeVisible();
 
   // The column change is persisted through an async API call; poll briefly.
   await expect
@@ -774,13 +765,13 @@ test("kanban move control persists an adjacent column", async ({ page, request }
         if (!tasks.ok()) return null;
         const list = (await tasks.json()) as Array<{
           id: string;
-          column_stage: string;
+          status: string;
         }>;
-        return list.find((item) => item.id === taskId)?.column_stage ?? null;
+        return list.find((item) => item.id === taskId)?.status ?? null;
       },
       { timeout: 5_000 },
     )
-    .toBe("PLAN");
+    .toBe("TODO");
 });
 
 test("studio backup lists and restores an item", async ({ request }) => {
@@ -919,4 +910,97 @@ test("runs route is reachable from the sidebar", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: "Execuções" }).click();
   await expect(page.getByRole("heading", { name: "Execuções" })).toBeVisible();
+});
+
+test("global search finds tasks and opens them", async ({ page, request }) => {
+  const auth = api();
+  const existing = (await (
+    await request.get(`${auth.baseURL}/api/workspaces`, { headers: auth.headers })
+  ).json()) as Array<{ id: string }>;
+  let workspaceId = existing[0]?.id;
+  if (!workspaceId) {
+    const created = await request.post(`${auth.baseURL}/api/workspaces`, {
+      headers: auth.headers,
+      data: { name: "Search Workspace", root_path: "/tmp/opendesk-e2e/workspaces-search" },
+    });
+    workspaceId = ((await created.json()) as { id: string }).id;
+  }
+  const task = await request.post(
+    `${auth.baseURL}/api/tasks?workspace_id=${workspaceId}`,
+    {
+      headers: auth.headers,
+      data: {
+        title: "Busca Global E2E",
+        description: "Documento localizável pela busca global.",
+        execution_mode: "AUTO_DSH",
+        priority: 2,
+        tags: [],
+        effort_level: "medium",
+      },
+    },
+  );
+  expect(task.ok()).toBeTruthy();
+
+  const apiResults = await request.get(
+    `${auth.baseURL}/api/search?workspace_id=${workspaceId}&q=Busca%20Global`,
+    { headers: auth.headers },
+  );
+  expect(apiResults.ok()).toBeTruthy();
+  const hits = (await apiResults.json()) as Array<{ kind: string; title: string }>;
+  expect(hits.some((hit) => hit.kind === "task" && hit.title.includes("Busca Global"))).toBe(true);
+
+  await page.goto("/#/search");
+  await page.getByPlaceholder("Digite pelo menos 2 caracteres…").fill("Busca Global E2E");
+  await expect(page.getByText("Busca Global E2E").first()).toBeVisible();
+  await page.getByText("Busca Global E2E").first().click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+});
+
+test("task can be cancelled from the task panel at any time", async ({ page, request }) => {
+  const auth = api();
+  const existing = (await (
+    await request.get(`${auth.baseURL}/api/workspaces`, { headers: auth.headers })
+  ).json()) as Array<{ id: string }>;
+  let workspaceId = existing[0]?.id;
+  if (!workspaceId) {
+    const created = await request.post(`${auth.baseURL}/api/workspaces`, {
+      headers: auth.headers,
+      data: { name: "Cancel Workspace", root_path: "/tmp/opendesk-e2e/workspaces-cancel" },
+    });
+    workspaceId = ((await created.json()) as { id: string }).id;
+  }
+  const createdTask = await request.post(
+    `${auth.baseURL}/api/tasks?workspace_id=${workspaceId}`,
+    {
+      headers: auth.headers,
+      data: {
+        title: "Cancelar E2E",
+        description: "Tarefa para testar cancelamento.",
+        execution_mode: "AUTO_DSH",
+        priority: 2,
+        tags: [],
+        effort_level: "medium",
+      },
+    },
+  );
+  expect(createdTask.ok()).toBeTruthy();
+  const task = (await createdTask.json()) as { id: string };
+  await request.post(`${auth.baseURL}/api/tasks/${task.id}/transition`, {
+    headers: auth.headers,
+    data: { status: "IN_PROGRESS" },
+  });
+
+  await page.goto("/#/kanban");
+  await page.getByRole("button", { name: "Abrir tarefa Cancelar E2E" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Cancelar", exact: true })
+    .click();
+  await expect(page.getByText("Tarefa movida para Cancelled").first()).toBeVisible();
+
+  const tasks = await request.get(`${auth.baseURL}/api/tasks?workspace_id=${workspaceId}`, {
+    headers: auth.headers,
+  });
+  const list = (await tasks.json()) as Array<{ id: string; status: string }>;
+  expect(list.find((item) => item.id === task.id)?.status).toBe("CANCELLED");
 });

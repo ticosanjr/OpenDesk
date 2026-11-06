@@ -4,7 +4,10 @@ use crate::{
 };
 use axum::{
     Json,
+    body::Body,
     extract::{Query, State},
+    http::header,
+    response::Response,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -36,6 +39,7 @@ pub struct FileContent {
     pub content: String,
     pub truncated: bool,
     pub binary: bool,
+    pub mime: String,
     pub size: u64,
 }
 
@@ -152,7 +156,8 @@ pub async fn content(
     let bytes = std::fs::read(&path)?;
     let truncated = bytes.len() > MAX_PREVIEW_BYTES;
     let slice = &bytes[..bytes.len().min(MAX_PREVIEW_BYTES)];
-    let binary = slice.iter().take(8_000).any(|byte| *byte == 0);
+    let binary =
+        slice.iter().take(8_000).any(|byte| *byte == 0) || std::str::from_utf8(slice).is_err();
     let content = if binary {
         String::new()
     } else {
@@ -163,8 +168,76 @@ pub async fn content(
         content,
         truncated,
         binary,
+        mime: mime_for(&path).to_string(),
         size: metadata.len(),
     }))
+}
+
+pub async fn raw(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<FileQuery>,
+) -> AppResult<Response> {
+    let root = workspace_root(&state, query.workspace_id.as_deref()).await?;
+    let path = resolve_path(&root, query.path.as_deref())?;
+    let metadata = std::fs::metadata(&path)?;
+    if !metadata.is_file() {
+        return Err(AppError::BadRequest("path is not a file".into()));
+    }
+    if metadata.len() > 250 * 1024 * 1024 {
+        return Err(AppError::BadRequest(
+            "file is too large for the in-app viewer".into(),
+        ));
+    }
+    let bytes = std::fs::read(&path)?;
+    let filename = path
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| "file".into());
+    Response::builder()
+        .header(header::CONTENT_TYPE, mime_for(&path))
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("inline; filename=\"{filename}\""),
+        )
+        .header(header::CONTENT_LENGTH, bytes.len())
+        .body(Body::from(bytes))
+        .map_err(|error| AppError::Internal(format!("could not build response: {error}")))
+}
+
+pub fn mime_for(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "html" | "htm" => "text/html; charset=utf-8",
+        "css" => "text/css; charset=utf-8",
+        "js" | "mjs" | "cjs" => "text/javascript; charset=utf-8",
+        "json" | "jsonc" => "application/json; charset=utf-8",
+        "md" | "markdown" | "mdx" => "text/markdown; charset=utf-8",
+        "txt" | "log" | "jsonl" | "csv" | "tsv" | "yaml" | "yml" | "toml" => {
+            "text/plain; charset=utf-8"
+        }
+        "svg" => "image/svg+xml",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "avif" => "image/avif",
+        "ico" => "image/x-icon",
+        "pdf" => "application/pdf",
+        "mp4" | "m4v" => "video/mp4",
+        "webm" => "video/webm",
+        "mov" => "video/quicktime",
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "ogg" | "oga" => "audio/ogg",
+        "m4a" => "audio/mp4",
+        "zip" => "application/zip",
+        _ => "application/octet-stream",
+    }
 }
 
 #[cfg(test)]

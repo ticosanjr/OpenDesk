@@ -19,12 +19,44 @@ const timeline: RunTimeline = {
   events_count: 20,
   log_missing: false,
   workspace_root: "/tmp/workspace",
+  events: [
+    {
+      kind: "thinking",
+      role: "assistant",
+      text: "Vou analisar o workspace.",
+      started_at: "2026-11-06T21:32:04Z",
+      ended_at: "2026-11-06T21:32:08Z",
+      duration_ms: 4000,
+    },
+    {
+      kind: "tool",
+      role: "tool",
+      text: "read",
+      tool: {
+        id: "call-1",
+        name: "read",
+        summary: "read · input/brief.md",
+        input: '{"path":"/tmp/workspace/input/brief.md"}',
+        output: "conteúdo",
+        status: "success",
+        started_at: "2026-11-06T21:32:08Z",
+        ended_at: "2026-11-06T21:32:09Z",
+        duration_ms: 1000,
+        output_truncated: false,
+      },
+      started_at: "2026-11-06T21:32:08Z",
+      ended_at: "2026-11-06T21:32:09Z",
+      duration_ms: 1000,
+    },
+  ],
   run: {
     id: "run-1",
     queue_job_id: null,
     workspace_id: "ws-1",
     task_id: "task-1",
     schedule_id: null,
+    attempt_number: 1,
+    session_id: null,
     parent_run_id: null,
     phase: "build",
     agent_name: "build",
@@ -108,7 +140,9 @@ const timeline: RunTimeline = {
 describe("RunLogView", () => {
   beforeEach(() => {
     apiGet.mockReset();
-    apiGet.mockResolvedValue(timeline);
+    apiGet.mockImplementation((path: string) =>
+      path.includes("/messages") ? Promise.resolve([]) : Promise.resolve(timeline),
+    );
   });
 
   it("renders collapsed thinking/executed bands and the expanded result", async () => {
@@ -119,7 +153,6 @@ describe("RunLogView", () => {
     );
 
     expect(await screen.findByText("Raciocínio")).toBeInTheDocument();
-    expect(screen.getByText("Executado")).toBeInTheDocument();
     expect(screen.getByText("Resultado")).toBeInTheDocument();
     expect(screen.getByText("Resultado final da execução.")).toBeInTheDocument();
     expect(
@@ -131,7 +164,6 @@ describe("RunLogView", () => {
       screen.getByText("Vou analisar o workspace.", { selector: "pre" }),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Executado/ }));
     expect(screen.getByText("read · input/brief.md")).toBeInTheDocument();
   });
 });

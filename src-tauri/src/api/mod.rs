@@ -12,6 +12,7 @@ pub mod queue;
 pub mod router;
 pub mod runs;
 pub mod schedules;
+pub mod search;
 pub mod signal;
 pub mod studio;
 pub mod studio_ops;
@@ -192,6 +193,10 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/tasks/{id}/transition", post(tasks::transition_task))
         .route("/api/tasks/{id}/diagnostics", get(tasks::task_diagnostics))
         .route(
+            "/api/tasks/{id}/messages",
+            get(tasks::list_task_messages).post(tasks::post_task_message),
+        )
+        .route(
             "/api/chat/threads",
             get(chat::list_threads).post(chat::create_thread),
         )
@@ -214,10 +219,13 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/runs/{id}", get(runs::get_run))
         .route("/api/runs/{id}/log", get(runs::run_log))
         .route("/api/runs/{id}/timeline", get(runs::run_timeline))
+        .route("/api/search", get(search::search))
         .route("/api/files/tree", get(files::tree))
         .route("/api/files/content", get(files::content))
+        .route("/api/files/raw", get(files::raw))
         .route("/api/artifacts", get(artifacts::list_artifacts))
         .route("/api/artifacts/{id}", get(artifacts::get_artifact))
+        .route("/api/artifacts/{id}/raw", get(artifacts::artifact_raw))
         .route(
             "/api/artifacts/{id}/content",
             get(artifacts::artifact_content),

@@ -54,7 +54,10 @@ export async function loadAgents(workspaceId?: string | null): Promise<AgentFile
     }
     const lists = await Promise.all(requests);
     const seen = new Set<string>();
-    const merged = lists.flat().filter((agent) => {
+    const merged = lists
+      .flat()
+      .filter((agent): agent is AgentFile => Boolean(agent) && typeof agent.id === "string")
+      .filter((agent) => {
       if (seen.has(agent.id)) return false;
       seen.add(agent.id);
       return true;

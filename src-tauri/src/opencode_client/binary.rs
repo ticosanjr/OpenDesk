@@ -163,12 +163,26 @@ impl OpenCodeLocator {
 }
 
 pub fn probe(path: &Path) -> AppResult<Version> {
-    let output = Command::new(path)
-        .arg("--version")
-        .output()
-        .map_err(|error| {
-            AppError::Daemon(format!("could not execute {}: {error}", path.display()))
-        })?;
+    let mut attempts = 0;
+    let output = loop {
+        match Command::new(path).arg("--version").output() {
+            Ok(output) => break output,
+            // Linux reports ETXTBSY briefly after a binary is replaced while a
+            // previous process is still releasing it (common during updates).
+            Err(error)
+                if error.kind() == std::io::ErrorKind::ExecutableFileBusy && attempts < 3 =>
+            {
+                attempts += 1;
+                std::thread::sleep(std::time::Duration::from_millis(25 * attempts));
+            }
+            Err(error) => {
+                return Err(AppError::Daemon(format!(
+                    "could not execute {}: {error}",
+                    path.display()
+                )));
+            }
+        }
+    };
     if !output.status.success() {
         return Err(AppError::Daemon(format!(
             "{} --version exited with {}",
@@ -238,7 +252,11 @@ mod tests {
     use std::io::Write;
 
     fn fake_binary(dir: &std::path::Path, version: &str) -> PathBuf {
-        let path = dir.join("opencode");
+        fake_binary_named(dir, "opencode", version)
+    }
+
+    fn fake_binary_named(dir: &std::path::Path, name: &str, version: &str) -> PathBuf {
+        let path = dir.join(name);
         let mut file = std::fs::File::create(&path).expect("fake binary");
         writeln!(file, "#!/bin/sh").expect("shebang");
         writeln!(file, "echo \"opencode v{version}\"").expect("version");
@@ -300,7 +318,7 @@ mod tests {
         assert_eq!(info.version, "2.2.5");
         assert_eq!(info.path, path.to_string_lossy());
 
-        let v1 = fake_binary(temp.path(), "1.19.5");
+        let v1 = fake_binary_named(temp.path(), "opencode-v1", "1.19.5");
         let error = locator.resolve_path(&v1).expect_err("v1 must be rejected");
         assert!(format!("{error}").contains("requires OpenCode V2"));
     }

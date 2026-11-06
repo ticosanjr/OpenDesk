@@ -289,7 +289,7 @@ impl CronEngine {
                 scheduled_for: Some(scheduled_for.to_string()),
                 output_dir: Some(decision.output_directory),
                 priority: 2,
-                max_retries: 2,
+                max_retries: 1,
             })
             .await
         {

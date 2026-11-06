@@ -59,7 +59,7 @@ fn default_priority() -> i64 {
 }
 
 fn default_max_retries() -> i64 {
-    2
+    1
 }
 
 const COLUMNS: &str = "q.id, q.workspace_id, q.task_id, q.schedule_id, q.prompt_payload, \
@@ -250,8 +250,9 @@ pub async fn update_priority(pool: &SqlitePool, id: &str, priority: i64) -> AppR
 
 pub async fn recover_running(pool: &SqlitePool) -> AppResult<u64> {
     let result = sqlx::query(
-        "UPDATE execution_queue SET status = 'QUEUED',
-            started_at = NULL, error_message = 'requeued after OpenDesk restart'
+        "UPDATE execution_queue SET status = 'FAILED',
+            finished_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            error_message = 'interrupted by OpenDesk restart; manual retry required'
          WHERE status = 'RUNNING'",
     )
     .execute(pool)
@@ -306,7 +307,7 @@ mod tests {
             scheduled_for: None,
             output_dir: None,
             priority: 2,
-            max_retries: 2,
+            max_retries: 1,
         }
     }
 
@@ -329,7 +330,7 @@ mod tests {
 
         assert!(claim(&pool, &job.id).await.expect("claim 2"));
         assert_eq!(recover_running(&pool).await.expect("recover"), 1);
-        assert_eq!(get(&pool, &job.id).await.expect("get 2").status, "QUEUED");
+        assert_eq!(get(&pool, &job.id).await.expect("get 2").status, "FAILED");
     }
 
     #[tokio::test]

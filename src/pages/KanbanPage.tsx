@@ -3,9 +3,13 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowRightLeft,
+  Ban,
   CheckCircle2,
+  Circle,
+  Eye,
   FileText,
   GripVertical,
+  Inbox,
   ListChecks,
   Loader2,
   Pause,
@@ -43,15 +47,22 @@ import type {
 } from "@/lib/types";
 import { formatUsd, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { confirmAction } from "@/store/confirm-store";
+import { WorkingIndicator } from "@/components/ui/working-indicator";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const COLUMNS = [
-  { id: "BACKLOG", label: "Backlog", tone: "default" as const },
-  { id: "PLAN", label: "Plan", tone: "blue" as const },
-  { id: "BUILD", label: "Build", tone: "purple" as const },
-  { id: "REVIEW", label: "Review / Audit", tone: "yellow" as const },
-  { id: "DONE", label: "Done", tone: "green" as const },
+  { id: "BACKLOG", label: "Backlog", tone: "default" as const, icon: Inbox },
+  { id: "TODO", label: "To do", tone: "blue" as const, icon: Circle },
+  { id: "IN_PROGRESS", label: "In progress", tone: "purple" as const, icon: Loader2 },
+  { id: "IN_REVIEW", label: "In review", tone: "yellow" as const, icon: Eye },
+  { id: "BLOCKED", label: "Blocked", tone: "red" as const, icon: Ban },
+  { id: "DONE", label: "Done", tone: "green" as const, icon: CheckCircle2 },
+  { id: "CANCELLED", label: "Cancelled", tone: "default" as const, icon: XCircle },
 ];
+
+const STATUS_LABEL: Record<string, string> = Object.fromEntries(
+  COLUMNS.map((column) => [column.id, column.label]),
+);
 
 const PRIORITY_LABEL: Record<number, string> = {
   1: "baixa",
@@ -60,11 +71,17 @@ const PRIORITY_LABEL: Record<number, string> = {
   4: "crítica",
 };
 
-const PRIORITY_TONE: Record<number, "default" | "yellow" | "red"> = {
+const PRIORITY_TONE: Record<number, "default" | "blue" | "yellow" | "red"> = {
   1: "default",
-  2: "default",
+  2: "blue",
   3: "yellow",
   4: "red",
+};
+
+const EFFORT_TONE: Record<string, "default" | "blue" | "purple"> = {
+  low: "default",
+  medium: "blue",
+  high: "purple",
 };
 
 export function KanbanPage() {
@@ -203,57 +220,29 @@ export function KanbanPage() {
     }
   }
 
-  async function transitionTask(task: Task, stage: string) {
-    if (!stage || stage === task.column_stage) return;
-    const running = task.phase_status === "queued" || task.phase_status === "running";
-    if (
-      stage !== "DONE" &&
-      stage !== "BACKLOG" &&
-      !running &&
-      !(await confirmAction({
-        title: `Mover para ${stage}?`,
-        description:
-          "Isso pode iniciar uma execução no OpenCode e consumir budget. A coluna é persistida antes do disparo.",
-        confirmLabel: "Mover e executar",
-      }))
-    ) {
-      return;
-    }
-    if (
-      stage === "BACKLOG" &&
-      running &&
-      !(await confirmAction({
-        title: "Cancelar a execução atual?",
-        description: "A tarefa volta para Backlog e o run em andamento é interrompido.",
-        confirmLabel: "Cancelar execução",
-        tone: "destructive",
-      }))
-    ) {
-      return;
-    }
+  async function transitionTask(task: Task, status: string) {
+    if (!status || status === task.status) return;
     setError(null);
-    // Optimistic move so the card does not jump back while the API responds.
     setTasks((current) =>
-      current.map((item) =>
-        item.id === task.id ? { ...item, column_stage: stage } : item,
-      ),
+      current.map((item) => (item.id === task.id ? { ...item, status } : item)),
     );
     try {
-      const response = await apiPost<{ error?: string | null }>(
-        `/api/tasks/${task.id}/transition`,
-        { column_stage: stage },
-      );
-      if (response.error) {
-        setError(response.error);
-        setNotice(`Coluna alterada para ${stage}; a execução não iniciou.`);
-      } else {
-        setNotice(`Coluna alterada para ${stage}.`);
-      }
+      await apiPost(`/api/tasks/${task.id}/transition`, { status });
+      toast({
+        tone: status === "CANCELLED" || status === "BLOCKED" ? "warning" : "success",
+        title: `Tarefa movida para ${STATUS_LABEL[status] ?? status}`,
+        description: task.title,
+        href: links.task(task.id),
+      });
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       await load();
     }
+  }
+
+  async function setWaiting(task: Task) {
+    await transitionTask(task, "TODO");
   }
 
   async function toggleQueue(pause: boolean) {
@@ -438,12 +427,12 @@ export function KanbanPage() {
 
       <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
         {COLUMNS.map((column) => {
-          const columnTasks = filteredTasks.filter((task) => task.column_stage === column.id);
+          const columnTasks = filteredTasks.filter((task) => task.status === column.id);
           return (
             <Card
               key={column.id}
               data-column={column.id}
-              className="flex min-h-[440px] w-[280px] shrink-0 flex-col"
+              className="flex max-h-[calc(100vh-15rem)] min-h-[440px] w-[280px] shrink-0 flex-col"
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 const taskId =
@@ -461,155 +450,208 @@ export function KanbanPage() {
                 </CardTitle>
                 <Badge variant={column.tone}>{columnTasks.length}</Badge>
               </CardHeader>
-              <CardContent className="flex-1 space-y-2 p-2.5">
+              <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2.5">
                 {columnTasks.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-zinc-800/80 bg-zinc-950/30 px-3 py-8 text-center">
                     <GripVertical size={15} className="mx-auto text-zinc-700" />
                     <p className="mt-2 text-[10px] text-zinc-600">Arraste uma tarefa</p>
                   </div>
                 ) : (
-                  columnTasks.map((task) => (
-                    <div
-                      key={task.id}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Abrir tarefa ${task.title}`}
-                      className={cn(
-                        "rounded-lg border bg-zinc-950/50 p-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60",
-                        task.phase_status?.includes("failed")
-                          ? "border-red-500/40"
-                          : "border-zinc-800/80",
-                      )}
-                      onClick={() => setSelectedTask(task)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          setSelectedTask(task);
-                        }
-                      }}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex min-w-0 items-start gap-1.5">
-                          <span
-                            draggable
-                            title="Arrastar tarefa"
-                            onDragStart={(event) => {
-                              draggedRef.current = task.id;
-                              event.dataTransfer.setData("text/task-id", task.id);
-                              event.dataTransfer.effectAllowed = "move";
-                            }}
-                            onDragEnd={() => {
-                              // Keep the ref until the drop handler runs; some
-                              // browsers fire dragend before drop.
-                              window.setTimeout(() => {
-                                draggedRef.current = null;
-                              }, 250);
-                            }}
-                            onClick={(event) => event.stopPropagation()}
-                            className="mt-0.5 cursor-grab text-zinc-600 active:cursor-grabbing"
-                          >
-                            <GripVertical size={12} />
-                          </span>
-                          <p className="text-[11px] font-medium leading-snug text-zinc-200">
-                            {task.title}
-                          </p>
-                        </div>
-                        <Badge variant={PRIORITY_TONE[task.priority]}>
-                          {PRIORITY_LABEL[task.priority] ?? task.priority}
-                        </Badge>
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-zinc-600">
-                        {task.description}
-                      </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-1">
-                        {task.assigned_agent ? (
-                          <EntityLink
-                            to={links.agent(
-                              task.assigned_agent,
-                              "workspace",
-                              task.workspace_id,
-                            )}
-                            chip
-                          >
-                            @{task.assigned_agent}
-                          </EntityLink>
-                        ) : null}
-                        <Badge variant="default">{task.effort_level}</Badge>
-                        {task.phase_status ? (
-                          <Badge
-                            variant={
-                              task.phase_status.includes("failed")
-                                ? "red"
-                                : task.phase_status.includes("approval")
-                                  ? "yellow"
-                                  : "default"
-                            }
-                          >
-                            {task.phase_status}
-                          </Badge>
-                        ) : null}
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-zinc-800/60 pt-2">
-                        <select
-                          aria-label={`Mover ${task.title}`}
-                          value=""
-                          onClick={(event) => event.stopPropagation()}
-                          onChange={(event) => {
-                            event.stopPropagation();
-                            void transitionTask(task, event.target.value);
-                          }}
-                          className="h-6 w-full rounded-md border border-zinc-800 bg-zinc-900/60 px-1 text-[9px] text-zinc-300 outline-none"
-                        >
-                          <option value="">mover…</option>
-                          {COLUMNS.filter((item) => item.id !== task.column_stage).map(
-                            (item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.label}
-                              </option>
-                            ),
-                          )}
-                        </select>
-                        {task.phase_status === "awaiting_approval" ? (
-                          <Button
-                            size="sm"
-                            className="h-6 px-1.5 text-[9px]"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void approve(task);
-                            }}
-                          >
-                            <CheckCircle2 size={11} />
-                            Aprovar plano
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 px-1.5 text-[9px]"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void dispatch(task);
-                            }}
-                          >
-                            <Play size={11} />
-                            Executar
-                          </Button>
+                  columnTasks.map((task) => {
+                    const meta =
+                      COLUMNS.find((column) => column.id === task.status) ?? COLUMNS[0];
+                    const StatusIcon = meta.icon;
+                    const running =
+                      task.status === "IN_PROGRESS" ||
+                      task.phase_status === "queued" ||
+                      task.phase_status === "running" ||
+                      task.phase_status === "follow_up_queued";
+                    return (
+                      <div
+                        key={task.id}
+                        role="button"
+                        tabIndex={0}
+                        draggable
+                        onDragStart={(event) => {
+                          draggedRef.current = task.id;
+                          event.dataTransfer.setData("text/task-id", task.id);
+                          event.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragEnd={() => {
+                          // Keep the ref until the drop handler runs.
+                        }}
+                        aria-label={`Abrir tarefa ${task.title}`}
+                        className={cn(
+                          "rounded-lg border bg-zinc-950/50 p-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60",
+                          task.status === "BLOCKED"
+                            ? "border-red-500/40"
+                            : task.status === "IN_PROGRESS"
+                              ? "border-blue-500/40"
+                              : "border-zinc-800/80",
                         )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-1.5 text-[9px]"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setLogTask(task);
-                          }}
-                        >
-                          <FileText size={11} />
-                          Logs
-                        </Button>
+                        onClick={() => setSelectedTask(task)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedTask(task);
+                          }
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex min-w-0 items-start gap-1.5">
+                            <span
+                              title="Arrastar tarefa"
+                              onClick={(event) => event.stopPropagation()}
+                              className="mt-0.5 cursor-grab text-zinc-600 active:cursor-grabbing"
+                            >
+                              <GripVertical size={12} />
+                            </span>
+                            <p className="text-[13px] font-semibold leading-snug text-zinc-100">
+                              {task.title}
+                            </p>
+                          </div>
+                          <Tooltip content={`Status: ${meta.label} (${task.status})`}>
+                            <Badge variant={meta.tone}>
+                              <StatusIcon size={10} />
+                              {meta.label}
+                            </Badge>
+                          </Tooltip>
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-zinc-500">
+                          {task.description}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-1">
+                          {task.assigned_agent ? (
+                            <EntityLink
+                              to={links.agent(
+                                task.assigned_agent,
+                                "workspace",
+                                task.workspace_id,
+                              )}
+                              chip
+                            >
+                              @{task.assigned_agent}
+                            </EntityLink>
+                          ) : null}
+                          <Tooltip content={`Prioridade ${task.priority} de 4`}>
+                            <Badge variant={PRIORITY_TONE[task.priority]}>
+                              {PRIORITY_LABEL[task.priority] ?? task.priority}
+                            </Badge>
+                          </Tooltip>
+                          <Tooltip content="Esforço solicitado ao roteador">
+                            <Badge variant={EFFORT_TONE[task.effort_level] ?? "default"}>
+                              {task.effort_level}
+                            </Badge>
+                          </Tooltip>
+                          {task.phase_status ? (
+                            <Badge
+                              variant={
+                                task.phase_status.includes("failed")
+                                  ? "red"
+                                  : task.phase_status.includes("approval")
+                                    ? "yellow"
+                                    : task.phase_status === "waiting"
+                                      ? "yellow"
+                                      : "default"
+                              }
+                              title={task.blocked_reason ?? "Estado detalhado da execução"}
+                            >
+                              {task.phase_status}
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-zinc-800/60 pt-2">
+                          {running ? <WorkingIndicator /> : null}
+                          {task.last_run_status ? (
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-semibold",
+                                task.last_run_status === "SUCCESS"
+                                  ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-300"
+                                  : task.last_run_status === "FAILED"
+                                    ? "border-red-500/25 bg-red-500/10 text-red-300"
+                                    : "border-zinc-700 bg-zinc-900 text-zinc-400",
+                              )}
+                              title={`Última execução: ${task.last_run_status} · ${relativeTime(task.last_run_at)}`}
+                            >
+                              {task.last_run_status === "SUCCESS" ? (
+                                <CheckCircle2 size={10} />
+                              ) : task.last_run_status === "FAILED" ? (
+                                <XCircle size={10} />
+                              ) : (
+                                <Loader2 size={10} />
+                              )}
+                              {task.last_run_status}
+                              <span className="text-zinc-600">
+                                {relativeTime(task.last_run_at)}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="font-mono text-[10px] text-zinc-600">
+                              sem execução
+                            </span>
+                          )}
+                          <span className="ml-auto flex flex-wrap items-center gap-1">
+                            {task.phase_status === "awaiting_approval" ? (
+                              <Button
+                                size="sm"
+                                className="h-6 px-1.5 text-[10px]"
+                                title="Aprovar o plano e iniciar o Build"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void approve(task);
+                                }}
+                              >
+                                <CheckCircle2 size={11} />
+                                Aprovar
+                              </Button>
+                            ) : running ? (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="h-6 px-1.5 text-[10px]"
+                                title="Cancelar a execução agora"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void transitionTask(task, "CANCELLED");
+                                }}
+                              >
+                                <Square size={10} />
+                                Cancelar
+                              </Button>
+                            ) : task.status !== "DONE" && task.status !== "CANCELLED" ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 px-1.5 text-[10px]"
+                                title="Criar uma nova tentativa de execução"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void dispatch(task);
+                                }}
+                              >
+                                <Play size={11} />
+                                {task.status === "BLOCKED" ? "Tentar de novo" : "Executar"}
+                              </Button>
+                            ) : null}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-1.5 text-[10px]"
+                              title="Abrir a execução e o log completo"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setLogTask(task);
+                              }}
+                            >
+                              <FileText size={11} />
+                              Logs
+                            </Button>
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </CardContent>
             </Card>
@@ -758,6 +800,8 @@ export function KanbanPage() {
         }}
         onApprove={(task) => void approve(task)}
         onDispatch={(task) => void dispatch(task)}
+        onStatus={(task, status) => void transitionTask(task, status)}
+        onWait={(task) => void setWaiting(task)}
         onLogs={(task) => {
           setLogTask(task);
           setInitialRunId(null);
@@ -909,7 +953,10 @@ function TaskFormModal({
 
   if (!open) return null;
   const running =
-    task?.phase_status === "queued" || task?.phase_status === "running";
+    task?.status === "IN_PROGRESS" ||
+    task?.phase_status === "queued" ||
+    task?.phase_status === "running" ||
+    task?.phase_status === "follow_up_queued";
 
   async function submit(rerun: boolean) {
     if (!workspaceId) return;
@@ -1142,6 +1189,8 @@ function TaskDetailsModal({
   onEdit,
   onApprove,
   onDispatch,
+  onStatus,
+  onWait,
   onLogs,
 }: {
   task: Task | null;
@@ -1149,6 +1198,8 @@ function TaskDetailsModal({
   onEdit: (task: Task) => void;
   onApprove: (task: Task) => void;
   onDispatch: (task: Task) => void;
+  onStatus: (task: Task, status: string) => void;
+  onWait: (task: Task) => void;
   onLogs: (task: Task) => void;
 }) {
   const [diagnostics, setDiagnostics] = useState<TaskDiagnostics | null>(null);
@@ -1201,7 +1252,10 @@ function TaskDetailsModal({
   }
 
   const running =
-    task?.phase_status === "queued" || task?.phase_status === "running";
+    task?.status === "IN_PROGRESS" ||
+    task?.phase_status === "queued" ||
+    task?.phase_status === "running" ||
+    task?.phase_status === "follow_up_queued";
   const failed =
     task?.phase_status?.includes("failed") ||
     diagnostics?.error !== null && diagnostics?.error !== undefined;
@@ -1220,9 +1274,30 @@ function TaskDetailsModal({
     >
       {task ? (
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="default">{task.column_stage}</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              variant={
+                task.status === "BLOCKED"
+                  ? "red"
+                  : task.status === "DONE"
+                    ? "green"
+                    : task.status === "IN_PROGRESS"
+                      ? "blue"
+                      : task.status === "CANCELLED"
+                        ? "default"
+                        : "yellow"
+              }
+            >
+              {STATUS_LABEL[task.status] ?? task.status}
+            </Badge>
             <Badge variant="default">prioridade {task.priority}</Badge>
+            {task.last_run_status ? (
+              <Badge variant={runVariant(task.last_run_status)}>
+                último run: {task.last_run_status}
+              </Badge>
+            ) : (
+              <Badge variant="default">sem execução</Badge>
+            )}
             {task.phase_status ? (
               <Badge variant={failed ? "red" : running ? "blue" : "yellow"}>
                 {task.phase_status}
@@ -1240,9 +1315,17 @@ function TaskDetailsModal({
               <Badge variant="default">{task.preferred_model}</Badge>
             ) : null}
             {task.output_dir_path ? (
-              <Badge variant="blue">{task.output_dir_path}</Badge>
+              <Badge variant="blue" title={task.output_dir_path}>
+                output
+              </Badge>
             ) : null}
           </div>
+
+          {task.blocked_reason ? (
+            <p className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-[11px] font-medium text-red-200">
+              Motivo do bloqueio: {task.blocked_reason}
+            </p>
+          ) : null}
 
           {running ? (
             <p className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-[10px] text-blue-200">
@@ -1335,19 +1418,74 @@ function TaskDetailsModal({
             </Button>
             <Button variant="outline" size="sm" onClick={() => onLogs(task)}>
               <FileText size={13} />
-              Logs
+              Execução
             </Button>
+            {task.status !== "CANCELLED" && task.status !== "DONE" ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => onStatus(task, "CANCELLED")}
+                title="Cancelar imediatamente e interromper a execução"
+              >
+                <Square size={12} />
+                Cancelar
+              </Button>
+            ) : null}
+            {task.status !== "BLOCKED" && task.status !== "DONE" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onStatus(task, "BLOCKED")}
+                title="Bloquear a tarefa e interromper a execução"
+              >
+                <Ban size={12} />
+                Bloquear
+              </Button>
+            ) : null}
+            {task.status === "IN_PROGRESS" || task.status === "TODO" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onWait(task)}
+                title="Colocar em espera sem executar"
+              >
+                <Pause size={12} />
+                Em espera
+              </Button>
+            ) : null}
+            {task.status === "BLOCKED" || task.status === "CANCELLED" || task.status === "DONE" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onStatus(task, "TODO")}
+                title="Reabrir a tarefa como To do"
+              >
+                <RotateCw size={12} />
+                Reabrir
+              </Button>
+            ) : null}
+            {task.status !== "DONE" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onStatus(task, "DONE")}
+                title="Marcar como concluída sem executar"
+              >
+                <CheckCircle2 size={12} />
+                Concluir
+              </Button>
+            ) : null}
             {task.phase_status === "awaiting_approval" ? (
               <Button size="sm" onClick={() => onApprove(task)}>
                 <CheckCircle2 size={13} />
                 Aprovar plano e iniciar Build
               </Button>
-            ) : (
+            ) : task.status !== "IN_PROGRESS" ? (
               <Button size="sm" onClick={() => onDispatch(task)}>
                 <Play size={13} />
-                Executar agora
+                {task.status === "BLOCKED" ? "Nova tentativa" : "Executar"}
               </Button>
-            )}
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -1423,7 +1561,7 @@ function LogDrawer({
               {task.title}
             </p>
             <p className="font-mono text-[9px] text-zinc-600">
-              {task.column_stage} · {task.phase_status ?? "sem fase"}
+              {STATUS_LABEL[task.status] ?? task.status} · {task.phase_status ?? "sem fase"}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -1463,7 +1601,9 @@ function LogDrawer({
                   )}
                 >
                   <div className="flex items-center justify-between gap-1">
-                    <p className="truncate text-[10px]">{run.phase ?? "run"}</p>
+                    <p className="truncate text-[10px]">
+                      tentativa {run.attempt_number ?? 1} · {run.phase ?? "run"}
+                    </p>
                     <Badge variant={runVariant(run.status)}>{run.status}</Badge>
                   </div>
                   <p className="font-mono text-[8px] text-zinc-600">

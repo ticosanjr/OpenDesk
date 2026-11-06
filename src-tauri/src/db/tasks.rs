@@ -9,7 +9,8 @@ pub struct Task {
     pub workspace_id: String,
     pub title: String,
     pub description: String,
-    pub column_stage: String,
+    pub status: String,
+    pub phase: Option<String>,
     pub phase_status: Option<String>,
     pub priority: i64,
     pub execution_mode: String,
@@ -26,6 +27,11 @@ pub struct Task {
     pub export_to_gdocs: bool,
     pub tags_json: String,
     pub position_index: i64,
+    pub last_run_id: Option<String>,
+    pub last_run_status: Option<String>,
+    pub last_run_at: Option<String>,
+    pub blocked_reason: Option<String>,
+    pub cancelled_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -62,7 +68,8 @@ pub struct CreateTaskInput {
 pub struct UpdateTaskInput {
     pub title: Option<String>,
     pub description: Option<String>,
-    pub column_stage: Option<String>,
+    pub status: Option<String>,
+    pub phase: Option<String>,
     pub phase_status: Option<String>,
     pub priority: Option<i64>,
     pub execution_mode: Option<String>,
@@ -87,22 +94,42 @@ pub struct UpdateTaskInput {
     pub clear_plan: bool,
 }
 
-const COLUMNS: &str = "id, workspace_id, title, description, column_stage, phase_status, \
+const COLUMNS: &str = "id, workspace_id, title, description, status, phase, phase_status, \
     priority, execution_mode, assigned_agent, preferred_model, agent_override, model_override, \
     effort_level, plan_markdown, output_dir_path, notify_email, export_to_gdocs, tags_json, \
-    position_index, created_at, updated_at";
+    position_index, last_run_id, last_run_status, last_run_at, blocked_reason, cancelled_at, \
+    created_at, updated_at";
 
-const STAGES: [&str; 5] = ["BACKLOG", "PLAN", "BUILD", "REVIEW", "DONE"];
+pub const STATUSES: [&str; 7] = [
+    "BACKLOG",
+    "TODO",
+    "IN_PROGRESS",
+    "IN_REVIEW",
+    "DONE",
+    "CANCELLED",
+    "BLOCKED",
+];
 const MODES: [&str; 4] = ["AUTO_DSH", "PLAN_ONLY", "BUILD_DIRECT", "PLAN_THEN_BUILD"];
 const EFFORTS: [&str; 3] = ["low", "medium", "high"];
 
-fn validate_stage(stage: &str) -> AppResult<String> {
-    let stage = stage.trim().to_uppercase();
-    if STAGES.contains(&stage.as_str()) {
-        Ok(stage)
+fn validate_status(status: &str) -> AppResult<String> {
+    let status = status.trim().to_uppercase();
+    if STATUSES.contains(&status.as_str()) {
+        Ok(status)
     } else {
         Err(AppError::BadRequest(format!(
-            "invalid column_stage '{stage}'"
+            "invalid task status '{status}'"
+        )))
+    }
+}
+
+fn validate_phase(phase: &str) -> AppResult<String> {
+    let phase = phase.trim().to_lowercase();
+    if matches!(phase.as_str(), "plan" | "build" | "audit" | "follow_up") {
+        Ok(phase)
+    } else {
+        Err(AppError::BadRequest(format!(
+            "invalid task phase '{phase}'"
         )))
     }
 }
@@ -132,9 +159,10 @@ fn validate_effort(effort: &str) -> AppResult<String> {
 pub async fn list(pool: &SqlitePool, workspace_id: &str) -> AppResult<Vec<Task>> {
     let query = format!(
         "SELECT {COLUMNS} FROM tasks WHERE workspace_id = ?
-         ORDER BY CASE column_stage
-            WHEN 'BACKLOG' THEN 0 WHEN 'PLAN' THEN 1 WHEN 'BUILD' THEN 2
-            WHEN 'REVIEW' THEN 3 WHEN 'DONE' THEN 4 ELSE 5 END,
+         ORDER BY CASE status
+            WHEN 'BACKLOG' THEN 0 WHEN 'TODO' THEN 1 WHEN 'IN_PROGRESS' THEN 2
+            WHEN 'IN_REVIEW' THEN 3 WHEN 'BLOCKED' THEN 4 WHEN 'DONE' THEN 5
+            WHEN 'CANCELLED' THEN 6 ELSE 7 END,
             position_index ASC, created_at ASC"
     );
     Ok(sqlx::query_as::<_, Task>(&query)
@@ -172,7 +200,7 @@ pub async fn create(
 
     let position: i64 = sqlx::query_scalar(
         "SELECT COALESCE(MAX(position_index), -1) + 1 FROM tasks
-         WHERE workspace_id = ? AND column_stage = 'BACKLOG'",
+         WHERE workspace_id = ? AND status = 'BACKLOG'",
     )
     .bind(workspace_id)
     .fetch_one(pool)
@@ -181,7 +209,7 @@ pub async fn create(
     let id = Uuid::now_v7().to_string();
     sqlx::query(
         "INSERT INTO tasks (
-            id, workspace_id, title, description, column_stage, priority,
+            id, workspace_id, title, description, status, priority,
             execution_mode, assigned_agent, preferred_model, agent_override, model_override,
             effort_level, notify_email, export_to_gdocs, tags_json, position_index
          ) VALUES (?, ?, ?, ?, 'BACKLOG', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -215,9 +243,14 @@ pub async fn update(pool: &SqlitePool, id: &str, input: UpdateTaskInput) -> AppR
         Some(_) => return Err(AppError::BadRequest("task title cannot be empty".into())),
         None => current.title,
     };
-    let stage = match input.column_stage {
-        Some(value) => validate_stage(&value)?,
-        None => current.column_stage,
+    let status = match input.status {
+        Some(value) => validate_status(&value)?,
+        None => current.status,
+    };
+    let phase = match input.phase {
+        Some(value) if value.trim().is_empty() => None,
+        Some(value) => Some(validate_phase(&value)?),
+        None => current.phase,
     };
     let mode = match input.execution_mode {
         Some(value) => validate_mode(&value)?,
@@ -234,7 +267,7 @@ pub async fn update(pool: &SqlitePool, id: &str, input: UpdateTaskInput) -> AppR
 
     sqlx::query(
         "UPDATE tasks SET
-            title = ?, description = ?, column_stage = ?, phase_status = ?,
+            title = ?, description = ?, status = ?, phase = ?, phase_status = ?,
             priority = ?, execution_mode = ?, assigned_agent = ?, preferred_model = ?,
             agent_override = ?, model_override = ?, effort_level = ?, plan_markdown = ?, output_dir_path = ?, notify_email = ?,
             export_to_gdocs = ?, tags_json = ?, position_index = ?,
@@ -243,7 +276,8 @@ pub async fn update(pool: &SqlitePool, id: &str, input: UpdateTaskInput) -> AppR
     )
     .bind(&title)
     .bind(input.description.unwrap_or(current.description))
-    .bind(&stage)
+    .bind(&status)
+    .bind(&phase)
     .bind(input.phase_status.or(current.phase_status))
     .bind(input.priority.unwrap_or(current.priority).clamp(1, 4))
     .bind(&mode)
@@ -288,31 +322,31 @@ pub async fn update(pool: &SqlitePool, id: &str, input: UpdateTaskInput) -> AppR
 pub async fn move_to(
     pool: &SqlitePool,
     id: &str,
-    stage: &str,
+    status: &str,
     position_index: Option<i64>,
 ) -> AppResult<Task> {
-    let stage = validate_stage(stage)?;
+    let status = validate_status(status)?;
     let position = match position_index {
         Some(position) => position,
         None => {
             sqlx::query_scalar(
                 "SELECT COALESCE(MAX(position_index), -1) + 1 FROM tasks
                  WHERE workspace_id = (SELECT workspace_id FROM tasks WHERE id = ?)
-                   AND column_stage = ?",
+                   AND status = ?",
             )
             .bind(id)
-            .bind(&stage)
+            .bind(&status)
             .fetch_one(pool)
             .await?
         }
     };
 
     let result = sqlx::query(
-        "UPDATE tasks SET column_stage = ?, position_index = ?,
+        "UPDATE tasks SET status = ?, position_index = ?,
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
          WHERE id = ?",
     )
-    .bind(&stage)
+    .bind(&status)
     .bind(position)
     .bind(id)
     .execute(pool)
@@ -327,7 +361,7 @@ pub async fn move_to(
 
 pub async fn set_plan(pool: &SqlitePool, id: &str, plan_markdown: &str) -> AppResult<Task> {
     sqlx::query(
-        "UPDATE tasks SET plan_markdown = ?, column_stage = 'PLAN',
+        "UPDATE tasks SET plan_markdown = ?, status = 'TODO', phase = 'plan',
             phase_status = 'awaiting_approval',
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
          WHERE id = ?",
@@ -343,17 +377,21 @@ pub async fn set_phase_status(
     pool: &SqlitePool,
     id: &str,
     phase_status: Option<&str>,
-    stage: Option<&str>,
+    status: Option<&str>,
 ) -> AppResult<()> {
+    let status = match status {
+        Some(value) => Some(validate_status(value)?),
+        None => None,
+    };
     sqlx::query(
         "UPDATE tasks SET
             phase_status = COALESCE(?, phase_status),
-            column_stage = COALESCE(?, column_stage),
+            status = COALESCE(?, status),
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
          WHERE id = ?",
     )
     .bind(phase_status)
-    .bind(stage)
+    .bind(status)
     .bind(id)
     .execute(pool)
     .await?;
@@ -366,17 +404,84 @@ pub async fn replace_phase_status(
     pool: &SqlitePool,
     id: &str,
     phase_status: Option<&str>,
-    stage: Option<&str>,
+    status: Option<&str>,
 ) -> AppResult<Task> {
+    let status = match status {
+        Some(value) => Some(validate_status(value)?),
+        None => None,
+    };
     sqlx::query(
         "UPDATE tasks SET
             phase_status = ?,
-            column_stage = COALESCE(?, column_stage),
+            status = COALESCE(?, status),
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
          WHERE id = ?",
     )
     .bind(phase_status)
-    .bind(stage)
+    .bind(status)
+    .bind(id)
+    .execute(pool)
+    .await?;
+    get(pool, id).await
+}
+
+pub async fn set_phase(pool: &SqlitePool, id: &str, phase: Option<&str>) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE tasks SET phase = ?,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE id = ?",
+    )
+    .bind(phase)
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn set_last_run(
+    pool: &SqlitePool,
+    id: &str,
+    run_id: Option<&str>,
+    status: Option<&str>,
+) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE tasks SET last_run_id = ?, last_run_status = ?,
+            last_run_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE id = ?",
+    )
+    .bind(run_id)
+    .bind(status)
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn set_blocked_reason(
+    pool: &SqlitePool,
+    id: &str,
+    reason: Option<&str>,
+) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE tasks SET blocked_reason = ?,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE id = ?",
+    )
+    .bind(reason)
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn set_cancelled(pool: &SqlitePool, id: &str) -> AppResult<Task> {
+    sqlx::query(
+        "UPDATE tasks SET status = 'CANCELLED', phase_status = 'cancelled',
+            cancelled_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE id = ?",
+    )
     .bind(id)
     .execute(pool)
     .await?;
@@ -454,7 +559,7 @@ mod tests {
     async fn task_lifecycle() {
         let (_temp, pool) = setup().await;
         let task = create(&pool, "ws-1", input()).await.expect("create");
-        assert_eq!(task.column_stage, "BACKLOG");
+        assert_eq!(task.status, "BACKLOG");
         assert_eq!(task.priority, 4);
         assert_eq!(task.execution_mode, "PLAN_THEN_BUILD");
         assert_eq!(task.tags(), vec!["financeiro", "mensal"]);
@@ -481,10 +586,10 @@ mod tests {
             Some("opencode-go/glm-5.3#high")
         );
 
-        let moved = move_to(&pool, &task.id, "BUILD", Some(2))
+        let moved = move_to(&pool, &task.id, "IN_PROGRESS", Some(2))
             .await
             .expect("move");
-        assert_eq!(moved.column_stage, "BUILD");
+        assert_eq!(moved.status, "IN_PROGRESS");
         assert_eq!(moved.position_index, 2);
 
         assert!(
@@ -494,7 +599,7 @@ mod tests {
                 .plan_markdown
                 .is_some()
         );
-        set_phase_status(&pool, &task.id, Some("running"), Some("BUILD"))
+        set_phase_status(&pool, &task.id, Some("running"), Some("IN_PROGRESS"))
             .await
             .expect("phase");
         assert_eq!(

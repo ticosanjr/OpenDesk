@@ -1129,6 +1129,48 @@ pub async fn runtime(
 
 pub async fn catalog() -> Json<Value> {
     Json(json!({
+        "repos": [
+            {
+                "id": "anthropic-skills",
+                "name": "Anthropic Skills",
+                "description": "Coleção oficial de skills de exemplo da Anthropic.",
+                "source_type": "github",
+                "source": "anthropics/skills",
+                "kind": "skill"
+            },
+            {
+                "id": "superpowers",
+                "name": "Superpowers",
+                "description": "Workflows e skills de engenharia para agentes.",
+                "source_type": "github",
+                "source": "obra/superpowers",
+                "kind": "skill"
+            },
+            {
+                "id": "playwright-mcp",
+                "name": "Playwright MCP",
+                "description": "Automação de navegador via MCP (Microsoft).",
+                "source_type": "npm",
+                "source": "@playwright/mcp",
+                "kind": "mcp"
+            },
+            {
+                "id": "context7",
+                "name": "Context7 MCP",
+                "description": "Documentação atualizada de bibliotecas via MCP.",
+                "source_type": "npm",
+                "source": "@upstash/context7-mcp",
+                "kind": "mcp"
+            },
+            {
+                "id": "mcp-servers",
+                "name": "MCP Servers",
+                "description": "Servidores MCP de referência da comunidade.",
+                "source_type": "github",
+                "source": "modelcontextprotocol/servers",
+                "kind": "mcp"
+            }
+        ],
         "mcps": [
             {
                 "id": "filesystem",

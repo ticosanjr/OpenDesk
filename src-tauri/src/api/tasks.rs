@@ -4,6 +4,7 @@ use crate::{
         self, budget,
         queue::{self, EnqueueInput},
         router as router_db, runs,
+        task_messages::{self, CreateTaskMessageInput},
         tasks::{self, CreateTaskInput, UpdateTaskInput},
         workspaces,
     },
@@ -35,7 +36,8 @@ pub struct DispatchBody {
 
 #[derive(Debug, Deserialize)]
 pub struct MoveBody {
-    pub column_stage: String,
+    #[serde(alias = "column_stage")]
+    pub status: String,
     pub position_index: Option<i64>,
 }
 
@@ -73,7 +75,7 @@ pub async fn update_task(
     state.events.publish(OpenDeskWsEvent::TaskUpdated {
         task_id: task.id.clone(),
         workspace_id: task.workspace_id.clone(),
-        stage: task.column_stage.clone(),
+        stage: task.status.clone(),
         phase_status: task.phase_status.clone(),
     });
     Ok(Json(task))
@@ -92,11 +94,11 @@ pub async fn move_task(
     Path(id): Path<String>,
     Json(body): Json<MoveBody>,
 ) -> AppResult<Json<tasks::Task>> {
-    let task = tasks::move_to(&state.db, &id, &body.column_stage, body.position_index).await?;
+    let task = tasks::move_to(&state.db, &id, &body.status, body.position_index).await?;
     state.events.publish(OpenDeskWsEvent::TaskUpdated {
         task_id: task.id.clone(),
         workspace_id: task.workspace_id.clone(),
-        stage: task.column_stage.clone(),
+        stage: task.status.clone(),
         phase_status: task.phase_status.clone(),
     });
     Ok(Json(task))
@@ -247,17 +249,8 @@ async fn enqueue_decision(
         agent: &decision.selected_agent,
     });
 
-    tasks::move_to(
-        &state.db,
-        &task.id,
-        if decision.phase == "plan" {
-            "PLAN"
-        } else {
-            "BUILD"
-        },
-        None,
-    )
-    .await?;
+    tasks::move_to(&state.db, &task.id, "TODO", None).await?;
+    tasks::set_phase(&state.db, &task.id, Some(&decision.phase)).await?;
 
     let job = state
         .queue
@@ -274,19 +267,14 @@ async fn enqueue_decision(
             scheduled_for: None,
             output_dir: Some(decision.output_directory.clone()),
             priority: task.priority,
-            max_retries: 2,
+            max_retries: 1,
         })
         .await?;
 
     state.events.publish(OpenDeskWsEvent::TaskUpdated {
         task_id: task.id.clone(),
         workspace_id: task.workspace_id.clone(),
-        stage: if decision.phase == "plan" {
-            "PLAN"
-        } else {
-            "BUILD"
-        }
-        .into(),
+        stage: "TODO".into(),
         phase_status: Some("queued".into()),
     });
 
@@ -300,6 +288,115 @@ pub async fn resolve_workspace_id(state: &AppState, requested: Option<&str>) -> 
     db::settings::active_workspace_id(&state.db)
         .await?
         .ok_or_else(|| AppError::BadRequest("no active workspace".into()))
+}
+
+pub async fn list_task_messages(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<Vec<task_messages::TaskMessage>>> {
+    tasks::get(&state.db, &id).await?;
+    Ok(Json(task_messages::list(&state.db, &id).await?))
+}
+
+pub async fn post_task_message(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(input): Json<CreateTaskMessageInput>,
+) -> AppResult<Json<serde_json::Value>> {
+    let task = tasks::get(&state.db, &id).await?;
+    let message = task_messages::create(
+        &state.db,
+        &id,
+        "user",
+        "comment",
+        &input.content,
+        input.run_id.as_deref(),
+        None,
+    )
+    .await?;
+
+    if !input.continue_execution {
+        return Ok(Json(serde_json::json!({ "message": message, "job": null })));
+    }
+
+    crate::api::engine::require_engine_strict(&state).await?;
+    let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
+    let mut decision = plan_decision(
+        &state,
+        &task,
+        &workspace,
+        &DispatchBody {
+            manual_agent: input.agent.clone(),
+            manual_model: input.model.clone(),
+            ..Default::default()
+        },
+        task.plan_markdown.as_deref(),
+    )
+    .await?;
+    decision.phase = "follow_up".into();
+
+    std::fs::create_dir_all(&decision.output_directory).map_err(|error| {
+        AppError::Internal(format!("could not create output directory: {error}"))
+    })?;
+    tasks::set_output_dir(&state.db, &task.id, &decision.output_directory).await?;
+
+    let history = task_messages::list(&state.db, &id).await?;
+    let conversation = history
+        .iter()
+        .filter(|item| item.role == "user")
+        .map(|item| format!("Usuário: {}", item.content))
+        .collect::<Vec<_>>()
+        .join(
+            "
+
+",
+        );
+    let tags = task.tags();
+    let packed = dsh_router::pack(&PackContext {
+        workspace_root: std::path::Path::new(&workspace.root_path),
+        output_directory: &decision.output_directory,
+        task_title: &task.title,
+        task_description: &task.description,
+        tags: &tags,
+        priority: task.priority,
+        phase: "follow_up",
+        plan: task.plan_markdown.as_deref(),
+        agent: &decision.selected_agent,
+    });
+    let prompt = format!(
+        "{packed}\n\n## Conversa com o usuário\n\n{conversation}\n\nContinue a execução considerando a mensagem acima. Se precisar de uma decisão, pare e faça a pergunta."
+    );
+
+    let job = state
+        .queue
+        .enqueue(EnqueueInput {
+            workspace_id: task.workspace_id.clone(),
+            task_id: Some(task.id.clone()),
+            schedule_id: None,
+            prompt_payload: prompt,
+            resolved_mode: "build".into(),
+            resolved_agent: decision.selected_agent.clone(),
+            resolved_model: decision.selected_model.clone(),
+            resolved_effort: decision.effort.clone(),
+            job_kind: "follow_up".into(),
+            scheduled_for: None,
+            output_dir: Some(decision.output_directory.clone()),
+            priority: task.priority,
+            max_retries: 1,
+        })
+        .await?;
+
+    tasks::move_to(&state.db, &task.id, "TODO", None).await?;
+    tasks::set_phase(&state.db, &task.id, Some("follow_up")).await?;
+    tasks::set_phase_status(&state.db, &task.id, Some("follow_up_queued"), Some("TODO")).await?;
+    state.events.publish(OpenDeskWsEvent::TaskUpdated {
+        task_id: task.id.clone(),
+        workspace_id: task.workspace_id.clone(),
+        stage: "TODO".into(),
+        phase_status: Some("follow_up_queued".into()),
+    });
+
+    Ok(Json(serde_json::json!({ "message": message, "job": job })))
 }
 
 pub async fn task_diagnostics(
@@ -382,24 +479,23 @@ fn read_tail(path: &std::path::Path, max_bytes: u64) -> Option<String> {
 
 #[derive(Debug, Deserialize)]
 pub struct TransitionBody {
-    pub column_stage: String,
-    #[serde(default)]
-    pub position_index: Option<i64>,
+    #[serde(alias = "column_stage")]
+    pub status: String,
 }
 
-/// Explicit Kanban transition. Moving a card is a workflow action, not just a
-/// label change: PLAN starts a plan, BUILD starts a build, REVIEW starts an
-/// audit when the workspace uses BEST_QUALITY, and DONE closes the card.
+/// Explicit status transition (Paperclip-style). Moving a card never starts a
+/// run by itself; dispatch is a separate action. Terminal states cancel any
+/// queued/running job for the task.
 pub async fn transition_task(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     Json(body): Json<TransitionBody>,
 ) -> AppResult<Json<serde_json::Value>> {
     let task = tasks::get(&state.db, &id).await?;
-    let target = body.column_stage.trim().to_uppercase();
+    let target = body.status.trim().to_uppercase();
 
     match target.as_str() {
-        "BACKLOG" => {
+        "BACKLOG" | "CANCELLED" | "BLOCKED" | "TODO" => {
             let jobs = queue::list(&state.db, Some(&task.workspace_id)).await?;
             for job in jobs
                 .into_iter()
@@ -408,169 +504,56 @@ pub async fn transition_task(
             {
                 let _ = state.queue.cancel(&job.id).await;
             }
-            let task = tasks::replace_phase_status(&state.db, &id, None, Some("BACKLOG")).await?;
-            publish_task(&state, &task);
-            Ok(Json(serde_json::json!({ "task": task, "job": null })))
-        }
-        "PLAN" => {
-            if task.plan_markdown.is_none() {
-                let task =
-                    tasks::replace_phase_status(&state.db, &id, Some("dispatching"), Some("PLAN"))
-                        .await?;
-                publish_task(&state, &task);
-                let result = async {
-                    crate::api::engine::require_engine_strict(&state).await?;
-                    let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
-                    let mut decision =
-                        plan_decision(&state, &task, &workspace, &DispatchBody::default(), None)
-                            .await?;
-                    decision.phase = "plan".into();
-                    enqueue_decision(&state, &task, &workspace, &decision, None).await
-                }
-                .await;
-                match result {
-                    Ok(job) => Ok(Json(serde_json::json!({ "task": task, "job": job }))),
-                    Err(error) => {
-                        dispatch_failed(&state, &task, "PLAN", &format!("{error:#}")).await
-                    }
-                }
+            let task = if target == "CANCELLED" {
+                tasks::set_cancelled(&state.db, &id).await?
             } else {
-                let task = tasks::move_to(&state.db, &id, "PLAN", body.position_index).await?;
-                publish_task(&state, &task);
-                Ok(Json(serde_json::json!({ "task": task, "job": null })))
-            }
-        }
-        "BUILD" => {
-            let task =
-                tasks::replace_phase_status(&state.db, &id, Some("dispatching"), Some("BUILD"))
-                    .await?;
-            publish_task(&state, &task);
-            let result = async {
-                crate::api::engine::require_engine_strict(&state).await?;
-                let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
-                let approved = task.plan_markdown.clone();
-                let mut decision = plan_decision(
-                    &state,
-                    &task,
-                    &workspace,
-                    &DispatchBody::default(),
-                    approved.as_deref(),
+                let reason = if target == "BLOCKED" {
+                    Some("Bloqueada manualmente")
+                } else {
+                    None
+                };
+                tasks::set_blocked_reason(&state.db, &id, reason).await?;
+                tasks::replace_phase_status(
+                    &state.db,
+                    &id,
+                    if target == "BLOCKED" {
+                        Some("blocked")
+                    } else {
+                        None
+                    },
+                    Some(&target),
                 )
-                .await?;
-                decision.phase = "build".into();
-                enqueue_decision(&state, &task, &workspace, &decision, approved.as_deref()).await
-            }
-            .await;
-            match result {
-                Ok(job) => Ok(Json(serde_json::json!({ "task": task, "job": job }))),
-                Err(error) => dispatch_failed(&state, &task, "BUILD", &format!("{error:#}")).await,
-            }
-        }
-        "REVIEW" => {
-            let task =
-                tasks::replace_phase_status(&state.db, &id, Some("dispatching"), Some("REVIEW"))
-                    .await?;
-            publish_task(&state, &task);
-            let result = async {
-                crate::api::engine::require_engine_strict(&state).await?;
-                let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
-                let mut decision =
-                    plan_decision(&state, &task, &workspace, &DispatchBody::default(), None)
-                        .await?;
-                decision.phase = "audit".into();
-                decision.selected_agent = "explore".into();
-                decision.effort = "high".into();
-                let tags = task.tags();
-                let output_directory = task.output_dir_path.clone().unwrap_or_else(|| {
-                    std::path::Path::new(&workspace.root_path)
-                        .join("output")
-                        .join(chrono::Utc::now().format("%Y-%m").to_string())
-                        .join(crate::dsh_router::slugify(&task.title))
-                        .to_string_lossy()
-                        .to_string()
-                });
-                let prompt = dsh_router::pack(&PackContext {
-                    workspace_root: std::path::Path::new(&workspace.root_path),
-                    output_directory: &output_directory,
-                    task_title: &task.title,
-                    task_description: &task.description,
-                    tags: &tags,
-                    priority: task.priority,
-                    phase: "audit",
-                    plan: task.plan_markdown.as_deref(),
-                    agent: "explore",
-                });
-                state
-                    .queue
-                    .enqueue(EnqueueInput {
-                        workspace_id: task.workspace_id.clone(),
-                        task_id: Some(task.id.clone()),
-                        schedule_id: None,
-                        prompt_payload: prompt,
-                        resolved_mode: "audit".into(),
-                        resolved_agent: "explore".into(),
-                        resolved_model: decision.selected_model.clone(),
-                        resolved_effort: "high".into(),
-                        job_kind: "audit".into(),
-                        scheduled_for: None,
-                        output_dir: Some(output_directory),
-                        priority: task.priority,
-                        max_retries: 1,
-                    })
-                    .await
-            }
-            .await;
-            match result {
-                Ok(job) => {
-                    let task = tasks::replace_phase_status(
-                        &state.db,
-                        &id,
-                        Some("audit_queued"),
-                        Some("REVIEW"),
-                    )
-                    .await?;
-                    publish_task(&state, &task);
-                    Ok(Json(serde_json::json!({ "task": task, "job": job })))
-                }
-                Err(error) => dispatch_failed(&state, &task, "REVIEW", &format!("{error:#}")).await,
-            }
-        }
-        "DONE" => {
-            let task =
-                tasks::replace_phase_status(&state.db, &id, Some("done"), Some("DONE")).await?;
+                .await?
+            };
             publish_task(&state, &task);
             Ok(Json(serde_json::json!({ "task": task, "job": null })))
         }
-        other => {
-            let task = tasks::move_to(&state.db, &id, other, body.position_index).await?;
-            publish_task(&state, &task);
-            Ok(Json(serde_json::json!({ "task": task, "job": null })))
-        }
-    }
-}
-
-async fn dispatch_failed(
-    state: &AppState,
-    task: &tasks::Task,
-    stage: &str,
-    message: &str,
-) -> AppResult<Json<serde_json::Value>> {
-    let task =
-        tasks::replace_phase_status(&state.db, &task.id, Some("dispatch_failed"), Some(stage))
+        "IN_REVIEW" | "DONE" | "IN_PROGRESS" => {
+            let task = tasks::replace_phase_status(
+                &state.db,
+                &id,
+                if target == "TODO" {
+                    Some("waiting")
+                } else {
+                    None
+                },
+                Some(&target),
+            )
             .await?;
-    publish_task(state, &task);
-    Ok(Json(serde_json::json!({
-        "task": task,
-        "job": null,
-        "error": message,
-    })))
+            publish_task(&state, &task);
+            Ok(Json(serde_json::json!({ "task": task, "job": null })))
+        }
+        other => Err(AppError::BadRequest(format!(
+            "invalid task status '{other}'"
+        ))),
+    }
 }
 
 fn publish_task(state: &AppState, task: &tasks::Task) {
     state.events.publish(OpenDeskWsEvent::TaskUpdated {
         task_id: task.id.clone(),
         workspace_id: task.workspace_id.clone(),
-        stage: task.column_stage.clone(),
+        stage: task.status.clone(),
         phase_status: task.phase_status.clone(),
     });
 }

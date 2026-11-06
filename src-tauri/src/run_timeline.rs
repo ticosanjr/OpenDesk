@@ -18,6 +18,19 @@ pub struct RunTimeline {
     pub result: TimelineSection,
     pub log_missing: bool,
     pub workspace_root: Option<String>,
+    pub events: Vec<TimelineEvent>,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct TimelineEvent {
+    pub kind: String,
+    pub role: String,
+    pub text: String,
+    pub tool: Option<TimelineTool>,
+    pub step_index: Option<usize>,
+    pub started_at: Option<String>,
+    pub ended_at: Option<String>,
+    pub duration_ms: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -96,6 +109,10 @@ pub fn timeline_from_events(
     let mut result_last: Option<i64> = None;
     let mut text_started: Option<i64> = None;
     let mut step_stack: Vec<usize> = Vec::new();
+    let mut current_thinking: Option<usize> = None;
+    let mut current_comment: Option<usize> = None;
+    let mut tool_events: HashMap<String, usize> = HashMap::new();
+    let mut step_events: HashMap<usize, usize> = HashMap::new();
 
     for event in events {
         timeline.events_count += 1;
@@ -142,6 +159,15 @@ pub fn timeline_from_events(
                     ..Default::default()
                 });
                 step_stack.push(index - 1);
+                timeline.events.push(TimelineEvent {
+                    kind: "step".into(),
+                    role: "system".into(),
+                    text: format!("Passo {}", index),
+                    step_index: Some(index),
+                    started_at: iso(created),
+                    ..Default::default()
+                });
+                step_events.insert(index, timeline.events.len() - 1);
             }
             "session.step.ended" => {
                 if let Some(index) = step_stack.pop()
@@ -173,10 +199,33 @@ pub fn timeline_from_events(
                 reasoning_started = Some(created);
                 thinking_first = Some(thinking_first.map_or(created, |value| value.min(created)));
                 thinking_last = Some(thinking_last.map_or(created, |value| value.max(created)));
+                timeline.events.push(TimelineEvent {
+                    kind: "thinking".into(),
+                    role: "assistant".into(),
+                    started_at: iso(created),
+                    ..Default::default()
+                });
+                current_thinking = Some(timeline.events.len() - 1);
             }
             "session.reasoning.delta" => {
-                if let Some(delta) = data.get("delta").and_then(Value::as_str) {
-                    thinking_text.push_str(delta);
+                let delta = data.get("delta").and_then(Value::as_str).unwrap_or("");
+                thinking_text.push_str(delta);
+                if current_thinking.is_none() {
+                    timeline.events.push(TimelineEvent {
+                        kind: "thinking".into(),
+                        role: "assistant".into(),
+                        started_at: iso(created),
+                        ..Default::default()
+                    });
+                    current_thinking = Some(timeline.events.len() - 1);
+                }
+                if let Some(index) = current_thinking
+                    && let Some(event) = timeline.events.get_mut(index)
+                {
+                    event.text.push_str(delta);
+                    event.ended_at = iso(created);
+                    let start = event.started_at.as_deref().and_then(parse_iso_ms);
+                    event.duration_ms = duration(start, Some(created));
                 }
                 thinking_first = Some(thinking_first.map_or(created, |value| value.min(created)));
                 thinking_last = Some(thinking_last.map_or(created, |value| value.max(created)));
@@ -187,6 +236,19 @@ pub fn timeline_from_events(
                 {
                     thinking_text.push_str(text);
                 }
+                if let Some(index) = current_thinking
+                    && let Some(event) = timeline.events.get_mut(index)
+                {
+                    if event.text.trim().is_empty()
+                        && let Some(text) = data.get("text").and_then(Value::as_str)
+                    {
+                        event.text.push_str(text);
+                    }
+                    event.ended_at = iso(created);
+                    let start = event.started_at.as_deref().and_then(parse_iso_ms);
+                    event.duration_ms = duration(start, Some(created));
+                }
+                current_thinking = None;
                 thinking_last = Some(thinking_last.map_or(created, |value| value.max(created)));
                 reasoning_started = None;
             }
@@ -207,6 +269,23 @@ pub fn timeline_from_events(
                         .unwrap_or("tool")
                         .to_string();
                     tools[index].started_ms = Some(created);
+                    let name = tools[index].name.clone();
+                    let id = tools[index].id.clone();
+                    timeline.events.push(TimelineEvent {
+                        kind: "tool".into(),
+                        role: "tool".into(),
+                        text: name.clone(),
+                        tool: Some(TimelineTool {
+                            id: id.clone(),
+                            name,
+                            status: "running".into(),
+                            started_at: iso(created),
+                            ..Default::default()
+                        }),
+                        started_at: iso(created),
+                        ..Default::default()
+                    });
+                    tool_events.insert(id, timeline.events.len() - 1);
                 }
             }
             "session.tool.called" => {
@@ -231,14 +310,40 @@ pub fn timeline_from_events(
                         tools[index].input = input.to_string();
                     }
                     tools[index].started_ms.get_or_insert(created);
+                    if !tool_events.contains_key(id) {
+                        let name = tools[index].name.clone();
+                        let id_value = tools[index].id.clone();
+                        timeline.events.push(TimelineEvent {
+                            kind: "tool".into(),
+                            role: "tool".into(),
+                            text: name.clone(),
+                            tool: Some(TimelineTool {
+                                id: id_value.clone(),
+                                name,
+                                status: "running".into(),
+                                started_at: iso(created),
+                                ..Default::default()
+                            }),
+                            started_at: iso(created),
+                            ..Default::default()
+                        });
+                        tool_events.insert(id_value, timeline.events.len() - 1);
+                    }
                 }
             }
             "session.tool.input.ended" => {
                 let id = data.get("id").and_then(Value::as_str).unwrap_or_default();
-                if let Some(index) = tool_index.get(id)
-                    && let Some(text) = data.get("text").and_then(Value::as_str)
-                {
-                    tools[*index].input = text.to_string();
+                if let Some(index) = tool_index.get(id) {
+                    if let Some(text) = data.get("text").and_then(Value::as_str) {
+                        tools[*index].input = text.to_string();
+                    }
+                    if let Some(event_index) = tool_events.get(id).copied()
+                        && let Some(event) = timeline.events.get_mut(event_index)
+                        && let Some(tool) = event.tool.as_mut()
+                    {
+                        tool.input = tools[*index].input.clone();
+                        tool.summary = tool_summary(&tool.name, &tool.input);
+                    }
                 }
             }
             "session.tool.success" | "session.tool.failed" => {
@@ -251,16 +356,51 @@ pub fn timeline_from_events(
                     };
                     tools[*index].ended_ms = Some(created);
                     tools[*index].output = tool_output(&data);
+                    if let Some(event_index) = tool_events.get(id).copied()
+                        && let Some(event) = timeline.events.get_mut(event_index)
+                        && let Some(tool) = event.tool.as_mut()
+                    {
+                        tool.status = tools[*index].status.clone();
+                        tool.output = tools[*index].output.clone();
+                        tool.ended_at = iso(created);
+                        let start = tool.started_at.as_deref().and_then(parse_iso_ms);
+                        tool.duration_ms = duration(start, Some(created));
+                        event.ended_at = iso(created);
+                        event.duration_ms = duration(start, Some(created));
+                    }
                 }
             }
             "session.text.started" => {
                 text_started = Some(created);
+                timeline.events.push(TimelineEvent {
+                    kind: "comment".into(),
+                    role: "assistant".into(),
+                    started_at: iso(created),
+                    ..Default::default()
+                });
+                current_comment = Some(timeline.events.len() - 1);
             }
             "session.text.delta" => {
-                if let Some(delta) = data.get("delta").and_then(Value::as_str)
-                    && result_text.is_empty()
-                {
+                let delta = data.get("delta").and_then(Value::as_str).unwrap_or("");
+                if result_text.is_empty() {
                     result_text.push_str(delta);
+                }
+                if current_comment.is_none() {
+                    timeline.events.push(TimelineEvent {
+                        kind: "comment".into(),
+                        role: "assistant".into(),
+                        started_at: iso(created),
+                        ..Default::default()
+                    });
+                    current_comment = Some(timeline.events.len() - 1);
+                }
+                if let Some(index) = current_comment
+                    && let Some(event) = timeline.events.get_mut(index)
+                {
+                    event.text.push_str(delta);
+                    event.ended_at = iso(created);
+                    let start = event.started_at.as_deref().and_then(parse_iso_ms);
+                    event.duration_ms = duration(start, Some(created));
                 }
                 result_first = Some(result_first.map_or(created, |value| value.min(created)));
                 result_last = Some(result_last.map_or(created, |value| value.max(created)));
@@ -276,6 +416,19 @@ pub fn timeline_from_events(
                         .or(text_started)
                         .map_or(created, |value| value.min(created)),
                 );
+                if let Some(index) = current_comment
+                    && let Some(event) = timeline.events.get_mut(index)
+                {
+                    if event.text.trim().is_empty()
+                        && let Some(text) = data.get("text").and_then(Value::as_str)
+                    {
+                        event.text.push_str(text);
+                    }
+                    event.ended_at = iso(created);
+                    let start = event.started_at.as_deref().and_then(parse_iso_ms);
+                    event.duration_ms = duration(start, Some(created));
+                }
+                current_comment = None;
                 result_last = Some(result_last.map_or(created, |value| value.max(created)));
             }
             "session.execution.succeeded" | "session.execution.failed" => {
@@ -365,9 +518,23 @@ pub fn timeline_from_events(
         started_at: executed_first.and_then(iso),
         ended_at: executed_last.and_then(iso),
         duration_ms: duration(executed_first, executed_last),
-        tools: timeline_tools,
+        tools: timeline_tools.clone(),
         ..Default::default()
     };
+    for event in &mut timeline.events {
+        if let Some(tool) = &event.tool
+            && let Some(final_tool) = timeline_tools.iter().find(|item| item.id == tool.id)
+        {
+            event.tool = Some(final_tool.clone());
+        }
+        if event.kind == "thinking" || event.kind == "comment" {
+            let (text, truncated) = truncate(event.text.clone(), MAX_TEXT);
+            event.text = text;
+            if truncated {
+                event.text.push_str("\n\n[truncado]");
+            }
+        }
+    }
 
     let (result_text, result_truncated) = truncate(result_text, MAX_TEXT);
     timeline.result = TimelineSection {
@@ -500,6 +667,19 @@ mod tests {
         assert_eq!(timeline.steps.len(), 1);
         assert_eq!(timeline.steps[0].tokens_input, 10);
         assert_eq!(timeline.steps[0].duration_ms, 1600);
+        assert!(timeline.events.iter().any(|event| event.kind == "step"));
+        assert!(timeline.events.iter().any(|event| event.kind == "thinking"));
+        assert!(timeline.events.iter().any(|event| event.kind == "tool"));
+        assert!(timeline.events.iter().any(|event| event.kind == "comment"));
+        let kinds = timeline
+            .events
+            .iter()
+            .map(|event| event.kind.as_str())
+            .collect::<Vec<_>>();
+        let thinking = kinds.iter().position(|kind| *kind == "thinking").unwrap();
+        let tool = kinds.iter().position(|kind| *kind == "tool").unwrap();
+        let comment = kinds.iter().position(|kind| *kind == "comment").unwrap();
+        assert!(thinking < tool && tool < comment);
     }
 
     #[test]

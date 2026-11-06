@@ -261,7 +261,8 @@ export interface Task {
   workspace_id: string;
   title: string;
   description: string;
-  column_stage: string;
+  status: string;
+  phase?: string | null;
   phase_status?: string | null;
   priority: number;
   execution_mode: string;
@@ -276,6 +277,11 @@ export interface Task {
   export_to_gdocs: boolean;
   tags_json: string;
   position_index: number;
+  last_run_id?: string | null;
+  last_run_status?: string | null;
+  last_run_at?: string | null;
+  blocked_reason?: string | null;
+  cancelled_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -299,6 +305,8 @@ export interface TaskRun {
   workspace_id: string;
   task_id?: string | null;
   schedule_id?: string | null;
+  attempt_number: number;
+  session_id?: string | null;
   parent_run_id?: string | null;
   phase?: string | null;
   agent_name: string;
@@ -609,6 +617,14 @@ export interface StudioInstallPreview {
 }
 
 export interface StudioCatalog {
+  repos?: Array<{
+    id: string;
+    name: string;
+    description: string;
+    source_type: "github" | "npm" | "url" | "local";
+    source: string;
+    kind: "agent" | "skill" | "command" | "mcp";
+  }>;
   mcps: Array<{
     id: string;
     name: string;
@@ -704,6 +720,7 @@ export interface FileContent {
   content: string;
   truncated: boolean;
   binary: boolean;
+  mime: string;
   size: number;
 }
 
@@ -756,4 +773,37 @@ export interface RunTimeline {
   result: TimelineSection;
   log_missing: boolean;
   workspace_root?: string | null;
+  events: TimelineEvent[];
+}
+
+
+export interface TimelineEvent {
+  kind: "thinking" | "tool" | "comment" | "step" | string;
+  role: string;
+  text: string;
+  tool?: TimelineTool | null;
+  step_index?: number | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  duration_ms: number;
+}
+
+export interface TaskMessage {
+  id: string;
+  task_id: string;
+  run_id?: string | null;
+  role: string;
+  kind: string;
+  content: string;
+  metadata_json?: string | null;
+  created_at: string;
+}
+
+export interface SearchHit {
+  id: string;
+  kind: string;
+  title: string;
+  snippet: string;
+  updated_at?: string | null;
+  link: string;
 }

@@ -17,6 +17,7 @@ pub mod router;
 pub mod runs;
 pub mod schedules;
 pub mod settings;
+pub mod task_messages;
 pub mod tasks;
 pub mod workspaces;
 

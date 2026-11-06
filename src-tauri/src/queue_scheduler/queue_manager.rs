@@ -3,7 +3,6 @@ use crate::{
         artifacts::{self, CreateArtifactInput},
         budget, model_health, queue, runs, tasks, workspaces,
     },
-    dsh_router::{self, PackContext},
     error::{AppError, AppResult},
     events::{ArtifactProvenanceDto, EventBus, OpenDeskWsEvent, QueueJobDto},
     integrations::{delivery, google_oauth::GoogleOAuth},
@@ -271,7 +270,23 @@ impl QueueManager {
         let runs = runs::recover_running(&self.pool).await?;
         let jobs = queue::recover_running(&self.pool).await?;
         if runs > 0 || jobs > 0 {
-            tracing::warn!(runs, jobs, "recovered interrupted jobs after restart");
+            let _ = sqlx::query(
+                "UPDATE tasks SET status = 'BLOCKED', phase_status = 'failed',
+                    blocked_reason = 'Execução interrompida por reinício do OpenDesk',
+                    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                 WHERE id IN (
+                    SELECT task_id FROM execution_queue
+                    WHERE task_id IS NOT NULL
+                      AND error_message LIKE 'interrupted by OpenDesk restart%'
+                 )",
+            )
+            .execute(&self.pool)
+            .await;
+            tracing::warn!(
+                runs,
+                jobs,
+                "recovered interrupted jobs after restart; manual retry required"
+            );
         }
         self.notify.notify_waiters();
         Ok(())
@@ -325,10 +340,20 @@ impl QueueManager {
                     .join(chrono::Utc::now().format("%Y-%m").to_string())
                     .join(crate::dsh_router::slugify(&title))
             });
-        let output_dir_string = output_dir.to_string_lossy().to_string();
-
         if let Err(error) = std::fs::create_dir_all(&output_dir) {
             tracing::warn!(path = %output_dir.display(), error = %error, "could not create output directory");
+        }
+
+        if let Some(task) = &task {
+            let _ =
+                tasks::set_phase_status(&self.pool, &task.id, Some("running"), Some("IN_PROGRESS"))
+                    .await;
+            self.events.publish(OpenDeskWsEvent::TaskUpdated {
+                task_id: task.id.clone(),
+                workspace_id: task.workspace_id.clone(),
+                stage: "IN_PROGRESS".into(),
+                phase_status: Some("running".into()),
+            });
         }
 
         let run = match runs::create(
@@ -388,11 +413,21 @@ impl QueueManager {
             )
             .await;
             if let Some(task) = &task {
-                let _ = tasks::set_phase_status(&self.pool, &task.id, Some("failed"), None).await;
+                let _ =
+                    tasks::set_phase_status(&self.pool, &task.id, Some("failed"), Some("BLOCKED"))
+                        .await;
+                let _ = tasks::set_blocked_reason(
+                    &self.pool,
+                    &task.id,
+                    Some("OpenCode daemon is offline"),
+                )
+                .await;
+                let _ =
+                    tasks::set_last_run(&self.pool, &task.id, Some(&run.id), Some("FAILED")).await;
                 self.events.publish(OpenDeskWsEvent::TaskUpdated {
                     task_id: task.id.clone(),
                     workspace_id: task.workspace_id.clone(),
-                    stage: task.column_stage.clone(),
+                    stage: "BLOCKED".into(),
                     phase_status: Some("failed".into()),
                 });
             }
@@ -487,7 +522,6 @@ impl QueueManager {
             .await;
         }
 
-        let mut fallback_enqueued = false;
         let _ = runs::finish(
             &self.pool,
             &run_id,
@@ -499,7 +533,9 @@ impl QueueManager {
         )
         .await;
 
-        if outcome.status != RunStatus::Success {
+        if outcome.status == RunStatus::Success {
+            let _ = model_health::record_success(&self.pool, &job.resolved_model).await;
+        } else {
             let message = outcome
                 .error
                 .as_deref()
@@ -509,48 +545,7 @@ impl QueueManager {
             let _ = runs::set_error(&self.pool, &run_id, code, message, hint).await;
             if matches!(code, "model_unavailable" | "auth_failed") {
                 let _ = model_health::record_failure(&self.pool, &job.resolved_model, code).await;
-                if job.job_kind != "fallback"
-                    && let Some(fallback) = self
-                        .pick_fallback_model(&workspace_path, &job.resolved_model)
-                        .await
-                {
-                    let _ = self
-                        .enqueue(queue::EnqueueInput {
-                            workspace_id: job.workspace_id.clone(),
-                            task_id: job.task_id.clone(),
-                            schedule_id: job.schedule_id.clone(),
-                            prompt_payload: job.prompt_payload.clone(),
-                            resolved_mode: job.resolved_mode.clone(),
-                            resolved_agent: job.resolved_agent.clone(),
-                            resolved_model: fallback.clone(),
-                            resolved_effort: job.resolved_effort.clone(),
-                            job_kind: "fallback".into(),
-                            scheduled_for: None,
-                            output_dir: job.output_dir.clone(),
-                            priority: job.priority,
-                            max_retries: 1,
-                        })
-                        .await;
-                    if let Some(task) = &task {
-                        let _ = tasks::set_phase_status(
-                            &self.pool,
-                            &task.id,
-                            Some("fallback_queued"),
-                            None,
-                        )
-                        .await;
-                        self.events.publish(OpenDeskWsEvent::TaskUpdated {
-                            task_id: task.id.clone(),
-                            workspace_id: task.workspace_id.clone(),
-                            stage: task.column_stage.clone(),
-                            phase_status: Some("fallback_queued".into()),
-                        });
-                    }
-                    fallback_enqueued = true;
-                }
             }
-        } else {
-            let _ = model_health::record_success(&self.pool, &job.resolved_model).await;
         }
 
         let queue_status = match outcome.status {
@@ -560,133 +555,73 @@ impl QueueManager {
         };
         let _ = queue::finish(&self.pool, &job.id, queue_status, outcome.error.as_deref()).await;
 
-        if let Some(task) = &task
-            && !fallback_enqueued
-        {
-            let stage: String;
-            let phase_status: String;
+        if let Some(task) = &task {
+            let _ = tasks::set_last_run(
+                &self.pool,
+                &task.id,
+                Some(&run_id),
+                Some(outcome.status.as_str()),
+            )
+            .await;
 
-            if phase == "plan" && outcome.status == RunStatus::Success {
-                tasks::set_plan(
-                    &self.pool,
-                    &task.id,
-                    outcome
-                        .summary
-                        .as_deref()
-                        .unwrap_or("Plano concluído sem texto retornado pelo modelo."),
-                )
-                .await
-                .ok();
-                if task.execution_mode == "PLAN_ONLY" {
-                    let _ = tasks::set_phase_status(
+            let (next_status, phase_status) = match (phase, outcome.status) {
+                ("plan", RunStatus::Success) => {
+                    tasks::set_plan(
                         &self.pool,
                         &task.id,
-                        Some("plan_complete"),
-                        Some("PLAN"),
+                        outcome
+                            .summary
+                            .as_deref()
+                            .unwrap_or("Plano concluído sem texto retornado pelo modelo."),
                     )
-                    .await;
-                    phase_status = "plan_complete".into();
-                } else {
-                    phase_status = "awaiting_approval".into();
+                    .await
+                    .ok();
+                    if task.execution_mode == "PLAN_ONLY" {
+                        ("DONE", "plan_complete")
+                    } else {
+                        ("IN_REVIEW", "awaiting_approval")
+                    }
                 }
-                stage = "PLAN".into();
-            } else if phase == "build" && outcome.status == RunStatus::Success {
-                let _ = tasks::set_phase_status(
-                    &self.pool,
-                    &task.id,
-                    Some("build_complete"),
-                    Some("REVIEW"),
-                )
-                .await;
-                stage = "REVIEW".into();
-                phase_status = "build_complete".into();
-            } else if phase == "audit" && outcome.status == RunStatus::Success {
-                let approved = outcome
-                    .summary
-                    .as_deref()
-                    .map(|summary| summary.to_uppercase().contains("APROVADO"))
-                    .unwrap_or(false);
-                let _ = tasks::set_phase_status(
-                    &self.pool,
-                    &task.id,
-                    Some(if approved {
+                (_, RunStatus::Success) => (
+                    "DONE",
+                    if phase == "audit" {
                         "audit_approved"
                     } else {
-                        "audit_failed"
-                    }),
-                    Some(if approved { "DONE" } else { "REVIEW" }),
+                        "build_complete"
+                    },
+                ),
+                (_, RunStatus::Cancelled) => ("CANCELLED", "cancelled"),
+                (_, RunStatus::Failed) => ("BLOCKED", "failed"),
+            };
+
+            if next_status == "CANCELLED" {
+                let _ = tasks::set_cancelled(&self.pool, &task.id).await;
+            } else {
+                let _ = tasks::set_phase_status(
+                    &self.pool,
+                    &task.id,
+                    Some(phase_status),
+                    Some(next_status),
                 )
                 .await;
-                stage = if approved { "DONE" } else { "REVIEW" }.into();
-                phase_status = if approved {
-                    "audit_approved".into()
-                } else {
-                    "audit_failed".into()
-                };
+            }
+            if next_status == "BLOCKED" {
+                let message = outcome
+                    .error
+                    .as_deref()
+                    .or(outcome.summary.as_deref())
+                    .unwrap_or("run failed without a message");
+                let _ = tasks::set_blocked_reason(&self.pool, &task.id, Some(message)).await;
             } else {
-                let _ = tasks::set_phase_status(&self.pool, &task.id, Some("failed"), None).await;
-                stage = task.column_stage.clone();
-                phase_status = "failed".into();
+                let _ = tasks::set_blocked_reason(&self.pool, &task.id, None).await;
             }
 
             self.events.publish(OpenDeskWsEvent::TaskUpdated {
                 task_id: task.id.clone(),
                 workspace_id: task.workspace_id.clone(),
-                stage: stage.clone(),
-                phase_status: Some(phase_status.clone()),
+                stage: next_status.into(),
+                phase_status: Some(phase_status.into()),
             });
-
-            if phase == "build"
-                && outcome.status == RunStatus::Success
-                && job.job_kind != "audit"
-                && workspace.default_router_policy == "BEST_QUALITY"
-            {
-                let tags = task.tags();
-                let audit_prompt = dsh_router::pack(&PackContext {
-                    workspace_root: &workspace_path,
-                    output_directory: &output_dir_string,
-                    task_title: &task.title,
-                    task_description: &task.description,
-                    tags: &tags,
-                    priority: task.priority,
-                    phase: "audit",
-                    plan: task.plan_markdown.as_deref(),
-                    agent: "explore",
-                });
-                if let Ok(audit_job) = self
-                    .enqueue(queue::EnqueueInput {
-                        workspace_id: task.workspace_id.clone(),
-                        task_id: Some(task.id.clone()),
-                        schedule_id: None,
-                        prompt_payload: audit_prompt,
-                        resolved_mode: "build".into(),
-                        resolved_agent: "explore".into(),
-                        resolved_model: job.resolved_model.clone(),
-                        resolved_effort: "high".into(),
-                        job_kind: "audit".into(),
-                        scheduled_for: None,
-                        output_dir: Some(output_dir_string.clone()),
-                        priority: task.priority,
-                        max_retries: 1,
-                    })
-                    .await
-                {
-                    let _ = tasks::set_phase_status(
-                        &self.pool,
-                        &task.id,
-                        Some("audit_queued"),
-                        Some("REVIEW"),
-                    )
-                    .await;
-                    self.events.publish(OpenDeskWsEvent::TaskUpdated {
-                        task_id: task.id.clone(),
-                        workspace_id: task.workspace_id.clone(),
-                        stage: "REVIEW".into(),
-                        phase_status: Some("audit_queued".into()),
-                    });
-                    let _ = audit_job;
-                }
-            }
         }
 
         self.events.publish(OpenDeskWsEvent::RunFinished {
@@ -817,51 +752,7 @@ impl QueueManager {
     }
 }
 
-impl QueueManager {
-    async fn pick_fallback_model(&self, workspace_root: &Path, current: &str) -> Option<String> {
-        let models = self
-            .daemon
-            .models(Some(&workspace_root.to_string_lossy()))
-            .await
-            .ok()?;
-        let cooling = model_health::cooling(&self.pool, 24)
-            .await
-            .unwrap_or_default();
-        let current_base = current.split('#').next().unwrap_or(current);
-        let key = |model: &crate::opencode_client::rest_client::ModelDto| {
-            let provider = model.provider_id.clone().unwrap_or_default();
-            let id = model.model_id.clone().unwrap_or_else(|| model.id.clone());
-            format!("{provider}/{id}")
-        };
-        let preferred = [
-            "deepseek/deepseek-flash",
-            "opencode-go/glm-5.3",
-            "opencode-go/deepseek-v4.1-flash",
-        ];
-        let mut candidates = models
-            .iter()
-            .filter(|model| model.enabled.unwrap_or(true))
-            .filter(|model| {
-                let name = key(model);
-                name != current_base && !cooling.contains(&name)
-            })
-            .collect::<Vec<_>>();
-        candidates.sort_by_key(|model| {
-            let name = key(model);
-            preferred
-                .iter()
-                .position(|candidate| *candidate == name)
-                .unwrap_or(usize::MAX)
-        });
-        let model = candidates.first()?;
-        let base = key(model);
-        if model.variants.iter().any(|variant| variant.id == "low") {
-            Some(format!("{base}#low"))
-        } else {
-            Some(base)
-        }
-    }
-}
+impl QueueManager {}
 
 fn classify_run_error(message: &str) -> (&'static str, &'static str) {
     let lower = message.to_lowercase();

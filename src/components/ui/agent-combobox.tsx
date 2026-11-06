@@ -39,7 +39,7 @@ export function AgentCombobox({
       if (!cancelled) setAgents(list);
     });
     void loadRuntime(workspaceId).then((runtime) => {
-      if (cancelled || !runtime) return;
+      if (cancelled || !runtime || !Array.isArray(runtime.agents)) return;
       setRuntimeIds(runtime.agents.map((agent) => agent.id));
     });
     return () => {

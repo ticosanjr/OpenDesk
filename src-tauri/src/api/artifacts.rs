@@ -8,7 +8,10 @@ use crate::{
 };
 use axum::{
     Json,
+    body::Body,
     extract::{Path, Query, State},
+    http::header,
+    response::Response,
 };
 use serde::Deserialize;
 use std::path::Path as FsPath;
@@ -28,6 +31,9 @@ pub struct ArtifactContent {
     pub path: String,
     pub content: String,
     pub truncated: bool,
+    pub binary: bool,
+    pub mime: String,
+    pub size: u64,
 }
 
 pub async fn list_artifacts(
@@ -83,8 +89,13 @@ pub async fn artifact_content(
     } else {
         &bytes
     };
-    let content = String::from_utf8(slice.to_vec())
-        .map_err(|_| AppError::BadRequest("artifact is binary; preview is not available".into()))?;
+    let binary =
+        slice.iter().take(8_000).any(|byte| *byte == 0) || std::str::from_utf8(slice).is_err();
+    let content = if binary {
+        String::new()
+    } else {
+        String::from_utf8_lossy(slice).to_string()
+    };
 
     Ok(Json(ArtifactContent {
         path: FsPath::new(&artifact.absolute_path)
@@ -92,5 +103,45 @@ pub async fn artifact_content(
             .to_string(),
         content,
         truncated,
+        binary,
+        mime: crate::api::files::mime_for(&file).to_string(),
+        size: bytes.len() as u64,
     }))
+}
+
+pub async fn artifact_raw(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Response> {
+    let artifact = artifacts::get(&state.db, &id).await?;
+    let workspace = workspaces::get(&state.db, &artifact.workspace_id).await?;
+    let root = std::fs::canonicalize(&workspace.root_path)
+        .map_err(|error| AppError::Internal(format!("workspace path: {error}")))?;
+    let file = std::fs::canonicalize(&artifact.absolute_path)
+        .map_err(|error| AppError::NotFound(format!("artifact file: {error}")))?;
+    if !file.starts_with(&root) {
+        return Err(AppError::BadRequest(
+            "artifact path is outside the workspace".into(),
+        ));
+    }
+    let metadata = std::fs::metadata(&file)?;
+    if metadata.len() > 250 * 1024 * 1024 {
+        return Err(AppError::BadRequest(
+            "artifact is too large for the in-app viewer".into(),
+        ));
+    }
+    let bytes = std::fs::read(&file)?;
+    let filename = file
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| "artifact".into());
+    Response::builder()
+        .header(header::CONTENT_TYPE, crate::api::files::mime_for(&file))
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("inline; filename=\"{filename}\""),
+        )
+        .header(header::CONTENT_LENGTH, bytes.len())
+        .body(Body::from(bytes))
+        .map_err(|error| AppError::Internal(format!("could not build response: {error}")))
 }

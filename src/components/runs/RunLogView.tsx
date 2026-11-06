@@ -9,14 +9,26 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  MessageSquare,
   PlayCircle,
   RefreshCw,
+  Send,
   Terminal,
+  User,
   Wrench,
   XCircle,
 } from "lucide-react";
-import { apiGet, apiText } from "@/lib/api";
-import type { RunTimeline, TimelineTool } from "@/lib/types";
+import { apiGet, apiPost, apiText } from "@/lib/api";
+import type {
+  RunTimeline,
+  TaskMessage,
+  TimelineEvent,
+  TimelineTool,
+} from "@/lib/types";
+import { AgentCombobox } from "@/components/ui/agent-combobox";
+import { WorkingIndicator } from "@/components/ui/working-indicator";
+import { ModelCombobox } from "@/components/ui/model-combobox";
+import { SlashTextarea } from "@/components/ui/slash-textarea";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EntityLink } from "@/components/ui/entity-link";
@@ -57,6 +69,25 @@ export function RunLogView({
   const [raw, setRaw] = useState<string | null>(null);
   const [rawLoading, setRawLoading] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
+  const [view, setView] = useState<"stream" | "bands">("stream");
+  const [messages, setMessages] = useState<TaskMessage[]>([]);
+  const [composer, setComposer] = useState("");
+  const [composerAgent, setComposerAgent] = useState("");
+  const [composerModel, setComposerModel] = useState("");
+  const [continueExecution, setContinueExecution] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [follow, setFollow] = useState(false);
+
+  const loadMessages = useCallback(async (taskId: string) => {
+    try {
+      const list = await apiGet<TaskMessage[]>(
+        `/api/tasks/${encodeURIComponent(taskId)}/messages`,
+      );
+      setMessages(Array.isArray(list) ? list : []);
+    } catch {
+      setMessages([]);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -64,13 +95,14 @@ export function RunLogView({
         `/api/runs/${encodeURIComponent(runId)}/timeline`,
       );
       setTimeline(value);
+      if (value.run?.task_id) void loadMessages(value.run.task_id);
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setLoading(false);
     }
-  }, [runId]);
+  }, [loadMessages, runId]);
 
   useEffect(() => {
     setLoading(true);
@@ -90,10 +122,44 @@ export function RunLogView({
     loading;
 
   useEffect(() => {
-    if (!running) return;
+    if (!running && !follow) return;
     const handle = window.setInterval(() => void load(), 2500);
     return () => window.clearInterval(handle);
-  }, [load, running]);
+  }, [follow, load, running]);
+
+  useEffect(() => {
+    if (!follow) return;
+    const handle = window.setTimeout(() => setFollow(false), 60_000);
+    return () => window.clearTimeout(handle);
+  }, [follow]);
+
+  async function sendComment() {
+    if (!timeline?.run?.task_id || !composer.trim()) return;
+    setSending(true);
+    try {
+      await apiPost(`/api/tasks/${timeline.run.task_id}/messages`, {
+        content: composer.trim(),
+        continue_execution: continueExecution,
+        agent: composerAgent.trim() || null,
+        model: composerModel.trim() || null,
+      });
+      setComposer("");
+      toast({
+        tone: "success",
+        title: continueExecution ? "Mensagem enviada; nova tentativa enfileirada" : "Comentário adicionado",
+      });
+      if (continueExecution) setFollow(true);
+      await Promise.all([load(), loadMessages(timeline.run.task_id)]);
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível enviar",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setSending(false);
+    }
+  }
 
   async function loadRaw() {
     setRawLoading(true);
@@ -152,6 +218,7 @@ export function RunLogView({
       <div className="border-b border-zinc-800/70 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={statusVariant(status)}>{status}</Badge>
+          {status === "RUNNING" ? <WorkingIndicator label="executando" /> : null}
           {timeline?.status === "RUNNING" || timeline?.log_missing === false ? (
             <span className="inline-flex items-center gap-1 font-mono text-[9px] text-zinc-600">
               <span
@@ -184,6 +251,15 @@ export function RunLogView({
             >
               <Copy size={12} />
               copiar
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7"
+              onClick={() => setView(view === "stream" ? "bands" : "stream")}
+              title="Alternar entre conversa intercalada e faixas"
+            >
+              {view === "stream" ? "bandas" : "conversa"}
             </Button>
             <Button
               variant="ghost"
@@ -241,7 +317,19 @@ export function RunLogView({
           )}
         </div>
       ) : (
-        <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
+          {view === "stream" ? (
+            <StreamView
+              timeline={timeline}
+              messages={messages}
+              workspaceRoot={timeline?.workspace_root}
+              summary={summary}
+              failedRun={failedRun}
+              copy={copy}
+            />
+          ) : (
+            <>
           {timeline?.log_missing ? (
             <EmptyState
               icon={FileText}
@@ -390,8 +478,289 @@ export function RunLogView({
               {error}
             </p>
           ) : null}
+            </>
+          )}
+          </div>
+          {timeline?.run?.task_id ? (
+            <div className="shrink-0 border-t border-zinc-800/70 bg-zinc-950/80 p-3">
+              <div className="mb-2 grid gap-2 sm:grid-cols-2">
+                <AgentCombobox
+                  value={composerAgent}
+                  onChange={(value) => setComposerAgent(value)}
+                  workspaceId={timeline.run.workspace_id}
+                  placeholder="agente automático"
+                />
+                <ModelCombobox
+                  value={composerModel}
+                  onChange={setComposerModel}
+                  placeholder="modelo automático"
+                />
+              </div>
+              <SlashTextarea
+                value={composer}
+                onChange={setComposer}
+                workspaceId={timeline.run.workspace_id}
+                rows={2}
+                submitOnEnter
+                onSubmit={() => void sendComment()}
+                placeholder="Responder, comentar ou pedir uma continuação… (Enter envia)"
+                className="min-h-[48px]"
+              />
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2 text-[11px] text-zinc-400">
+                  <input
+                    type="checkbox"
+                    checked={continueExecution}
+                    onChange={(event) => setContinueExecution(event.target.checked)}
+                    className="accent-blue-500"
+                  />
+                  continuar execução (nova tentativa)
+                </label>
+                <Button
+                  size="sm"
+                  className="ml-auto h-8"
+                  onClick={() => void sendComment()}
+                  disabled={sending || !composer.trim()}
+                >
+                  {sending ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Send size={13} />
+                  )}
+                  Enviar
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
+    </div>
+  );
+}
+
+function StreamView({
+  timeline,
+  messages,
+  workspaceRoot,
+  summary,
+  failedRun,
+  copy,
+}: {
+  timeline: RunTimeline | null;
+  messages: TaskMessage[];
+  workspaceRoot?: string | null;
+  summary?: string;
+  failedRun: boolean;
+  copy: (text: string) => Promise<void>;
+}) {
+  const entries = useMemo(() => {
+    const items: Array<{
+      at: number;
+      event?: TimelineEvent;
+      message?: TaskMessage;
+    }> = [];
+    for (const event of timeline?.events ?? []) {
+      items.push({
+        at: event.started_at ? new Date(event.started_at).getTime() : 0,
+        event,
+      });
+    }
+    for (const message of messages) {
+      items.push({ at: new Date(message.created_at).getTime(), message });
+    }
+    return items.sort((left, right) => left.at - right.at);
+  }, [messages, timeline?.events]);
+
+  if (entries.length === 0) {
+    return (
+      <div className="space-y-2">
+        <p className="rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-[12px] text-zinc-500">
+          Nenhum evento estruturado. Use “bruto” para ver o JSONL original.
+        </p>
+        <ResultCard
+          text={timeline?.result.text?.trim() ?? ""}
+          summary={summary}
+          failed={failedRun}
+          durationMs={timeline?.result.duration_ms ?? 0}
+          startedAt={timeline?.result.started_at}
+          endedAt={timeline?.result.ended_at}
+          truncated={timeline?.result.truncated ?? false}
+          copy={copy}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {entries.map((entry, index) => {
+        if (entry.message) {
+          const message = entry.message;
+          return (
+            <div key={`message-${message.id}`} className="flex justify-end">
+              <div className="max-w-[85%] rounded-xl border border-blue-500/25 bg-blue-500/10 px-3 py-2 text-blue-100">
+                <div className="mb-1 flex items-center justify-end gap-1 font-mono text-[10px] text-blue-300/70">
+                  <User size={10} />
+                  você · {formatClock(message.created_at)}
+                </div>
+                <p className="whitespace-pre-wrap text-[12px] leading-relaxed">
+                  {message.content}
+                </p>
+              </div>
+            </div>
+          );
+        }
+
+        const event = entry.event!;
+        if (event.kind === "step") {
+          return (
+            <div
+              key={`step-${event.step_index}-${index}`}
+              className="flex items-center gap-2 py-1 font-mono text-[11px] font-semibold uppercase tracking-wide text-zinc-500"
+            >
+              <PlayCircle size={12} />
+              passo {event.step_index} · {formatDuration(event.duration_ms)}
+            </div>
+          );
+        }
+        if (event.kind === "thinking") {
+          return (
+            <Band
+              key={`thinking-${index}`}
+              title="Raciocínio"
+              icon={<BrainIcon />}
+              tooltip="Pensamento do modelo"
+              defaultOpen={false}
+              startedAt={event.started_at}
+              endedAt={event.ended_at}
+              durationMs={event.duration_ms}
+              summary={event.text.trim().split("\n")[0] || "pensamento sem texto"}
+              tone="purple"
+            >
+              <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-zinc-300">
+                {event.text || "Sem conteúdo de raciocínio."}
+              </pre>
+            </Band>
+          );
+        }
+        if (event.kind === "tool" && event.tool) {
+          return (
+            <ToolRow
+              key={`tool-${event.tool.id}-${index}`}
+              tool={event.tool}
+              workspaceRoot={workspaceRoot}
+            />
+          );
+        }
+        if (event.kind === "comment") {
+          return (
+            <div
+              key={`comment-${index}`}
+              className="rounded-xl border border-zinc-800/70 bg-zinc-900/40 px-3 py-2"
+            >
+              <div className="mb-1 flex flex-wrap items-center gap-2 font-mono text-[10px] text-zinc-500">
+                <MessageSquare size={11} />
+                modelo
+                <span>
+                  {formatClock(event.started_at)} → {formatClock(event.ended_at)}
+                </span>
+                <span>{formatDuration(event.duration_ms)}</span>
+              </div>
+              <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-zinc-200">
+                {event.text}
+              </p>
+            </div>
+          );
+        }
+        return null;
+      })}
+      <ResultCard
+        text={timeline?.result.text?.trim() ?? ""}
+        summary={summary}
+        failed={failedRun}
+        durationMs={timeline?.result.duration_ms ?? 0}
+        startedAt={timeline?.result.started_at}
+        endedAt={timeline?.result.ended_at}
+        truncated={timeline?.result.truncated ?? false}
+        copy={copy}
+      />
+    </div>
+  );
+}
+
+function ResultCard({
+  text,
+  summary,
+  failed,
+  durationMs,
+  startedAt,
+  endedAt,
+  truncated,
+  copy,
+}: {
+  text: string;
+  summary?: string;
+  failed: boolean;
+  durationMs: number;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  truncated: boolean;
+  copy: (text: string) => Promise<void>;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border",
+        failed
+          ? "border-red-500/20 bg-red-500/[0.035]"
+          : "border-emerald-500/20 bg-emerald-500/[0.035]",
+      )}
+    >
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-2 border-b px-3.5 py-2.5",
+          failed ? "border-red-500/15" : "border-emerald-500/15",
+        )}
+      >
+        {failed ? (
+          <XCircle size={14} className="text-red-400" />
+        ) : (
+          <CheckCircle2 size={14} className="text-emerald-400" />
+        )}
+        <span
+          className={cn(
+            "text-[12px] font-semibold",
+            failed ? "text-red-100" : "text-emerald-100",
+          )}
+        >
+          Resultado
+        </span>
+        <span className="font-mono text-[10px] text-zinc-500">
+          {formatDuration(durationMs)}
+        </span>
+        <span className="font-mono text-[10px] text-zinc-600">
+          {formatClock(startedAt)} → {formatClock(endedAt)}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-auto h-6"
+          onClick={() => void copy(text || summary || "")}
+        >
+          <Copy size={11} />
+          copiar
+        </Button>
+      </div>
+      <div className="px-3.5 py-3">
+        <pre className="whitespace-pre-wrap break-words font-sans text-[12px] leading-relaxed text-zinc-100">
+          {text || summary || "Sem texto final. Veja as ferramentas executadas e o modo bruto."}
+        </pre>
+        {truncated ? (
+          <p className="mt-2 text-[10px] text-amber-300">
+            Resultado truncado. Use o modo bruto para ver o log completo.
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

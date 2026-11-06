@@ -68,7 +68,7 @@ pub struct RunUsage {
     pub estimated_cost_usd: f64,
 }
 
-const COLUMNS: &str = "r.id, r.queue_job_id, r.workspace_id, r.task_id, r.schedule_id, r.parent_run_id, r.phase, \
+const COLUMNS: &str = "r.id, r.queue_job_id, r.workspace_id, r.task_id, r.schedule_id, r.attempt_number, r.session_id, r.parent_run_id, r.phase, \
     r.agent_name, r.execution_mode, r.provider_id, r.model_id, r.effort_level, r.status, \
     r.tokens_input, r.tokens_output, r.tokens_reasoning, r.tokens_cache_read, r.tokens_cache_write, \
     r.estimated_cost_usd, r.pricing_snapshot_json, r.duration_ms, r.log_path, r.raw_stdout_log, \
@@ -76,18 +76,30 @@ const COLUMNS: &str = "r.id, r.queue_job_id, r.workspace_id, r.task_id, r.schedu
 
 pub async fn create(pool: &SqlitePool, input: CreateRunInput) -> AppResult<TaskRun> {
     let id = input.id;
+    let attempt_number: i64 = match input.task_id.as_deref() {
+        Some(task_id) => {
+            sqlx::query_scalar(
+                "SELECT COALESCE(MAX(attempt_number), 0) + 1 FROM task_runs WHERE task_id = ?",
+            )
+            .bind(task_id)
+            .fetch_one(pool)
+            .await?
+        }
+        None => 1,
+    };
     sqlx::query(
         "INSERT INTO task_runs (
-            id, queue_job_id, workspace_id, task_id, schedule_id, parent_run_id, phase,
-            agent_name, execution_mode, provider_id, model_id, effort_level,
-            status, pricing_snapshot_json, log_path
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RUNNING', ?, ?)",
+            id, queue_job_id, workspace_id, task_id, schedule_id, attempt_number,
+            parent_run_id, phase, agent_name, execution_mode, provider_id, model_id,
+            effort_level, status, pricing_snapshot_json, log_path
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RUNNING', ?, ?)",
     )
     .bind(&id)
     .bind(input.queue_job_id.as_deref())
     .bind(&input.workspace_id)
     .bind(input.task_id.as_deref())
     .bind(input.schedule_id.as_deref())
+    .bind(attempt_number)
     .bind(input.parent_run_id.as_deref())
     .bind(input.phase.as_deref())
     .bind(&input.agent_name)

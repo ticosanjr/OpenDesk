@@ -25,11 +25,15 @@ import { formatNumber, relativeTime, shortPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { links } from "@/lib/links";
 import { EntityLink } from "@/components/ui/entity-link";
+import { FileViewer } from "@/components/viewer/FileViewer";
 
 interface ArtifactContent {
   path: string;
   content: string;
   truncated: boolean;
+  binary: boolean;
+  mime: string;
+  size: number;
 }
 
 export function ArtifactsPage() {
@@ -387,31 +391,34 @@ export function ArtifactsPage() {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-auto p-4">
-              <p className="mb-2 text-[10px] leading-relaxed text-zinc-500">
-                {selected.creation_reason}
-              </p>
+            <div className="min-h-0 flex-1 overflow-hidden">
               {tab === "content" ? (
                 content ? (
-                  <>
-                    <pre className="whitespace-pre-wrap break-words rounded-lg border border-zinc-800/70 bg-zinc-900/30 p-3 font-mono text-[10px] leading-relaxed text-zinc-300">
-                      {content.content}
-                    </pre>
-                    {content.truncated ? (
-                      <p className="mt-2 text-[9px] text-amber-300">
-                        Preview truncado em 2 MB.
-                      </p>
-                    ) : null}
-                  </>
+                  <FileViewer
+                    name={selected.file_path}
+                    path={content.path}
+                    content={content.content}
+                    binary={content.binary}
+                    mime={content.mime}
+                    truncated={content.truncated}
+                    size={content.size}
+                    rawUrl={`/api/artifacts/${selected.id}/raw`}
+                    onOpenExternal={() => void reveal(selected.absolute_path)}
+                  />
                 ) : (
-                  <p className="text-[10px] text-zinc-600">
-                    {loading ? "Carregando…" : "Sem preview textual."}
+                  <p className="p-4 text-[11px] text-zinc-600">
+                    {loading ? "Carregando visualizador…" : "Sem prévia para este artefato."}
                   </p>
                 )
               ) : (
-                <pre className="whitespace-pre-wrap break-words rounded-lg border border-zinc-800/70 bg-zinc-900/30 p-3 font-mono text-[10px] leading-relaxed text-zinc-300">
-                  {selected.diff_patch || "Sem diff registrado para este artefato."}
-                </pre>
+                <div className="min-h-0 flex-1 overflow-auto p-4">
+                  <p className="mb-2 text-[11px] leading-relaxed text-zinc-500">
+                    {selected.creation_reason}
+                  </p>
+                  <pre className="whitespace-pre-wrap break-words rounded-lg border border-zinc-800/70 bg-zinc-900/30 p-3 font-mono text-[11px] leading-relaxed text-zinc-300">
+                    {selected.diff_patch || "Sem diff registrado para este artefato."}
+                  </pre>
+                </div>
               )}
             </div>
           </aside>

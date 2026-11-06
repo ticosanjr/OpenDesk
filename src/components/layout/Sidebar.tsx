@@ -13,6 +13,7 @@ import {
   PanelLeftOpen,
   Plug,
   Route,
+  Search,
   Settings,
   SlidersHorizontal,
   Wand2,
@@ -35,6 +36,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     label: "Operação",
     items: [
       { to: "/", label: "Dashboard", icon: Gauge, end: true },
+      { to: "/search", label: "Buscar", icon: Search },
       { to: "/kanban", label: "Kanban & Fila", icon: KanbanSquare },
       { to: "/runs", label: "Execuções", icon: Activity },
       { to: "/chat", label: "Chat & Criador", icon: MessageSquare },

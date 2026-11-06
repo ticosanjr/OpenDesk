@@ -25,6 +25,7 @@ import type { FileContent, FileEntry } from "@/lib/types";
 import { formatNumber, relativeTime, shortPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "@/store/toast-store";
+import { FileViewer } from "@/components/viewer/FileViewer";
 
 export function FilesPage() {
   const workspaces = useAppStore((state) => state.workspaces);
@@ -330,34 +331,30 @@ export function FilesPage() {
               </div>
             ) : null}
           </CardHeader>
-          <CardContent className="min-h-0 flex-1 overflow-auto p-3">
+          <CardContent className="min-h-0 flex-1 overflow-hidden p-0">
             {loadingFile ? (
-              <p className="text-[10px] text-zinc-600">Carregando arquivo…</p>
+              <p className="p-3 text-[11px] text-zinc-600">Carregando arquivo…</p>
             ) : !selected ? (
               <EmptyState
                 icon={FileText}
                 title="Escolha um arquivo"
-                description="Navegue pela árvore à esquerda para visualizar Markdown, JSON, código e logs."
+                description="Navegue pela árvore à esquerda para visualizar Markdown, HTML, imagens, PDF, vídeo, áudio, JSON e código."
                 className="border-0 bg-transparent"
               />
-            ) : content?.binary ? (
-              <p className="text-[11px] text-zinc-500">
-                Este arquivo parece ser binário e não pode ser pré-visualizado.
-              </p>
             ) : content ? (
-              <>
-                <pre className="whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-zinc-300">
-                  {content.content}
-                </pre>
-                {content.truncated ? (
-                  <p className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-200">
-                    Prévia limitada aos primeiros 512 KB. Abra o arquivo para ver o
-                    conteúdo completo.
-                  </p>
-                ) : null}
-              </>
+              <FileViewer
+                name={selected.name}
+                path={content.path}
+                content={content.content}
+                binary={content.binary}
+                mime={content.mime}
+                truncated={content.truncated}
+                size={content.size}
+                rawUrl={`/api/files/raw?workspace_id=${encodeURIComponent(activeWorkspaceId)}&path=${encodeURIComponent(content.path)}`}
+                onOpenExternal={() => void reveal(content.path)}
+              />
             ) : (
-              <p className="text-[10px] text-zinc-600">Sem conteúdo.</p>
+              <p className="p-3 text-[11px] text-zinc-600">Sem conteúdo.</p>
             )}
           </CardContent>
         </Card>

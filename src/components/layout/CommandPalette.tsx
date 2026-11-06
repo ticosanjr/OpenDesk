@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 
 const icons = {
   "/": Gauge,
+  "/search": Search,
   "/kanban": KanbanSquare,
   "/runs": Activity,
   "/chat": MessageSquare,
@@ -167,7 +168,7 @@ export function CommandPalette() {
                   <KanbanSquare size={14} className="shrink-0 text-zinc-500" />
                   <span className="min-w-0 flex-1 truncate">{task.title}</span>
                   <span className="shrink-0 font-mono text-[9px] text-zinc-600">
-                    {task.column_stage}
+                    {task.status}
                   </span>
                 </Command.Item>
               ))}
