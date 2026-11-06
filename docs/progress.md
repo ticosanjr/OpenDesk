@@ -228,4 +228,12 @@
    pós-processamento.
 2. Concorrência configurável e política de permissões por workspace.
 3. Testes de contrato opt-in contra `opencode serve` real.
-4. Release 0.3.0.
+4. Release 0.4.0 com cron/SMTP/entregas da Fase 4.
+
+### Release 0.3.0
+
+- `releases/0.3.0/` gerado localmente com `.deb` 7,27 MiB, `.rpm` 7,27 MiB,
+  `.AppImage` 91,70 MiB e binário portátil.
+- `releases/LATEST` = `0.3.0`; `v0.3.0` tagueado.
+- Retenção mantém `0.2.0` e `0.3.0` (máximo 3).
+- `/api/meta` agora reporta fase `execution` e os recursos das fases 1–3.
