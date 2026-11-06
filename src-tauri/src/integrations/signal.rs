@@ -32,7 +32,7 @@ pub struct SignalConfig {
 }
 
 fn default_cli() -> String {
-    "signal-cli".into()
+    default_cli_path()
 }
 
 fn default_agent() -> String {
@@ -81,6 +81,7 @@ pub async fn save(pool: &sqlx::SqlitePool, config: &SignalConfig) -> AppResult<(
 pub async fn detect_cli(path: &str) -> Option<String> {
     let output = Command::new(path)
         .arg("--version")
+        .env("PATH", signal_path())
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .output()
@@ -220,6 +221,7 @@ impl SignalBridge {
         }
         let mut child = Command::new(cli_path)
             .args(["link", "-n", "OpenDesk"])
+            .env("PATH", signal_path())
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -325,6 +327,7 @@ pub async fn send_text(
 ) -> AppResult<()> {
     let output = Command::new(cli_path)
         .args(["-a", account, "send", recipient, "-m", message])
+        .env("PATH", signal_path())
         .stdin(Stdio::null())
         .output()
         .await
@@ -385,6 +388,30 @@ fn normalize_number(value: &str) -> String {
         .chars()
         .filter(|character| character.is_ascii_digit())
         .collect()
+}
+
+/// signal-cli 0.14 requires a recent JVM. AppImages often inherit a minimal
+/// PATH, so prepend the common Java installations before spawning it.
+pub fn signal_path() -> String {
+    let mut paths = Vec::new();
+    for candidate in ["/opt/java/current/bin", "/usr/lib/jvm/default-java/bin"] {
+        let path = PathBuf::from(candidate);
+        if path.is_dir() {
+            paths.push(path);
+        }
+    }
+    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+        let sdkman = home.join(".sdkman/candidates/java/current/bin");
+        if sdkman.is_dir() {
+            paths.push(sdkman);
+        }
+    }
+    if let Some(current) = std::env::var_os("PATH") {
+        paths.extend(std::env::split_paths(&current));
+    }
+    std::env::join_paths(paths)
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|_| "java".into())
 }
 
 pub fn default_cli_path() -> String {
@@ -452,6 +479,11 @@ mod tests {
             .expect("link uri");
         assert!(uri.starts_with("sgnl://linkdevice"));
         bridge.stop().await;
+    }
+
+    #[test]
+    fn signal_path_is_never_empty() {
+        assert!(!signal_path().is_empty());
     }
 
     #[test]

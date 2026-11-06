@@ -592,3 +592,12 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Signal bridge: envelope fake recebido, thread `source=signal` criada e
   resposta `SINAL OK` enviada ao destinatário.
 - E2E: thread de chat criada/listada e card Signal presente em Integrações.
+
+## 2026-11-06 — Release 0.8.1
+
+- `SignalConfig` detecta automaticamente `~/.local/bin/signal-cli` quando o
+  caminho não foi informado.
+- O bridge, vínculo e envio do Signal agora enriquecem o `PATH` com Java
+  recente (`/opt/java/current/bin`, SDKMAN), necessário para o signal-cli 0.14
+  dentro do AppImage/minimal PATH.
+- `probe` do OpenCode tolera `ETXTBSY` durante substituição do binário.
