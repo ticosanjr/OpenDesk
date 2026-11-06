@@ -137,15 +137,18 @@ Studio, integrações e ações de entrega.
 **Critério de saída:** app abre, daemon fica online, status muda em <5 s,
 workspace persiste, API responde com e sem token.
 
-### Fase 2 — Studio SSOT (próxima)
+### Fase 2 — Studio SSOT (concluída)
 
-- [ ] `jsonc_editor` com CST, preservação de comentários e escrita atômica.
-- [ ] Leitura/escrita de `agents/*.md`, `skills/*/SKILL.md`,
+- [x] `jsonc_editor` com CST, preservação de comentários e escrita atômica.
+- [x] Leitura/escrita de `agents/*.md`, `skills/*/SKILL.md`,
       `commands/*.md` e `mcp.servers`.
-- [ ] Hash de concorrência: `409` se o arquivo mudou por fora.
-- [ ] Watcher com debounce de 150 ms + índice + `FS_SYNC_EVENT`.
-- [ ] Studio UI completa e editor JSONC bruto.
-- [ ] Testes de round-trip e de paridade <500 ms.
+- [x] Hash de concorrência: `409` se o arquivo mudou por fora.
+- [x] Watcher com debounce de 150 ms + índice + `FS_SYNC_EVENT`.
+- [x] Studio UI completa e editor JSONC bruto.
+- [x] Testes de round-trip e de paridade <500 ms (teste de watcher).
+- [x] Pasta padrão de workspaces + adicionar workspace de qualquer pasta.
+- [x] Agentes com nome de exibição, avatar e cor (ADR 0002).
+- [x] Testes Playwright end-to-end.
 
 ### Fase 3 — Execução
 
@@ -205,11 +208,18 @@ workspace persiste, API responde com e sem token.
 | Meta-Builder inseguro | Validação de slug/path/YAML, preview e backup |
 | Custo impreciso | `assistant.cost` + snapshot de preço + reconciliação |
 
-## 9. Como contribuir
+## 9. Releases locais
+
+`scripts/release.sh` compila, empacota e mantém no máximo 3 versões em
+`releases/<versão>/` com `manifest.json`, `SHA256SUMS` e `LATEST`. Não há CI.
+Binários são ignorados pelo git; metadados e checksums são versionados. O script
+cria commit e tag e faz push se houver um remoto configurado.
+
+## 10. Como contribuir
 
 1. Leia o ADR 0001 e este plano.
 2. Não grave configuração do OpenCode no SQLite.
 3. Toda alteração de comportamento atualiza `docs/progress.md` e, se mudar uma
    decisão, cria/atualiza um ADR.
-4. Rode `npm run check`, `npm run build`, `cargo check` e `cargo test` antes de
-   concluir.
+4. Rode `npm run check`, `npm run build`, `cargo test` e `npm run test:e2e`
+   antes de concluir.
