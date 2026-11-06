@@ -137,6 +137,7 @@ fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/studio/effective", get(studio_ops::effective))
         .route("/api/studio/catalog", get(studio_ops::catalog))
+        .route("/api/studio/runtime", get(studio_ops::runtime))
         .route(
             "/api/studio/install/preview",
             post(studio_ops::install_preview),

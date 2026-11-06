@@ -40,7 +40,7 @@ export function StudioPage() {
     (state) => state.setWorkspaceDialogOpen,
   );
   const [tab, setTab] = useState<Tab>("agents");
-  const [scope, setScope] = useState<StudioScope | "effective">("workspace");
+  const [scope, setScope] = useState<StudioScope | "effective">("effective");
   const [focusId, setFocusId] = useState<string | null>(null);
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
 

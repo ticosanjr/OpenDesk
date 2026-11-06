@@ -265,6 +265,8 @@ export interface Task {
   execution_mode: string;
   assigned_agent?: string | null;
   preferred_model?: string | null;
+  agent_override?: boolean;
+  model_override?: boolean;
   effort_level: string;
   plan_markdown?: string | null;
   output_dir_path?: string | null;
@@ -607,4 +609,23 @@ export interface BackupEntry {
   file_name: string;
   created_at: string;
   sha256?: string | null;
+}
+
+export interface StudioRuntime {
+  engine: DaemonStatus;
+  agents: Array<{
+    id: string;
+    name?: string | null;
+    description?: string | null;
+    mode?: string | null;
+    model?: { providerID: string; id: string; variant?: string | null } | null;
+  }>;
+  models: Array<{
+    id: string;
+    modelID?: string | null;
+    providerID?: string | null;
+    name?: string | null;
+    status?: string | null;
+    enabled?: boolean | null;
+  }>;
 }

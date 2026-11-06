@@ -138,6 +138,17 @@ pub async fn approve_plan(
     })))
 }
 
+fn model_key(model: &crate::opencode_client::rest_client::ModelDto) -> String {
+    let provider = model.provider_id.clone().unwrap_or_default();
+    let id = model.model_id.clone().unwrap_or_else(|| model.id.clone());
+    format!("{provider}/{id}")
+}
+
+fn base_model(model: &str) -> String {
+    let (provider, id) = db::model_health::split_model(model);
+    format!("{provider}/{id}")
+}
+
 async fn plan_decision(
     state: &AppState,
     task: &tasks::Task,
@@ -146,11 +157,33 @@ async fn plan_decision(
     approved_plan: Option<&str>,
 ) -> AppResult<dsh_router::RouterDecision> {
     let rules = router_db::list(&state.db, &task.workspace_id).await?;
-    let available_models = state
+    let raw_models = state
         .daemon
         .models(Some(&workspace.root_path))
         .await
         .unwrap_or_default();
+    let cooling = db::model_health::cooling(&state.db, 24)
+        .await
+        .unwrap_or_default();
+    let filtered = raw_models
+        .iter()
+        .filter(|model| !cooling.iter().any(|blocked| blocked == &model_key(model)))
+        .cloned()
+        .collect::<Vec<_>>();
+    // If every model is cooling down, keep the full list so the user can still
+    // see the real provider error instead of an empty router.
+    let available_models = if filtered.is_empty() {
+        raw_models
+    } else {
+        filtered
+    };
+    let task_model = if task.model_override {
+        task.preferred_model
+            .as_deref()
+            .filter(|model| !cooling.iter().any(|blocked| blocked == &base_model(model)))
+    } else {
+        None
+    };
     let budget_status = budget::status(&state.db).await.ok();
     let policy = body
         .policy
@@ -169,18 +202,13 @@ async fn plan_decision(
         execution_mode: &execution_mode,
         priority: task.priority,
         tags: &tags,
-        manual_agent: body
-            .manual_agent
-            .as_deref()
-            .or(task.assigned_agent.as_deref()),
-        manual_model: body
-            .manual_model
-            .as_deref()
-            .or(task.preferred_model.as_deref()),
-        manual_effort: body
-            .manual_effort
-            .as_deref()
-            .or(Some(task.effort_level.as_str())),
+        manual_agent: body.manual_agent.as_deref().or(if task.agent_override {
+            task.assigned_agent.as_deref()
+        } else {
+            None
+        }),
+        manual_model: body.manual_model.as_deref().or(task_model),
+        manual_effort: body.manual_effort.as_deref(),
         policy: &policy,
         rules: &rules,
         available_models: &available_models,
@@ -219,17 +247,6 @@ async fn enqueue_decision(
         agent: &decision.selected_agent,
     });
 
-    let updated = tasks::update(
-        &state.db,
-        &task.id,
-        UpdateTaskInput {
-            assigned_agent: Some(decision.selected_agent.clone()),
-            preferred_model: Some(decision.selected_model.clone()),
-            effort_level: Some(decision.effort.clone()),
-            ..Default::default()
-        },
-    )
-    .await?;
     tasks::move_to(
         &state.db,
         &task.id,
@@ -273,7 +290,6 @@ async fn enqueue_decision(
         phase_status: Some("queued".into()),
     });
 
-    let _ = updated;
     Ok(job)
 }
 
@@ -398,14 +414,26 @@ pub async fn transition_task(
         }
         "PLAN" => {
             if task.plan_markdown.is_none() {
-                crate::api::engine::require_engine(&state).await?;
-                let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
-                let mut decision =
-                    plan_decision(&state, &task, &workspace, &DispatchBody::default(), None)
+                let task =
+                    tasks::replace_phase_status(&state.db, &id, Some("dispatching"), Some("PLAN"))
                         .await?;
-                decision.phase = "plan".into();
-                let job = enqueue_decision(&state, &task, &workspace, &decision, None).await?;
-                Ok(Json(serde_json::json!({ "task": task, "job": job })))
+                publish_task(&state, &task);
+                let result = async {
+                    crate::api::engine::require_engine_strict(&state).await?;
+                    let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
+                    let mut decision =
+                        plan_decision(&state, &task, &workspace, &DispatchBody::default(), None)
+                            .await?;
+                    decision.phase = "plan".into();
+                    enqueue_decision(&state, &task, &workspace, &decision, None).await
+                }
+                .await;
+                match result {
+                    Ok(job) => Ok(Json(serde_json::json!({ "task": task, "job": job }))),
+                    Err(error) => {
+                        dispatch_failed(&state, &task, "PLAN", &format!("{error:#}")).await
+                    }
+                }
             } else {
                 let task = tasks::move_to(&state.db, &id, "PLAN", body.position_index).await?;
                 publish_task(&state, &task);
@@ -413,73 +441,99 @@ pub async fn transition_task(
             }
         }
         "BUILD" => {
-            crate::api::engine::require_engine(&state).await?;
-            let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
-            let approved = task.plan_markdown.clone();
-            let mut decision = plan_decision(
-                &state,
-                &task,
-                &workspace,
-                &DispatchBody::default(),
-                approved.as_deref(),
-            )
-            .await?;
-            decision.phase = "build".into();
-            let job =
-                enqueue_decision(&state, &task, &workspace, &decision, approved.as_deref()).await?;
-            Ok(Json(serde_json::json!({ "task": task, "job": job })))
-        }
-        "REVIEW" => {
-            crate::api::engine::require_engine(&state).await?;
-            let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
-            let mut decision =
-                plan_decision(&state, &task, &workspace, &DispatchBody::default(), None).await?;
-            decision.phase = "audit".into();
-            decision.selected_agent = "explore".into();
-            decision.effort = "high".into();
-            let tags = task.tags();
-            let output_directory = task.output_dir_path.clone().unwrap_or_else(|| {
-                std::path::Path::new(&workspace.root_path)
-                    .join("output")
-                    .join(chrono::Utc::now().format("%Y-%m").to_string())
-                    .join(crate::dsh_router::slugify(&task.title))
-                    .to_string_lossy()
-                    .to_string()
-            });
-            let prompt = dsh_router::pack(&PackContext {
-                workspace_root: std::path::Path::new(&workspace.root_path),
-                output_directory: &output_directory,
-                task_title: &task.title,
-                task_description: &task.description,
-                tags: &tags,
-                priority: task.priority,
-                phase: "audit",
-                plan: task.plan_markdown.as_deref(),
-                agent: "explore",
-            });
-            let job = state
-                .queue
-                .enqueue(EnqueueInput {
-                    workspace_id: task.workspace_id.clone(),
-                    task_id: Some(task.id.clone()),
-                    schedule_id: None,
-                    prompt_payload: prompt,
-                    resolved_mode: "audit".into(),
-                    resolved_agent: "explore".into(),
-                    resolved_model: decision.selected_model.clone(),
-                    resolved_effort: "high".into(),
-                    job_kind: "audit".into(),
-                    scheduled_for: None,
-                    output_dir: Some(output_directory),
-                    priority: task.priority,
-                    max_retries: 1,
-                })
-                .await?;
             let task =
-                tasks::replace_phase_status(&state.db, &id, Some("audit_queued"), Some("REVIEW"))
+                tasks::replace_phase_status(&state.db, &id, Some("dispatching"), Some("BUILD"))
                     .await?;
             publish_task(&state, &task);
-            Ok(Json(serde_json::json!({ "task": task, "job": job })))
+            let result = async {
+                crate::api::engine::require_engine_strict(&state).await?;
+                let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
+                let approved = task.plan_markdown.clone();
+                let mut decision = plan_decision(
+                    &state,
+                    &task,
+                    &workspace,
+                    &DispatchBody::default(),
+                    approved.as_deref(),
+                )
+                .await?;
+                decision.phase = "build".into();
+                enqueue_decision(&state, &task, &workspace, &decision, approved.as_deref()).await
+            }
+            .await;
+            match result {
+                Ok(job) => Ok(Json(serde_json::json!({ "task": task, "job": job }))),
+                Err(error) => dispatch_failed(&state, &task, "BUILD", &format!("{error:#}")).await,
+            }
+        }
+        "REVIEW" => {
+            let task =
+                tasks::replace_phase_status(&state.db, &id, Some("dispatching"), Some("REVIEW"))
+                    .await?;
+            publish_task(&state, &task);
+            let result = async {
+                crate::api::engine::require_engine_strict(&state).await?;
+                let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
+                let mut decision =
+                    plan_decision(&state, &task, &workspace, &DispatchBody::default(), None)
+                        .await?;
+                decision.phase = "audit".into();
+                decision.selected_agent = "explore".into();
+                decision.effort = "high".into();
+                let tags = task.tags();
+                let output_directory = task.output_dir_path.clone().unwrap_or_else(|| {
+                    std::path::Path::new(&workspace.root_path)
+                        .join("output")
+                        .join(chrono::Utc::now().format("%Y-%m").to_string())
+                        .join(crate::dsh_router::slugify(&task.title))
+                        .to_string_lossy()
+                        .to_string()
+                });
+                let prompt = dsh_router::pack(&PackContext {
+                    workspace_root: std::path::Path::new(&workspace.root_path),
+                    output_directory: &output_directory,
+                    task_title: &task.title,
+                    task_description: &task.description,
+                    tags: &tags,
+                    priority: task.priority,
+                    phase: "audit",
+                    plan: task.plan_markdown.as_deref(),
+                    agent: "explore",
+                });
+                state
+                    .queue
+                    .enqueue(EnqueueInput {
+                        workspace_id: task.workspace_id.clone(),
+                        task_id: Some(task.id.clone()),
+                        schedule_id: None,
+                        prompt_payload: prompt,
+                        resolved_mode: "audit".into(),
+                        resolved_agent: "explore".into(),
+                        resolved_model: decision.selected_model.clone(),
+                        resolved_effort: "high".into(),
+                        job_kind: "audit".into(),
+                        scheduled_for: None,
+                        output_dir: Some(output_directory),
+                        priority: task.priority,
+                        max_retries: 1,
+                    })
+                    .await
+            }
+            .await;
+            match result {
+                Ok(job) => {
+                    let task = tasks::replace_phase_status(
+                        &state.db,
+                        &id,
+                        Some("audit_queued"),
+                        Some("REVIEW"),
+                    )
+                    .await?;
+                    publish_task(&state, &task);
+                    Ok(Json(serde_json::json!({ "task": task, "job": job })))
+                }
+                Err(error) => dispatch_failed(&state, &task, "REVIEW", &format!("{error:#}")).await,
+            }
         }
         "DONE" => {
             let task =
@@ -493,6 +547,23 @@ pub async fn transition_task(
             Ok(Json(serde_json::json!({ "task": task, "job": null })))
         }
     }
+}
+
+async fn dispatch_failed(
+    state: &AppState,
+    task: &tasks::Task,
+    stage: &str,
+    message: &str,
+) -> AppResult<Json<serde_json::Value>> {
+    let task =
+        tasks::replace_phase_status(&state.db, &task.id, Some("dispatch_failed"), Some(stage))
+            .await?;
+    publish_task(state, &task);
+    Ok(Json(serde_json::json!({
+        "task": task,
+        "job": null,
+        "error": message,
+    })))
 }
 
 fn publish_task(state: &AppState, task: &tasks::Task) {

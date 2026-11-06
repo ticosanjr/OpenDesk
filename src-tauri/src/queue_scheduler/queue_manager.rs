@@ -1,7 +1,7 @@
 use crate::{
     db::{
         artifacts::{self, CreateArtifactInput},
-        budget, queue, runs, tasks, workspaces,
+        budget, model_health, queue, runs, tasks, workspaces,
     },
     dsh_router::{self, PackContext},
     error::{AppError, AppResult},
@@ -505,6 +505,11 @@ impl QueueManager {
                 .unwrap_or("run failed without a message");
             let (code, hint) = classify_run_error(message);
             let _ = runs::set_error(&self.pool, &run_id, code, message, hint).await;
+            if matches!(code, "model_unavailable" | "auth_failed") {
+                let _ = model_health::record_failure(&self.pool, &job.resolved_model, code).await;
+            }
+        } else {
+            let _ = model_health::record_success(&self.pool, &job.resolved_model).await;
         }
 
         let queue_status = match outcome.status {

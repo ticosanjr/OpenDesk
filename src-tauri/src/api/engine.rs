@@ -65,6 +65,12 @@ pub async fn require_engine(state: &AppState) -> AppResult<()> {
     if cfg!(debug_assertions) && std::env::var("OPENDESK_SKIP_DAEMON").is_ok() {
         return Ok(());
     }
+    require_engine_strict(state).await
+}
+
+/// Same check without the headless-test bypass. Used by Kanban transitions,
+/// where the test must prove that a failed dispatch keeps the chosen column.
+pub async fn require_engine_strict(state: &AppState) -> AppResult<()> {
     let status = state.daemon.status().await;
     if status.online {
         return Ok(());

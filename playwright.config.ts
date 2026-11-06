@@ -32,7 +32,7 @@ export default defineConfig({
   webServer: [
     {
       command:
-        "bash -c 'rm -rf /tmp/opendesk-e2e && mkdir -p /tmp/opendesk-e2e/home /tmp/opendesk-e2e/xdg-config /tmp/opendesk-e2e/xdg-data /tmp/opendesk-e2e/xdg-state /tmp/opendesk-e2e/cache && exec cargo run --manifest-path src-tauri/Cargo.toml -- --headless'",
+        "bash -c 'bash scripts/e2e-seed.sh && exec cargo run --manifest-path src-tauri/Cargo.toml -- --headless'",
       url: "http://127.0.0.1:4317/healthz",
       timeout: 240_000,
       reuseExistingServer: false,

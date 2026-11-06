@@ -20,6 +20,7 @@ import type {
   BackupEntry,
   EffectiveStudioItem,
   StudioInstallPreview,
+  StudioRuntime,
 } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ export function StudioOverview({
 }) {
   const workspaces = useAppStore((state) => state.workspaces);
   const [items, setItems] = useState<EffectiveStudioItem[]>([]);
+  const [runtime, setRuntime] = useState<StudioRuntime | null>(null);
   const [search, setSearch] = useState("");
   const [kindFilter, setKindFilter] = useState<"all" | EffectiveStudioItem["kind"]>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "enabled" | "disabled">("all");
@@ -65,10 +67,16 @@ export function StudioOverview({
     }
     setLoading(true);
     try {
-      const response = await apiGet<{ items: EffectiveStudioItem[] }>(
-        `/api/studio/effective?workspace_id=${encodeURIComponent(workspaceId)}`,
-      );
+      const [response, runtimeResponse] = await Promise.all([
+        apiGet<{ items: EffectiveStudioItem[] }>(
+          `/api/studio/effective?workspace_id=${encodeURIComponent(workspaceId)}`,
+        ),
+        apiGet<StudioRuntime>(
+          `/api/studio/runtime?workspace_id=${encodeURIComponent(workspaceId)}`,
+        ).catch(() => null),
+      ]);
       setItems(response.items);
+      setRuntime(runtimeResponse);
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -199,6 +207,50 @@ export function StudioOverview({
         ) : null}
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div className="mb-3 grid gap-2 lg:grid-cols-3">
+            <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
+              <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+                Inventário em disco
+              </p>
+              <p className="mt-1 text-[11px] text-zinc-300">
+                {items.filter((item) => item.source_scope === "global").length} globais ·{" "}
+                {items.filter((item) => item.source_scope === "workspace").length} no workspace ·{" "}
+                {items.filter((item) => item.disabled).length} desativados
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
+              <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+                Agentes runtime do OpenCode
+              </p>
+              <p className="mt-1 truncate text-[11px] text-zinc-300">
+                {runtime?.engine.online
+                  ? `${runtime.agents.length} disponíveis · ${runtime.agents
+                      .slice(0, 6)
+                      .map((agent) => `@${agent.id}`)
+                      .join(" ")}`
+                  : "engine offline — inicie o motor para listar agentes runtime"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
+              <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+                Modelos disponíveis
+              </p>
+              <p className="mt-1 text-[11px] text-zinc-300">
+                {runtime?.engine.online
+                  ? `${runtime.models.length} modelos reportados pelo OpenCode`
+                  : "engine offline"}
+              </p>
+            </div>
+          </div>
+          {runtime?.engine.online && runtime.agents.length > 0 ? (
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              {runtime.agents.map((agent) => (
+                <Badge key={agent.id} variant="default">
+                  @{agent.id}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
           {filtered.length === 0 ? (
             <div className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-[11px] text-zinc-600">
               Nenhum item encontrado. Use “Instalar” para importar de GitHub, URL, npm,

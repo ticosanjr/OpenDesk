@@ -15,6 +15,10 @@ pub struct Task {
     pub execution_mode: String,
     pub assigned_agent: Option<String>,
     pub preferred_model: Option<String>,
+    #[sqlx(default)]
+    pub agent_override: bool,
+    #[sqlx(default)]
+    pub model_override: bool,
     pub effort_level: String,
     pub plan_markdown: Option<String>,
     pub output_dir_path: Option<String>,
@@ -72,6 +76,10 @@ pub struct UpdateTaskInput {
     pub tags: Option<Vec<String>>,
     pub position_index: Option<i64>,
     #[serde(default)]
+    pub agent_override: Option<bool>,
+    #[serde(default)]
+    pub model_override: Option<bool>,
+    #[serde(default)]
     pub clear_agent: bool,
     #[serde(default)]
     pub clear_model: bool,
@@ -80,8 +88,9 @@ pub struct UpdateTaskInput {
 }
 
 const COLUMNS: &str = "id, workspace_id, title, description, column_stage, phase_status, \
-    priority, execution_mode, assigned_agent, preferred_model, effort_level, plan_markdown, \
-    output_dir_path, notify_email, export_to_gdocs, tags_json, position_index, created_at, updated_at";
+    priority, execution_mode, assigned_agent, preferred_model, agent_override, model_override, \
+    effort_level, plan_markdown, output_dir_path, notify_email, export_to_gdocs, tags_json, \
+    position_index, created_at, updated_at";
 
 const STAGES: [&str; 5] = ["BACKLOG", "PLAN", "BUILD", "REVIEW", "DONE"];
 const MODES: [&str; 4] = ["AUTO_DSH", "PLAN_ONLY", "BUILD_DIRECT", "PLAN_THEN_BUILD"];
@@ -173,9 +182,9 @@ pub async fn create(
     sqlx::query(
         "INSERT INTO tasks (
             id, workspace_id, title, description, column_stage, priority,
-            execution_mode, assigned_agent, preferred_model, effort_level,
-            notify_email, export_to_gdocs, tags_json, position_index
-         ) VALUES (?, ?, ?, ?, 'BACKLOG', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            execution_mode, assigned_agent, preferred_model, agent_override, model_override,
+            effort_level, notify_email, export_to_gdocs, tags_json, position_index
+         ) VALUES (?, ?, ?, ?, 'BACKLOG', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(workspace_id)
@@ -185,6 +194,8 @@ pub async fn create(
     .bind(&mode)
     .bind(input.assigned_agent.as_deref())
     .bind(input.preferred_model.as_deref())
+    .bind(input.assigned_agent.is_some())
+    .bind(input.preferred_model.is_some())
     .bind(&effort)
     .bind(input.notify_email.as_deref())
     .bind(input.export_to_gdocs)
@@ -225,7 +236,7 @@ pub async fn update(pool: &SqlitePool, id: &str, input: UpdateTaskInput) -> AppR
         "UPDATE tasks SET
             title = ?, description = ?, column_stage = ?, phase_status = ?,
             priority = ?, execution_mode = ?, assigned_agent = ?, preferred_model = ?,
-            effort_level = ?, plan_markdown = ?, output_dir_path = ?, notify_email = ?,
+            agent_override = ?, model_override = ?, effort_level = ?, plan_markdown = ?, output_dir_path = ?, notify_email = ?,
             export_to_gdocs = ?, tags_json = ?, position_index = ?,
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
          WHERE id = ?",
@@ -245,6 +256,16 @@ pub async fn update(pool: &SqlitePool, id: &str, input: UpdateTaskInput) -> AppR
         None
     } else {
         input.preferred_model.or(current.preferred_model)
+    })
+    .bind(if input.clear_agent {
+        false
+    } else {
+        input.agent_override.unwrap_or(current.agent_override)
+    })
+    .bind(if input.clear_model {
+        false
+    } else {
+        input.model_override.unwrap_or(current.model_override)
     })
     .bind(&effort)
     .bind(if input.clear_plan {

@@ -54,7 +54,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     headers: auth.headers,
   });
   expect(about.ok()).toBeTruthy();
-  expect((await about.json()).app.version).toBe("0.10.0");
+  expect((await about.json()).app.version).toBe("0.10.1");
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });
@@ -70,6 +70,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
   // Studio: create an agent with name, avatar and color.
   await page.getByRole("link", { name: "OpenCode Studio" }).click();
   await expect(page.getByRole("heading", { name: "OpenCode Studio" })).toBeVisible();
+  await page.getByRole("button", { name: /Workspace/ }).click();
   await page.getByTitle("Novo agente").click();
   await page
     .locator('input[placeholder="Auditor de Qualidade"]')
@@ -214,9 +215,28 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   expect(done.ok()).toBeTruthy();
   expect((await done.json()).task.column_stage).toBe("DONE");
 
+  // Moving a card must persist even when the engine is offline; the dispatch
+  // failure is reported separately and the column stays where the user put it.
+  const planTransition = await request.post(
+    `${auth.baseURL}/api/tasks/${task!.id}/transition`,
+    { headers: auth.headers, data: { column_stage: "PLAN" } },
+  );
+  expect(planTransition.ok()).toBeTruthy();
+  const planBody = await planTransition.json();
+  expect(planBody.task.column_stage).toBe("PLAN");
+  expect(planBody.error).toBeTruthy();
+  expect(planBody.task.phase_status).toBe("dispatch_failed");
+
+  const backlog = await request.post(
+    `${auth.baseURL}/api/tasks/${task!.id}/transition`,
+    { headers: auth.headers, data: { column_stage: "BACKLOG" } },
+  );
+  expect(backlog.ok()).toBeTruthy();
+  expect((await backlog.json()).task.column_stage).toBe("BACKLOG");
+
   await page.reload();
   await expect(page.getByText("Tarefa E2E do Kanban").first()).toBeVisible();
-  await page.getByText("Tarefa E2E do Kanban").first().click();
+  await page.getByRole("button", { name: "Abrir tarefa Tarefa E2E do Kanban" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("button", { name: "Editar" }).click();
   await expect(page.getByText("Editar tarefa")).toBeVisible();
@@ -234,15 +254,24 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
     "explore",
   );
 
-  const modelUpdate = await request.patch(
-    `${auth.baseURL}/api/tasks/${task!.id}`,
-    {
-      headers: auth.headers,
-      data: { preferred_model: "opencode-go/glm-5.3#high" },
-    },
-  );
-  expect(modelUpdate.ok()).toBeTruthy();
-  expect((await modelUpdate.json()).preferred_model).toBe(
+  // UI edit of the model, including the type-to-filter combobox.
+  await page.getByRole("button", { name: "Abrir tarefa Tarefa E2E do Kanban" }).click();
+  await page.getByRole("button", { name: "Editar" }).click();
+  const modelInput = page.getByPlaceholder(/digite para filtrar/);
+  await modelInput.fill("opencode-go/glm-5.3#high");
+  await page.getByRole("button", { name: "opencode-go/glm-5.3#high", exact: true }).click();
+  await page.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(page.getByText("Editar tarefa")).not.toBeVisible();
+  await expect(page.getByText("Tarefa salva")).toBeVisible();
+
+  const afterModel = await request.get(`${auth.baseURL}/api/tasks`, {
+    headers: auth.headers,
+  });
+  const modelTask = (await afterModel.json()) as Array<{
+    id: string;
+    preferred_model?: string | null;
+  }>;
+  expect(modelTask.find((item) => item.id === task!.id)?.preferred_model).toBe(
     "opencode-go/glm-5.3#high",
   );
 });
@@ -426,4 +455,67 @@ test("studio copies, toggles and installs across scopes", async ({ page, request
   await request.delete(`${auth.baseURL}/api/studio/agent/studio-e2e?scope=global`, {
     headers: auth.headers,
   });
+});
+
+test("studio reads global V1 MCP, skills, agents and commands", async ({ page, request }) => {
+  const auth = api();
+  const query = "scope=global";
+
+  const agents = await request.get(`${auth.baseURL}/api/studio/agents?${query}`, {
+    headers: auth.headers,
+  });
+  expect(agents.ok()).toBeTruthy();
+  expect((await agents.json()).some((item: { id: string }) => item.id === "global-agent")).toBe(true);
+
+  const skills = await request.get(`${auth.baseURL}/api/studio/skills?${query}`, {
+    headers: auth.headers,
+  });
+  expect(skills.ok()).toBeTruthy();
+  expect((await skills.json()).some((item: { id: string }) => item.id === "global-skill")).toBe(true);
+
+  const commands = await request.get(`${auth.baseURL}/api/studio/commands?${query}`, {
+    headers: auth.headers,
+  });
+  expect(commands.ok()).toBeTruthy();
+  expect((await commands.json()).some((item: { id: string }) => item.id === "global-command")).toBe(true);
+
+  const mcp = await request.get(`${auth.baseURL}/api/studio/mcp?${query}`, {
+    headers: auth.headers,
+  });
+  expect(mcp.ok()).toBeTruthy();
+  const mcpBody = await mcp.json();
+  expect(mcpBody.servers.some((item: { name: string }) => item.name === "rea")).toBe(true);
+
+  const toggled = await request.post(
+    `${auth.baseURL}/api/studio/mcp/rea/toggle?${query}`,
+    { headers: auth.headers, data: { enabled: false } },
+  );
+  expect(toggled.ok()).toBeTruthy();
+
+  const configAfter = await request.get(
+    `${auth.baseURL}/api/studio/config?${query}`,
+    { headers: auth.headers },
+  );
+  const parsed = (await configAfter.json()).parsed;
+  expect(parsed.mcp.rea.enabled).toBe(false);
+  expect(parsed.mcp.servers?.rea).toBeUndefined();
+
+  await request.post(`${auth.baseURL}/api/studio/mcp/rea/toggle?${query}`, {
+    headers: auth.headers,
+    data: { enabled: true },
+  });
+
+  await page.goto("/#/studio");
+  await expect(page.getByRole("heading", { name: "OpenCode Studio" })).toBeVisible();
+  // Effective is the default and must include the global fixture.
+  await expect(page.getByText("global-skill").first()).toBeVisible();
+  await expect(page.getByText("rea").first()).toBeVisible();
+  await page.getByRole("button", { name: "Global" }).click();
+  await expect(page.getByText("Global Agent").first()).toBeVisible();
+  await page.getByRole("button", { name: "Skills" }).click();
+  await expect(page.getByText("global-skill").first()).toBeVisible();
+  await page.getByRole("button", { name: "Comandos" }).click();
+  await expect(page.getByText("global-command").first()).toBeVisible();
+  await page.getByRole("button", { name: "MCP" }).click();
+  await expect(page.getByText("rea").first()).toBeVisible();
 });

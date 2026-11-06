@@ -779,6 +779,26 @@ pub async fn install_apply(
     ))
 }
 
+pub async fn runtime(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<StudioQuery>,
+) -> AppResult<Json<Value>> {
+    let workspace_id = match query.workspace_id {
+        Some(id) => id,
+        None => crate::api::tasks::resolve_workspace_id(&state, None).await?,
+    };
+    let workspace = crate::db::workspaces::get(&state.db, &workspace_id).await?;
+    let directory = Some(workspace.root_path.as_str());
+    let agents = state.daemon.agents(directory).await;
+    let models = state.daemon.models(directory).await;
+    let status = state.daemon.status().await;
+    Ok(Json(json!({
+        "engine": status,
+        "agents": agents.unwrap_or_default(),
+        "models": models.unwrap_or_default(),
+    })))
+}
+
 pub async fn catalog() -> Json<Value> {
     Json(json!({
         "mcps": [

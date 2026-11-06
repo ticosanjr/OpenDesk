@@ -75,35 +75,98 @@ pub fn write_for_scope(
 }
 
 pub fn list_mcp_servers(document: &ConfigDocument) -> Vec<McpServer> {
-    let Some(mcp) = document.parsed.get("mcp") else {
+    let Some(mcp) = document.parsed.get("mcp").and_then(Value::as_object) else {
         return Vec::new();
     };
 
-    let servers = mcp.get("servers").or_else(|| {
-        // Read-only compatibility with V1 files where servers lived directly
-        // under `mcp`. A V2 config always has the `servers` object.
-        mcp.as_object().and_then(|object| {
-            let looks_like_servers = !object.is_empty()
-                && object
-                    .values()
-                    .all(|value| value.get("type").is_some() || value.get("command").is_some());
-            if looks_like_servers { Some(mcp) } else { None }
-        })
-    });
-
-    let Some(servers) = servers.and_then(Value::as_object) else {
-        return Vec::new();
-    };
-
-    let mut result: Vec<McpServer> = servers
-        .iter()
-        .map(|(name, server)| McpServer {
+    let mut result = Vec::new();
+    // V1: servers live directly under `mcp`.
+    for (name, server) in mcp {
+        if name == "servers" || !is_mcp_server(server) {
+            continue;
+        }
+        result.push(McpServer {
             name: name.clone(),
-            server: server.clone(),
-        })
-        .collect();
-    result.sort_by(|a, b| a.name.cmp(&b.name));
+            server: normalize_mcp_server(server.clone()),
+        });
+    }
+    // V2: servers live under `mcp.servers` and win over a same-name V1 entry.
+    if let Some(servers) = mcp.get("servers").and_then(Value::as_object) {
+        for (name, server) in servers {
+            result.retain(|entry| &entry.name != name);
+            result.push(McpServer {
+                name: name.clone(),
+                server: normalize_mcp_server(server.clone()),
+            });
+        }
+    }
+    result.sort_by(|left, right| left.name.cmp(&right.name));
     result
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum McpShape {
+    V1,
+    V2,
+}
+
+fn is_mcp_server(value: &Value) -> bool {
+    value.is_object()
+        && (value.get("type").is_some()
+            || value.get("command").is_some()
+            || value.get("url").is_some())
+}
+
+fn mcp_shape(parsed: &Value) -> McpShape {
+    let Some(mcp) = parsed.get("mcp").and_then(Value::as_object) else {
+        return McpShape::V2;
+    };
+    if mcp.get("servers").and_then(Value::as_object).is_some() {
+        return McpShape::V2;
+    }
+    if mcp.is_empty() || mcp.values().all(is_mcp_server) {
+        return McpShape::V1;
+    }
+    McpShape::V2
+}
+
+fn normalize_mcp_server(mut server: Value) -> Value {
+    if let Some(enabled) = server.get("enabled").and_then(Value::as_bool) {
+        server["disabled"] = Value::Bool(!enabled);
+    }
+    if !server
+        .get("disabled")
+        .map(Value::is_boolean)
+        .unwrap_or(false)
+    {
+        server["disabled"] = Value::Bool(false);
+    }
+    server
+}
+
+fn server_for_shape(server: &Value, shape: McpShape) -> Value {
+    let mut value = server.clone();
+    match shape {
+        McpShape::V1 => {
+            let disabled = value
+                .get("disabled")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            value["enabled"] = Value::Bool(!disabled);
+            if let Some(object) = value.as_object_mut() {
+                object.remove("disabled");
+            }
+        }
+        McpShape::V2 => {
+            if let Some(enabled) = value.get("enabled").and_then(Value::as_bool) {
+                value["disabled"] = Value::Bool(!enabled);
+                if let Some(object) = value.as_object_mut() {
+                    object.remove("enabled");
+                }
+            }
+        }
+    }
+    value
 }
 
 pub fn upsert_mcp_server(
@@ -123,17 +186,20 @@ pub fn upsert_mcp_server(
     let current = read_text(path)?
         .map(|snapshot| snapshot.content)
         .unwrap_or_else(|| DEFAULT_CONFIG.to_string());
+    let shape = mcp_shape(&parse_jsonc(&current)?);
+    let value = json_to_cst(&server_for_shape(server, shape));
 
     let root = parse_cst(&current)?;
     let root_object = root.object_value_or_set();
     let mcp = root_object.object_value_or_set("mcp");
-    let servers = mcp.object_value_or_set("servers");
-
-    let value = json_to_cst(server);
-    match servers.get(&name) {
+    let container = match shape {
+        McpShape::V2 => mcp.object_value_or_set("servers"),
+        McpShape::V1 => mcp,
+    };
+    match container.get(&name) {
         Some(property) => property.set_value(value),
         None => {
-            servers.append(&name, value);
+            container.append(&name, value);
         }
     }
 
@@ -151,14 +217,25 @@ pub fn delete_mcp_server(
     let name = validate_slug(name, false)?;
     let snapshot =
         read_text(path)?.ok_or_else(|| AppError::NotFound(format!("config {}", path.display())))?;
+    let shape = mcp_shape(&parse_jsonc(&snapshot.content)?);
 
     let root = parse_cst(&snapshot.content)?;
     let root_object = root.object_value_or_set();
-    if let Some(mcp) = root_object.object_value("mcp")
-        && let Some(servers) = mcp.object_value("servers")
-        && let Some(property) = servers.get(&name)
-    {
-        property.remove();
+    if let Some(mcp) = root_object.object_value("mcp") {
+        match shape {
+            McpShape::V2 => {
+                if let Some(servers) = mcp.object_value("servers")
+                    && let Some(property) = servers.get(&name)
+                {
+                    property.remove();
+                }
+            }
+            McpShape::V1 => {
+                if let Some(property) = mcp.get(&name) {
+                    property.remove();
+                }
+            }
+        }
     }
 
     let content = root.to_string();
@@ -330,5 +407,75 @@ mod tests {
         )
         .expect_err("stale hash");
         assert!(matches!(error, AppError::Conflict(_)));
+    }
+}
+
+#[cfg(test)]
+mod mcp_shape_tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn preserves_v1_direct_mcp_shape_and_enabled_flag() {
+        let temp = TempDir::new().expect("temp");
+        let path = temp.path().join("opencode.jsonc");
+        std::fs::write(
+            &path,
+            r#"{
+  "mcp": {
+    "rea": { "type": "local", "command": ["rea", "mcp"], "enabled": true }
+  }
+}"#,
+        )
+        .expect("config");
+        let backups = temp.path().join("backups");
+
+        let document = upsert_mcp_server(
+            &path,
+            "rea",
+            &serde_json::json!({
+                "type": "local",
+                "command": ["rea", "mcp"],
+                "disabled": true
+            }),
+            None,
+            &backups,
+        )
+        .expect("upsert");
+        assert!(document.parsed.pointer("/mcp/rea").is_some());
+        assert!(document.parsed.pointer("/mcp/servers").is_none());
+        assert_eq!(
+            document
+                .parsed
+                .pointer("/mcp/rea/enabled")
+                .and_then(Value::as_bool),
+            Some(false)
+        );
+        assert!(document.parsed.pointer("/mcp/rea/disabled").is_none());
+
+        let servers = list_mcp_servers(&document);
+        assert_eq!(servers.len(), 1);
+        assert_eq!(
+            servers[0].server.get("disabled").and_then(Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn preserves_v2_servers_shape() {
+        let temp = TempDir::new().expect("temp");
+        let path = temp.path().join("opencode.jsonc");
+        std::fs::write(&path, r#"{"mcp":{"servers":{}}}"#).expect("config");
+        let backups = temp.path().join("backups");
+        let document = upsert_mcp_server(
+            &path,
+            "fetch",
+            &serde_json::json!({"type":"local","command":["npx","fetch"],"disabled":false}),
+            None,
+            &backups,
+        )
+        .expect("upsert");
+        assert!(document.parsed.pointer("/mcp/servers/fetch").is_some());
+        assert!(document.parsed.pointer("/mcp/fetch").is_none());
     }
 }

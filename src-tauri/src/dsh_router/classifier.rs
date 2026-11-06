@@ -181,6 +181,15 @@ pub fn classify(input: &RouterInput<'_>) -> RouterDecision {
         requires_plan_approval = false;
     }
 
+    // Explicit user choices always win over the policy/rule, so editing the
+    // agent or model on a task actually changes the next execution.
+    if let Some(agent) = input.manual_agent.filter(|value| !value.trim().is_empty()) {
+        selected_agent = agent.to_string();
+    }
+    if let Some(model) = input.manual_model.filter(|value| !value.trim().is_empty()) {
+        selected_model = model.to_string();
+    }
+
     // If the selected model is not exposed by this OpenCode instance, fall back
     // to the closest available chat model instead of failing the run.
     let (resolved_model, model_note) =

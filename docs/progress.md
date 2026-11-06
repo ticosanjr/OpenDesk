@@ -647,3 +647,39 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Playwright — 6 testes, incluindo cópia/toggle/effective/instalação npm e
   persistência de modelo em tarefa.
 - Cobertura Rust — 40,23% (ratchet local); lógica frontend — 90,3%.
+
+## 2026-11-06 — 0.10.1: Studio global, tarefas e modelos
+
+### Studio
+
+- `mcp` V1 (`mcp.<nome>` + `enabled`) e V2 (`mcp.servers` + `disabled`) são
+  detectados e preservados em list/upsert/delete/toggle.
+- O MCP global `rea` aparece no Studio e não é duplicado ao editar.
+- Visão **Efetivo** é o padrão e mistura global + workspace.
+- Inventário runtime do OpenCode (agentes/modelos) visível no Studio.
+- Filtros, contadores, cópia/movimento, toggle e backups continuam funcionando.
+- Fixture E2E com `opencode.jsonc` V1 + agente/skill/comando globais garante que
+  o Studio realmente lê o global.
+
+### Tarefas e Kanban
+
+- `agent_override`/`model_override` em `tasks` (migration 0006).
+- Editar modelo/agente passa a vencer a política do router.
+- `model_health` (migration 0005) coloca modelos com erro de região/auth em
+  cooldown por 24h.
+- Transições persistem a coluna antes do dispatch; falha mantém a coluna e grava
+  `dispatch_failed`.
+- Modal de edição com combobox de modelo filtrável por texto.
+- Toast “Tarefa salva”.
+- E2E cobre edição de modelo pela UI e transição PLAN offline mantendo a coluna.
+
+### Verificado
+
+- `cargo test` — 90 passed.
+- Playwright — 7 passed.
+- Task real no OpenCode:
+  - modelo `deepseek/deepseek-flash`;
+  - status `SUCCESS`;
+  - resumo `TASK OK`;
+  - artefato criado em `output/2026-11/teste-real/TASK_OK.txt`;
+  - job `COMPLETED`, sem erro.

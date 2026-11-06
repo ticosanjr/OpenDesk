@@ -196,7 +196,16 @@ export function KanbanPage() {
       ),
     );
     try {
-      await apiPost(`/api/tasks/${task.id}/transition`, { column_stage: stage });
+      const response = await apiPost<{ error?: string | null }>(
+        `/api/tasks/${task.id}/transition`,
+        { column_stage: stage },
+      );
+      if (response.error) {
+        setError(response.error);
+        setNotice(`Coluna alterada para ${stage}; a execução não iniciou.`);
+      } else {
+        setNotice(`Coluna alterada para ${stage}.`);
+      }
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -351,13 +360,22 @@ export function KanbanPage() {
                   columnTasks.map((task) => (
                     <div
                       key={task.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Abrir tarefa ${task.title}`}
                       className={cn(
-                        "rounded-lg border bg-zinc-950/50 p-2.5",
+                        "rounded-lg border bg-zinc-950/50 p-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60",
                         task.phase_status?.includes("failed")
                           ? "border-red-500/40"
                           : "border-zinc-800/80",
                       )}
                       onClick={() => setSelectedTask(task)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setSelectedTask(task);
+                        }
+                      }}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex min-w-0 items-start gap-1.5">
@@ -1061,7 +1079,8 @@ function EditTaskModal({
   const [error, setError] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentFile[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
-  const [customModel, setCustomModel] = useState(false);
+  const [modelInput, setModelInput] = useState("");
+  const [modelOpen, setModelOpen] = useState(false);
 
   useEffect(() => {
     if (!task) return;
@@ -1071,6 +1090,7 @@ function EditTaskModal({
     setPriority(task.priority);
     setAgent(task.assigned_agent ?? "");
     setModel(task.preferred_model ?? "");
+    setModelInput(task.preferred_model ?? "");
     setEffort(task.effort_level);
     setEmail(task.notify_email ?? "");
     setExportToGdocs(task.export_to_gdocs);
@@ -1116,6 +1136,8 @@ function EditTaskModal({
           .split(",")
           .map((tag) => tag.trim())
           .filter(Boolean),
+        agent_override: Boolean(agent.trim()),
+        model_override: Boolean(model.trim()),
         clear_agent: !agent.trim(),
         clear_model: !model.trim(),
       });
@@ -1185,46 +1207,94 @@ function EditTaskModal({
             ))}
           </datalist>
         </label>
-        <label>
+        <label className="relative">
           <span className={labelClass}>Modelo</span>
-          <select
-            value={customModel ? "__custom" : model}
+          <input
+            value={modelInput}
             onChange={(event) => {
-              if (event.target.value === "__custom") {
-                setCustomModel(true);
-                return;
-              }
-              setCustomModel(false);
+              setModelInput(event.target.value);
               setModel(event.target.value);
+              setModelOpen(true);
             }}
-            className={inputClass}
-          >
-            <option value="">automático (router)</option>
-            {Array.from(
-              new Set([
-                ...models.map((item) => {
-                  const provider = item.providerID ?? "";
-                  const id = item.modelID ?? item.id;
-                  return `${provider}/${id}`;
-                }),
-                ...(model ? [model] : []),
-              ]),
-            )
-              .filter(Boolean)
-              .map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            <option value="__custom">personalizado…</option>
-          </select>
-          {customModel ? (
-            <input
-              value={model}
-              onChange={(event) => setModel(event.target.value)}
-              placeholder="provider/model#variant"
-              className={cn(inputClass, "mt-2 font-mono text-[10px]")}
-            />
+            onFocus={() => setModelOpen(true)}
+            onBlur={() => window.setTimeout(() => setModelOpen(false), 150)}
+            placeholder="digite para filtrar (ex.: deepseek, glm, opencode-go/…)"
+            className={cn(inputClass, "font-mono text-[10px]")}
+          />
+          {modelOpen ? (
+            <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
+              <button
+                type="button"
+                className="block w-full rounded px-2 py-1 text-left text-[10px] text-zinc-400 hover:bg-zinc-800"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  setModel("");
+                  setModelInput("");
+                  setModelOpen(false);
+                }}
+              >
+                automático (router)
+              </button>
+              {(() => {
+                const query = modelInput.trim().toLowerCase();
+                const values = Array.from(
+                  new Set([
+                    ...models.map((item) => {
+                      const provider = item.providerID ?? "";
+                      const id = item.modelID ?? item.id;
+                      return `${provider}/${id}`;
+                    }),
+                    ...(model ? [model] : []),
+                  ]),
+                ).filter(Boolean);
+                const filtered = values
+                  .filter((value) => !query || value.toLowerCase().includes(query))
+                  .slice(0, 60);
+                return (
+                  <>
+                    {filtered.map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className={cn(
+                          "block w-full rounded px-2 py-1 text-left font-mono text-[10px] hover:bg-zinc-800",
+                          value === model ? "bg-zinc-800 text-zinc-100" : "text-zinc-300",
+                        )}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          setModel(value);
+                          setModelInput(value);
+                          setModelOpen(false);
+                        }}
+                      >
+                        {value}
+                      </button>
+                    ))}
+                    {modelInput.trim() &&
+                    !values.some(
+                      (value) => value.toLowerCase() === modelInput.trim().toLowerCase(),
+                    ) ? (
+                      <button
+                        type="button"
+                        className="block w-full rounded px-2 py-1 text-left font-mono text-[10px] text-blue-300 hover:bg-zinc-800"
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          setModel(modelInput.trim());
+                          setModelOpen(false);
+                        }}
+                      >
+                        usar “{modelInput.trim()}”
+                      </button>
+                    ) : null}
+                    {filtered.length === 0 && !modelInput.trim() ? (
+                      <p className="px-2 py-1 text-[10px] text-zinc-600">
+                        Nenhum modelo disponível. Digite um valor personalizado.
+                      </p>
+                    ) : null}
+                  </>
+                );
+              })()}
+            </div>
           ) : null}
         </label>
         <label>

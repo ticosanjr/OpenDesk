@@ -10,6 +10,7 @@ pub mod budget;
 pub mod chat;
 pub mod deliveries;
 pub mod integrations;
+pub mod model_health;
 pub mod models;
 pub mod queue;
 pub mod router;
