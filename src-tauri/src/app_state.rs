@@ -3,7 +3,7 @@ use crate::{
     db::{self, settings, workspaces},
     error::AppResult,
     events::EventBus,
-    integrations::google_oauth::GoogleOAuth,
+    integrations::{google_oauth::GoogleOAuth, signal::SignalBridge},
     opencode_client::{binary::OpenCodeLocator, daemon_manager::DaemonManager},
     paths::AppPaths,
     queue_scheduler::{CronEngine, QueueManager},
@@ -37,6 +37,7 @@ pub struct AppState {
     pub cron: Arc<CronEngine>,
     pub secrets: Arc<SecretStore>,
     pub google: Arc<GoogleOAuth>,
+    pub signal: Arc<SignalBridge>,
     pub api_port: u16,
     pub api_token: String,
     pub listener: Mutex<Option<TcpListener>>,
@@ -91,6 +92,7 @@ impl AppState {
         let secrets = Arc::new(SecretStore::new(&paths));
 
         let google = GoogleOAuth::new(db.clone(), secrets.clone(), events.clone());
+        let signal = Arc::new(SignalBridge::default());
         let concurrency = settings::get(&db, QUEUE_CONCURRENCY_SETTING)
             .await?
             .and_then(|value| value.as_u64())
@@ -121,6 +123,7 @@ impl AppState {
             cron,
             secrets,
             google,
+            signal,
             api_port,
             api_token,
             listener: Mutex::new(Some(listener)),

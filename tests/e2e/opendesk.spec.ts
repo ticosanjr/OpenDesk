@@ -54,7 +54,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     headers: auth.headers,
   });
   expect(about.ok()).toBeTruthy();
-  expect((await about.json()).app.version).toBe("0.7.0");
+  expect((await about.json()).app.version).toBe("0.8.0");
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });
@@ -257,6 +257,7 @@ test("creates a cron routine, runs it and saves SMTP/Google settings", async ({
 
   await page.goto("/#/integrations");
   await expect(page.getByRole("heading", { name: "Integrações" })).toBeVisible();
+  await expect(page.getByText("Signal (celular)")).toBeVisible();
   await page.getByLabel("Host").fill("smtp.example.com");
   await page.getByLabel("Remetente").fill("OpenDesk <e2e@example.com>");
   await page.getByLabel("Senha / app password").fill("e2e-secret");
@@ -267,4 +268,45 @@ test("creates a cron routine, runs it and saves SMTP/Google settings", async ({
   await page.getByLabel("Client secret").fill("e2e-google-secret");
   await page.getByRole("button", { name: "Salvar credenciais" }).click();
   await expect(page.getByText("Credenciais Google salvas.")).toBeVisible();
+});
+
+
+test("creates a chat thread and shows it in the UI", async ({ page, request }) => {
+  const auth = api();
+  const workspaces = await request.get(`${auth.baseURL}/api/workspaces`, {
+    headers: auth.headers,
+  });
+  const list = (await workspaces.json()) as Array<{ id: string }>;
+  const workspaceId = list[0]?.id;
+  expect(workspaceId).toBeTruthy();
+
+  const created = await request.post(`${auth.baseURL}/api/chat/threads`, {
+    headers: auth.headers,
+    data: {
+      workspace_id: workspaceId,
+      title: "Conversa E2E",
+      agent: "build",
+      source: "desktop",
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+  const thread = (await created.json()) as { id: string };
+
+  const detail = await request.get(
+    `${auth.baseURL}/api/chat/threads/${thread.id}`,
+    { headers: auth.headers },
+  );
+  expect(detail.ok()).toBeTruthy();
+  expect((await detail.json()).messages).toEqual([]);
+
+  await page.goto("/#/chat");
+  await expect(page.getByRole("heading", { name: "Chat & Criador" })).toBeVisible();
+  await expect(page.getByText("Conversa E2E").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Conversas" })).toBeVisible();
+
+  const removed = await request.delete(
+    `${auth.baseURL}/api/chat/threads/${thread.id}`,
+    { headers: auth.headers },
+  );
+  expect(removed.ok()).toBeTruthy();
 });

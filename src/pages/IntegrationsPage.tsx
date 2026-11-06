@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SignalCard } from "@/components/settings/SignalCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -263,7 +264,7 @@ export function IntegrationsPage() {
       <PageHeader
         eyebrow="credenciais por workspace"
         title="Integrações"
-        description={`${workspace?.name ?? "Workspace"} · SMTP e Google Workspace. Segredos ficam criptografados em repouso (AES-256-GCM, 0600).`}
+        description={`${workspace?.name ?? "Workspace"} · SMTP, Google Workspace e Signal. Segredos ficam criptografados em repouso (AES-256-GCM, 0600).`}
         actions={
           <Button variant="outline" size="sm" onClick={() => void load()}>
             <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
@@ -464,6 +465,8 @@ export function IntegrationsPage() {
             </p>
           </CardContent>
         </Card>
+
+        <SignalCard />
       </div>
 
       <Card>

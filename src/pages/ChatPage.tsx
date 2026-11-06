@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowUp,
   Bot,
   Loader2,
   MessageSquare,
-  Paperclip,
-  Route,
+  Plus,
+  RefreshCw,
+  Send,
   Sparkles,
+  Trash2,
   Wand2,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
@@ -16,125 +17,186 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
-import { apiPost } from "@/lib/api";
-import type { DispatchDecision, Task } from "@/lib/types";
-import { Link } from "react-router-dom";
+import { apiDelete, apiGet, apiPost } from "@/lib/api";
+import type {
+  AgentFile,
+  ChatMessage,
+  ChatReply,
+  ChatThread,
+} from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { relativeTime } from "@/lib/format";
 
-const CAPABILITIES = [
-  {
-    icon: MessageSquare,
-    title: "Chat com streaming",
-    description:
-      "Sessões do OpenCode com texto, raciocínio e tool calls transmitidos em tempo real.",
-  },
-  {
-    icon: Wand2,
-    title: "Meta-Builder",
-    description:
-      "“Crie um subagente revisor fiscal…” gera o arquivo .opencode/agents/<slug>.md validado e um card pronto para usar.",
-  },
-  {
-    icon: Route,
-    title: "Roteador DSH",
-    description:
-      "Classifica a intenção, decide Plan vs Build, escolhe subagente, modelo e effort antes de executar.",
-  },
-  {
-    icon: Sparkles,
-    title: "Context Packer",
-    description:
-      "Injeta somente caminhos, skills e restrições relevantes, incluindo a regra obrigatória de output.",
-  },
-];
+const FALLBACK_AGENTS = ["build", "plan", "explore", "general"];
 
 export function ChatPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
+  const workspaces = useAppStore((state) => state.workspaces);
   const setWorkspaceDialogOpen = useUiStore(
     (state) => state.setWorkspaceDialogOpen,
   );
+
+  const [threads, setThreads] = useState<ChatThread[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [thread, setThread] = useState<ChatThread | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [agents, setAgents] = useState<string[]>(FALLBACK_AGENTS);
+  const [agent, setAgent] = useState("build");
+  const [model, setModel] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [mode, setMode] = useState("AUTO_DSH");
+  const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  const [decision, setDecision] = useState<DispatchDecision | null>(null);
-  const [created, setCreated] = useState<Task | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [metaPrompt, setMetaPrompt] = useState("");
-  const [metaBusy, setMetaBusy] = useState(false);
-  const [metaResult, setMetaResult] = useState<{
-    kind: string;
-    id: string;
-    path: string;
-    message: string;
-  } | null>(null);
-  const [metaError, setMetaError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  async function buildMeta() {
-    if (!activeWorkspaceId) {
-      setWorkspaceDialogOpen(true);
-      return;
-    }
-    if (!metaPrompt.trim()) {
-      setMetaError("Descreva o agente, skill ou comando.");
-      return;
-    }
-    setMetaBusy(true);
-    setMetaError(null);
-    try {
-      const result = await apiPost<{
-        kind: string;
-        id: string;
-        path: string;
-        message: string;
-      }>(
-        `/api/meta/build?workspace_id=${encodeURIComponent(activeWorkspaceId)}&scope=workspace`,
-        { prompt: metaPrompt.trim() },
-      );
-      setMetaResult(result);
-      setMetaPrompt("");
-    } catch (cause) {
-      setMetaError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setMetaBusy(false);
-    }
-  }
+  const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
 
-  async function submit() {
+  const loadThreads = useCallback(async () => {
     if (!activeWorkspaceId) {
-      setWorkspaceDialogOpen(true);
+      setThreads([]);
       return;
     }
-    if (!prompt.trim()) {
-      setError("Escreva uma tarefa.");
-      return;
-    }
-    setSending(true);
-    setError(null);
+    setLoading(true);
     try {
-      const title =
-        prompt.trim().split("\n")[0].slice(0, 90) || "Tarefa rápida";
-      const task = await apiPost<Task>(
-        `/api/tasks?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
-        {
-          title,
-          description: prompt.trim(),
-          execution_mode: mode,
-          priority: 2,
-          tags: [],
-          effort_level: "medium",
-        },
+      const list = await apiGet<ChatThread[]>(
+        `/api/chat/threads?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
       );
-      const response = await apiPost<{ decision: DispatchDecision }>(
-        `/api/tasks/${task.id}/dispatch`,
-        {},
+      setThreads(list);
+      setSelectedId((current) =>
+        current && list.some((item) => item.id === current)
+          ? current
+          : list[0]?.id ?? null,
       );
-      setDecision(response.decision);
-      setCreated(task);
-      setPrompt("");
+      setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
+      setLoading(false);
+    }
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    void loadThreads();
+  }, [loadThreads]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) return;
+    const query = `scope=workspace&workspace_id=${encodeURIComponent(activeWorkspaceId)}`;
+    apiGet<AgentFile[]>(`/api/studio/agents?${query}`)
+      .then((list) => {
+        const ids = list.map((item) => item.id);
+        setAgents(Array.from(new Set([...FALLBACK_AGENTS, ...ids])));
+      })
+      .catch(() => setAgents(FALLBACK_AGENTS));
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setThread(null);
+      setMessages([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    apiGet<{ thread: ChatThread; messages: ChatMessage[] }>(
+      `/api/chat/threads/${selectedId}`,
+    )
+      .then((value) => {
+        if (cancelled) return;
+        setThread(value.thread);
+        setMessages(value.messages);
+        setAgent(value.thread.agent);
+        setModel(value.thread.model ?? "");
+      })
+      .catch((cause) =>
+        setError(cause instanceof Error ? cause.message : String(cause)),
+      )
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages, sending]);
+
+  async function createThread() {
+    if (!activeWorkspaceId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const created = await apiPost<ChatThread>("/api/chat/threads", {
+        workspace_id: activeWorkspaceId,
+        title: "Nova conversa",
+        agent,
+        model: model.trim() || null,
+        source: "desktop",
+      });
+      await loadThreads();
+      setSelectedId(created.id);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function send() {
+    if (!thread || !prompt.trim()) return;
+    setSending(true);
+    setError(null);
+    const content = prompt.trim();
+    setPrompt("");
+    try {
+      const reply = await apiPost<ChatReply>(
+        `/api/chat/threads/${thread.id}/messages`,
+        { content },
+      );
+      setMessages((current) => [...current, reply.user, reply.assistant]);
+      setThread(reply.thread);
+      if (reply.error) setError(reply.error);
+      await loadThreads();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+      setPrompt(content);
+    } finally {
       setSending(false);
     }
+  }
+
+  async function removeThread(id: string) {
+    if (!window.confirm("Excluir esta conversa e o histórico local?")) return;
+    try {
+      await apiDelete(`/api/chat/threads/${id}`);
+      if (selectedId === id) setSelectedId(null);
+      await loadThreads();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  if (!activeWorkspaceId) {
+    return (
+      <PageBody>
+        <PageHeader eyebrow="interação direta" title="Chat & Criador" />
+        <EmptyState
+          icon={MessageSquare}
+          title="Nenhum workspace ativo"
+          description="Selecione um workspace para conversar com agentes."
+          action={
+            <Button size="sm" onClick={() => setWorkspaceDialogOpen(true)}>
+              Criar workspace
+            </Button>
+          }
+        />
+      </PageBody>
+    );
   }
 
   return (
@@ -142,30 +204,205 @@ export function ChatPage() {
       <PageHeader
         eyebrow="interação direta"
         title="Chat & Criador"
-        description="Envie uma tarefa rápida; o roteador DSH decide a fase, o agente e o modelo, e a fila executa."
-        actions={<Badge variant="blue">fila integrada</Badge>}
+        description={`${workspace?.name ?? "Workspace"} · converse com qualquer agente, com histórico local. Threads do Signal aparecem com o selo correspondente.`}
+        actions={
+          <Button variant="outline" size="sm" onClick={() => void loadThreads()}>
+            <RefreshCw size={13} />
+            Atualizar
+          </Button>
+        }
       />
 
-      <div className="grid gap-3 md:grid-cols-2">
-        {CAPABILITIES.map((capability) => (
-          <Card key={capability.title}>
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/60 text-zinc-500">
-                  <capability.icon size={15} strokeWidth={1.7} />
-                </div>
-                <div>
-                  <p className="text-[12px] font-medium text-zinc-200">
-                    {capability.title}
+      {error ? (
+        <p className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-300">
+          {error}
+        </p>
+      ) : null}
+
+      <div className="grid gap-3 lg:grid-cols-[280px_1fr]">
+        <Card className="flex max-h-[620px] flex-col">
+          <CardHeader className="px-3.5 py-3">
+            <div>
+              <CardTitle className="text-[12px]">Conversas</CardTitle>
+              <p className="mt-0.5 text-[9px] text-zinc-600">
+                {threads.length} threads
+              </p>
+            </div>
+            <Button size="sm" className="h-7" onClick={() => void createThread()} disabled={loading}>
+              <Plus size={12} />
+              Nova
+            </Button>
+          </CardHeader>
+          <CardContent className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
+            {threads.length === 0 ? (
+              <p className="p-3 text-center text-[10px] text-zinc-600">
+                Nenhuma conversa. Escolha um agente e crie a primeira.
+              </p>
+            ) : (
+              threads.map((item) => (
+                <button
+                  type="button"
+                  key={item.id}
+                  onClick={() => setSelectedId(item.id)}
+                  className={cn(
+                    "w-full rounded-lg px-2.5 py-2 text-left transition",
+                    selectedId === item.id
+                      ? "bg-zinc-800 text-zinc-100"
+                      : "text-zinc-400 hover:bg-zinc-900",
+                  )}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <p className="min-w-0 flex-1 truncate text-[11px]">{item.title}</p>
+                    {item.source !== "desktop" ? (
+                      <Badge variant="purple">{item.source}</Badge>
+                    ) : null}
+                  </div>
+                  <p className="mt-0.5 truncate font-mono text-[9px] text-zinc-600">
+                    @{item.agent} · {relativeTime(item.last_message_at ?? item.updated_at)}
                   </p>
-                  <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">
-                    {capability.description}
-                  </p>
+                </button>
+              ))
+            )}
+          </CardContent>
+          <div className="space-y-2 border-t border-zinc-800/70 p-3">
+            <label className="block">
+              <span className={labelClass}>Agente para novas conversas</span>
+              <select
+                value={agent}
+                onChange={(event) => setAgent(event.target.value)}
+                className={inputClass}
+              >
+                {agents.map((id) => (
+                  <option key={id} value={id}>
+                    @{id}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className={labelClass}>Modelo (opcional)</span>
+              <input
+                value={model}
+                onChange={(event) => setModel(event.target.value)}
+                placeholder="provider/model#variant"
+                className={inputClass}
+              />
+            </label>
+            <Button size="sm" className="w-full" onClick={() => void createThread()} disabled={loading}>
+              {loading ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+              Criar conversa com @{agent}
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="flex max-h-[620px] min-h-[420px] flex-col">
+          <CardHeader className="px-4 py-3">
+            <div className="min-w-0">
+              <CardTitle className="truncate text-[12px]">
+                {thread?.title ?? "Selecione uma conversa"}
+              </CardTitle>
+              {thread ? (
+                <p className="mt-0.5 font-mono text-[9px] text-zinc-600">
+                  @{thread.agent}
+                  {thread.model ? ` · ${thread.model}` : ""}
+                  {thread.opencode_session_id
+                    ? ` · sessão ${thread.opencode_session_id.slice(0, 12)}`
+                    : " · sessão será criada no primeiro envio"}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-2">
+              {thread ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void removeThread(thread.id)}
+                >
+                  <Trash2 size={13} />
+                </Button>
+              ) : null}
+              <Badge variant="blue">
+                {sending ? "gerando…" : "pronto"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-0">
+            <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+              {!thread ? (
+                <EmptyState
+                  icon={Bot}
+                  title="Escolha ou crie uma conversa"
+                  description="Cada conversa usa um agente e mantém o histórico no SQLite. O conteúdo é executado pelo OpenCode."
+                />
+              ) : messages.length === 0 ? (
+                <EmptyState
+                  icon={Sparkles}
+                  title="Comece a conversa"
+                  description={`Envie a primeira mensagem para @${thread.agent}.`}
+                />
+              ) : (
+                messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={cn(
+                      "max-w-[85%] rounded-xl px-3 py-2 text-[11px] leading-relaxed",
+                      message.role === "user"
+                        ? "ml-auto bg-blue-500/15 text-blue-100"
+                        : "border border-zinc-800/70 bg-zinc-900/50 text-zinc-300",
+                    )}
+                  >
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                    <p className="mt-1 text-right font-mono text-[8px] text-zinc-600">
+                      {message.role === "user" ? "você" : "agente"} ·{" "}
+                      {relativeTime(message.created_at)}
+                    </p>
+                  </div>
+                ))
+              )}
+              {sending ? (
+                <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                  <Loader2 size={12} className="animate-spin" />
+                  aguardando resposta do OpenCode…
                 </div>
+              ) : null}
+            </div>
+            <div className="border-t border-zinc-800/70 p-3">
+              <div className="flex items-end gap-2">
+                <textarea
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      void send();
+                    }
+                  }}
+                  rows={2}
+                  placeholder={
+                    thread
+                      ? `Mensagem para @${thread.agent}… (Enter envia, Shift+Enter quebra linha)`
+                      : "Crie ou selecione uma conversa primeiro"
+                  }
+                  disabled={!thread || sending}
+                  className="min-h-[52px] flex-1 resize-y rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-[11px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-blue-500/60 disabled:opacity-60"
+                />
+                <Button
+                  size="sm"
+                  className="h-9"
+                  onClick={() => void send()}
+                  disabled={!thread || sending || !prompt.trim()}
+                >
+                  {sending ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Send size={14} />
+                  )}
+                  Enviar
+                </Button>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -176,156 +413,84 @@ export function ChatPage() {
               Meta-Builder
             </CardTitle>
             <p className="mt-1 text-xs text-zinc-500">
-              Crie um agente, skill ou comando descrevendo o pedido em linguagem natural. O arquivo
-              nativo é gravado no workspace e validado pelo Studio.
+              Crie agentes, skills e comandos descrevendo o pedido em linguagem natural.
             </p>
           </div>
           <Badge variant="purple">disco</Badge>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-end gap-2">
-            <textarea
-              value={metaPrompt}
-              onChange={(event) => setMetaPrompt(event.target.value)}
-              rows={2}
-              placeholder="Crie um subagente chamado revisor-fiscal focado em contabilidade italiana, usando o modelo deepseek/deepseek-flash, que só pode ler arquivos."
-              className="min-h-[52px] flex-1 resize-y rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-[11px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-blue-500/60"
-            />
-            <Button
-              size="sm"
-              className="h-9 shrink-0"
-              onClick={() => void buildMeta()}
-              disabled={metaBusy}
-            >
-              {metaBusy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-              Criar arquivo
-            </Button>
-          </div>
-          {metaError ? (
-            <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
-              {metaError}
-            </p>
-          ) : null}
-          {metaResult ? (
-            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-3 text-[11px] text-emerald-200">
-              <p className="font-medium">{metaResult.message}</p>
-              <p className="mt-1 font-mono text-[9px] text-emerald-300/70">
-                {metaResult.kind} · {metaResult.id} · {metaResult.path}
-              </p>
-              <Link
-                to="/studio"
-                className="mt-2 inline-block text-[10px] text-emerald-300 underline-offset-2 hover:underline"
-              >
-                Abrir no OpenCode Studio →
-              </Link>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Nova tarefa rápida</CardTitle>
-          <div className="flex items-center gap-2">
-            <Badge variant="default">router → fila → OpenCode</Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {decision ? (
-            <div className="rounded-lg border border-blue-500/20 bg-blue-500/[0.06] p-3 text-[11px] text-blue-200">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="blue">{decision.phase}</Badge>
-                <span className="font-medium">@{decision.selected_agent}</span>
-                <span className="font-mono text-[10px]">{decision.selected_model}</span>
-                <span className="font-mono text-[10px]">effort {decision.effort}</span>
-                {decision.requires_plan_approval ? (
-                  <Badge variant="yellow">aprovação necessária</Badge>
-                ) : null}
-              </div>
-              <p className="mt-1 text-blue-300/80">{decision.rationale}</p>
-              <p className="mt-1 font-mono text-[9px] text-blue-300/60">
-                output: {decision.output_directory}
-              </p>
-              {created ? (
-                <Link
-                  to="/kanban"
-                  className="mt-2 inline-block text-[10px] text-blue-300 underline-offset-2 hover:underline"
-                >
-                  Abrir no Kanban →
-                </Link>
-              ) : null}
-            </div>
-          ) : null}
-
-          {error ? (
-            <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
-              {error}
-            </p>
-          ) : null}
-
-          {!activeWorkspaceId ? (
-            <EmptyState
-              icon={MessageSquare}
-              title="Nenhum workspace ativo"
-              description="Crie um workspace para enfileirar tarefas."
-              action={
-                <Button size="sm" onClick={() => setWorkspaceDialogOpen(true)}>
-                  Criar workspace
-                </Button>
-              }
-            />
-          ) : (
-            <>
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={mode}
-                  onChange={(event) => setMode(event.target.value)}
-                  className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300 outline-none"
-                >
-                  <option value="AUTO_DSH">AUTO_DSH — roteador decide</option>
-                  <option value="PLAN_ONLY">PLAN_ONLY — só plano</option>
-                  <option value="PLAN_THEN_BUILD">PLAN_THEN_BUILD — aprovar plano</option>
-                  <option value="BUILD_DIRECT">BUILD_DIRECT — executar direto</option>
-                </select>
-                <Badge variant="default">orçamento e hard cap aplicados</Badge>
-              </div>
-              <div className="flex items-end gap-2 rounded-xl border border-zinc-800 bg-zinc-950/50 px-3 py-2">
-                <Paperclip size={15} className="mb-2 text-zinc-600" />
-                <textarea
-                  value={prompt}
-                  onChange={(event) => setPrompt(event.target.value)}
-                  onKeyDown={(event) => {
-                    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                      event.preventDefault();
-                      void submit();
-                    }
-                  }}
-                  rows={3}
-                  placeholder="Descreva a tarefa. Cmd/Ctrl+Enter envia para o roteador e a fila…"
-                  className="min-h-[64px] flex-1 resize-y bg-transparent py-1 text-[12px] text-zinc-200 outline-none placeholder:text-zinc-600"
-                />
-                <Button
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => void submit()}
-                  disabled={sending}
-                >
-                  {sending ? (
-                    <Loader2 size={15} className="animate-spin" />
-                  ) : (
-                    <ArrowUp size={15} />
-                  )}
-                </Button>
-              </div>
-              <p className="flex items-center gap-1.5 text-[9px] text-zinc-600">
-                <Bot size={11} />
-                Cria a tarefa no Kanban, aplica o roteador DSH e enfileira no SQLite. O progresso
-                aparece em Logs.
-              </p>
-            </>
-          )}
+        <CardContent>
+          <MetaBuilder workspaceId={activeWorkspaceId} />
         </CardContent>
       </Card>
     </PageBody>
   );
 }
+
+function MetaBuilder({ workspaceId }: { workspaceId: string }) {
+  const [prompt, setPrompt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    kind: string;
+    id: string;
+    path: string;
+    message: string;
+  } | null>(null);
+
+  async function build() {
+    if (!prompt.trim()) {
+      setError("Descreva o agente, skill ou comando.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const value = await apiPost<typeof result>(
+        `/api/meta/build?workspace_id=${encodeURIComponent(workspaceId)}&scope=workspace`,
+        { prompt: prompt.trim() },
+      );
+      setResult(value);
+      setPrompt("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-end gap-2">
+        <textarea
+          value={prompt}
+          onChange={(event) => setPrompt(event.target.value)}
+          rows={2}
+          placeholder="Crie um subagente chamado revisor-fiscal focado em contabilidade…"
+          className="min-h-[52px] flex-1 resize-y rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-[11px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-blue-500/60"
+        />
+        <Button size="sm" className="h-9" onClick={() => void build()} disabled={busy}>
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+          Criar arquivo
+        </Button>
+      </div>
+      {error ? (
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+          {error}
+        </p>
+      ) : null}
+      {result ? (
+        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-3 text-[11px] text-emerald-200">
+          <p className="font-medium">{result.message}</p>
+          <p className="mt-1 font-mono text-[9px] text-emerald-300/70">
+            {result.kind} · {result.id} · {result.path}
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const inputClass =
+  "h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[11px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
+const labelClass =
+  "mb-1 block text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-500";

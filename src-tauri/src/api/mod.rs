@@ -1,6 +1,7 @@
 pub mod about;
 pub mod artifacts;
 pub mod budget;
+pub mod chat;
 pub mod commands;
 pub mod engine;
 pub mod google;
@@ -10,6 +11,7 @@ pub mod queue;
 pub mod router;
 pub mod runs;
 pub mod schedules;
+pub mod signal;
 pub mod studio;
 pub mod tasks;
 pub mod updates;
@@ -152,6 +154,17 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/tasks/{id}/move", post(tasks::move_task))
         .route("/api/tasks/{id}/transition", post(tasks::transition_task))
         .route("/api/tasks/{id}/diagnostics", get(tasks::task_diagnostics))
+        .route(
+            "/api/chat/threads",
+            get(chat::list_threads).post(chat::create_thread),
+        )
+        .route(
+            "/api/chat/threads/{id}",
+            get(chat::get_thread)
+                .patch(chat::update_thread)
+                .delete(chat::delete_thread),
+        )
+        .route("/api/chat/threads/{id}/messages", post(chat::send_message))
         .route("/api/queue", get(queue::list_queue))
         .route("/api/queue/status", get(queue::queue_status))
         .route("/api/queue/pause", post(queue::pause_queue))
@@ -225,6 +238,13 @@ fn router(state: Arc<AppState>) -> Router {
             "/api/integrations/google/mcp/register",
             post(google::register_mcp),
         )
+        .route(
+            "/api/integrations/signal",
+            get(signal::status).put(signal::put_config),
+        )
+        .route("/api/integrations/signal/link", post(signal::link))
+        .route("/api/integrations/signal/start", post(signal::start))
+        .route("/api/integrations/signal/stop", post(signal::stop))
         .route("/ws", get(ws::ws_handler))
         .fallback(not_found)
         .layer(middleware::from_fn_with_state(

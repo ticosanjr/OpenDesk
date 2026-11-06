@@ -7,6 +7,7 @@ use std::{path::Path, str::FromStr, time::Duration};
 
 pub mod artifacts;
 pub mod budget;
+pub mod chat;
 pub mod deliveries;
 pub mod integrations;
 pub mod models;

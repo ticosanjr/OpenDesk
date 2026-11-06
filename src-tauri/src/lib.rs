@@ -1,5 +1,6 @@
 mod api;
 mod app_state;
+mod chat;
 mod config_sync;
 mod db;
 mod doctor;
@@ -54,6 +55,7 @@ fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
 
             state.cron.shutdown();
             state.queue.shutdown().await;
+            state.signal.stop().await;
             state.daemon.shutdown().await;
             app.exit(0);
         });
@@ -66,6 +68,7 @@ fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
             tracing::info!("shutdown signal received");
             state.cron.shutdown();
             state.queue.shutdown().await;
+            state.signal.stop().await;
             state.daemon.shutdown().await;
             app.exit(0);
         });
@@ -126,6 +129,11 @@ pub fn run() {
 
             app.manage(state.clone());
             state.daemon.spawn_supervisor();
+            if let Err(error) =
+                tauri::async_runtime::block_on(state.signal.start_if_enabled(state.clone()))
+            {
+                tracing::warn!(error = %error, "Signal bridge was not started");
+            }
             state.queue.spawn_worker();
             state.cron.spawn();
             tray::setup(app.handle(), state.clone())?;
@@ -188,6 +196,9 @@ pub fn run_headless() {
         }
 
         state.refresh_watcher().await.expect("config watcher");
+        if let Err(error) = state.signal.start_if_enabled(state.clone()).await {
+            tracing::warn!(error = %error, "Signal bridge was not started");
+        }
         state.queue.spawn_worker();
         state.cron.spawn();
         api::spawn_server(state.clone())

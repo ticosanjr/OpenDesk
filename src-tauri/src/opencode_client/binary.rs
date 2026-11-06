@@ -243,6 +243,7 @@ mod tests {
         writeln!(file, "#!/bin/sh").expect("shebang");
         writeln!(file, "echo \"opencode v{version}\"").expect("version");
         file.sync_all().expect("sync");
+        drop(file);
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -314,11 +315,12 @@ mod tests {
     }
 
     #[test]
-    fn resolve_prefers_the_configured_v2_binary() {
+    fn configured_binary_is_validated_before_the_path_fallback() {
         let temp = tempfile::TempDir::new().expect("temp");
         let path = fake_binary(temp.path(), "2.3.1");
         let locator = OpenCodeLocator::new(Some(path.clone()));
-        let info = locator.resolve().expect("resolved");
+        assert_eq!(locator.candidates().first(), Some(&path));
+        let info = locator.resolve_path(&path).expect("configured binary");
         assert_eq!(info.path, path.to_string_lossy());
         assert_eq!(info.version, "2.3.1");
     }

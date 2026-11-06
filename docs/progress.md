@@ -558,3 +558,37 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 2. Chat real com qualquer agente.
 3. Signal bridge via `signal-cli`.
 4. Retry durável, rollback e assinatura de atualização.
+
+## 2026-11-06 — Fase 8: Chat real e Signal (0.8.0)
+
+### Chat
+
+- Migration 0004 com `chat_threads` e `chat_messages`.
+- Threads com agente, modelo, sessão OpenCode, origem e id externo.
+- `GET/POST /api/chat/threads`, `GET/PATCH/DELETE /api/chat/threads/{id}` e
+  `POST /api/chat/threads/{id}/messages`.
+- Serviço de chat reutiliza a sessão do OpenCode, consulta budget, aguarda a
+  resposta e devolve tokens/custo.
+- UI real: lista de conversas, escolha de qualquer agente, modelo opcional,
+  histórico, envio com Enter, exclusão e selo de origem Signal.
+- Thread criada automaticamente para mensagens Signal.
+
+### Signal
+
+- Configuração em Integrações: conta, caminho do `signal-cli`, allowlist,
+  workspace e agente padrão.
+- Vínculo por `signal-cli link` com QR code renderizado no app.
+- Bridge `signal-cli daemon --json` com allowlist obrigatória.
+- Mensagens recebidas viram thread de chat e a resposta é enviada pelo Signal.
+- Start/stop manual e desabilitado por padrão.
+- Testado com `signal-cli` falso: mensagem recebida → chat real no OpenCode →
+  resposta enviada pelo `signal-cli send`.
+
+### Verificado
+
+- `cargo test` — 81 passed.
+- Chat real com OpenCode: pergunta “Responda apenas: OK” retornou “OK”,
+  10.148 tokens de entrada e custo registrado.
+- Signal bridge: envelope fake recebido, thread `source=signal` criada e
+  resposta `SINAL OK` enviada ao destinatário.
+- E2E: thread de chat criada/listada e card Signal presente em Integrações.
