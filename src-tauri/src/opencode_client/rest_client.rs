@@ -83,6 +83,9 @@ pub struct FileDiff {
 #[derive(Clone)]
 pub struct RestClient {
     client: reqwest::Client,
+    /// SSE must not have a 120s total timeout; only the connect phase should
+    /// be bounded. A long build would otherwise be killed mid-stream.
+    stream_client: reqwest::Client,
     base_url: String,
     password: String,
 }
@@ -98,9 +101,14 @@ impl RestClient {
             .connect_timeout(Duration::from_secs(5))
             .build()
             .expect("reqwest client configuration is valid");
+        let stream_client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(10))
+            .build()
+            .expect("reqwest stream client configuration is valid");
 
         Self {
             client,
+            stream_client,
             base_url: base_url.trim_end_matches('/').to_string(),
             password,
         }
@@ -149,6 +157,21 @@ impl RestClient {
 
     pub async fn agents(&self, directory: Option<&str>) -> Result<Vec<AgentDto>> {
         let envelope: DataEnvelope<Vec<AgentDto>> = self.get_json("/api/agent", directory).await?;
+        Ok(envelope.data)
+    }
+
+    pub async fn skills(&self, directory: Option<&str>) -> Result<Vec<Value>> {
+        let envelope: DataEnvelope<Vec<Value>> = self.get_json("/api/skill", directory).await?;
+        Ok(envelope.data)
+    }
+
+    pub async fn commands(&self, directory: Option<&str>) -> Result<Vec<Value>> {
+        let envelope: DataEnvelope<Vec<Value>> = self.get_json("/api/command", directory).await?;
+        Ok(envelope.data)
+    }
+
+    pub async fn mcp_servers(&self, directory: Option<&str>) -> Result<Vec<Value>> {
+        let envelope: DataEnvelope<Vec<Value>> = self.get_json("/api/mcp", directory).await?;
         Ok(envelope.data)
     }
 
@@ -276,7 +299,11 @@ impl RestClient {
 
     pub async fn event_response(&self) -> Result<reqwest::Response> {
         let response = self
-            .request(reqwest::Method::GET, "/api/event")
+            .stream_client
+            .get(format!("{}/api/event", self.base_url))
+            .basic_auth("opencode", Some(&self.password))
+            .header("Accept", "text/event-stream")
+            .header("Accept-Encoding", "identity")
             .send()
             .await
             .context("could not subscribe to OpenCode events")?;
@@ -350,6 +377,30 @@ mod tests {
                         }]
                     }))
                     .into_response()
+                }),
+            )
+            .route(
+                "/api/skill",
+                get(|| async {
+                    Json(serde_json::json!({
+                        "data": [{ "id": "opencode", "name": "OpenCode", "description": "Docs" }]
+                    }))
+                }),
+            )
+            .route(
+                "/api/command",
+                get(|| async {
+                    Json(serde_json::json!({
+                        "data": [{ "name": "init", "description": "guided setup" }]
+                    }))
+                }),
+            )
+            .route(
+                "/api/mcp",
+                get(|| async {
+                    Json(serde_json::json!({
+                        "data": [{ "name": "rea", "status": { "status": "connected" } }]
+                    }))
                 }),
             )
             .route(
@@ -431,6 +482,12 @@ mod tests {
         assert_eq!(models[0].model_id.as_deref(), Some("glm-5.3"));
         let agents = client.agents(None).await.expect("agents");
         assert_eq!(agents[0].id, "build");
+        let skills = client.skills(None).await.expect("skills");
+        assert_eq!(skills[0]["id"], "opencode");
+        let commands = client.commands(None).await.expect("commands");
+        assert_eq!(commands[0]["name"], "init");
+        let mcps = client.mcp_servers(None).await.expect("mcps");
+        assert_eq!(mcps[0]["name"], "rea");
 
         let session = client
             .create_session("/tmp/ws", "Test", "build", None)

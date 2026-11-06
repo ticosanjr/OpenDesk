@@ -575,7 +575,8 @@ export type StudioKind = "agent" | "skill" | "command" | "mcp";
 export interface EffectiveStudioItem {
   kind: StudioKind;
   id: string;
-  source_scope: "global" | "workspace";
+  source_scope: "global" | "workspace" | "ancestor" | "runtime";
+  source_path?: string | null;
   overridden: boolean;
   disabled: boolean;
   value: Record<string, unknown>;
@@ -629,5 +630,20 @@ export interface StudioRuntime {
     name?: string | null;
     status?: string | null;
     enabled?: boolean | null;
+  }>;
+  skills: Array<{
+    id: string;
+    name?: string | null;
+    description?: string | null;
+    path?: string | null;
+    content?: string | null;
+  }>;
+  commands: Array<{
+    name: string;
+    description?: string | null;
+  }>;
+  mcps: Array<{
+    name: string;
+    status?: { status?: string | null } | string | null;
   }>;
 }

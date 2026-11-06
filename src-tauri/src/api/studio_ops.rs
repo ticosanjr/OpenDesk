@@ -521,6 +521,34 @@ fn move_file(source: &FsPath, target: &FsPath) -> AppResult<()> {
     Ok(())
 }
 
+fn insert_effective(
+    items: &mut std::collections::BTreeMap<(String, String), (Value, usize)>,
+    kind: &str,
+    id: String,
+    source_scope: &str,
+    source_path: &str,
+    value: Value,
+    disabled: bool,
+) {
+    let key = (kind.to_string(), id.clone());
+    let count = items.get(&key).map(|(_, count)| *count).unwrap_or(0);
+    items.insert(
+        key,
+        (
+            json!({
+                "kind": kind,
+                "id": id,
+                "source_scope": source_scope,
+                "source_path": source_path,
+                "overridden": count > 0,
+                "disabled": disabled,
+                "value": value,
+            }),
+            count + 1,
+        ),
+    );
+}
+
 pub async fn effective(
     State(state): State<Arc<AppState>>,
     Query(query): Query<StudioQuery>,
@@ -529,93 +557,185 @@ pub async fn effective(
         Some(id) => id.clone(),
         None => crate::api::tasks::resolve_workspace_id(&state, None).await?,
     };
+    let workspace = crate::db::workspaces::get(&state.db, &workspace_id).await?;
     let global = StudioPaths::new(None);
-    let (workspace, _, _) = context(
-        &state,
-        &StudioQuery {
-            scope: Some("workspace".into()),
-            workspace_id: Some(workspace_id),
-            id: None,
-            expected_sha256: None,
-        },
-    )
-    .await?;
+    let workspace_root = PathBuf::from(&workspace.root_path);
 
-    let mut items = Vec::new();
-    for kind in ["agent", "skill", "command"] {
-        let global_items = list_kind(&global, "global", kind)?;
-        let workspace_items = list_kind(&workspace, "workspace", kind)?;
-        let workspace_ids = workspace_items
-            .iter()
-            .filter_map(|item| item.get("id").and_then(Value::as_str).map(str::to_string))
-            .collect::<std::collections::HashSet<_>>();
-        for mut item in global_items {
-            let id = item
-                .get("id")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string();
-            let overridden = workspace_ids.contains(&id);
-            item["source_scope"] = json!("global");
-            item["overridden"] = json!(overridden);
-            items.push(json!({
-                "kind": kind,
-                "id": id,
-                "source_scope": "global",
-                "overridden": overridden,
-                "disabled": item.get("disabled").and_then(Value::as_bool).unwrap_or(false),
-                "value": item,
-            }));
+    // OpenCode searches the current directory and every ancestor through the
+    // filesystem root, merging direct `opencode.json(c)` and `.opencode`.
+    // Studio mirrors that so a skill/command in a parent project is visible.
+    let mut roots = Vec::new();
+    let mut current = Some(workspace_root.as_path());
+    while let Some(root) = current {
+        roots.push(root.to_path_buf());
+        if roots.len() >= 12 {
+            break;
         }
-        for mut item in workspace_items {
-            let id = item
-                .get("id")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string();
-            item["source_scope"] = json!("workspace");
-            item["overridden"] = json!(false);
-            items.push(json!({
-                "kind": kind,
-                "id": id,
-                "source_scope": "workspace",
-                "overridden": false,
-                "disabled": item.get("disabled").and_then(Value::as_bool).unwrap_or(false),
-                "value": item,
-            }));
-        }
+        current = root.parent();
     }
+    roots.reverse();
 
-    // MCP merge: workspace overrides global by name.
-    let global_doc = jsonc_editor::read_for_scope(&global, "global")?;
-    let workspace_doc = jsonc_editor::read_for_scope(&workspace, "workspace")?;
-    let mut servers: std::collections::BTreeMap<String, (Value, &str)> =
+    let mut items: std::collections::BTreeMap<(String, String), (Value, usize)> =
         std::collections::BTreeMap::new();
+
+    for kind in ["agent", "skill", "command"] {
+        for item in list_kind(&global, "global", kind)? {
+            let id = item
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let path = item
+                .get("path")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let disabled = item
+                .get("disabled")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            insert_effective(&mut items, kind, id, "global", &path, item, disabled);
+        }
+    }
+    let global_doc = jsonc_editor::read_for_scope(&global, "global")?;
     for server in jsonc_editor::list_mcp_servers(&global_doc) {
-        servers.insert(server.name, (server.server, "global"));
-    }
-    for server in jsonc_editor::list_mcp_servers(&workspace_doc) {
-        servers.insert(server.name, (server.server, "workspace"));
-    }
-    for (id, (server, source)) in servers {
         let disabled = server
+            .server
             .get("disabled")
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        items.push(json!({
-            "kind": "mcp",
-            "id": id,
-            "source_scope": source,
-            "overridden": source == "workspace" && global_doc.parsed
-                .pointer("/mcp/servers")
-                .and_then(Value::as_object)
-                .map(|map| map.contains_key(&id))
-                .unwrap_or(false),
-            "disabled": disabled,
-            "value": server,
-        }));
+        insert_effective(
+            &mut items,
+            "mcp",
+            server.name,
+            "global",
+            &global_doc.path,
+            server.server,
+            disabled,
+        );
     }
-    Ok(Json(json!({ "items": items })))
+
+    for root in roots {
+        let is_workspace = root == workspace_root;
+        let paths = StudioPaths {
+            global_dir: global.global_dir.clone(),
+            workspace_root: Some(root.clone()),
+        };
+        let scope = if is_workspace {
+            "workspace"
+        } else {
+            "ancestor"
+        };
+        for kind in ["agent", "skill", "command"] {
+            for item in list_kind(&paths, "workspace", kind)? {
+                let id = item
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                let path = item
+                    .get("path")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                let disabled = item
+                    .get("disabled")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                insert_effective(&mut items, kind, id, scope, &path, item, disabled);
+            }
+        }
+        let document = jsonc_editor::read_for_scope(&paths, "workspace")?;
+        for server in jsonc_editor::list_mcp_servers(&document) {
+            let disabled = server
+                .server
+                .get("disabled")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            insert_effective(
+                &mut items,
+                "mcp",
+                server.name,
+                scope,
+                &document.path,
+                server.server,
+                disabled,
+            );
+        }
+    }
+
+    if let Some(client) = state.daemon.client().await {
+        let directory = workspace_root.to_str();
+        if let Ok(skills) = client.skills(directory).await {
+            for skill in skills {
+                let id = skill
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                if id.is_empty() || items.contains_key(&("skill".into(), id.clone())) {
+                    continue;
+                }
+                insert_effective(&mut items, "skill", id, "runtime", "", skill, false);
+            }
+        }
+        if let Ok(commands) = client.commands(directory).await {
+            for command in commands {
+                let id = command
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                if id.is_empty() || items.contains_key(&("command".into(), id.clone())) {
+                    continue;
+                }
+                insert_effective(&mut items, "command", id, "runtime", "", command, false);
+            }
+        }
+        if let Ok(agents) = client.agents(directory).await {
+            for agent in agents {
+                let id = agent.id.clone();
+                if items.contains_key(&("agent".into(), id.clone())) {
+                    continue;
+                }
+                insert_effective(
+                    &mut items,
+                    "agent",
+                    id,
+                    "runtime",
+                    "",
+                    serde_json::to_value(agent).unwrap_or(Value::Null),
+                    false,
+                );
+            }
+        }
+        if let Ok(mcps) = client.mcp_servers(directory).await {
+            for mcp in mcps {
+                let id = mcp
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                if id.is_empty() {
+                    continue;
+                }
+                if let Some((item, _)) = items.get_mut(&("mcp".into(), id.clone())) {
+                    if let Some(value) = item.get_mut("value") {
+                        value["runtime_status"] = mcp.get("status").cloned().unwrap_or(Value::Null);
+                    }
+                    continue;
+                }
+                insert_effective(&mut items, "mcp", id, "runtime", "", mcp, false);
+            }
+        }
+    }
+
+    Ok(Json(json!({
+        "items": items.into_values().map(|(mut item, count)| {
+            item["overridden"] = json!(count > 1);
+            item
+        }).collect::<Vec<_>>()
+    })))
 }
 
 fn list_kind(paths: &StudioPaths, scope: &str, kind: &str) -> AppResult<Vec<Value>> {
@@ -785,6 +905,17 @@ pub async fn install_apply(
     ))
 }
 
+fn dedupe_by<T, F>(items: Vec<T>, key: F) -> Vec<T>
+where
+    F: Fn(&T) -> String,
+{
+    let mut seen = std::collections::HashSet::new();
+    items
+        .into_iter()
+        .filter(|item| seen.insert(key(item)))
+        .collect()
+}
+
 pub async fn runtime(
     State(state): State<Arc<AppState>>,
     Query(query): Query<StudioQuery>,
@@ -795,13 +926,78 @@ pub async fn runtime(
     };
     let workspace = crate::db::workspaces::get(&state.db, &workspace_id).await?;
     let directory = Some(workspace.root_path.as_str());
-    let agents = state.daemon.agents(directory).await;
-    let models = state.daemon.models(directory).await;
+    let client = state.daemon.client().await;
+    let (agents, models, skills, commands, mcps) = match client {
+        Some(client) => {
+            let mut agents = client.agents(None).await.unwrap_or_default();
+            let local_agents = client.agents(directory).await.unwrap_or_default();
+            agents.extend(local_agents);
+            let mut agents = dedupe_by(agents, |agent| agent.id.clone());
+
+            let models = client
+                .models(directory)
+                .await
+                .unwrap_or_else(|_| Vec::new());
+            let mut skills = client.skills(None).await.unwrap_or_default();
+            skills.extend(client.skills(directory).await.unwrap_or_default());
+            let mut skills = dedupe_by(skills, |skill| {
+                skill
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            });
+            let mut commands = client.commands(None).await.unwrap_or_default();
+            commands.extend(client.commands(directory).await.unwrap_or_default());
+            let mut commands = dedupe_by(commands, |command| {
+                command
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            });
+            let mut mcps = client.mcp_servers(None).await.unwrap_or_default();
+            mcps.extend(client.mcp_servers(directory).await.unwrap_or_default());
+            let mut mcps = dedupe_by(mcps, |mcp| {
+                mcp.get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            });
+            skills.sort_by_key(|value| {
+                value
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            });
+            commands.sort_by_key(|value| {
+                value
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            });
+            mcps.sort_by_key(|value| {
+                value
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            });
+            agents.sort_by_key(|agent| agent.id.clone());
+            (agents, models, skills, commands, mcps)
+        }
+        None => (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()),
+    };
     let status = state.daemon.status().await;
     Ok(Json(json!({
         "engine": status,
-        "agents": agents.unwrap_or_default(),
-        "models": models.unwrap_or_default(),
+        "agents": agents,
+        "models": models,
+        "skills": skills,
+        "commands": commands,
+        "mcps": mcps,
     })))
 }
 

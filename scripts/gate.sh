@@ -41,4 +41,9 @@ else
   echo "    Playwright skipped (OPENDESK_SKIP_E2E=1)"
 fi
 
+if [[ "${OPENDESK_REAL_TASK:-0}" == "1" ]]; then
+  echo "==> Real OpenCode task verification"
+  scripts/verify-real.sh
+fi
+
 echo "==> Gate passed"

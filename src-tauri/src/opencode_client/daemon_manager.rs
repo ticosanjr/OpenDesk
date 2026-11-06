@@ -85,6 +85,7 @@ impl DaemonManager {
     }
 
     pub fn spawn_supervisor(self: &Arc<Self>) {
+        cleanup_orphaned_daemons();
         let manager = Arc::clone(self);
         tauri::async_runtime::spawn(async move {
             manager.supervise().await;
@@ -263,6 +264,8 @@ impl DaemonManager {
                 &port.to_string(),
             ])
             .env("PATH", enriched_path(&binary.path))
+            .env("OPENDESK_DAEMON", "1")
+            .env("OPENDESK_PARENT_PID", std::process::id().to_string())
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -603,6 +606,49 @@ async fn terminate_pid(pid: u32) {
             .args(["/PID", &pid.to_string(), "/T", "/F"])
             .status()
             .await;
+    }
+}
+
+/// Remove dedicated daemons left behind by a previous OpenDesk process that
+/// crashed or was replaced by an update. Only processes explicitly tagged by
+/// OpenDesk are touched; the user's own `opencode serve` is never killed.
+fn cleanup_orphaned_daemons() {
+    #[cfg(target_os = "linux")]
+    {
+        let Ok(entries) = std::fs::read_dir("/proc") else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let Some(name) = entry.file_name().to_str().map(str::to_string) else {
+                continue;
+            };
+            let Ok(pid) = name.parse::<u32>() else {
+                continue;
+            };
+            if pid == std::process::id() {
+                continue;
+            }
+            let Ok(bytes) = std::fs::read(entry.path().join("environ")) else {
+                continue;
+            };
+            let env = String::from_utf8_lossy(&bytes);
+            if !env.split('\0').any(|value| value == "OPENDESK_DAEMON=1") {
+                continue;
+            }
+            let parent_alive = env
+                .split('\0')
+                .find_map(|value| value.strip_prefix("OPENDESK_PARENT_PID="))
+                .and_then(|value| value.parse::<u32>().ok())
+                .map(|parent| std::path::Path::new(&format!("/proc/{parent}")).exists())
+                .unwrap_or(false);
+            if parent_alive {
+                continue;
+            }
+            tracing::warn!(pid, "terminating orphaned OpenDesk daemon");
+            let _ = std::process::Command::new("kill")
+                .args(["-TERM", &pid.to_string()])
+                .status();
+        }
     }
 }
 

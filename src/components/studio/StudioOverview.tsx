@@ -251,6 +251,83 @@ export function StudioOverview({
               ))}
             </div>
           ) : null}
+          {runtime?.engine.online ? (
+            <div className="mb-3 grid gap-2 lg:grid-cols-3">
+              <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3">
+                <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+                  Skills carregadas pelo OpenCode
+                </p>
+                <p className="mt-1 text-[11px] text-zinc-300">
+                  {runtime.skills.length} disponíveis
+                </p>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {runtime.skills.slice(0, 12).map((skill) => (
+                    <Badge key={skill.id} variant="purple">
+                      {skill.id}
+                    </Badge>
+                  ))}
+                  {runtime.skills.length > 12 ? (
+                    <Badge variant="default">+{runtime.skills.length - 12}</Badge>
+                  ) : null}
+                </div>
+                {runtime.skills.length > 0 ? (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-[9px] text-zinc-500">
+                      ver todas
+                    </summary>
+                    <div className="mt-1 max-h-40 overflow-y-auto text-[9px] text-zinc-500">
+                      {runtime.skills.map((skill) => (
+                        <p key={skill.id} className="truncate">
+                          <span className="font-mono text-zinc-300">{skill.id}</span>
+                          {skill.description ? ` · ${skill.description}` : ""}
+                        </p>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
+              </div>
+              <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3">
+                <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+                  Comandos carregados pelo OpenCode
+                </p>
+                <p className="mt-1 text-[11px] text-zinc-300">
+                  {runtime.commands.length} disponíveis
+                </p>
+                <div className="mt-1 max-h-40 overflow-y-auto text-[9px] text-zinc-500">
+                  {runtime.commands.map((command) => (
+                    <p key={command.name} className="truncate">
+                      <span className="font-mono text-zinc-300">/{command.name}</span>
+                      {command.description ? ` · ${command.description}` : ""}
+                    </p>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3">
+                <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+                  MCPs carregados pelo OpenCode
+                </p>
+                <p className="mt-1 text-[11px] text-zinc-300">
+                  {runtime.mcps.length} configurados
+                </p>
+                <div className="mt-1 space-y-1">
+                  {runtime.mcps.map((mcp) => {
+                    const status =
+                      typeof mcp.status === "string"
+                        ? mcp.status
+                        : mcp.status?.status ?? "unknown";
+                    return (
+                      <div key={mcp.name} className="flex items-center gap-2 text-[9px]">
+                        <span className="font-mono text-zinc-300">{mcp.name}</span>
+                        <Badge variant={status === "connected" ? "green" : "red"}>
+                          {status}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : null}
           {filtered.length === 0 ? (
             <div className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-[11px] text-zinc-600">
               Nenhum item encontrado. Use “Instalar” para importar de GitHub, URL, npm,
@@ -273,7 +350,17 @@ export function StudioOverview({
                             {String((item.value as { name?: string }).name || item.id)}
                           </p>
                           <Badge variant="default">{meta.label}</Badge>
-                          <Badge variant={item.source_scope === "workspace" ? "blue" : "purple"}>
+                          <Badge
+                            variant={
+                              item.source_scope === "workspace"
+                                ? "blue"
+                                : item.source_scope === "ancestor"
+                                  ? "yellow"
+                                  : item.source_scope === "runtime"
+                                    ? "green"
+                                    : "purple"
+                            }
+                          >
                             {item.source_scope}
                           </Badge>
                           {item.overridden ? <Badge variant="yellow">override</Badge> : null}
@@ -291,53 +378,65 @@ export function StudioOverview({
                           variant="ghost"
                           size="sm"
                           className="h-7 px-2 text-[9px]"
-                          onClick={() => onOpenEditor(item.kind, item.source_scope, item.id)}
+                          onClick={() => {
+                            if (item.source_scope !== "ancestor" && item.source_scope !== "runtime") {
+                              onOpenEditor(item.kind, item.source_scope, item.id);
+                            }
+                          }}
                         >
                           editar
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-2 text-[9px]"
-                          onClick={() => void duplicate(item)}
-                        >
-                          <Copy size={11} />
-                          duplicar
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-2 text-[9px]"
-                          onClick={() => setTransfer({ item, mode: "copy" })}
-                        >
-                          <ArrowRightLeft size={11} />
-                          copiar/mover
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-2 text-[9px]"
-                          onClick={() => void toggle(item)}
-                        >
-                          {item.disabled ? <ToggleLeft size={11} /> : <ToggleRight size={11} />}
-                          {item.disabled ? "ativar" : "desativar"}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-[9px]"
-                          onClick={() => setBackupsFor(item)}
-                        >
-                          <History size={11} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-[9px] text-red-300/80"
-                          onClick={() => void remove(item)}
-                        >
-                          <Trash2 size={11} />
-                        </Button>
+                        {item.source_scope !== "ancestor" && item.source_scope !== "runtime" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-[9px]"
+                            onClick={() => void duplicate(item)}
+                          >
+                            <Copy size={11} />
+                            duplicar
+                          </Button>
+                        ) : null}
+                        {item.source_scope !== "ancestor" && item.source_scope !== "runtime" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-[9px]"
+                            onClick={() => setTransfer({ item, mode: "copy" })}
+                          >
+                            <ArrowRightLeft size={11} />
+                            copiar/mover
+                          </Button>
+                        ) : null}
+                        {item.source_scope !== "ancestor" && item.source_scope !== "runtime" ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-[9px]"
+                              onClick={() => void toggle(item)}
+                            >
+                              {item.disabled ? <ToggleLeft size={11} /> : <ToggleRight size={11} />}
+                              {item.disabled ? "ativar" : "desativar"}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-[9px]"
+                              onClick={() => setBackupsFor(item)}
+                            >
+                              <History size={11} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-[9px] text-red-300/80"
+                              onClick={() => void remove(item)}
+                            >
+                              <Trash2 size={11} />
+                            </Button>
+                          </>
+                        ) : null}
                       </div>
                     </CardContent>
                   </Card>

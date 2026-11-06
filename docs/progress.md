@@ -694,3 +694,29 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Rollback de OpenDesk pelo `.bak` e de OpenCode pelo binário anterior.
 - Testes: 92 Rust, 8 Playwright.
 - E2E cobre importação local com permissões/modelo e asset de skill.
+
+## 2026-11-06 — 0.11.0: runtime inventory e execução longa
+
+### Studio
+
+- Runtime inventory via `/api/skill`, `/api/command`, `/api/mcp`, `/api/agent`.
+- Efetivo mescla runtime + global + workspace + ancestrais.
+- Itens runtime read-only com badges, contadores e status de MCP.
+- Descoberta de `.opencode`/`opencode.json(c)` em diretórios ancestrais.
+- Verificação real: 67 skills, 3 comandos e 1 MCP `rea` no ambiente do usuário.
+
+### Execução
+
+- Cliente SSE separado do cliente REST: sem timeout total de 120s.
+- `Accept: text/event-stream` + `Accept-Encoding: identity`.
+- Fallback para `wait_session`/`messages` quando o stream cai.
+- Sucesso parcial preservado quando há artefatos.
+- Task real: SUCCESS, `REVIEW/build_complete`, 2 artefatos.
+- Daemons órfãos do OpenDesk são encerrados no boot.
+
+### Testes
+
+- `cargo test` — 95 passed.
+- Playwright — 8 passed.
+- `scripts/verify-real.sh` — REAL VERIFY OK.
+- Clippy limpo.
