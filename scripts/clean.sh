@@ -42,5 +42,5 @@ fi
 
 AFTER="$(du -sk . 2>/dev/null | awk '{print $1}')"
 FREED=$(( BEFORE - AFTER ))
-printf '==> Clean done: freed %.1f MB\n' "$(echo "$FREED / 1024" | bc -l 2>/dev/null || echo 0)"
+printf '==> Clean done: freed %d MB\n' "$((FREED / 1024))"
 du -sh . releases node_modules 2>/dev/null || true
