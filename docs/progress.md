@@ -135,3 +135,11 @@
    proveniência.
 2. Ampliar e2e para Kanban/fila quando os endpoints existirem.
 3. Adicionar teste de contrato opt-in contra `opencode serve` real.
+
+### Verificação extra do binário 0.2.0
+
+- `releases/0.2.0/opendesk-linux-x86_64 --headless` respondeu
+  `{"ok":true,"version":"0.2.0"}`.
+- O binário de release abriu a janela Tauri e renderizou o dashboard com o menu
+  de Configurações; SIGTERM encerrou o app e o daemon filho.
+- Checksums e manifesto conferidos em `releases/0.2.0/`.
