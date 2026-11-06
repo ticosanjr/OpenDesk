@@ -30,7 +30,7 @@ import { StatusDot, statusTone } from "@/components/ui/status-dot";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiGet } from "@/lib/api";
-import type { AgentInfo } from "@/lib/types";
+import type { AgentFile, AgentInfo } from "@/lib/types";
 import { ROUTER_POLICY_LABELS } from "@/lib/types";
 import {
   formatNumber,
@@ -58,6 +58,7 @@ export function DashboardPage() {
     (workspace) => workspace.id === activeWorkspaceId,
   );
   const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [presentation, setPresentation] = useState<Record<string, AgentFile>>({});
   const [agentsError, setAgentsError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,11 +69,22 @@ export function DashboardPage() {
 
     let cancelled = false;
     setAgentsError(null);
-    apiGet<{ data: AgentInfo[] }>(
-      `/api/agents?directory=${encodeURIComponent(activeWorkspace.root_path)}`,
-    )
-      .then((response) => {
-        if (!cancelled) setAgents(response.data);
+
+    const directory = encodeURIComponent(activeWorkspace.root_path);
+    const studioQuery = `scope=workspace&workspace_id=${encodeURIComponent(
+      activeWorkspace.id,
+    )}`;
+
+    Promise.all([
+      apiGet<{ data: AgentInfo[] }>(`/api/agents?directory=${directory}`),
+      apiGet<AgentFile[]>(`/api/studio/agents?${studioQuery}`).catch(() => []),
+    ])
+      .then(([response, studioAgents]) => {
+        if (cancelled) return;
+        setAgents(response.data);
+        setPresentation(
+          Object.fromEntries(studioAgents.map((agent) => [agent.id, agent])),
+        );
       })
       .catch((error: unknown) => {
         if (!cancelled) {
@@ -83,7 +95,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspace?.root_path, daemon?.online]);
+  }, [activeWorkspace?.root_path, activeWorkspace?.id, daemon?.online]);
 
   if (!activeWorkspace) {
     return (
@@ -215,31 +227,55 @@ export function DashboardPage() {
               />
             ) : (
               <div className="grid gap-2 md:grid-cols-2">
-                {agents.slice(0, 6).map((agent) => (
-                  <div
-                    key={agent.id}
-                    className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-[12px] font-medium text-zinc-200">
-                          @{agent.id}
-                        </p>
-                        <p className="mt-0.5 truncate text-[10px] text-zinc-600">
-                          {agent.description ?? agent.name ?? "sem descrição"}
-                        </p>
+                {agents.slice(0, 6).map((agent) => {
+                  const custom = presentation[agent.id];
+                  const displayName = custom?.name || agent.name || agent.id;
+                  const color = custom?.color || agent.color || "#60a5fa";
+                  const avatar =
+                    custom?.avatar ||
+                    Array.from(displayName).slice(0, 2).join("") ||
+                    "🤖";
+                  return (
+                    <div
+                      key={agent.id}
+                      className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-[11px]"
+                            style={{
+                              background: `${color}22`,
+                              borderColor: `${color}44`,
+                              color,
+                            }}
+                          >
+                            {Array.from(avatar).slice(0, 2).join("")}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-[12px] font-medium text-zinc-200">
+                              {displayName}
+                            </p>
+                            <p className="truncate font-mono text-[9px] text-zinc-600">
+                              @{agent.id}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant={agent.mode === "primary" ? "green" : "purple"}>
+                          {agent.mode ?? "agent"}
+                        </Badge>
                       </div>
-                      <Badge variant={agent.mode === "primary" ? "green" : "purple"}>
-                        {agent.mode ?? "agent"}
-                      </Badge>
+                      <p className="mt-2 truncate text-[10px] text-zinc-600">
+                        {custom?.description || agent.description || "sem descrição"}
+                      </p>
+                      <p className="mt-1 truncate font-mono text-[9px] text-zinc-700">
+                        {agent.model
+                          ? `${agent.model.providerID}/${agent.model.id}`
+                          : "modelo herdado da sessão"}
+                      </p>
                     </div>
-                    <p className="mt-2 truncate font-mono text-[9px] text-zinc-600">
-                      {agent.model
-                        ? `${agent.model.providerID}/${agent.model.id}`
-                        : "modelo herdado da sessão"}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>

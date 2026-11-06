@@ -2,5 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    opendesk_lib::run()
+    if std::env::args().any(|argument| argument == "--headless") {
+        opendesk_lib::run_headless();
+    } else {
+        opendesk_lib::run();
+    }
 }

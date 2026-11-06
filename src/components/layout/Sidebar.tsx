@@ -11,6 +11,7 @@ import {
   PanelLeftOpen,
   Plug,
   Route,
+  Settings,
   SlidersHorizontal,
   Wand2,
 } from "lucide-react";
@@ -30,6 +31,7 @@ export const NAV_ITEMS = [
   { to: "/studio", label: "OpenCode Studio", icon: Wand2 },
   { to: "/router", label: "Roteador & Custos", icon: Route },
   { to: "/integrations", label: "Integrações", icon: Plug },
+  { to: "/settings", label: "Configurações", icon: Settings },
 ] as const;
 
 export function Sidebar() {

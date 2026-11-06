@@ -133,6 +133,11 @@ impl DaemonManager {
         self.stop_child().await;
     }
 
+    /// Used by headless mode when the daemon is intentionally disabled.
+    pub async fn mark_unavailable(&self, message: &str) {
+        self.mark_offline(message.to_string()).await;
+    }
+
     async fn supervise(self: Arc<Self>) {
         let mut backoff = Duration::from_secs(1);
 

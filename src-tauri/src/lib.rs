@@ -1,5 +1,6 @@
 mod api;
 mod app_state;
+mod config_sync;
 mod db;
 mod error;
 mod events;
@@ -10,20 +11,70 @@ mod tray;
 use app_state::AppState;
 use paths::AppPaths;
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::{AppHandle, Manager};
 use tracing_subscriber::EnvFilter;
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+/// Tauri does not translate Unix SIGTERM/SIGINT into RunEvent::Exit. Handle
+/// them explicitly so the managed OpenCode child is not orphaned on logout,
+/// IDE restarts or `kill`.
+fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
+    #[cfg(unix)]
+    {
+        tauri::async_runtime::spawn(async move {
+            use tokio::signal::unix::{SignalKind, signal};
+
+            let mut terminate = match signal(SignalKind::terminate()) {
+                Ok(signal) => signal,
+                Err(error) => {
+                    tracing::warn!(error = %error, "could not install SIGTERM handler");
+                    return;
+                }
+            };
+            let mut interrupt = match signal(SignalKind::interrupt()) {
+                Ok(signal) => signal,
+                Err(error) => {
+                    tracing::warn!(error = %error, "could not install SIGINT handler");
+                    return;
+                }
+            };
+
+            tokio::select! {
+                _ = terminate.recv() => tracing::info!("SIGTERM received; shutting down"),
+                _ = interrupt.recv() => tracing::info!("SIGINT received; shutting down"),
+            }
+
+            state.daemon.shutdown().await;
+            app.exit(0);
+        });
+    }
+
+    #[cfg(not(unix))]
+    {
+        tauri::async_runtime::spawn(async move {
+            let _ = tokio::signal::ctrl_c().await;
+            tracing::info!("shutdown signal received");
+            state.daemon.shutdown().await;
+            app.exit(0);
+        });
+    }
+}
+
+fn init_logging() {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("opendesk=debug,opencode=info,tower_http=info"));
     let _ = tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_target(true)
         .try_init();
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    init_logging();
 
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
@@ -41,7 +92,10 @@ pub fn run() {
             app.manage(state.clone());
             state.daemon.spawn_supervisor();
             tray::setup(app.handle(), state.clone())?;
+            tauri::async_runtime::block_on(state.refresh_watcher())?;
             tauri::async_runtime::block_on(api::spawn_server(state.clone()))?;
+
+            install_shutdown_handlers(app.handle().clone(), state.clone());
 
             Ok(())
         })
@@ -65,5 +119,44 @@ pub fn run() {
                 tauri::async_runtime::block_on(state.daemon.shutdown());
             }
         }
+    });
+}
+
+/// Headless mode used by browser tests and future daemon-only installs.
+/// It runs the same AppState, SQLite, watcher and Axum API without a Tauri
+/// window or tray. `OPENDESK_SKIP_DAEMON=1` keeps the OpenCode engine offline.
+pub fn run_headless() {
+    init_logging();
+
+    let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+    runtime.block_on(async {
+        let paths = AppPaths::discover().expect("application paths");
+        let state = Arc::new(
+            AppState::initialize(paths)
+                .await
+                .expect("initialize OpenDesk state"),
+        );
+
+        if std::env::var("OPENDESK_SKIP_DAEMON").is_ok() {
+            state
+                .daemon
+                .mark_unavailable("OpenCode daemon disabled by OPENDESK_SKIP_DAEMON")
+                .await;
+        } else {
+            state.daemon.spawn_supervisor();
+        }
+
+        state.refresh_watcher().await.expect("config watcher");
+        api::spawn_server(state.clone())
+            .await
+            .expect("OpenDesk API server");
+
+        println!(
+            "OpenDesk headless API on http://127.0.0.1:{} (token in api.json)",
+            state.api_port
+        );
+
+        let _ = tokio::signal::ctrl_c().await;
+        state.daemon.shutdown().await;
     });
 }

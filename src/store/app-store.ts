@@ -28,6 +28,11 @@ interface AppStore {
   dashboard: DashboardStats | null;
   queue: QueueJob[];
   lastEventId: number;
+  lastFsEvent: {
+    entity: string;
+    path: string;
+    workspace_id: string;
+  } | null;
   boot: () => Promise<void>;
   refresh: () => Promise<void>;
   selectWorkspace: (id: string) => Promise<void>;
@@ -51,6 +56,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   dashboard: null,
   queue: [],
   lastEventId: 0,
+  lastFsEvent: null,
 
   boot: async () => {
     if (bootPromise) return bootPromise;
@@ -204,6 +210,21 @@ function handleEvent(event: WsEvent) {
     case "QueueUpdated": {
       const payload = event.payload as { jobs?: QueueJob[] };
       useAppStore.setState({ queue: payload.jobs ?? [] });
+      break;
+    }
+    case "FsSyncTriggered": {
+      const payload = event.payload as {
+        workspace_id?: string;
+        entity?: string;
+        path?: string;
+      };
+      useAppStore.setState({
+        lastFsEvent: {
+          entity: payload.entity ?? "file",
+          path: payload.path ?? "",
+          workspace_id: payload.workspace_id ?? "",
+        },
+      });
       break;
     }
     case "ResyncRequired":

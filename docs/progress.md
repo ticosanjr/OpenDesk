@@ -69,3 +69,69 @@
    - UI do Studio e testes de paridade <500 ms.
 2. Adicionar testes de integração Rust para a criação de workspace e layout.
 3. Revalidar o app com a criação automática de `.opencode/`.
+
+## 2026-11-06 — Studio SSOT, settings de workspace, agentes customizáveis e releases
+
+### Entregue
+
+- **Studio SSOT (Fase 2)**:
+  - `jsonc_editor` com CST (`jsonc-parser`) preservando comentários, escrita
+    atômica, backup e hash de concorrência (`409` em edição externa).
+  - CRUD de agentes, skills, comandos e servidores MCP direto nos arquivos
+    nativos do OpenCode V2.
+  - Watcher `notify` com debounce de 150 ms e eventos `FsSyncTriggered`; a UI
+    recarrega o Studio quando um arquivo muda por fora.
+  - UI do OpenCode Studio com abas Agentes, Skills, Comandos, MCP e JSONC bruto,
+    escopo Workspace/Global e editor de permissões V2.
+- **Agentes customizáveis**:
+  - `name` (nome de exibição), `avatar` (emoji/2 caracteres) e `color` no
+    frontmatter; o OpenCode ignora `name`/`avatar` e usa `color` nativamente.
+  - Dashboard e lista do Studio exibem avatar, nome e cor.
+- **Workspaces**:
+  - Configuração de pasta padrão (`workspaces_root`) na tela Configurações.
+  - Diálogo com modos **Criar novo** (pasta pai + slug do nome) e **Adicionar
+    existente** (qualquer pasta do disco).
+  - Folder picker nativo via `tauri-plugin-dialog`; caminho sempre editável.
+  - Criação automática de `input/`, `output/` e `.opencode/`.
+- **Modo headless**:
+  - `opendesk --headless` sobe a mesma API Axum/SQLite/watcher sem Tauri, com
+    `OPENDESK_API_PORT`, `OPENDESK_DATA_DIR`, `OPENDESK_SKIP_DAEMON` e
+    `OPENDESK_CONFIG_DIR` para testes isolados.
+- **Testes**:
+  - 12 testes Rust (workspaces, JSONC/comentários, agentes, skills, comandos,
+    MCP e watcher).
+  - 2 testes Playwright end-to-end cobrindo criação de workspace, configuração
+    da pasta padrão, agente customizado e sincronização de edição externa.
+  - Correção de um bug real encontrado pelo e2e: o botão “Novo workspace” estava
+    coberto pelo `<select>` do workspace switcher por falta de `shrink-0`.
+- **Releases locais**:
+  - `releases/` com no máximo 3 versões, `manifest.json`, `SHA256SUMS` e
+    `LATEST`; binários ignorados pelo git.
+  - `scripts/release.sh` compila, empacota, poda versões antigas, cria commit/tag
+    e faz push se houver remoto. Sem CI do git.
+
+### Verificado
+
+- `npm run check` — ok.
+- `npm run build` — ok.
+- `cargo test` — 12 passed.
+- `npm run test:e2e` — 2 passed.
+- `npm run tauri build` — gerou `.deb` (6,96 MiB), `.rpm` (6,97 MiB) e
+  `.AppImage` (91,44 MiB).
+
+### Observações
+
+- `name`/`avatar` são metadados de apresentação do OpenDesk. O OpenCode V2
+  retorna o `name` derivado do ID e ignora esses campos; `color` é nativo.
+- O headless usa `tauri::async_runtime` para spawn, o que funciona sem janela.
+- A pasta padrão inicial é `~/Documents/OpenDesk Workspaces` (ou
+  `~/OpenDesk Workspaces` quando `Documents` não existe).
+- Nenhum remoto git estava configurado no ambiente; commit/tag são locais e o
+  script faz push automaticamente quando um remoto for adicionado.
+
+### Próximo
+
+1. Fase 3 — roteador DSH, fila, budget guard, sessões/prompt/SSE, permissões e
+   proveniência.
+2. Ampliar e2e para Kanban/fila quando os endpoints existirem.
+3. Adicionar teste de contrato opt-in contra `opencode serve` real.

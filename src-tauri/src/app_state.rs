@@ -1,5 +1,10 @@
 use crate::{
-    db, events::EventBus, opencode_client::daemon_manager::DaemonManager, paths::AppPaths,
+    config_sync::{paths::StudioPaths, watcher::ConfigWatcher},
+    db::{self, settings, workspaces},
+    error::AppResult,
+    events::EventBus,
+    opencode_client::daemon_manager::DaemonManager,
+    paths::AppPaths,
 };
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -7,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::{
     net::TcpListener,
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 use uuid::Uuid;
@@ -19,6 +25,7 @@ pub struct AppState {
     pub api_port: u16,
     pub api_token: String,
     pub listener: Mutex<Option<TcpListener>>,
+    pub studio_watcher: Mutex<ConfigWatcher>,
     pub started_at: DateTime<Utc>,
 }
 
@@ -32,7 +39,23 @@ impl AppState {
     pub async fn initialize(paths: AppPaths) -> Result<Self> {
         let db = db::init(&paths.db_path).await?;
 
-        let listener = TcpListener::bind(("127.0.0.1", 0))
+        if settings::get(&db, "workspaces_root").await?.is_none() {
+            let root = crate::paths::default_workspaces_root();
+            std::fs::create_dir_all(&root)
+                .with_context(|| format!("could not create {}", root.display()))?;
+            settings::set(
+                &db,
+                "workspaces_root",
+                &serde_json::Value::String(root.to_string_lossy().to_string()),
+            )
+            .await?;
+        }
+
+        let requested_port = std::env::var("OPENDESK_API_PORT")
+            .ok()
+            .and_then(|value| value.parse::<u16>().ok())
+            .unwrap_or(0);
+        let listener = TcpListener::bind(("127.0.0.1", requested_port))
             .context("could not reserve a local port for the OpenDesk API")?;
         listener
             .set_nonblocking(true)
@@ -55,6 +78,7 @@ impl AppState {
             api_port,
             api_token,
             listener: Mutex::new(Some(listener)),
+            studio_watcher: Mutex::new(ConfigWatcher::new()),
             started_at: Utc::now(),
         };
 
@@ -74,6 +98,29 @@ impl AppState {
             port: self.api_port,
             token: self.api_token.clone(),
         }
+    }
+
+    /// Rebuild the watcher for the active workspace (or just the global scope
+    /// when no workspace is selected). Called on boot and on workspace switch.
+    pub async fn refresh_watcher(&self) -> AppResult<()> {
+        let active = settings::active_workspace_id(&self.db).await?;
+        let (paths, workspace_id) = match active {
+            Some(id) => {
+                let workspace = workspaces::get(&self.db, &id).await?;
+                (
+                    StudioPaths::new(Some(PathBuf::from(workspace.root_path))),
+                    id,
+                )
+            }
+            None => (StudioPaths::new(None), "global".to_string()),
+        };
+
+        let mut watcher = self
+            .studio_watcher
+            .lock()
+            .expect("OpenDesk watcher mutex is not poisoned");
+        watcher.watch(&paths, &workspace_id, self.events.clone())?;
+        Ok(())
     }
 
     fn write_api_lock(&self) -> Result<()> {

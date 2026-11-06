@@ -25,9 +25,15 @@ impl AppPaths {
         let dirs = ProjectDirs::from("com", "opendesk", "OpenDesk")
             .context("could not resolve the platform application directories")?;
 
-        let data_dir = dirs.data_dir().to_path_buf();
-        let config_dir = dirs.config_dir().to_path_buf();
-        let cache_dir = dirs.cache_dir().to_path_buf();
+        let data_dir = std::env::var_os("OPENDESK_DATA_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| dirs.data_dir().to_path_buf());
+        let config_dir = std::env::var_os("OPENDESK_CONFIG_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| dirs.config_dir().to_path_buf());
+        let cache_dir = std::env::var_os("OPENDESK_CACHE_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| dirs.cache_dir().to_path_buf());
         let log_dir = data_dir.join("logs");
         let backups_dir = data_dir.join("backups");
         let artifacts_dir = data_dir.join("artifacts");
@@ -73,4 +79,23 @@ impl AppPaths {
         }
         Ok(())
     }
+}
+
+/// Default parent directory for workspaces created from the OpenDesk UI.
+/// It lives outside the app data directory so users can back it up, sync it or
+/// open it in Finder/Explorer normally.
+pub fn default_workspaces_root() -> PathBuf {
+    if let Some(user_dirs) = directories::UserDirs::new() {
+        let base = user_dirs
+            .document_dir()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| user_dirs.home_dir().to_path_buf());
+        return base.join("OpenDesk Workspaces");
+    }
+
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from))
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("OpenDesk Workspaces")
 }

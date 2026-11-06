@@ -4,8 +4,9 @@ Sistema operacional visual de governança, automação e observabilidade sobre o
 OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
-> **Status:** fundação (Fase 1) pronta. O Studio SSOT é a próxima entrega.
-> Consulte [docs/implementation-plan.md](docs/implementation-plan.md) e
+> **Status:** fundação (Fase 1) e Studio SSOT (Fase 2) prontos. A próxima
+> entrega é o núcleo de execução (Fase 3). Consulte
+> [docs/implementation-plan.md](docs/implementation-plan.md) e
 > [docs/progress.md](docs/progress.md).
 
 ## O que já funciona
@@ -18,10 +19,21 @@ OpenCode permanecendo nos arquivos nativos do disco.
   porta livre), captura a senha efêmera, autentica com HTTP Basic, faz
   healthcheck a cada 5 s e reinicia sob demanda.
 - Registro de workspaces com criação de `input/`, `output/` e `.opencode/`.
-- Dashboard executivo, shell de navegação com 9 views, command bar (Cmd/Ctrl+K),
-  seletor de workspace e indicadores de daemon, fila e orçamento.
+- Configuração da pasta padrão de workspaces e cadastro de pastas existentes em
+  qualquer local do disco, com folder picker nativo.
+- OpenCode Studio: CRUD visual de agentes, skills, comandos, MCP e JSONC bruto,
+  com escrita atômica, backup, hash de concorrência e preservação de
+  comentários.
+- Watcher bidirecional com debounce de 150 ms: editar um `.md` por fora atualiza
+  a UI via WebSocket.
+- Agentes customizáveis com nome de exibição, avatar (emoji/2 caracteres) e cor.
+- Dashboard executivo, shell de navegação com 10 views, command bar
+  (Cmd/Ctrl+K), seletor de workspace e indicadores de daemon, fila e orçamento.
 - Endpoints de leitura de agentes e modelos direto do OpenCode V2
   (`/api/agent`, `/api/model`), com escopo por workspace.
+- Modo headless (`opendesk --headless`) para testes de navegador e instalações
+  sem janela.
+- Releases locais em `releases/` (máximo 3 versões), sem CI.
 
 ## Requisitos
 
@@ -57,8 +69,11 @@ No primeiro boot o OpenDesk:
 ```bash
 npm run check          # TypeScript
 npm run build          # frontend
+npm run test:rust      # testes Rust
+npm run test:e2e       # Playwright (headless + Vite)
 cd src-tauri && cargo check
 cd src-tauri && cargo test
+scripts/release.sh     # build + release local + retenção de 3 versões
 ```
 
 Para inspecionar a API local durante o desenvolvimento:
@@ -105,8 +120,11 @@ docs/                       plano, decisões e histórico
 
 ## Limitações atuais
 
-- Studio, fila, Kanban, cron, artefatos e integrações ainda são telas de
-  fundação com suas fases indicadas na UI.
+- Fila, Kanban, cron, artefatos e integrações ainda são telas de fundação com
+  suas fases indicadas na UI. O Studio já opera no disco.
+- O Playwright usa o backend headless com `OPENDESK_SKIP_DAEMON=1`; testes de
+  execução real do OpenCode ficam para a Fase 3.
+- Releases são construídas localmente; não há CI.
 - O frontend em modo browser puro exige `VITE_OPENDESK_PORT` e
   `VITE_OPENDESK_TOKEN`; o caminho normal é `npm run tauri dev`.
 - O daemon OpenCode é encerrado no shutdown do app, mas sobrevive a um crash
@@ -116,5 +134,7 @@ docs/                       plano, decisões e histórico
 
 - [Plano de implementação](docs/implementation-plan.md)
 - [ADR 0001 — OpenCode V2 only](docs/decisions/0001-opencode-v2-only.md)
+- [ADR 0002 — Metadados de apresentação de agentes](docs/decisions/0002-agent-presentation-metadata.md)
+- [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)

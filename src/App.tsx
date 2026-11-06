@@ -9,6 +9,7 @@ import { RoutinesPage } from "@/pages/RoutinesPage";
 import { StudioPage } from "@/pages/StudioPage";
 import { RouterPage } from "@/pages/RouterPage";
 import { IntegrationsPage } from "@/pages/IntegrationsPage";
+import { SettingsPage } from "@/pages/SettingsPage";
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="studio" element={<StudioPage />} />
           <Route path="router" element={<RouterPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

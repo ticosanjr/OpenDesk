@@ -4,13 +4,14 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 
 const host = process.env.TAURI_DEV_HOST;
+const rootDir = import.meta.dirname;
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(rootDir, "./src"),
     },
   },
   clearScreen: false,

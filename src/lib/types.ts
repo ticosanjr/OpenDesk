@@ -67,6 +67,7 @@ export interface AgentInfo {
   description?: string | null;
   mode?: string | null;
   model?: { providerID: string; id: string; variant?: string | null } | null;
+  color?: string | null;
   hidden?: boolean;
   permissions?: unknown;
 }
@@ -80,6 +81,78 @@ export type WsEvent = {
   event_type: string;
   payload: unknown;
 };
+
+export type StudioScope = "workspace" | "global";
+
+export interface PermissionRule {
+  action: string;
+  resource: string;
+  effect: string;
+}
+
+export interface AgentFile {
+  id: string;
+  scope: string;
+  path: string;
+  name?: string | null;
+  avatar?: string | null;
+  description?: string | null;
+  mode?: string | null;
+  model?: string | null;
+  color?: string | null;
+  hidden: boolean;
+  steps?: number | null;
+  disabled: boolean;
+  permissions: PermissionRule[];
+  system: string;
+  sha256: string;
+}
+
+export interface SkillExtraFile {
+  path: string;
+  content: string;
+}
+
+export interface SkillFile {
+  id: string;
+  scope: string;
+  path: string;
+  name: string;
+  description?: string | null;
+  body: string;
+  files: SkillExtraFile[];
+  sha256: string;
+}
+
+export interface CommandFile {
+  id: string;
+  scope: string;
+  path: string;
+  description?: string | null;
+  agent?: string | null;
+  model?: string | null;
+  subagent?: boolean | null;
+  template: string;
+  sha256: string;
+}
+
+export interface ConfigDocument {
+  path: string;
+  content: string;
+  sha256: string;
+  exists: boolean;
+  parsed: unknown;
+}
+
+export interface McpServerEntry {
+  name: string;
+  server: Record<string, unknown>;
+}
+
+export interface McpListResponse {
+  document: ConfigDocument;
+  servers: McpServerEntry[];
+}
 
 export const ROUTER_POLICY_LABELS: Record<string, string> = {
   COST_BENEFIT: "Melhor custo-benefício",

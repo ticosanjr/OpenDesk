@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod studio;
 pub mod ws;
 
 use crate::{
@@ -12,7 +13,7 @@ use axum::{
     http::{HeaderValue, Method, StatusCode, header::AUTHORIZATION},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -76,6 +77,37 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/workspaces/{id}/activate", post(activate_workspace))
         .route("/api/settings", get(list_settings))
         .route("/api/settings/{key}", get(get_setting).put(put_setting))
+        .route("/api/app/defaults", get(app_defaults))
+        .route("/api/studio/agents", get(studio::list_agents))
+        .route(
+            "/api/studio/agent",
+            get(studio::get_agent)
+                .put(studio::put_agent)
+                .delete(studio::delete_agent),
+        )
+        .route("/api/studio/skills", get(studio::list_skills))
+        .route(
+            "/api/studio/skill",
+            get(studio::get_skill)
+                .put(studio::put_skill)
+                .delete(studio::delete_skill),
+        )
+        .route("/api/studio/commands", get(studio::list_commands))
+        .route(
+            "/api/studio/command",
+            get(studio::get_command)
+                .put(studio::put_command)
+                .delete(studio::delete_command),
+        )
+        .route(
+            "/api/studio/config",
+            get(studio::get_config).put(studio::put_config),
+        )
+        .route("/api/studio/mcp", get(studio::list_mcp))
+        .route(
+            "/api/studio/mcp/{name}",
+            put(studio::put_mcp).delete(studio::delete_mcp),
+        )
         .route("/ws", get(ws::ws_handler))
         .fallback(not_found)
         .layer(middleware::from_fn_with_state(
@@ -231,6 +263,7 @@ async fn create_workspace(
 ) -> AppResult<Json<workspaces::Workspace>> {
     let workspace = workspaces::create(&state.db, &state.paths, input).await?;
     settings::set_active_workspace(&state.db, &workspace.id).await?;
+    state.refresh_watcher().await?;
     Ok(Json(workspace))
 }
 
@@ -246,9 +279,9 @@ async fn update_workspace(
     Path(id): Path<String>,
     Json(input): Json<workspaces::UpdateWorkspaceInput>,
 ) -> AppResult<Json<workspaces::Workspace>> {
-    Ok(Json(
-        workspaces::update(&state.db, &state.paths, &id, input).await?,
-    ))
+    let workspace = workspaces::update(&state.db, &state.paths, &id, input).await?;
+    state.refresh_watcher().await?;
+    Ok(Json(workspace))
 }
 
 async fn delete_workspace(
@@ -256,6 +289,7 @@ async fn delete_workspace(
     Path(id): Path<String>,
 ) -> AppResult<StatusCode> {
     workspaces::delete(&state.db, &id).await?;
+    state.refresh_watcher().await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -265,6 +299,7 @@ async fn activate_workspace(
 ) -> AppResult<Json<workspaces::Workspace>> {
     workspaces::touch(&state.db, &id).await?;
     settings::set_active_workspace(&state.db, &id).await?;
+    state.refresh_watcher().await?;
     Ok(Json(workspaces::get(&state.db, &id).await?))
 }
 
@@ -284,11 +319,40 @@ async fn get_setting(
         .ok_or_else(|| AppError::NotFound(format!("setting {key}")))
 }
 
+async fn app_defaults(State(state): State<Arc<AppState>>) -> AppResult<Json<serde_json::Value>> {
+    let workspaces_root = settings::get(&state.db, "workspaces_root")
+        .await?
+        .unwrap_or_else(|| json!(crate::paths::default_workspaces_root().to_string_lossy()));
+
+    Ok(Json(json!({
+        "workspaces_root": workspaces_root,
+        "default_policy": "COST_BENEFIT",
+        "default_timezone": "UTC",
+    })))
+}
+
 async fn put_setting(
     State(state): State<Arc<AppState>>,
     Path(key): Path<String>,
     Json(value): Json<serde_json::Value>,
 ) -> AppResult<Json<serde_json::Value>> {
+    let value = if key == "workspaces_root" {
+        let raw = value
+            .as_str()
+            .ok_or_else(|| AppError::BadRequest("workspaces_root must be a string".into()))?;
+        let path = std::path::Path::new(raw.trim());
+        if raw.trim().is_empty() {
+            return Err(AppError::BadRequest(
+                "workspaces_root cannot be empty".into(),
+            ));
+        }
+        std::fs::create_dir_all(path)?;
+        let canonical = std::fs::canonicalize(path)?;
+        json!(canonical.to_string_lossy())
+    } else {
+        value
+    };
+
     settings::set(&state.db, &key, &value).await?;
     Ok(Json(value))
 }

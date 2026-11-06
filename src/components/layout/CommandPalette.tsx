@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Route,
   RotateCw,
+  Settings,
   Search,
   Wand2,
 } from "lucide-react";
@@ -31,6 +32,7 @@ const icons = {
   "/studio": Wand2,
   "/router": Route,
   "/integrations": Plug,
+  "/settings": Settings,
 } as const;
 
 export function CommandPalette() {

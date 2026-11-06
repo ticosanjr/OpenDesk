@@ -32,8 +32,11 @@ npm install
 npm run tauri dev      # app completo
 npm run check          # TypeScript
 npm run build          # frontend
+npm run test:rust      # testes Rust
+npm run test:e2e       # Playwright (backend headless + Vite)
 cd src-tauri && cargo check
 cd src-tauri && cargo test
+scripts/release.sh     # build local + retenção de 3 releases (sem CI)
 ```
 
 ## Onde está o quê
@@ -60,6 +63,11 @@ cd src-tauri && cargo test
 
 ## Estado atual
 
-Fase 1 concluída. A próxima é o Studio SSOT (Fase 2): parser JSONC com
-preservação de comentários, CRUD de agentes/skills/comandos/MCP, watcher e
-sincronização <500 ms.
+Fases 1 e 2 concluídas: fundação, Studio SSOT (JSONC/agentes/skills/comandos/MCP,
+watcher, escrita atômica, hash de concorrência), configuração de pasta de
+workspaces, agentes com nome/avatar/cor e testes Playwright. A próxima é a Fase 3:
+roteador DSH, fila, budget guard, sessões/prompt/SSE, permissões e proveniência.
+
+Releases são locais (`releases/`, máximo 3 versões) e nunca via CI. `name` e
+`avatar` de agentes são metadados do OpenDesk no frontmatter; `color` é nativo
+(ADR 0002).

@@ -1,0 +1,224 @@
+use super::paths::StudioPaths;
+use crate::{
+    error::{AppError, AppResult},
+    events::{EventBus, OpenDeskWsEvent},
+};
+use notify_debouncer_full::{
+    DebounceEventResult, Debouncer, RecommendedCache, new_debouncer,
+    notify::{RecommendedWatcher, RecursiveMode},
+};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+    time::Duration,
+};
+
+pub struct ConfigWatcher {
+    debouncer: Option<Debouncer<RecommendedWatcher, RecommendedCache>>,
+    watched: Vec<PathBuf>,
+}
+
+impl ConfigWatcher {
+    pub fn new() -> Self {
+        Self {
+            debouncer: None,
+            watched: Vec::new(),
+        }
+    }
+
+    pub fn watched(&self) -> &[PathBuf] {
+        &self.watched
+    }
+
+    pub fn watch(
+        &mut self,
+        paths: &StudioPaths,
+        workspace_id: &str,
+        events: EventBus,
+    ) -> AppResult<()> {
+        // Dropping the old debouncer stops the previous workspace watches.
+        self.debouncer = None;
+        self.watched.clear();
+
+        let global_dir = paths.global_dir.clone();
+        let workspace_root = paths.workspace_root.clone();
+        let callback_global_dir = global_dir.clone();
+        let callback_workspace_root = workspace_root.clone();
+        let callback_workspace_id = workspace_id.to_string();
+        let bus = events.clone();
+
+        let mut debouncer = new_debouncer(
+            Duration::from_millis(150),
+            None,
+            move |result: DebounceEventResult| match result {
+                Ok(events) => {
+                    let mut seen = HashSet::new();
+                    for debounced in events {
+                        for path in debounced.event.paths {
+                            if !seen.insert(path.clone()) {
+                                continue;
+                            }
+                            let entity =
+                                entity_for(&path, &callback_workspace_root, &callback_global_dir);
+                            bus.publish(OpenDeskWsEvent::FsSyncTriggered {
+                                workspace_id: callback_workspace_id.clone(),
+                                entity,
+                                path: path.to_string_lossy().to_string(),
+                            });
+                        }
+                    }
+                }
+                Err(errors) => {
+                    for error in errors {
+                        tracing::warn!(error = %error, "OpenCode config watcher error");
+                    }
+                }
+            },
+        )
+        .map_err(|error| AppError::Internal(format!("could not start config watcher: {error}")))?;
+
+        std::fs::create_dir_all(&global_dir)?;
+        watch_path(
+            &mut debouncer,
+            &mut self.watched,
+            &global_dir,
+            RecursiveMode::Recursive,
+        );
+
+        if let Some(root) = &workspace_root {
+            watch_path(
+                &mut debouncer,
+                &mut self.watched,
+                root,
+                RecursiveMode::NonRecursive,
+            );
+            watch_path(
+                &mut debouncer,
+                &mut self.watched,
+                &root.join(".opencode"),
+                RecursiveMode::Recursive,
+            );
+            watch_path(
+                &mut debouncer,
+                &mut self.watched,
+                &root.join("input"),
+                RecursiveMode::Recursive,
+            );
+            watch_path(
+                &mut debouncer,
+                &mut self.watched,
+                &root.join("output"),
+                RecursiveMode::Recursive,
+            );
+        }
+
+        self.debouncer = Some(debouncer);
+        Ok(())
+    }
+}
+
+fn watch_path(
+    debouncer: &mut Debouncer<RecommendedWatcher, RecommendedCache>,
+    watched: &mut Vec<PathBuf>,
+    path: &Path,
+    mode: RecursiveMode,
+) {
+    if !path.exists() {
+        return;
+    }
+    match debouncer.watch(path, mode) {
+        Ok(()) => watched.push(path.to_path_buf()),
+        Err(error) => {
+            tracing::warn!(path = %path.display(), error = %error, "could not watch path");
+        }
+    }
+}
+
+fn entity_for(path: &Path, workspace_root: &Option<PathBuf>, global_dir: &Path) -> String {
+    let value = path.to_string_lossy();
+    if value.contains("/agents/") {
+        return "agent".into();
+    }
+    if value.contains("/skills/") {
+        return "skill".into();
+    }
+    if value.contains("/commands/") || value.contains("/command/") {
+        return "command".into();
+    }
+    if path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name == "opencode.jsonc" || name == "opencode.json")
+        .unwrap_or(false)
+    {
+        return "config".into();
+    }
+    if workspace_root
+        .as_ref()
+        .map(|root| path.starts_with(root.join("output")))
+        .unwrap_or(false)
+    {
+        return "output_file".into();
+    }
+    if path.starts_with(global_dir) {
+        return "config".into();
+    }
+    "file".into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::events::OpenDeskWsEvent;
+    use tempfile::TempDir;
+    use tokio::time::{Duration as TokioDuration, timeout};
+
+    #[tokio::test]
+    async fn emits_fs_sync_event_for_external_edit() {
+        let temp = TempDir::new().expect("temp");
+        let workspace = temp.path().join("ws");
+        let global = temp.path().join("global");
+        std::fs::create_dir_all(workspace.join(".opencode/agents")).expect("agents");
+        std::fs::create_dir_all(workspace.join("input")).expect("input");
+        std::fs::create_dir_all(workspace.join("output")).expect("output");
+        std::fs::create_dir_all(&global).expect("global");
+
+        let paths = StudioPaths {
+            global_dir: global,
+            workspace_root: Some(workspace.clone()),
+        };
+        let bus = EventBus::new(64);
+        let mut receiver = bus.subscribe();
+        let mut watcher = ConfigWatcher::new();
+        watcher
+            .watch(&paths, "ws-test", bus.clone())
+            .expect("watch");
+
+        tokio::time::sleep(TokioDuration::from_millis(250)).await;
+        std::fs::write(
+            workspace.join(".opencode/agents/external.md"),
+            "---\ndescription: external\n---\nbody\n",
+        )
+        .expect("write external file");
+
+        let event = timeout(TokioDuration::from_secs(5), async {
+            loop {
+                let envelope = receiver.recv().await.expect("event");
+                if let OpenDeskWsEvent::FsSyncTriggered {
+                    entity,
+                    workspace_id,
+                    path,
+                } = envelope.event
+                {
+                    if entity == "agent" && workspace_id == "ws-test" {
+                        return path;
+                    }
+                }
+            }
+        })
+        .await
+        .expect("watcher timeout");
+
+        assert!(event.ends_with("external.md"));
+    }
+}

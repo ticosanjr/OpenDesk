@@ -1,0 +1,8 @@
+# Release artifacts are local. Only metadata and checksums are versioned.
+*
+!*/
+!.gitignore
+!README.md
+!LATEST
+!*/manifest.json
+!*/SHA256SUMS

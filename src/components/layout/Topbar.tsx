@@ -30,7 +30,7 @@ export function Topbar() {
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-zinc-800/70 bg-[#0b0b0d]/90 px-4 backdrop-blur">
       <div className="flex min-w-0 items-center gap-2">
-        <div className="relative min-w-0">
+        <div className="relative min-w-0 shrink-0">
           <select
             value={activeWorkspaceId ?? ""}
             onChange={(event) => {
@@ -58,6 +58,7 @@ export function Topbar() {
           variant="ghost"
           size="icon"
           title="Novo workspace"
+          className="shrink-0"
           onClick={() => setWorkspaceDialogOpen(true)}
         >
           <Plus size={17} />
