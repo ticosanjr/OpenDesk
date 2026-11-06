@@ -171,12 +171,14 @@ workspace persiste, API responde com e sem token.
 - [x] UI de Rotinas e Integrações SMTP.
 - [ ] Retry automático de entregas falhas (próxima iteração).
 
-### Fase 5 — Google + MCP
+### Fase 5 — Google + MCP (concluída)
 
-- [ ] OAuth2 loopback/PKCE + keyring + refresh.
-- [ ] Drive, Docs, Calendar, Gmail e Tasks.
-- [ ] Subcomando `opendesk mcp-google` via stdio.
-- [ ] Registro em `mcp.servers` e UI de Integrações.
+- [x] OAuth2 loopback/PKCE + secret store + refresh.
+- [x] Drive, Docs, Calendar, Gmail e Tasks.
+- [x] Subcomando `opendesk mcp-google` via stdio.
+- [x] Registro em `mcp.servers` e UI de Integrações.
+- [x] Export pós-run para Google Docs/Drive.
+- [ ] Teste com conta Google real (depende de credenciais do usuário).
 
 ### Fase 6 — Observabilidade e polimento
 

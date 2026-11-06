@@ -91,6 +91,11 @@ pub enum OpenDeskWsEvent {
         schedule_id: String,
         workspace_id: String,
     },
+    GoogleConnectionUpdated {
+        workspace_id: String,
+        connected: bool,
+        email: Option<String>,
+    },
     BudgetAlert {
         level: String,
         daily_spent: f64,

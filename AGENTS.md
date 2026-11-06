@@ -63,10 +63,12 @@ scripts/release.sh     # build local + retenção de 3 releases (sem CI)
 
 ## Estado atual
 
-Fases 1–4 concluídas: fundação, Studio SSOT, workspaces configuráveis, agentes
+Fases 1–5 concluídas: fundação, Studio SSOT, workspaces configuráveis, agentes
 com nome/avatar/cor, roteador DSH, fila, budget guard, execução OpenCode V2 via
 SSE, proveniência, Kanban, Chat, Meta-Builder, cron, pastas determinísticas,
-SMTP e entregas pós-run. A próxima é a Fase 5: Google Workspace e MCP bridge.
+SMTP, entregas pós-run, Google Workspace e MCP bridge. Próxima frente:
+endurecimento, concorrência da fila, testes de contrato Google/OpenCode e
+empacotamento final.
 
 Releases são locais (`releases/`, máximo 3 versões) e nunca via CI. `name` e
 `avatar` de agentes são metadados do OpenDesk no frontmatter; `color` é nativo

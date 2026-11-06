@@ -6,7 +6,7 @@ use crate::{
 use futures_util::StreamExt;
 use serde_json::Value;
 use std::{
-    path::{Path, PathBuf},
+    path::Path,
     time::{Duration, Instant},
 };
 use tokio::time::timeout;
@@ -69,7 +69,6 @@ pub struct RunRequest<'a> {
     pub phase: &'a str,
     pub title: &'a str,
     pub prompt: &'a str,
-    pub output_directory: &'a str,
     pub log_path: &'a Path,
     pub cancel: CancellationToken,
 }
@@ -663,8 +662,4 @@ fn parse_model_ref(model: &str) -> Option<ModelRefDto> {
         id: id.to_string(),
         variant,
     })
-}
-
-pub fn log_path_for(root: &Path, run_id: &str) -> PathBuf {
-    root.join(format!("{run_id}.jsonl"))
 }

@@ -1,6 +1,7 @@
 pub mod artifacts;
 pub mod budget;
 pub mod commands;
+pub mod google;
 pub mod integrations;
 pub mod meta;
 pub mod queue;
@@ -186,6 +187,23 @@ fn router(state: Arc<AppState>) -> Router {
             "/api/integrations/deliveries",
             get(integrations::list_deliveries),
         )
+        .route("/api/integrations/google/status", get(google::status))
+        .route(
+            "/api/integrations/google/config",
+            get(google::get_config).put(google::put_config),
+        )
+        .route(
+            "/api/integrations/google/oauth/start",
+            post(google::start_oauth),
+        )
+        .route(
+            "/api/integrations/google/disconnect",
+            post(google::disconnect),
+        )
+        .route(
+            "/api/integrations/google/mcp/register",
+            post(google::register_mcp),
+        )
         .route("/ws", get(ws::ws_handler))
         .fallback(not_found)
         .layer(middleware::from_fn_with_state(
@@ -215,7 +233,7 @@ async fn meta() -> impl IntoResponse {
     Json(json!({
         "name": "OpenDesk",
         "version": env!("CARGO_PKG_VERSION"),
-        "phase": "automation",
+        "phase": "integration",
         "opencode_api": "v2",
         "features": [
             "daemon-manager",
@@ -234,7 +252,10 @@ async fn meta() -> impl IntoResponse {
             "meta-builder",
             "cron-scheduler",
             "smtp-delivery",
-            "encrypted-secrets"
+            "encrypted-secrets",
+            "google-workspace",
+            "google-oauth",
+            "mcp-bridge"
         ]
     }))
 }

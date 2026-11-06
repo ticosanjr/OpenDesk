@@ -305,3 +305,65 @@
 - `releases/LATEST` = `0.4.0`; `v0.4.0` tagueado.
 - Retenção: `0.2.0`, `0.3.0` e `0.4.0` (máximo 3).
 - `/api/meta` reporta fase `automation` e os recursos de cron/SMTP.
+
+## 2026-11-06 — Fase 5: Google Workspace e MCP bridge
+
+### Entregue
+
+- **OAuth2 Google**:
+  - Authorization Code + PKCE com callback loopback fixo
+    `http://127.0.0.1:53682/callback`;
+  - `client_id` em `app_settings`, `client_secret` e refresh token no secret
+    store AES-256-GCM;
+  - cache de access token com expiração e refresh automático;
+  - UI para salvar credenciais, conectar, revogar e registrar MCP;
+  - escopos de Docs, Drive (`drive.file`), Calendar, Gmail e Tasks.
+- **Google API client**:
+  - Drive: criar pasta, upload, busca;
+  - Docs: criar a partir de Markdown via HTML, ler texto e append;
+  - Gmail: enviar, criar rascunho e buscar threads;
+  - Calendar: listar e criar eventos;
+  - Tasks: listar e criar tarefas (Keep enterprise retorna erro explicativo).
+- **MCP bridge**:
+  - `opendesk mcp-google` via stdio, JSON-RPC 2.0, stdout reservado para frames;
+  - ferramentas de Gmail/Docs/Drive/Calendar/Tasks/Keep;
+  - registro automático em `mcp.servers.opendesk-google` com env de workspace;
+  - validado manualmente com `initialize`, `tools/list` e `tools/call`.
+- **Pós-run**:
+  - export do artefato `.md` principal para Google Docs quando
+    `export_to_gdocs`/`sync_to_google_docs` está ativo;
+  - upload dos artefatos para a pasta do Drive do workspace;
+  - links salvos em `artifacts_provenance` e entregas registradas como
+    `GDOCS`/`DRIVE`.
+
+### Verificado
+
+- `cargo test` — **30 passed**.
+- `npm run check` — ok.
+- `npm run build` — ok.
+- `npm run test:e2e` — **4 passed** (inclui salvar credenciais Google).
+- Headless:
+  - `GET/PUT /api/integrations/google/config` funciona;
+  - `POST /oauth/start` gera URL com PKCE e callback;
+  - `POST /mcp/register` grava `mcp.servers.opendesk-google` no
+    `opencode.jsonc`;
+  - bridge MCP responde `initialize`, lista 15 ferramentas e devolve erro claro
+    quando a conta não está conectada.
+- OAuth real e chamadas Google não foram executados por falta de credenciais de
+  uma conta Google neste ambiente.
+
+### Observações
+
+- O usuário precisa criar um OAuth client Desktop no Google Cloud e cadastrar o
+  callback exibido na UI.
+- Google Keep permanece enterprise; `gtasks_*` é o caminho suportado.
+- A exportação Google é best-effort e não falha o run; erros viram
+  `integration_deliveries` com `FAILED`.
+- O bridge MCP usa o mesmo store de segredos do app.
+
+### Próximo
+
+1. Endurecimento e testes com conta Google real.
+2. Concorrência configurável da fila e retry de entregas.
+3. Testes de contrato opt-in contra `opencode serve` real.
+4. Release 0.5.0.

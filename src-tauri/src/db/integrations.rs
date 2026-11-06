@@ -83,3 +83,42 @@ pub async fn upsert_smtp(
         .await?
         .ok_or_else(|| crate::error::AppError::Internal("integration row missing".into()))
 }
+
+pub async fn upsert_google(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    email: &str,
+    scopes: &str,
+) -> AppResult<WorkspaceIntegration> {
+    sqlx::query(
+        "INSERT INTO workspace_integrations (
+            workspace_id, google_account_email, google_scopes, updated_at
+         ) VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+         ON CONFLICT(workspace_id) DO UPDATE SET
+            google_account_email = excluded.google_account_email,
+            google_scopes = excluded.google_scopes,
+            updated_at = excluded.updated_at",
+    )
+    .bind(workspace_id)
+    .bind(email)
+    .bind(scopes)
+    .execute(pool)
+    .await?;
+
+    get(pool, workspace_id)
+        .await?
+        .ok_or_else(|| crate::error::AppError::Internal("integration row missing".into()))
+}
+
+pub async fn clear_google(pool: &SqlitePool, workspace_id: &str) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE workspace_integrations SET
+            google_account_email = NULL, google_scopes = NULL,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE workspace_id = ?",
+    )
+    .bind(workspace_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}

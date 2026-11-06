@@ -3,6 +3,7 @@ use crate::{
     db::{self, settings, workspaces},
     error::AppResult,
     events::EventBus,
+    integrations::google_oauth::GoogleOAuth,
     opencode_client::daemon_manager::DaemonManager,
     paths::AppPaths,
     queue_scheduler::{CronEngine, QueueManager},
@@ -27,6 +28,7 @@ pub struct AppState {
     pub queue: Arc<QueueManager>,
     pub cron: Arc<CronEngine>,
     pub secrets: Arc<SecretStore>,
+    pub google: Arc<GoogleOAuth>,
     pub api_port: u16,
     pub api_token: String,
     pub listener: Mutex<Option<TcpListener>>,
@@ -74,7 +76,16 @@ impl AppState {
 
         let events = EventBus::new(2048);
         let daemon = DaemonManager::new(paths.clone(), events.clone());
-        let queue = QueueManager::new(db.clone(), paths.clone(), events.clone(), daemon.clone());
+        let secrets = Arc::new(SecretStore::new(&paths));
+
+        let google = GoogleOAuth::new(db.clone(), secrets.clone(), events.clone());
+        let queue = QueueManager::new(
+            db.clone(),
+            paths.clone(),
+            events.clone(),
+            daemon.clone(),
+            google.clone(),
+        );
         let cron = CronEngine::new(
             db.clone(),
             paths.clone(),
@@ -82,7 +93,6 @@ impl AppState {
             queue.clone(),
             daemon.clone(),
         );
-        let secrets = Arc::new(SecretStore::new(&paths));
 
         let state = Self {
             paths,
@@ -92,6 +102,7 @@ impl AppState {
             queue,
             cron,
             secrets,
+            google,
             api_port,
             api_token,
             listener: Mutex::new(Some(listener)),

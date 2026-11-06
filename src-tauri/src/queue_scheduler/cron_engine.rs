@@ -1,7 +1,7 @@
 use crate::{
     config_sync::{commands, paths::StudioPaths},
     db::{
-        queue::{self, EnqueueInput, QueueJob},
+        queue::{EnqueueInput, QueueJob},
         router as router_db,
         schedules::{self, Schedule},
         workspaces,

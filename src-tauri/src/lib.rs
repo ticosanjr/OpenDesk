@@ -6,6 +6,7 @@ mod dsh_router;
 mod error;
 mod events;
 mod integrations;
+mod mcp_bridge;
 mod opencode_client;
 mod paths;
 mod queue_scheduler;
@@ -177,4 +178,14 @@ pub fn run_headless() {
         state.queue.shutdown().await;
         state.daemon.shutdown().await;
     });
+}
+
+/// MCP server over stdio used by OpenCode's `mcp.servers.opendesk-google`.
+/// Stdout is reserved for JSON-RPC frames; diagnostics go to stderr.
+pub fn run_mcp_google() {
+    let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+    if let Err(error) = runtime.block_on(mcp_bridge::run_stdio()) {
+        eprintln!("OpenDesk Google MCP bridge failed: {error:#}");
+        std::process::exit(1);
+    }
 }

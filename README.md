@@ -4,8 +4,8 @@ Sistema operacional visual de governança, automação e observabilidade sobre o
 OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
-> **Status:** fases 1–4 prontas (fundação, Studio, execução e automação).
-> A próxima entrega é Google Workspace + MCP bridge (Fase 5). Consulte
+> **Status:** fases 1–5 prontas. O OpenDesk cobre fundação, Studio, execução,
+> automação e Google Workspace + MCP bridge. Consulte
 > [docs/implementation-plan.md](docs/implementation-plan.md) e
 > [docs/progress.md](docs/progress.md).
 
@@ -41,6 +41,10 @@ OpenCode permanecendo nos arquivos nativos do disco.
   idempotência de slot e execução manual.
 - SMTP por workspace com segredo criptografado (AES-256-GCM, 0600), teste de
   conexão e entrega pós-run com anexos e idempotência.
+- Google Workspace: OAuth2 loopback + PKCE, Docs, Drive, Calendar, Gmail e
+  Tasks; export pós-run para Google Docs/Drive.
+- MCP bridge `opendesk mcp-google` com ferramentas de Gmail, Docs, Drive,
+  Calendar e Tasks, registrado em `mcp.servers`.
 - Dashboard executivo, shell de navegação com 10 views, command bar
   (Cmd/Ctrl+K), seletor de workspace e indicadores de daemon, fila e orçamento.
 - Endpoints de leitura de agentes e modelos direto do OpenCode V2
@@ -84,7 +88,7 @@ No primeiro boot o OpenDesk:
 ```bash
 npm run check          # TypeScript
 npm run build          # frontend
-npm run test:rust      # 28 testes Rust
+npm run test:rust      # 30 testes Rust
 npm run test:e2e       # 4 testes Playwright (headless + Vite)
 cd src-tauri && cargo check
 cd src-tauri && cargo test
@@ -135,7 +139,11 @@ docs/                       plano, decisões e histórico
 
 ## Limitações atuais
 
-- Google Workspace (Docs/Drive/Calendar/Gmail/Tasks) e MCP bridge são Fase 5.
+- O OAuth Google exige que o usuário crie um OAuth client (Desktop app) no
+  Google Cloud e cadastre o callback `http://127.0.0.1:53682/callback`.
+- As APIs Google não foram testadas com uma conta real neste ambiente; o fluxo
+  de autorização, o store de segredos e o bridge MCP foram validados.
+- Google Keep continua indisponível para contas comuns; o backlog usa Tasks.
 - A fila executa **um job por vez**; concorrência configurável fica para a
   próxima iteração.
 - O broker de permissões de runs autônomos responde `once` e audita em
@@ -158,6 +166,8 @@ docs/                       plano, decisões e histórico
 - [ADR 0004 — Proveniência com fallback por tool calls](docs/decisions/0004-artifact-diff-fallback.md)
 - [ADR 0005 — Secret store local criptografado](docs/decisions/0005-local-secret-store.md)
 - [ADR 0006 — Cron dirigido pelo SQLite](docs/decisions/0006-cron-db-tick.md)
+- [ADR 0007 — OAuth Google loopback e credenciais](docs/decisions/0007-google-oauth-loopback.md)
+- [ADR 0008 — MCP bridge stdio](docs/decisions/0008-mcp-bridge-stdio.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)

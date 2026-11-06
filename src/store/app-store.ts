@@ -49,6 +49,11 @@ interface AppStore {
     schedule_id: string;
     workspace_id: string;
   } | null;
+  lastGoogleEvent: {
+    workspace_id: string;
+    connected: boolean;
+    email?: string | null;
+  } | null;
   budgetAlert: {
     level: string;
     message: string;
@@ -83,6 +88,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   lastRunEvent: null,
   lastArtifactEvent: 0,
   lastScheduleEvent: null,
+  lastGoogleEvent: null,
   budgetAlert: null,
 
   boot: async () => {
@@ -304,6 +310,23 @@ function handleEvent(event: WsEvent) {
           : current.dashboard,
       }));
       break;
+    case "GoogleConnectionUpdated": {
+      const payload = event.payload as {
+        workspace_id?: string;
+        connected?: boolean;
+        email?: string | null;
+      };
+      if (payload.workspace_id) {
+        useAppStore.setState({
+          lastGoogleEvent: {
+            workspace_id: payload.workspace_id,
+            connected: payload.connected ?? false,
+            email: payload.email,
+          },
+        });
+      }
+      break;
+    }
     case "ScheduleUpdated": {
       const payload = event.payload as {
         schedule_id?: string;

@@ -22,8 +22,9 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
-import type { Delivery, SmtpSettings } from "@/lib/types";
+import type { Delivery, GoogleConfig, GoogleStatus, SmtpSettings } from "@/lib/types";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -59,12 +60,19 @@ export function IntegrationsPage() {
   const setWorkspaceDialogOpen = useUiStore(
     (state) => state.setWorkspaceDialogOpen,
   );
+  const lastGoogleEvent = useAppStore((state) => state.lastGoogleEvent);
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
 
   const [smtp, setSmtp] = useState<SmtpSettings | null>(null);
   const [form, setForm] = useState<SmtpForm>(EMPTY_FORM);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [testTo, setTestTo] = useState("");
+  const [google, setGoogle] = useState<GoogleStatus | null>(null);
+  const [googleConfig, setGoogleConfig] = useState<GoogleConfig | null>(null);
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [googleMessage, setGoogleMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -80,12 +88,17 @@ export function IntegrationsPage() {
     if (!activeWorkspaceId) return;
     setLoading(true);
     try {
-      const [settings, history] = await Promise.all([
+      const [settings, history, googleStatus, googleCfg] = await Promise.all([
         apiGet<SmtpSettings>(`/api/integrations/smtp${query}`),
         apiGet<Delivery[]>(`/api/integrations/deliveries${query}`),
+        apiGet<GoogleStatus>(`/api/integrations/google/status${query}`).catch(() => null),
+        apiGet<GoogleConfig>(`/api/integrations/google/config${query}`).catch(() => null),
       ]);
       setSmtp(settings);
       setDeliveries(history);
+      setGoogle(googleStatus);
+      setGoogleConfig(googleCfg);
+      setClientId((current) => current || (googleCfg?.client_id_set ? "" : ""));
       setForm({
         host: settings.host ?? "",
         port: settings.port ?? 587,
@@ -104,7 +117,7 @@ export function IntegrationsPage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, lastGoogleEvent?.workspace_id, lastGoogleEvent?.connected]);
 
   async function save() {
     if (!activeWorkspaceId) return;
@@ -149,6 +162,81 @@ export function IntegrationsPage() {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setTesting(false);
+    }
+  }
+
+  async function saveGoogle() {
+    setGoogleBusy(true);
+    setError(null);
+    setGoogleMessage(null);
+    try {
+      await apiPut("/api/integrations/google/config", {
+        client_id: clientId.trim(),
+        client_secret: clientSecret.trim() || undefined,
+      });
+      setGoogleMessage("Credenciais Google salvas.");
+      setClientSecret("");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setGoogleBusy(false);
+    }
+  }
+
+  async function connectGoogle() {
+    if (!activeWorkspaceId) return;
+    setGoogleBusy(true);
+    setError(null);
+    setGoogleMessage(null);
+    try {
+      const response = await apiPost<{ auth_url: string }>(
+        "/api/integrations/google/oauth/start",
+        { workspace_id: activeWorkspaceId },
+      );
+      try {
+        await openUrl(response.auth_url);
+      } catch {
+        window.open(response.auth_url, "_blank", "noopener,noreferrer");
+      }
+      setGoogleMessage(
+        "Autorize no navegador. O callback volta para o OpenDesk; depois clique em Atualizar.",
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setGoogleBusy(false);
+    }
+  }
+
+  async function disconnectGoogle() {
+    if (!activeWorkspaceId) return;
+    setGoogleBusy(true);
+    try {
+      await apiPost("/api/integrations/google/disconnect", {
+        workspace_id: activeWorkspaceId,
+      });
+      setGoogleMessage("Conta Google desconectada.");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setGoogleBusy(false);
+    }
+  }
+
+  async function registerMcp() {
+    if (!activeWorkspaceId) return;
+    setGoogleBusy(true);
+    try {
+      await apiPost("/api/integrations/google/mcp/register", {
+        workspace_id: activeWorkspaceId,
+      });
+      setGoogleMessage("MCP server opendesk-google registrado no opencode.jsonc.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setGoogleBusy(false);
     }
   }
 
@@ -309,27 +397,70 @@ export function IntegrationsPage() {
                 Google Workspace
               </CardTitle>
               <p className="mt-1 text-xs text-zinc-500">
-                OAuth2 loopback + PKCE; escopos de Docs, Drive, Calendar, Gmail e Tasks.
+                OAuth2 loopback + PKCE; Docs, Drive, Calendar, Gmail e Tasks.
               </p>
             </div>
-            <Badge variant="default">fase 5</Badge>
+            <Badge variant={google?.connected ? "green" : "default"}>
+              {google?.connected ? "conectado" : "não conectado"}
+            </Badge>
           </CardHeader>
           <CardContent className="space-y-3">
-            <InfoRow label="Conta" value="não conectada" />
-            <InfoRow label="Calendar" value="primary" />
-            <InfoRow label="Drive folder" value="não configurada" />
-            <div className="flex gap-2 pt-1">
-              <Button size="sm" disabled>
-                <KeyRound size={13} />
-                Conectar Google
+            <InfoRow label="Conta" value={google?.email ?? "não conectada"} />
+            <InfoRow label="Callback" value={google?.callback_url ?? googleConfig?.callback_url ?? "—"} />
+            <div className="grid grid-cols-[1fr_110px] gap-2">
+              <label>
+                <span className={labelClass}>Client ID</span>
+                <input
+                  value={clientId}
+                  onChange={(event) => setClientId(event.target.value)}
+                  placeholder={googleConfig?.client_id_set ? "já configurado (cole para trocar)" : "....apps.googleusercontent.com"}
+                  className={inputClass}
+                />
+              </label>
+              <label>
+                <span className={labelClass}>Client secret</span>
+                <input
+                  type="password"
+                  value={clientSecret}
+                  onChange={(event) => setClientSecret(event.target.value)}
+                  placeholder={googleConfig?.client_secret_set ? "••••••••" : "client secret"}
+                  className={inputClass}
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => void saveGoogle()} disabled={googleBusy || !clientId.trim()}>
+                {googleBusy ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                Salvar credenciais
               </Button>
-              <Button variant="outline" size="sm" disabled>
-                Revogar
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void connectGoogle()}
+                disabled={googleBusy || !googleConfig?.client_id_set}
+              >
+                <KeyRound size={13} />
+                {google?.connected ? "Reconectar" : "Conectar Google"}
+              </Button>
+              {google?.connected ? (
+                <Button variant="destructive" size="sm" onClick={() => void disconnectGoogle()} disabled={googleBusy}>
+                  Revogar
+                </Button>
+              ) : null}
+              <Button variant="ghost" size="sm" onClick={() => void registerMcp()} disabled={googleBusy}>
+                <Plug size={13} />
+                Registrar MCP
               </Button>
             </div>
-            <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[10px] leading-relaxed text-zinc-600">
-              A integração Google será entregue na Fase 5. O MCP bridge já está
-              previsto para expor as ferramentas aos agentes.
+            {googleMessage ? (
+              <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[10px] leading-relaxed text-emerald-300">
+                {googleMessage}
+              </p>
+            ) : null}
+            <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[9px] leading-relaxed text-zinc-600">
+              No Google Cloud, crie um OAuth client do tipo <span className="font-mono">Desktop app</span>{" "}
+              e adicione <span className="font-mono">{google?.callback_url ?? googleConfig?.callback_url ?? "http://127.0.0.1:53682/callback"}</span>{" "}
+              como redirect URI autorizado. O escopo de Drive é <span className="font-mono">drive.file</span>.
             </p>
           </CardContent>
         </Card>

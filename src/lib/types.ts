@@ -337,3 +337,19 @@ export interface Delivery {
   created_at: string;
   updated_at: string;
 }
+
+export interface GoogleStatus {
+  connected: boolean;
+  email?: string | null;
+  scopes?: string | null;
+  callback_url: string;
+  client_id_set: boolean;
+  client_secret_set: boolean;
+}
+
+export interface GoogleConfig {
+  client_id_set: boolean;
+  client_secret_set: boolean;
+  scopes: string;
+  callback_url: string;
+}

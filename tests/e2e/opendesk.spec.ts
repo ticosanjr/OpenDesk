@@ -160,7 +160,7 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   expect(task?.output_dir_path).toContain("/output/");
 });
 
-test("creates a cron routine, runs it and saves SMTP settings", async ({
+test("creates a cron routine, runs it and saves SMTP/Google settings", async ({
   page,
   request,
 }) => {
@@ -187,4 +187,9 @@ test("creates a cron routine, runs it and saves SMTP settings", async ({
   await page.getByLabel("Senha / app password").fill("e2e-secret");
   await page.getByRole("button", { name: "Salvar" }).first().click();
   await expect(page.getByText("configurado").first()).toBeVisible();
+
+  await page.getByLabel("Client ID").fill("e2e.apps.googleusercontent.com");
+  await page.getByLabel("Client secret").fill("e2e-google-secret");
+  await page.getByRole("button", { name: "Salvar credenciais" }).click();
+  await expect(page.getByText("Credenciais Google salvas.")).toBeVisible();
 });

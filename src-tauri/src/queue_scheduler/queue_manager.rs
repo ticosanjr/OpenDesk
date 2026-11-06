@@ -6,7 +6,7 @@ use crate::{
     dsh_router::{self, PackContext},
     error::{AppError, AppResult},
     events::{ArtifactProvenanceDto, EventBus, OpenDeskWsEvent, QueueJobDto},
-    integrations::delivery,
+    integrations::{delivery, google_oauth::GoogleOAuth},
     opencode_client::{
         daemon_manager::DaemonManager,
         session_runner::{self, RunRequest, RunStatus},
@@ -43,6 +43,7 @@ pub struct QueueManager {
     paths: AppPaths,
     events: EventBus,
     daemon: Arc<DaemonManager>,
+    google: Arc<GoogleOAuth>,
     paused: AtomicBool,
     pause_reason: Mutex<Option<String>>,
     active: AtomicUsize,
@@ -57,12 +58,14 @@ impl QueueManager {
         paths: AppPaths,
         events: EventBus,
         daemon: Arc<DaemonManager>,
+        google: Arc<GoogleOAuth>,
     ) -> Arc<Self> {
         Arc::new(Self {
             pool,
             paths,
             events,
             daemon,
+            google,
             paused: AtomicBool::new(false),
             pause_reason: Mutex::new(None),
             active: AtomicUsize::new(0),
@@ -368,7 +371,6 @@ impl QueueManager {
             phase,
             title: &title,
             prompt: &job.prompt_payload,
-            output_directory: &output_dir_string,
             log_path: &log_path,
             cancel,
         };
@@ -600,6 +602,7 @@ impl QueueManager {
         let delivery_task = job.task_id.clone();
         let delivery_schedule = job.schedule_id.clone();
         let delivery_run = run_id.clone();
+        let delivery_google = self.google.clone();
         tauri::async_runtime::spawn(async move {
             if let Err(error) = delivery::deliver_run(
                 &delivery_pool,
@@ -608,6 +611,7 @@ impl QueueManager {
                 delivery_task.as_deref(),
                 delivery_schedule.as_deref(),
                 &delivery_run,
+                delivery_google,
             )
             .await
             {
@@ -714,10 +718,6 @@ impl QueueManager {
 
     async fn publish_status_for_all(&self) {
         let _ = self.status(None).await;
-    }
-
-    pub async fn workspace_queue(&self, workspace_id: &str) -> AppResult<Vec<QueueJobDto>> {
-        self.list(Some(workspace_id)).await
     }
 }
 
