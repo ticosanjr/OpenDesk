@@ -353,3 +353,110 @@ pub async fn count_artifacts(pool: &SqlitePool, task_id: &str) -> AppResult<i64>
             .await?,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    async fn setup() -> (TempDir, SqlitePool) {
+        let temp = TempDir::new().expect("temp");
+        let pool = crate::db::init(&temp.path().join("tasks.db"))
+            .await
+            .expect("db");
+        sqlx::query("INSERT INTO workspaces (id, name, root_path) VALUES ('ws-1', 'WS', ?)")
+            .bind(temp.path().to_string_lossy().to_string())
+            .execute(&pool)
+            .await
+            .expect("workspace");
+        (temp, pool)
+    }
+
+    fn input() -> CreateTaskInput {
+        CreateTaskInput {
+            title: "Relatório".into(),
+            description: "Produza o relatório".into(),
+            execution_mode: Some("PLAN_THEN_BUILD".into()),
+            priority: Some(9),
+            assigned_agent: Some("build".into()),
+            preferred_model: None,
+            effort_level: Some("high".into()),
+            notify_email: Some("ops@example.com".into()),
+            export_to_gdocs: true,
+            tags: vec!["financeiro".into(), "mensal".into()],
+        }
+    }
+
+    #[tokio::test]
+    async fn task_lifecycle() {
+        let (_temp, pool) = setup().await;
+        let task = create(&pool, "ws-1", input()).await.expect("create");
+        assert_eq!(task.column_stage, "BACKLOG");
+        assert_eq!(task.priority, 4);
+        assert_eq!(task.execution_mode, "PLAN_THEN_BUILD");
+        assert_eq!(task.tags(), vec!["financeiro", "mensal"]);
+        assert!(task.export_to_gdocs);
+
+        let updated = update(
+            &pool,
+            &task.id,
+            UpdateTaskInput {
+                title: Some("Relatório v2".into()),
+                priority: Some(1),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("update");
+        assert_eq!(updated.title, "Relatório v2");
+        assert_eq!(updated.priority, 1);
+
+        let moved = move_to(&pool, &task.id, "BUILD", Some(2))
+            .await
+            .expect("move");
+        assert_eq!(moved.column_stage, "BUILD");
+        assert_eq!(moved.position_index, 2);
+
+        assert!(
+            set_plan(&pool, &task.id, "# Plano")
+                .await
+                .expect("plan")
+                .plan_markdown
+                .is_some()
+        );
+        set_phase_status(&pool, &task.id, Some("running"), Some("BUILD"))
+            .await
+            .expect("phase");
+        assert_eq!(
+            get(&pool, &task.id)
+                .await
+                .expect("get")
+                .phase_status
+                .as_deref(),
+            Some("running")
+        );
+
+        set_output_dir(&pool, &task.id, "/tmp/output")
+            .await
+            .expect("output");
+        assert_eq!(list(&pool, "ws-1").await.expect("list").len(), 1);
+        delete(&pool, &task.id).await.expect("delete");
+        assert!(get(&pool, &task.id).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_task_input() {
+        let (_temp, pool) = setup().await;
+        let mut value = input();
+        value.title = "  ".into();
+        assert!(create(&pool, "ws-1", value).await.is_err());
+
+        let mut value = input();
+        value.execution_mode = Some("nonsense".into());
+        assert!(create(&pool, "ws-1", value).await.is_err());
+
+        let mut value = input();
+        value.effort_level = Some("extreme".into());
+        assert!(create(&pool, "ws-1", value).await.is_err());
+    }
+}

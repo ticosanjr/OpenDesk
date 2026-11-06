@@ -64,3 +64,47 @@ pub async fn set_active_workspace(pool: &SqlitePool, workspace_id: &str) -> AppR
     )
     .await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn setting_roundtrip_and_active_workspace() {
+        let temp = TempDir::new().expect("temp");
+        let pool = crate::db::init(&temp.path().join("settings.db"))
+            .await
+            .expect("db");
+
+        assert!(get(&pool, "missing").await.expect("get").is_none());
+        set(&pool, "greeting", &serde_json::json!("olá"))
+            .await
+            .expect("set");
+        set(&pool, "greeting", &serde_json::json!("oi"))
+            .await
+            .expect("overwrite");
+        assert_eq!(
+            get(&pool, "greeting").await.expect("get").unwrap(),
+            serde_json::json!("oi")
+        );
+        assert_eq!(all(&pool).await.expect("all").len(), 1);
+
+        sqlx::query("INSERT INTO workspaces (id, name, root_path) VALUES ('ws-1', 'WS', ?)")
+            .bind(temp.path().to_string_lossy().to_string())
+            .execute(&pool)
+            .await
+            .expect("workspace");
+        assert_eq!(
+            active_workspace_id(&pool).await.expect("active"),
+            Some("ws-1".into())
+        );
+        set_active_workspace(&pool, "ws-1")
+            .await
+            .expect("set active");
+        assert_eq!(
+            active_workspace_id(&pool).await.expect("active 2"),
+            Some("ws-1".into())
+        );
+    }
+}

@@ -3200,7 +3200,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "aes-gcm",
  "anyhow",

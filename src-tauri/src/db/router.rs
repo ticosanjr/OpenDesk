@@ -184,3 +184,95 @@ pub async fn workspace_policy(pool: &SqlitePool, workspace_id: &str) -> AppResul
             .unwrap_or_else(|| "COST_BENEFIT".to_string()),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    async fn setup() -> (TempDir, SqlitePool) {
+        let temp = TempDir::new().expect("temp");
+        let pool = crate::db::init(&temp.path().join("router.db"))
+            .await
+            .expect("db");
+        sqlx::query("INSERT INTO workspaces (id, name, root_path) VALUES ('ws-1', 'WS', ?)")
+            .bind(temp.path().to_string_lossy().to_string())
+            .execute(&pool)
+            .await
+            .expect("workspace");
+        (temp, pool)
+    }
+
+    fn input(name: &str, priority: i64) -> CreateRuleInput {
+        CreateRuleInput {
+            workspace_id: Some("ws-1".into()),
+            name: name.into(),
+            priority_order: priority,
+            condition_json: r#"{"tag":"financeiro"}"#.into(),
+            target_mode: "build".into(),
+            target_agent: Some("build".into()),
+            target_model: "opencode-go/glm-5.3".into(),
+            target_effort: "high".into(),
+            is_enabled: true,
+        }
+    }
+
+    #[tokio::test]
+    async fn rule_lifecycle_and_validation() {
+        let (_temp, pool) = setup().await;
+        let low = create(&pool, input("Low", 10)).await.expect("create");
+        let high = create(&pool, input("High", 1)).await.expect("create");
+        assert_eq!(low.target_mode, "build");
+
+        let rules = list(&pool, "ws-1").await.expect("list");
+        assert_eq!(rules[0].name, "High");
+        assert_eq!(get(&pool, &high.id).await.expect("get").priority_order, 1);
+
+        let updated = update(
+            &pool,
+            &low.id,
+            UpdateRuleInput {
+                name: Some("Low v2".into()),
+                priority_order: Some(0),
+                is_enabled: Some(false),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("update");
+        assert_eq!(updated.name, "Low v2");
+        assert!(!updated.is_enabled);
+        assert_eq!(rules.len(), 2);
+
+        delete(&pool, &high.id).await.expect("delete");
+        assert_eq!(list(&pool, "ws-1").await.expect("list 2").len(), 1);
+        assert_eq!(
+            workspace_policy(&pool, "ws-1").await.expect("policy"),
+            "COST_BENEFIT"
+        );
+
+        let error = update(
+            &pool,
+            &low.id,
+            UpdateRuleInput {
+                target_mode: Some("invalid".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect_err("invalid mode");
+        assert!(format!("{error}").contains("target_mode"));
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_json_and_empty_model() {
+        let (_temp, pool) = setup().await;
+        let mut value = input("Bad JSON", 1);
+        value.condition_json = "{not json".into();
+        assert!(create(&pool, value).await.is_err());
+
+        let mut value = input("No model", 1);
+        value.target_model = " ".into();
+        assert!(create(&pool, value).await.is_err());
+    }
+}

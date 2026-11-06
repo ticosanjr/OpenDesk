@@ -417,7 +417,13 @@ pub async fn download_and_stage(state: &AppState) -> AppResult<DownloadResult> {
             target.display()
         )));
     }
-    let backup = target.with_extension("bak");
+    let backup = target.with_file_name(format!(
+        "{}.bak",
+        target
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| "opendesk".into())
+    ));
     if backup.exists() {
         let _ = std::fs::remove_file(&backup);
     }
@@ -506,7 +512,7 @@ fn spawn_replacer(staged: &Path, target: &Path, pid: u32) -> AppResult<()> {
     let script_path = target.with_extension(format!("update-{pid}.sh"));
     let launch = format!("nohup \"{}\" >/dev/null 2>&1 &", target.display());
     let script = format!(
-        "#!/bin/sh\nwhile kill -0 {pid} 2>/dev/null; do sleep 0.5; done\ncp -f \"{}\" \"{}.new\" && chmod 755 \"{}.new\" && mv -f \"{}.new\" \"{}\" && rm -f \"{}\"\n{launch}\n",
+        "#!/bin/sh\nwhile kill -0 {pid} 2>/dev/null; do sleep 0.5; done\ncp -f \"{}\" \"{}.new\" && chmod 755 \"{}.new\" && mv -f \"{}.new\" \"{}\" && rm -f \"{}\"\n{launch}\nrm -f \"$0\"\n",
         staged.display(),
         target.display(),
         target.display(),

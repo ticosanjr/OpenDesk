@@ -265,3 +265,95 @@ pub async fn set_active(pool: &SqlitePool, id: &str, active: bool) -> AppResult<
         .await?;
     get(pool, id).await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    async fn setup() -> (TempDir, SqlitePool) {
+        let temp = TempDir::new().expect("temp");
+        let pool = crate::db::init(&temp.path().join("schedules.db"))
+            .await
+            .expect("db");
+        sqlx::query("INSERT INTO workspaces (id, name, root_path) VALUES ('ws-1', 'WS', ?)")
+            .bind(temp.path().to_string_lossy().to_string())
+            .execute(&pool)
+            .await
+            .expect("workspace");
+        (temp, pool)
+    }
+
+    fn input() -> CreateScheduleInput {
+        CreateScheduleInput {
+            workspace_id: "ws-1".into(),
+            name: "Diário".into(),
+            description: Some("Resumo".into()),
+            cron_expression: "0 8 * * *".into(),
+            timezone: "America/Sao_Paulo".into(),
+            agent_name: Some("build".into()),
+            command_or_prompt: "Produza o resumo".into(),
+            router_policy: "cost_benefit".into(),
+            output_folder_template: "output/{YYYY}-{MM}/{schedule_slug}".into(),
+            notify_email_recipients: Some("ops@example.com".into()),
+            sync_to_google_docs: true,
+            sync_to_google_calendar: false,
+            is_active: true,
+        }
+    }
+
+    #[tokio::test]
+    async fn schedule_lifecycle() {
+        let (_temp, pool) = setup().await;
+        let schedule = create(&pool, input()).await.expect("create");
+        assert_eq!(schedule.router_policy, "COST_BENEFIT");
+        assert!(schedule.is_active);
+        assert_eq!(list(&pool, "ws-1").await.expect("list").len(), 1);
+        assert_eq!(active(&pool).await.expect("active").len(), 1);
+
+        let updated = update(
+            &pool,
+            &schedule.id,
+            UpdateScheduleInput {
+                name: Some("Diário v2".into()),
+                sync_to_google_docs: Some(false),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("update");
+        assert_eq!(updated.name, "Diário v2");
+        assert!(!updated.sync_to_google_docs);
+
+        set_next_run(&pool, &schedule.id, Some("2026-11-07T08:00:00Z"))
+            .await
+            .expect("next");
+        mark_run(&pool, &schedule.id, "SUCCESS", "2026-11-06T08:00:00Z")
+            .await
+            .expect("mark");
+        let after = get(&pool, &schedule.id).await.expect("get");
+        assert_eq!(after.next_run_at.as_deref(), Some("2026-11-07T08:00:00Z"));
+        assert_eq!(after.last_run_status.as_deref(), Some("SUCCESS"));
+
+        let inactive = set_active(&pool, &schedule.id, false)
+            .await
+            .expect("active");
+        assert!(!inactive.is_active);
+        assert!(active(&pool).await.expect("active list").is_empty());
+
+        delete(&pool, &schedule.id).await.expect("delete");
+        assert!(get(&pool, &schedule.id).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_schedule() {
+        let (_temp, pool) = setup().await;
+        let mut value = input();
+        value.name = " ".into();
+        assert!(create(&pool, value).await.is_err());
+
+        let mut value = input();
+        value.router_policy = "unknown".into();
+        assert!(create(&pool, value).await.is_err());
+    }
+}

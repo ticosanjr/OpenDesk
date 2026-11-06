@@ -443,7 +443,7 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 ### Verificado
 
-- `cargo test` — **48 passed** (resolver, updater, self-update, fila, budget,
+- `cargo test` — **55 passed** (resolver, updater, self-update, fila, budget,
   cron, JSONC, secrets, MCP).
 - `npm run check` — ok.
 - `npm run build` — ok.
@@ -471,3 +471,14 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Mensagem de atualização indica encerrar o app também pela bandeja.
 - `cargo test` — **48 passed** (testes adicionais do supervisor de daemon e do
   manifesto/SHA256 de atualização).
+
+## 2026-11-06 — Release 0.6.2
+
+- Backup de auto-atualização agora preserva o nome (`OpenDesk_*.AppImage.bak`).
+- O helper de atualização remove o próprio script depois de relançar.
+- Testes adicionais para tasks, schedules, router rules e settings.
+- `cargo test` — **55 passed**.
+- Atualização real validada de 0.6.0 → 0.6.1:
+  - `GET /api/updates/status` detectou `update_available: true`;
+  - download privado, SHA256 confere, binário substituído e `.bak` criado;
+  - hash final idêntico ao asset 0.6.1.
