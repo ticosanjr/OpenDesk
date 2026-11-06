@@ -416,6 +416,9 @@ export function KanbanPage() {
                   >
                     {job.status}
                   </Badge>
+                  {job.job_kind && job.job_kind !== "task" ? (
+                    <Badge variant="purple">{job.job_kind}</Badge>
+                  ) : null}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[11px] text-zinc-200">
                       {job.title ?? job.id}

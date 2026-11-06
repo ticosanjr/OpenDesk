@@ -253,6 +253,7 @@ async fn enqueue_decision(
             resolved_effort: decision.effort.clone(),
             job_kind: "task".into(),
             scheduled_for: None,
+            output_dir: Some(decision.output_directory.clone()),
             priority: task.priority,
             max_retries: 2,
         })

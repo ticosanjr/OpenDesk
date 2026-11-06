@@ -5,9 +5,11 @@ mod db;
 mod dsh_router;
 mod error;
 mod events;
+mod integrations;
 mod opencode_client;
 mod paths;
 mod queue_scheduler;
+mod secrets;
 mod tray;
 
 use app_state::AppState;
@@ -45,6 +47,7 @@ fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
                 _ = interrupt.recv() => tracing::info!("SIGINT received; shutting down"),
             }
 
+            state.cron.shutdown();
             state.queue.shutdown().await;
             state.daemon.shutdown().await;
             app.exit(0);
@@ -56,6 +59,7 @@ fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
         tauri::async_runtime::spawn(async move {
             let _ = tokio::signal::ctrl_c().await;
             tracing::info!("shutdown signal received");
+            state.cron.shutdown();
             state.queue.shutdown().await;
             state.daemon.shutdown().await;
             app.exit(0);
@@ -96,6 +100,7 @@ pub fn run() {
             app.manage(state.clone());
             state.daemon.spawn_supervisor();
             state.queue.spawn_worker();
+            state.cron.spawn();
             tray::setup(app.handle(), state.clone())?;
             tauri::async_runtime::block_on(state.refresh_watcher())?;
             tauri::async_runtime::block_on(api::spawn_server(state.clone()))?;
@@ -122,6 +127,7 @@ pub fn run() {
             if let Some(state) = app_handle.try_state::<Arc<AppState>>() {
                 let state = state.inner().clone();
                 tauri::async_runtime::block_on(async {
+                    state.cron.shutdown();
                     state.queue.shutdown().await;
                     state.daemon.shutdown().await;
                 });
@@ -156,6 +162,7 @@ pub fn run_headless() {
 
         state.refresh_watcher().await.expect("config watcher");
         state.queue.spawn_worker();
+        state.cron.spawn();
         api::spawn_server(state.clone())
             .await
             .expect("OpenDesk API server");
@@ -166,6 +173,7 @@ pub fn run_headless() {
         );
 
         let _ = tokio::signal::ctrl_c().await;
+        state.cron.shutdown();
         state.queue.shutdown().await;
         state.daemon.shutdown().await;
     });

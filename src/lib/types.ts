@@ -47,6 +47,9 @@ export interface QueueJob {
   resolved_agent: string;
   resolved_model: string;
   resolved_effort: string;
+  job_kind?: string | null;
+  output_dir?: string | null;
+  scheduled_for?: string | null;
   enqueued_at: string;
   started_at?: string | null;
 }
@@ -286,4 +289,51 @@ export interface QueueStatus {
   active_jobs: number;
   running: number;
   waiting: number;
+}
+
+export interface Schedule {
+  id: string;
+  workspace_id: string;
+  name: string;
+  description?: string | null;
+  cron_expression: string;
+  timezone: string;
+  agent_name?: string | null;
+  command_or_prompt: string;
+  router_policy: string;
+  output_folder_template: string;
+  notify_email_recipients?: string | null;
+  sync_to_google_docs: boolean;
+  sync_to_google_calendar: boolean;
+  is_active: boolean;
+  last_run_at?: string | null;
+  last_run_status?: string | null;
+  next_run_at?: string | null;
+  created_at: string;
+}
+
+export interface SmtpSettings {
+  workspace_id: string;
+  host?: string | null;
+  port: number;
+  username?: string | null;
+  from_email?: string | null;
+  use_tls: boolean;
+  password_set: boolean;
+  configured: boolean;
+}
+
+export interface Delivery {
+  id: string;
+  workspace_id: string;
+  artifact_id?: string | null;
+  channel: string;
+  idempotency_key: string;
+  status: string;
+  attempts: number;
+  last_error?: string | null;
+  external_id?: string | null;
+  external_url?: string | null;
+  created_at: string;
+  updated_at: string;
 }

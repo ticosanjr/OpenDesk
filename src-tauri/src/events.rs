@@ -18,6 +18,9 @@ pub struct QueueJobDto {
     pub resolved_agent: String,
     pub resolved_model: String,
     pub resolved_effort: String,
+    pub job_kind: String,
+    pub output_dir: Option<String>,
+    pub scheduled_for: Option<String>,
     pub enqueued_at: String,
     pub started_at: Option<String>,
 }
@@ -83,6 +86,10 @@ pub enum OpenDeskWsEvent {
         estimated_cost_usd: f64,
         tokens_input: i64,
         tokens_output: i64,
+    },
+    ScheduleUpdated {
+        schedule_id: String,
+        workspace_id: String,
     },
     BudgetAlert {
         level: String,

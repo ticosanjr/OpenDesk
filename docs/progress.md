@@ -237,3 +237,63 @@
 - `releases/LATEST` = `0.3.0`; `v0.3.0` tagueado.
 - Retenção mantém `0.2.0` e `0.3.0` (máximo 3).
 - `/api/meta` agora reporta fase `execution` e os recursos das fases 1–3.
+
+## 2026-11-06 — Fase 4: cron, pastas determinísticas e SMTP
+
+### Entregue
+
+- **Motor cron**:
+  - tick de 15 s lendo `schedules` ativas do SQLite;
+  - cálculo de próxima ocorrência com `croner` + `chrono-tz`;
+  - `output/{YYYY}-{MM}/{schedule_slug}` criado antes do enqueue;
+  - idempotência por índice único `(schedule_id, scheduled_for)`;
+  - `run now`, pausa/retomada e `POST /api/schedules/tick` para testes;
+  - execução de comandos `/nome args` expandindo templates do Studio.
+- **SMTP**:
+  - configuração por workspace com host, porta, usuário, remetente e TLS;
+  - segredo AES-256-GCM em `~/.local/share/opendesk/secrets/` com 0600 (ADR 0005);
+  - teste de conexão e envio de e-mail de teste;
+  - entrega pós-run com resumo HTML, tabela de artefatos e anexos (até 5);
+  - idempotência por `smtp:{run_id}:{recipient}` em `integration_deliveries`;
+  - UI de Integrações com histórico de entregas.
+- **UI de Rotinas**:
+  - criação com cron, timezone, agente, comando/prompt, política, template de
+    pasta e destinatários;
+  - próxima execução, última execução/status, pausa, execução manual e exclusão.
+- **Migração 0002**:
+  - `execution_queue.output_dir`;
+  - índice único de slot de schedule;
+  - índice de schedules devidas.
+- **Eventos**:
+  - `ScheduleUpdated` para atualizar a UI em tempo real.
+
+### Verificado
+
+- `cargo test` — **28 passed**.
+- `npm run check` — ok.
+- `npm run build` — ok.
+- `npm run test:e2e` — **4 passed** (workspace, Studio, Kanban/fila, rotina +
+  SMTP).
+- Teste headless:
+  - schedule criado com `America/Sao_Paulo` e próxima execução 08:00 local;
+  - `run now` criou `output/2026-11/relatorio-diario` e job `schedule`;
+  - tick forçado enfileirou um slot vencido;
+  - SMTP salvo com `password_set=true` e arquivo `0600`;
+  - teste SMTP sem configuração retorna erro claro; com configuração tenta
+    conexão real.
+
+### Observações
+
+- Entregas SMTP falhas ficam registradas como `FAILED` com `last_error`; retry
+  automático fica para a próxima iteração.
+- O segredo é vinculado ao machine-id; trocar de máquina exige recadastrar.
+- O cron usa o slot agendado como chave de idempotência; `run now` usa o
+  timestamp atual.
+- Google Workspace e MCP bridge continuam Fase 5.
+
+### Próximo
+
+1. Fase 5 — OAuth2 Google, Drive/Docs/Calendar/Gmail/Tasks e MCP bridge.
+2. Retry automático de entregas e política de permissões por workspace.
+3. Concorrência configurável da fila.
+4. Release 0.4.0.

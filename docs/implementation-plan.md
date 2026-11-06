@@ -162,13 +162,14 @@ workspace persiste, API responde com e sem token.
 - [x] Auditoria automática na política BEST_QUALITY.
 - [x] Concorrência configurável (pendente; hoje 1 job por vez).
 
-### Fase 4 — Automação (próxima)
+### Fase 4 — Automação (concluída)
 
-- [ ] Cron dirigido pelo SQLite, idempotência e timezone/DST.
-- [ ] Pastas determinísticas `output/YYYY-MM/<slug>/`.
-- [ ] SMTP com templates HTML e anexos.
-- [ ] Pipeline pós-run com `integration_deliveries` e retry.
-- [ ] UI de Rotinas.
+- [x] Cron dirigido pelo SQLite, idempotência e timezone.
+- [x] Pastas determinísticas `output/YYYY-MM/<slug>/`.
+- [x] SMTP com templates HTML, anexos e segredo criptografado.
+- [x] Pipeline pós-run com `integration_deliveries` e idempotência.
+- [x] UI de Rotinas e Integrações SMTP.
+- [ ] Retry automático de entregas falhas (próxima iteração).
 
 ### Fase 5 — Google + MCP
 

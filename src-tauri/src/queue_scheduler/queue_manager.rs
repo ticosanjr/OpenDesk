@@ -6,6 +6,7 @@ use crate::{
     dsh_router::{self, PackContext},
     error::{AppError, AppResult},
     events::{ArtifactProvenanceDto, EventBus, OpenDeskWsEvent, QueueJobDto},
+    integrations::delivery,
     opencode_client::{
         daemon_manager::DaemonManager,
         session_runner::{self, RunRequest, RunStatus},
@@ -269,10 +270,15 @@ impl QueueManager {
                     .unwrap_or_else(|| "Scheduled task".into())
             });
         let workspace_path = PathBuf::from(&workspace.root_path);
-        let output_dir = task
-            .as_ref()
-            .and_then(|task| task.output_dir_path.clone())
+        let output_dir = job
+            .output_dir
+            .clone()
             .map(PathBuf::from)
+            .or_else(|| {
+                task.as_ref()
+                    .and_then(|task| task.output_dir_path.clone())
+                    .map(PathBuf::from)
+            })
             .unwrap_or_else(|| {
                 workspace_path
                     .join("output")
@@ -555,6 +561,7 @@ impl QueueManager {
                         resolved_effort: "high".into(),
                         job_kind: "audit".into(),
                         scheduled_for: None,
+                        output_dir: Some(output_dir_string.clone()),
                         priority: task.priority,
                         max_retries: 1,
                     })
@@ -585,6 +592,27 @@ impl QueueManager {
             estimated_cost_usd: outcome.usage.estimated_cost_usd,
             tokens_input: outcome.usage.tokens_input,
             tokens_output: outcome.usage.tokens_output,
+        });
+
+        let delivery_pool = self.pool.clone();
+        let delivery_paths = self.paths.clone();
+        let delivery_workspace = job.workspace_id.clone();
+        let delivery_task = job.task_id.clone();
+        let delivery_schedule = job.schedule_id.clone();
+        let delivery_run = run_id.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(error) = delivery::deliver_run(
+                &delivery_pool,
+                &delivery_paths,
+                &delivery_workspace,
+                delivery_task.as_deref(),
+                delivery_schedule.as_deref(),
+                &delivery_run,
+            )
+            .await
+            {
+                tracing::warn!(error = %error, "post-run delivery failed");
+            }
         });
 
         self.running_jobs
@@ -729,6 +757,9 @@ fn job_dto(job: queue::QueueJob) -> QueueJobDto {
         resolved_agent: job.resolved_agent,
         resolved_model: job.resolved_model,
         resolved_effort: job.resolved_effort,
+        job_kind: job.job_kind,
+        output_dir: job.output_dir,
+        scheduled_for: job.scheduled_for,
         enqueued_at: job.enqueued_at,
         started_at: job.started_at,
     }

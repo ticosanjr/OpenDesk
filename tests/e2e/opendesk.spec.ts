@@ -159,3 +159,32 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   expect(task?.column_stage).toBe("BUILD");
   expect(task?.output_dir_path).toContain("/output/");
 });
+
+test("creates a cron routine, runs it and saves SMTP settings", async ({
+  page,
+  request,
+}) => {
+  const auth = api();
+  await request.post(`${auth.baseURL}/api/queue/pause?reason=e2e-routine`, {
+    headers: auth.headers,
+  });
+
+  await page.goto("/#/routines");
+  await expect(page.getByRole("heading", { name: "Rotinas (Cron)" })).toBeVisible();
+  await page.getByRole("main").getByRole("button", { name: "Nova rotina" }).click();
+  await page.getByLabel("Nome").fill("Rotina E2E");
+  await page.getByLabel("Comando ou prompt").fill("Produza um relatório de teste.");
+  await page.getByLabel("Destinatários de e-mail").fill("e2e@example.com");
+  await page.getByRole("dialog").getByRole("button", { name: "Criar rotina" }).click();
+  await expect(page.getByText("Rotina E2E").first()).toBeVisible();
+  await page.getByRole("button", { name: "Executar agora" }).first().click();
+  await expect(page.getByText("schedule").first()).toBeVisible();
+
+  await page.goto("/#/integrations");
+  await expect(page.getByRole("heading", { name: "Integrações" })).toBeVisible();
+  await page.getByLabel("Host").fill("smtp.example.com");
+  await page.getByLabel("Remetente").fill("OpenDesk <e2e@example.com>");
+  await page.getByLabel("Senha / app password").fill("e2e-secret");
+  await page.getByRole("button", { name: "Salvar" }).first().click();
+  await expect(page.getByText("configurado").first()).toBeVisible();
+});

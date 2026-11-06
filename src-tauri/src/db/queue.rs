@@ -16,6 +16,7 @@ pub struct QueueJob {
     pub resolved_effort: String,
     pub job_kind: String,
     pub scheduled_for: Option<String>,
+    pub output_dir: Option<String>,
     pub priority: i64,
     pub status: String,
     pub retry_count: i64,
@@ -41,6 +42,8 @@ pub struct EnqueueInput {
     #[serde(default = "default_kind")]
     pub job_kind: String,
     pub scheduled_for: Option<String>,
+    #[serde(default)]
+    pub output_dir: Option<String>,
     #[serde(default = "default_priority")]
     pub priority: i64,
     #[serde(default = "default_max_retries")]
@@ -61,7 +64,7 @@ fn default_max_retries() -> i64 {
 
 const COLUMNS: &str = "q.id, q.workspace_id, q.task_id, q.schedule_id, q.prompt_payload, \
     q.resolved_mode, q.resolved_agent, q.resolved_model, q.resolved_effort, q.job_kind, \
-    q.scheduled_for, q.priority, q.status, q.retry_count, q.max_retries, q.error_message, \
+    q.scheduled_for, q.output_dir, q.priority, q.status, q.retry_count, q.max_retries, q.error_message, \
     q.enqueued_at, q.started_at, q.finished_at, t.title AS task_title";
 
 pub async fn enqueue(pool: &SqlitePool, input: EnqueueInput) -> AppResult<QueueJob> {
@@ -70,8 +73,8 @@ pub async fn enqueue(pool: &SqlitePool, input: EnqueueInput) -> AppResult<QueueJ
         "INSERT INTO execution_queue (
             id, workspace_id, task_id, schedule_id, prompt_payload,
             resolved_mode, resolved_agent, resolved_model, resolved_effort,
-            job_kind, scheduled_for, priority, max_retries
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            job_kind, scheduled_for, output_dir, priority, max_retries
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&input.workspace_id)
@@ -84,6 +87,7 @@ pub async fn enqueue(pool: &SqlitePool, input: EnqueueInput) -> AppResult<QueueJ
     .bind(&input.resolved_effort)
     .bind(&input.job_kind)
     .bind(input.scheduled_for.as_deref())
+    .bind(input.output_dir.as_deref())
     .bind(input.priority.clamp(1, 4))
     .bind(input.max_retries.max(0))
     .execute(pool)
@@ -299,6 +303,7 @@ mod tests {
             resolved_effort: "high".into(),
             job_kind: "task".into(),
             scheduled_for: None,
+            output_dir: None,
             priority: 2,
             max_retries: 2,
         }

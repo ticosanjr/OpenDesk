@@ -45,6 +45,10 @@ interface AppStore {
     status: string;
   } | null;
   lastArtifactEvent: number;
+  lastScheduleEvent: {
+    schedule_id: string;
+    workspace_id: string;
+  } | null;
   budgetAlert: {
     level: string;
     message: string;
@@ -78,6 +82,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   lastTaskEvent: null,
   lastRunEvent: null,
   lastArtifactEvent: 0,
+  lastScheduleEvent: null,
   budgetAlert: null,
 
   boot: async () => {
@@ -299,6 +304,21 @@ function handleEvent(event: WsEvent) {
           : current.dashboard,
       }));
       break;
+    case "ScheduleUpdated": {
+      const payload = event.payload as {
+        schedule_id?: string;
+        workspace_id?: string;
+      };
+      if (payload.schedule_id && payload.workspace_id) {
+        useAppStore.setState({
+          lastScheduleEvent: {
+            schedule_id: payload.schedule_id,
+            workspace_id: payload.workspace_id,
+          },
+        });
+      }
+      break;
+    }
     case "BudgetAlert": {
       const payload = event.payload as {
         level?: string;

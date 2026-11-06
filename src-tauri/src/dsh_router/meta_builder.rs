@@ -26,7 +26,7 @@ pub struct MetaBuildResult {
 }
 
 #[derive(Debug, Clone)]
-enum MetaIntent {
+pub enum MetaIntent {
     Agent {
         id: String,
         model: Option<String>,

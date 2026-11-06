@@ -1,6 +1,6 @@
 [package]
 name = "opendesk"
-version = "0.3.0"
+version = "0.4.0"
 description = "OpenDesk — visual governance, automation and observability for OpenCode"
 authors = ["OpenDesk"]
 edition = "2024"
@@ -45,6 +45,13 @@ walkdir = "2"
 tauri-plugin-dialog = "2.8.4"
 futures-util = "0.3.34"
 unicode-normalization = "0.1.26"
+croner = "4.0.3"
+chrono-tz = "0.10.4"
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-rustls-tls", "builder", "hostname"] }
+aes-gcm = "0.10"
+base64 = "0.22"
+rand = "0.8"
+html-escape = "0.3.0"
 
 [dev-dependencies]
 tempfile = "3"

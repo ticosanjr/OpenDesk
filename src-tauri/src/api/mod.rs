@@ -1,10 +1,12 @@
 pub mod artifacts;
 pub mod budget;
 pub mod commands;
+pub mod integrations;
 pub mod meta;
 pub mod queue;
 pub mod router;
 pub mod runs;
+pub mod schedules;
 pub mod studio;
 pub mod tasks;
 pub mod ws;
@@ -159,6 +161,31 @@ fn router(state: Arc<AppState>) -> Router {
             get(budget::get_budget).put(budget::put_budget),
         )
         .route("/api/budget/status", get(budget::budget_status))
+        .route(
+            "/api/schedules",
+            get(schedules::list_schedules).post(schedules::create_schedule),
+        )
+        .route("/api/schedules/tick", post(schedules::tick_scheduler))
+        .route(
+            "/api/schedules/{id}",
+            get(schedules::get_schedule)
+                .patch(schedules::update_schedule)
+                .delete(schedules::delete_schedule),
+        )
+        .route("/api/schedules/{id}/run", post(schedules::run_schedule_now))
+        .route(
+            "/api/schedules/{id}/active",
+            post(schedules::set_schedule_active),
+        )
+        .route(
+            "/api/integrations/smtp",
+            get(integrations::get_smtp).put(integrations::put_smtp),
+        )
+        .route("/api/integrations/smtp/test", post(integrations::test_smtp))
+        .route(
+            "/api/integrations/deliveries",
+            get(integrations::list_deliveries),
+        )
         .route("/ws", get(ws::ws_handler))
         .fallback(not_found)
         .layer(middleware::from_fn_with_state(
@@ -188,7 +215,7 @@ async fn meta() -> impl IntoResponse {
     Json(json!({
         "name": "OpenDesk",
         "version": env!("CARGO_PKG_VERSION"),
-        "phase": "execution",
+        "phase": "automation",
         "opencode_api": "v2",
         "features": [
             "daemon-manager",
@@ -204,7 +231,10 @@ async fn meta() -> impl IntoResponse {
             "opencode-sessions",
             "artifact-provenance",
             "kanban",
-            "meta-builder"
+            "meta-builder",
+            "cron-scheduler",
+            "smtp-delivery",
+            "encrypted-secrets"
         ]
     }))
 }

@@ -5,7 +5,8 @@ use crate::{
     events::EventBus,
     opencode_client::daemon_manager::DaemonManager,
     paths::AppPaths,
-    queue_scheduler::QueueManager,
+    queue_scheduler::{CronEngine, QueueManager},
+    secrets::SecretStore,
 };
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -24,6 +25,8 @@ pub struct AppState {
     pub events: EventBus,
     pub daemon: Arc<DaemonManager>,
     pub queue: Arc<QueueManager>,
+    pub cron: Arc<CronEngine>,
+    pub secrets: Arc<SecretStore>,
     pub api_port: u16,
     pub api_token: String,
     pub listener: Mutex<Option<TcpListener>>,
@@ -72,6 +75,14 @@ impl AppState {
         let events = EventBus::new(2048);
         let daemon = DaemonManager::new(paths.clone(), events.clone());
         let queue = QueueManager::new(db.clone(), paths.clone(), events.clone(), daemon.clone());
+        let cron = CronEngine::new(
+            db.clone(),
+            paths.clone(),
+            events.clone(),
+            queue.clone(),
+            daemon.clone(),
+        );
+        let secrets = Arc::new(SecretStore::new(&paths));
 
         let state = Self {
             paths,
@@ -79,6 +90,8 @@ impl AppState {
             events,
             daemon,
             queue,
+            cron,
+            secrets,
             api_port,
             api_token,
             listener: Mutex::new(Some(listener)),

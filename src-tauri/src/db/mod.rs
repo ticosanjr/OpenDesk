@@ -7,10 +7,13 @@ use std::{path::Path, str::FromStr, time::Duration};
 
 pub mod artifacts;
 pub mod budget;
+pub mod deliveries;
+pub mod integrations;
 pub mod models;
 pub mod queue;
 pub mod router;
 pub mod runs;
+pub mod schedules;
 pub mod settings;
 pub mod tasks;
 pub mod workspaces;

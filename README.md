@@ -4,8 +4,8 @@ Sistema operacional visual de governança, automação e observabilidade sobre o
 OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
-> **Status:** fundação (Fase 1), Studio SSOT (Fase 2) e núcleo de execução
-> (Fase 3) prontos. A próxima entrega é automação/cron (Fase 4). Consulte
+> **Status:** fases 1–4 prontas (fundação, Studio, execução e automação).
+> A próxima entrega é Google Workspace + MCP bridge (Fase 5). Consulte
 > [docs/implementation-plan.md](docs/implementation-plan.md) e
 > [docs/progress.md](docs/progress.md).
 
@@ -37,6 +37,10 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Proveniência de artefatos com diff autoritativo e fallback por tool calls.
 - Kanban com 5 colunas, aprovação Plan → Build, logs por run e controlador da
   fila; Chat com tarefa rápida e Meta-Builder de agentes/skills/comandos.
+- Rotinas cron com motor dirigido pelo SQLite, timezone, pasta determinística,
+  idempotência de slot e execução manual.
+- SMTP por workspace com segredo criptografado (AES-256-GCM, 0600), teste de
+  conexão e entrega pós-run com anexos e idempotência.
 - Dashboard executivo, shell de navegação com 10 views, command bar
   (Cmd/Ctrl+K), seletor de workspace e indicadores de daemon, fila e orçamento.
 - Endpoints de leitura de agentes e modelos direto do OpenCode V2
@@ -80,8 +84,8 @@ No primeiro boot o OpenDesk:
 ```bash
 npm run check          # TypeScript
 npm run build          # frontend
-npm run test:rust      # 24 testes Rust
-npm run test:e2e       # 3 testes Playwright (headless + Vite)
+npm run test:rust      # 28 testes Rust
+npm run test:e2e       # 4 testes Playwright (headless + Vite)
 cd src-tauri && cargo check
 cd src-tauri && cargo test
 scripts/release.sh     # build + release local + retenção de 3 versões
@@ -131,7 +135,7 @@ docs/                       plano, decisões e histórico
 
 ## Limitações atuais
 
-- Cron, SMTP, Google Workspace e entregas pós-run ainda são Fase 4/5.
+- Google Workspace (Docs/Drive/Calendar/Gmail/Tasks) e MCP bridge são Fase 5.
 - A fila executa **um job por vez**; concorrência configurável fica para a
   próxima iteração.
 - O broker de permissões de runs autônomos responde `once` e audita em
@@ -152,6 +156,8 @@ docs/                       plano, decisões e histórico
 - [ADR 0002 — Metadados de apresentação de agentes](docs/decisions/0002-agent-presentation-metadata.md)
 - [ADR 0003 — Permissões em runs autônomos](docs/decisions/0003-unattended-permissions.md)
 - [ADR 0004 — Proveniência com fallback por tool calls](docs/decisions/0004-artifact-diff-fallback.md)
+- [ADR 0005 — Secret store local criptografado](docs/decisions/0005-local-secret-store.md)
+- [ADR 0006 — Cron dirigido pelo SQLite](docs/decisions/0006-cron-db-tick.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)
