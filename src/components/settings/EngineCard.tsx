@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Search,
   Terminal,
+  Undo2,
 } from "lucide-react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { Badge } from "@/components/ui/badge";
@@ -200,6 +201,21 @@ export function EngineCard() {
     }
   }
 
+  async function rollbackEngine() {
+    setBusy("rollback");
+    setError(null);
+    setMessage(null);
+    try {
+      const status = await apiPost<EngineStatus>("/api/engine/rollback");
+      setEngine(status);
+      setMessage("OpenCode revertido para o backup anterior.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function diagnostics() {
     setBusy("diagnostics");
     setError(null);
@@ -340,6 +356,19 @@ export function EngineCard() {
               <RefreshCw size={13} />
             )}
             Reiniciar motor
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void rollbackEngine()}
+            disabled={busy !== null}
+          >
+            {busy === "rollback" ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Undo2 size={13} />
+            )}
+            Reverter OpenCode
           </Button>
           <Button
             variant="ghost"

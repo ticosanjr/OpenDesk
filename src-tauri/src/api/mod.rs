@@ -86,6 +86,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/engine/diagnostics", get(engine::diagnostics))
         .route("/api/engine/update/check", post(engine::update_check))
         .route("/api/engine/update", post(engine::update))
+        .route("/api/engine/rollback", post(engine::rollback))
         .route("/api/updates/status", get(updates::status))
         .route("/api/updates/check", post(updates::check))
         .route(
@@ -93,6 +94,7 @@ fn router(state: Arc<AppState>) -> Router {
             axum::routing::put(updates::put_token).delete(updates::delete_token),
         )
         .route("/api/updates/download", post(updates::download))
+        .route("/api/updates/rollback", post(updates::rollback))
         .route("/api/models", get(models))
         .route("/api/agents", get(agents))
         .route("/api/dashboard", get(dashboard))

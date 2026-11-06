@@ -15,12 +15,16 @@ pub struct Delivery {
     pub last_error: Option<String>,
     pub external_id: Option<String>,
     pub external_url: Option<String>,
+    pub next_retry_at: Option<String>,
+    pub max_attempts: i64,
+    pub payload_json: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
 
 const COLUMNS: &str = "id, workspace_id, artifact_id, channel, idempotency_key, status, \
-    attempts, last_error, external_id, external_url, created_at, updated_at";
+    attempts, last_error, external_id, external_url, next_retry_at, max_attempts, payload_json, \
+    created_at, updated_at";
 
 pub async fn create_pending(
     pool: &SqlitePool,
@@ -93,6 +97,64 @@ pub async fn mark_failed(pool: &SqlitePool, id: &str, error: &str) -> AppResult<
     Ok(())
 }
 
+pub async fn mark_failed_retryable(
+    pool: &SqlitePool,
+    id: &str,
+    error: &str,
+    payload: &str,
+    delay_minutes: i64,
+) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE integration_deliveries SET status = 'FAILED',
+            attempts = attempts + 1, last_error = ?, payload_json = ?,
+            next_retry_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE id = ?",
+    )
+    .bind(error)
+    .bind(payload)
+    .bind(format!("+{delay_minutes} minutes"))
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn due_retries(pool: &SqlitePool, limit: i64) -> AppResult<Vec<Delivery>> {
+    let query = format!(
+        "SELECT {COLUMNS} FROM integration_deliveries
+         WHERE status = 'FAILED' AND payload_json IS NOT NULL
+           AND attempts < max_attempts
+           AND next_retry_at IS NOT NULL
+           AND next_retry_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         ORDER BY next_retry_at ASC LIMIT ?"
+    );
+    Ok(sqlx::query_as::<_, Delivery>(&query)
+        .bind(limit.clamp(1, 50))
+        .fetch_all(pool)
+        .await?)
+}
+
+pub async fn reschedule(
+    pool: &SqlitePool,
+    id: &str,
+    error: &str,
+    delay_minutes: i64,
+) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE integration_deliveries SET attempts = attempts + 1, last_error = ?,
+            next_retry_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE id = ?",
+    )
+    .bind(error)
+    .bind(format!("+{delay_minutes} minutes"))
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn mark_skipped(pool: &SqlitePool, id: &str, reason: &str) -> AppResult<()> {
     sqlx::query(
         "UPDATE integration_deliveries SET status = 'SKIPPED', last_error = ?,
@@ -134,6 +196,25 @@ mod tests {
             .await
             .expect("workspace");
         (temp, pool)
+    }
+
+    #[tokio::test]
+    async fn failed_deliveries_are_scheduled_for_retry() {
+        let (_temp, pool) = setup().await;
+        let delivery = create_pending(&pool, "ws-1", None, "SMTP", "smtp:run-1:a@b.com")
+            .await
+            .expect("create")
+            .expect("created");
+        mark_failed_retryable(&pool, &delivery.id, "timeout", "{}", 0)
+            .await
+            .expect("fail");
+        let due = due_retries(&pool, 10).await.expect("due");
+        assert_eq!(due.len(), 1);
+        assert_eq!(due[0].attempts, 1);
+        reschedule(&pool, &delivery.id, "again", 0)
+            .await
+            .expect("reschedule");
+        assert_eq!(due_retries(&pool, 10).await.expect("due 2").len(), 1);
     }
 
     #[tokio::test]

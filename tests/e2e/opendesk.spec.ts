@@ -54,7 +54,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     headers: auth.headers,
   });
   expect(about.ok()).toBeTruthy();
-  expect((await about.json()).app.version).toBe("0.10.1");
+  expect((await about.json()).app.version).toBe("0.10.2");
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });
@@ -518,4 +518,92 @@ test("studio reads global V1 MCP, skills, agents and commands", async ({ page, r
   await expect(page.getByText("global-command").first()).toBeVisible();
   await page.getByRole("button", { name: "MCP" }).click();
   await expect(page.getByText("rea").first()).toBeVisible();
+});
+
+test("studio imports local frontmatter and skill assets", async ({ request }) => {
+  const auth = api();
+  const workspaces = await request.get(`${auth.baseURL}/api/workspaces`, {
+    headers: auth.headers,
+  });
+  const workspaceId = ((await workspaces.json()) as Array<{ id: string }>)[0]?.id;
+  expect(workspaceId).toBeTruthy();
+
+  const root = "/tmp/opendesk-e2e/import-fixture";
+  mkdirSync(`${root}/agents`, { recursive: true });
+  mkdirSync(`${root}/skills/revisor`, { recursive: true });
+  writeFileSync(
+    `${root}/agents/revisor.md`,
+    `---
+name: Revisor Importado
+description: Revisa tudo
+mode: subagent
+model: deepseek/deepseek-flash
+avatar: "🧾"
+permissions:
+  - action: edit
+    resource: "*"
+    effect: deny
+---
+Você revisa o workspace.
+`,
+  );
+  writeFileSync(
+    `${root}/skills/revisor/SKILL.md`,
+    `---
+name: Revisor Skill
+description: Skill importada
+---
+Use a skill importada.
+`,
+  );
+  writeFileSync(`${root}/skills/revisor/extra.md`, "conteúdo extra");
+
+  const preview = await request.post(`${auth.baseURL}/api/studio/install/preview`, {
+    headers: auth.headers,
+    data: { source_type: "local", value: root },
+  });
+  expect(preview.ok()).toBeTruthy();
+  const previewBody = await preview.json();
+  const agentItem = previewBody.items.find(
+    (item: { kind: string; id: string }) => item.kind === "agent" && item.id === "revisor",
+  );
+  const skillItem = previewBody.items.find(
+    (item: { kind: string; id: string }) => item.kind === "skill" && item.id === "revisor",
+  );
+  expect(agentItem).toBeTruthy();
+  expect(skillItem).toBeTruthy();
+  expect(skillItem.files.some((file: { path: string }) => file.path === "extra.md")).toBe(true);
+
+  const applied = await request.post(`${auth.baseURL}/api/studio/install/apply`, {
+    headers: auth.headers,
+    data: {
+      items: previewBody.items,
+      target_scope: "workspace",
+      target_workspace_id: workspaceId,
+      overwrite: true,
+    },
+  });
+  expect(applied.ok()).toBeTruthy();
+
+  const agent = await request.get(
+    `${auth.baseURL}/api/studio/agent?id=revisor&scope=workspace&workspace_id=${workspaceId}`,
+    { headers: auth.headers },
+  );
+  expect(agent.ok()).toBeTruthy();
+  const agentBody = await agent.json();
+  expect(agentBody.model).toBe("deepseek/deepseek-flash");
+  expect(agentBody.permissions).toHaveLength(1);
+  expect(agentBody.system).toContain("Você revisa o workspace.");
+
+  const skill = await request.get(
+    `${auth.baseURL}/api/studio/skill?id=revisor&scope=workspace&workspace_id=${workspaceId}`,
+    { headers: auth.headers },
+  );
+  expect(skill.ok()).toBeTruthy();
+  expect(
+    (await skill.json()).files.some(
+      (file: { path: string; content: string }) =>
+        file.path === "extra.md" && file.content === "conteúdo extra",
+    ),
+  ).toBe(true);
 });

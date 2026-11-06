@@ -236,6 +236,10 @@ pub async fn update(
     }
 
     let binary = state.locator.resolve()?;
+    let backup_path = std::path::PathBuf::from(format!("{}.bak", binary.path));
+    if let Err(error) = std::fs::copy(&binary.path, &backup_path) {
+        tracing::warn!(error = %error, path = %backup_path.display(), "could not back up the OpenCode binary");
+    }
     let client = updater::http_client()?;
 
     let version = match body.version {
@@ -324,6 +328,28 @@ pub async fn update(
         output,
         daemon,
     }))
+}
+
+pub async fn rollback(State(state): State<Arc<AppState>>) -> AppResult<Json<EngineStatus>> {
+    let binary = state.locator.resolve()?;
+    let backup = std::path::PathBuf::from(format!("{}.bak", binary.path));
+    if !backup.is_file() {
+        return Err(AppError::BadRequest(format!(
+            "não há backup do OpenCode anterior em {}",
+            backup.display()
+        )));
+    }
+    let staged = std::path::PathBuf::from(format!("{}.new", binary.path));
+    std::fs::copy(&backup, &staged)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o755))?;
+    }
+    std::fs::rename(&staged, &binary.path)?;
+    state.daemon.restart().await;
+    let _ = state.daemon.wait_for_settled(RESTART_TIMEOUT).await;
+    Ok(status(State(state)).await)
 }
 
 pub async fn diagnostics(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>> {

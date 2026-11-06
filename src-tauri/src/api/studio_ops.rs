@@ -3,7 +3,7 @@ use crate::{
     config_sync::{
         agents::{self, AgentWriteInput, PermissionRule},
         commands::{self, CommandWriteInput},
-        jsonc_editor,
+        jsonc_editor, markdown,
         paths::StudioPaths,
         skills::{self, SkillExtraFile, SkillWriteInput},
     },
@@ -717,51 +717,57 @@ pub async fn install_apply(
                 &state.paths.backups_dir,
             )?;
         } else if item.kind == "agent" {
+            let (frontmatter, body) = parse_markdown(&item.body);
             agents::write(
                 &target.paths,
                 &target.scope,
                 &item.id,
                 AgentWriteInput {
-                    name: item.name.clone(),
-                    avatar: None,
-                    description: item.description.clone(),
-                    mode: None,
-                    model: None,
-                    color: None,
-                    hidden: false,
-                    steps: None,
-                    disabled: false,
-                    permissions: Vec::new(),
-                    system: item.body.clone(),
+                    name: markdown::get_string(&frontmatter, "name").or(item.name.clone()),
+                    avatar: markdown::get_string(&frontmatter, "avatar"),
+                    description: markdown::get_string(&frontmatter, "description")
+                        .or(item.description.clone()),
+                    mode: markdown::get_string(&frontmatter, "mode"),
+                    model: markdown::get_string(&frontmatter, "model"),
+                    color: markdown::get_string(&frontmatter, "color"),
+                    hidden: markdown::get_bool(&frontmatter, "hidden").unwrap_or(false),
+                    steps: markdown::get_u32(&frontmatter, "steps"),
+                    disabled: markdown::get_bool(&frontmatter, "disabled").unwrap_or(false),
+                    permissions: parse_permissions(&frontmatter)?,
+                    system: body,
                     expected_sha256: None,
                 },
                 &state.paths.backups_dir,
             )?;
         } else if item.kind == "skill" {
+            let (frontmatter, body) = parse_markdown(&item.body);
             skills::write(
                 &target.paths,
                 &target.scope,
                 &item.id,
                 SkillWriteInput {
-                    name: item.name.clone(),
-                    description: item.description.clone(),
-                    body: item.body.clone(),
+                    name: markdown::get_string(&frontmatter, "name").or(item.name.clone()),
+                    description: markdown::get_string(&frontmatter, "description")
+                        .or(item.description.clone()),
+                    body,
                     files: item.files.clone(),
                     expected_sha256: None,
                 },
                 &state.paths.backups_dir,
             )?;
         } else if item.kind == "command" {
+            let (frontmatter, body) = parse_markdown(&item.body);
             commands::write(
                 &target.paths,
                 &target.scope,
                 &item.id,
                 CommandWriteInput {
-                    description: item.description.clone(),
-                    agent: None,
-                    model: None,
-                    subagent: None,
-                    template: item.body.clone(),
+                    description: markdown::get_string(&frontmatter, "description")
+                        .or(item.description.clone()),
+                    agent: markdown::get_string(&frontmatter, "agent"),
+                    model: markdown::get_string(&frontmatter, "model"),
+                    subagent: markdown::get_bool(&frontmatter, "subagent"),
+                    template: body,
                     expected_sha256: None,
                 },
                 &state.paths.backups_dir,
@@ -866,6 +872,22 @@ pub async fn catalog() -> Json<Value> {
     }))
 }
 
+fn parse_markdown(content: &str) -> (serde_yaml::Mapping, String) {
+    match markdown::parse(content) {
+        Ok(document) => (document.frontmatter, document.body),
+        Err(_) => (serde_yaml::Mapping::new(), content.to_string()),
+    }
+}
+
+fn parse_permissions(mapping: &serde_yaml::Mapping) -> AppResult<Vec<PermissionRule>> {
+    let Some(value) = mapping.get(serde_yaml::Value::String("permissions".into())) else {
+        return Ok(Vec::new());
+    };
+    serde_yaml::from_value::<Vec<PermissionRule>>(value.clone()).map_err(|error| {
+        AppError::BadRequest(format!("invalid permissions in imported agent: {error}"))
+    })
+}
+
 async fn collect_source(request: &InstallRequest) -> AppResult<(Vec<InstallItem>, Vec<String>)> {
     let source = request.value.trim();
     if source.is_empty() {
@@ -956,13 +978,120 @@ async fn collect_source(request: &InstallRequest) -> AppResult<(Vec<InstallItem>
     Ok((items, warnings))
 }
 
-async fn download_url(url: &str) -> AppResult<Vec<u8>> {
-    let response = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
+async fn download_github(source: &str) -> AppResult<Vec<u8>> {
+    let source = source.trim_start_matches("github:");
+    let (repo_path, requested_ref) = match source.split_once('@') {
+        Some((repo, reference)) => (repo, Some(reference.to_string())),
+        None => (source, None),
+    };
+    let mut parts = repo_path.splitn(3, '/');
+    let owner = parts.next().unwrap_or_default();
+    let repo = parts.next().unwrap_or_default();
+    if owner.is_empty() || repo.is_empty() {
+        return Err(AppError::BadRequest(
+            "GitHub source must be owner/repo, owner/repo@ref or github:owner/repo".into(),
+        ));
+    }
+    let token = github_token().await;
+    let reference = match requested_ref {
+        Some(reference) => reference,
+        None => github_default_branch(owner, repo, token.as_deref()).await?,
+    };
+
+    let (url, authenticated) = match &token {
+        Some(_) => (
+            format!("https://api.github.com/repos/{owner}/{repo}/zipball/{reference}"),
+            true,
+        ),
+        None => (
+            format!("https://codeload.github.com/{owner}/{repo}/zip/refs/heads/{reference}"),
+            false,
+        ),
+    };
+    let bytes = download_url_auth(&url, token.as_deref(), authenticated).await.map_err(|_| {
+        AppError::BadRequest(format!(
+            "could not download GitHub repository {owner}/{repo}@{reference}; check the ref, visibility and token"
+        ))
+    })?;
+    Ok(bytes)
+}
+
+async fn github_token() -> Option<String> {
+    for key in ["GITHUB_TOKEN", "GH_TOKEN", "OPENDESK_GITHUB_TOKEN"] {
+        if let Ok(value) = std::env::var(key)
+            && !value.trim().is_empty()
+        {
+            return Some(value.trim().to_string());
+        }
+    }
+    let output = tokio::process::Command::new("gh")
+        .args(["auth", "token"])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .await
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!value.is_empty()).then_some(value)
+}
+
+async fn github_default_branch(owner: &str, repo: &str, token: Option<&str>) -> AppResult<String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
         .user_agent("OpenDesk-Studio/1")
         .build()
-        .map_err(|error| AppError::Internal(error.to_string()))?
-        .get(url)
+        .map_err(|error| AppError::Internal(error.to_string()))?;
+    let mut request = client
+        .get(format!("https://api.github.com/repos/{owner}/{repo}"))
+        .header("Accept", "application/vnd.github+json");
+    if let Some(token) = token {
+        request = request.bearer_auth(token);
+    }
+    let response = request
+        .send()
+        .await
+        .map_err(|error| AppError::BadRequest(format!("GitHub API failed: {error}")))?;
+    if !response.status().is_success() {
+        // Public repositories with a rate limit still work through codeload
+        // with the conventional main branch.
+        return Ok("main".into());
+    }
+    let value: Value = response
+        .json()
+        .await
+        .map_err(|error| AppError::BadRequest(format!("invalid GitHub response: {error}")))?;
+    Ok(value
+        .get("default_branch")
+        .and_then(Value::as_str)
+        .unwrap_or("main")
+        .to_string())
+}
+
+async fn download_url(url: &str) -> AppResult<Vec<u8>> {
+    download_url_auth(url, None, false).await
+}
+
+async fn download_url_auth(
+    url: &str,
+    token: Option<&str>,
+    authenticated: bool,
+) -> AppResult<Vec<u8>> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(45))
+        .user_agent("OpenDesk-Studio/1")
+        .build()
+        .map_err(|error| AppError::Internal(error.to_string()))?;
+    let mut request = client.get(url);
+    if authenticated {
+        if let Some(token) = token {
+            request = request.bearer_auth(token);
+        }
+        request = request.header("Accept", "application/vnd.github+json");
+    }
+    let response = request
         .send()
         .await
         .map_err(|error| AppError::BadRequest(format!("download failed: {error}")))?;
@@ -976,26 +1105,10 @@ async fn download_url(url: &str) -> AppResult<Vec<u8>> {
         .bytes()
         .await
         .map_err(|error| AppError::BadRequest(format!("download failed: {error}")))?;
-    if bytes.len() > 10 * 1024 * 1024 {
-        return Err(AppError::BadRequest("download exceeds 10 MB".into()));
+    if bytes.len() > 20 * 1024 * 1024 {
+        return Err(AppError::BadRequest("download exceeds 20 MB".into()));
     }
     Ok(bytes.to_vec())
-}
-
-async fn download_github(source: &str) -> AppResult<Vec<u8>> {
-    let source = source.trim_start_matches("github:");
-    let (repo, rest) = source.split_once('@').unwrap_or((source, "main"));
-    let (repo, path) = repo.split_once('/').unwrap_or((repo, ""));
-    let url = format!(
-        "https://codeload.github.com/{repo}/zip/refs/heads/{}",
-        if rest.is_empty() { "main" } else { rest }
-    );
-    let bytes = download_url(&url).await.map_err(|_| {
-        AppError::BadRequest(format!(
-            "could not download GitHub repository {repo} ({path}); check the ref and visibility"
-        ))
-    })?;
-    Ok(bytes)
 }
 
 fn collect_zip(
@@ -1008,6 +1121,7 @@ fn collect_zip(
     if archive.len() > 500 {
         return Err(AppError::BadRequest("zip contains too many files".into()));
     }
+    let mut entries = Vec::new();
     for index in 0..archive.len() {
         let mut file = archive
             .by_index(index)
@@ -1027,19 +1141,9 @@ fn collect_zip(
         if file.read_to_string(&mut content).is_err() {
             continue;
         }
-        collect_text(
-            &name,
-            &content,
-            &InstallRequest {
-                source_type: "zip".into(),
-                value: name.clone(),
-                kind: None,
-                name: None,
-            },
-            items,
-            warnings,
-        )?;
+        entries.push((name, content));
     }
+    collect_entries(entries, items, warnings, None);
     Ok(())
 }
 
@@ -1048,32 +1152,82 @@ fn collect_local_dir(
     items: &mut Vec<InstallItem>,
     warnings: &mut Vec<String>,
 ) -> AppResult<()> {
-    for entry in walkdir::WalkDir::new(path).max_depth(6) {
+    let mut entries = Vec::new();
+    for entry in walkdir::WalkDir::new(path).max_depth(8) {
         let Ok(entry) = entry else { continue };
         if !entry.file_type().is_file() {
             continue;
         }
-        let name = entry.path().to_string_lossy().to_string();
-        if !name.ends_with(".md") {
+        let Ok(relative) = entry.path().strip_prefix(path) else {
+            continue;
+        };
+        let name = relative.to_string_lossy().replace('\\', "/");
+        if !name.to_lowercase().ends_with(".md") {
             continue;
         }
         let Ok(content) = std::fs::read_to_string(entry.path()) else {
             continue;
         };
-        collect_text(
-            &name,
-            &content,
-            &InstallRequest {
-                source_type: "local".into(),
-                value: name.clone(),
-                kind: None,
-                name: None,
-            },
-            items,
-            warnings,
-        )?;
+        entries.push((name, content));
     }
+    collect_entries(entries, items, warnings, Some(path));
     Ok(())
+}
+
+fn collect_entries(
+    entries: Vec<(String, String)>,
+    items: &mut Vec<InstallItem>,
+    warnings: &mut Vec<String>,
+    _root: Option<&FsPath>,
+) {
+    use std::collections::HashSet;
+    let mut consumed: HashSet<usize> = HashSet::new();
+    for (index, (path, content)) in entries.iter().enumerate() {
+        if path.rsplit('/').next() != Some("SKILL.md") {
+            continue;
+        }
+        let Some(directory) = path.rsplit_once('/').map(|(directory, _)| directory) else {
+            continue;
+        };
+        let id = directory.rsplit('/').next().unwrap_or("skill").to_string();
+        let mut files = Vec::new();
+        for (other_index, (other_path, other_content)) in entries.iter().enumerate() {
+            if other_index == index || !other_path.starts_with(&format!("{directory}/")) {
+                continue;
+            }
+            consumed.insert(other_index);
+            if let Some(relative) = other_path.strip_prefix(&format!("{directory}/")) {
+                files.push(SkillExtraFile {
+                    path: relative.to_string(),
+                    content: other_content.clone(),
+                });
+            }
+        }
+        consumed.insert(index);
+        items.push(InstallItem {
+            kind: "skill".into(),
+            id,
+            name: None,
+            description: None,
+            body: content.clone(),
+            files,
+            server: None,
+        });
+    }
+    for (index, (path, content)) in entries.into_iter().enumerate() {
+        if consumed.contains(&index) {
+            continue;
+        }
+        let request = InstallRequest {
+            source_type: "import".into(),
+            value: path.clone(),
+            kind: None,
+            name: None,
+        };
+        if let Err(error) = collect_text(&path, &content, &request, items, warnings) {
+            warnings.push(format!("skipped {path}: {error}"));
+        }
+    }
 }
 
 fn collect_text(
@@ -1092,7 +1246,9 @@ fn collect_text(
             .unwrap_or_else(|| "item".into())
     };
 
-    if file_name == "skill.md" || lower.contains("/skills/") && lower.ends_with(".md") {
+    if file_name == "skill.md"
+        || ((lower.contains("/skills/") || lower.starts_with("skills/")) && lower.ends_with(".md"))
+    {
         let id = request
             .name
             .clone()
@@ -1107,7 +1263,10 @@ fn collect_text(
             files: Vec::new(),
             server: None,
         });
-    } else if lower.contains("/agents/") || request.kind.as_deref() == Some("agent") {
+    } else if lower.contains("/agents/")
+        || lower.starts_with("agents/")
+        || request.kind.as_deref() == Some("agent")
+    {
         items.push(InstallItem {
             kind: "agent".into(),
             id: request.name.clone().unwrap_or_else(|| id_from_path(".md")),
@@ -1117,7 +1276,10 @@ fn collect_text(
             files: Vec::new(),
             server: None,
         });
-    } else if lower.contains("/commands/") || request.kind.as_deref() == Some("command") {
+    } else if lower.contains("/commands/")
+        || lower.starts_with("commands/")
+        || request.kind.as_deref() == Some("command")
+    {
         items.push(InstallItem {
             kind: "command".into(),
             id: request.name.clone().unwrap_or_else(|| id_from_path(".md")),
@@ -1314,5 +1476,51 @@ mod tests {
         std::fs::write(&target, "b").expect("target");
         assert!(move_file(&source, &target).is_err());
         assert_eq!(std::fs::read_to_string(&source).expect("source"), "a");
+    }
+}
+
+#[cfg(test)]
+mod install_tests {
+    use super::*;
+
+    #[test]
+    fn imported_agent_frontmatter_is_parsed() {
+        let content = r#"---
+name: Auditor
+description: Audita
+mode: subagent
+model: deepseek/deepseek-flash
+avatar: "🛡️"
+permissions:
+  - action: edit
+    resource: "*"
+    effect: deny
+---
+Você audita."#;
+        let (frontmatter, body) = parse_markdown(content);
+        assert_eq!(
+            markdown::get_string(&frontmatter, "name").as_deref(),
+            Some("Auditor")
+        );
+        assert_eq!(body.trim(), "Você audita.");
+        let permissions = parse_permissions(&frontmatter).expect("permissions");
+        assert_eq!(permissions.len(), 1);
+        assert_eq!(permissions[0].action, "edit");
+        assert_eq!(permissions[0].effect, "deny");
+    }
+
+    #[test]
+    fn imported_command_uses_body_as_template() {
+        let content = r#"---
+description: Revisar
+agent: auditor
+---
+Revise $ARGUMENTS"#;
+        let (frontmatter, body) = parse_markdown(content);
+        assert_eq!(body.trim(), "Revise $ARGUMENTS");
+        assert_eq!(
+            markdown::get_string(&frontmatter, "agent").as_deref(),
+            Some("auditor")
+        );
     }
 }

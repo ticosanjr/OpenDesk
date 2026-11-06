@@ -446,6 +446,8 @@ export interface Delivery {
   last_error?: string | null;
   external_id?: string | null;
   external_url?: string | null;
+  next_retry_at?: string | null;
+  max_attempts?: number;
   created_at: string;
   updated_at: string;
 }

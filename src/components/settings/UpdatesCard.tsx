@@ -8,6 +8,7 @@ import {
   Package,
   RefreshCw,
   Search,
+  Undo2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,6 +100,21 @@ export function UpdatesCard() {
       setInfo(status);
       setMessage("Token removido. O app volta a tentar o gh CLI.");
       setError(status.error ?? null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function rollback() {
+    setBusy("rollback");
+    setError(null);
+    setMessage(null);
+    try {
+      const value = await apiPost<DownloadResult>("/api/updates/rollback");
+      setResult(value);
+      setMessage(value.message);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -229,6 +245,21 @@ export function UpdatesCard() {
             <RefreshCw size={13} />
             Atualizar status
           </Button>
+          {["appimage", "portable"].includes(info?.installer ?? "") ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void rollback()}
+              disabled={busy !== null}
+            >
+              {busy === "rollback" ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Undo2 size={13} />
+              )}
+              Reverter versão
+            </Button>
+          ) : null}
         </div>
 
         {latest?.notes ? (

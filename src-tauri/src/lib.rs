@@ -129,6 +129,7 @@ pub fn run() {
 
             app.manage(state.clone());
             state.daemon.spawn_supervisor();
+            tauri::async_runtime::spawn(integrations::delivery::retry_loop(state.clone()));
             if let Err(error) =
                 tauri::async_runtime::block_on(state.signal.start_if_enabled(state.clone()))
             {
@@ -193,6 +194,7 @@ pub fn run_headless() {
                 .await;
         } else {
             state.daemon.spawn_supervisor();
+            tauri::async_runtime::spawn(integrations::delivery::retry_loop(state.clone()));
         }
 
         state.refresh_watcher().await.expect("config watcher");
@@ -200,6 +202,7 @@ pub fn run_headless() {
             tracing::warn!(error = %error, "Signal bridge was not started");
         }
         state.queue.spawn_worker();
+        tauri::async_runtime::spawn(integrations::delivery::retry_loop(state.clone()));
         state.cron.spawn();
         api::spawn_server(state.clone())
             .await

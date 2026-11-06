@@ -1,4 +1,5 @@
 use crate::{
+    app_state::AppState,
     db::{artifacts, deliveries, runs, schedules, tasks, workspaces},
     error::AppResult,
     integrations::{
@@ -108,6 +109,11 @@ pub async fn deliver_run(
     let subject = format!("[OpenDesk] {title} · concluído");
     let html = build_html(&title, &run, &artifact_list);
     let attachments = build_attachments(&artifact_list, workspace_root.as_deref());
+    let retry_artifacts = artifact_list
+        .iter()
+        .filter(|artifact| artifact.action_type != "DELETED")
+        .map(|artifact| artifact.absolute_path.clone())
+        .collect::<Vec<_>>();
 
     for recipient in recipients {
         let key = format!("smtp:{run_id}:{recipient}");
@@ -139,8 +145,22 @@ pub async fn deliver_run(
                 tracing::info!(run = run_id, recipient, "run summary emailed");
             }
             Err(error) => {
-                let _ = deliveries::mark_failed(pool, &delivery.id, &format!("{error:#}")).await;
-                tracing::warn!(run = run_id, recipient, error = %error, "email delivery failed");
+                let payload = serde_json::json!({
+                    "recipient": recipient,
+                    "subject": subject,
+                    "html": html,
+                    "artifact_paths": retry_artifacts,
+                })
+                .to_string();
+                let _ = deliveries::mark_failed_retryable(
+                    pool,
+                    &delivery.id,
+                    &format!("{error:#}"),
+                    &payload,
+                    5,
+                )
+                .await;
+                tracing::warn!(run = run_id, recipient, error = %error, "email delivery failed; scheduled for retry");
             }
         }
     }
@@ -262,6 +282,103 @@ async fn export_google(
     }
 
     let _ = task_id;
+}
+
+/// Durable retry worker. It survives restarts because the payload and next
+/// attempt live in SQLite.
+pub async fn retry_loop(state: std::sync::Arc<AppState>) {
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        let Ok(due) = deliveries::due_retries(&state.db, 10).await else {
+            continue;
+        };
+        for delivery in due {
+            if let Err(error) = retry_delivery(&state, &delivery).await {
+                tracing::warn!(delivery = %delivery.id, error = %error, "delivery retry failed");
+            }
+        }
+    }
+}
+
+async fn retry_delivery(state: &AppState, delivery: &deliveries::Delivery) -> AppResult<()> {
+    let Some(payload) = delivery.payload_json.as_deref() else {
+        return Ok(());
+    };
+    let payload: serde_json::Value = match serde_json::from_str(payload) {
+        Ok(value) => value,
+        Err(_) => {
+            let _ =
+                deliveries::mark_skipped(&state.db, &delivery.id, "invalid retry payload").await;
+            return Ok(());
+        }
+    };
+    let recipient = payload
+        .get("recipient")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    let subject = payload
+        .get("subject")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("[OpenDesk] entrega pendente");
+    let html = payload
+        .get("html")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    let paths = payload
+        .get("artifact_paths")
+        .and_then(serde_json::Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let attachments = attachments_from_paths(&paths);
+
+    let Some(config) =
+        smtp_mailer::load_config(&state.db, &state.secrets, &delivery.workspace_id).await?
+    else {
+        let _ = deliveries::reschedule(&state.db, &delivery.id, "SMTP not configured", 60).await;
+        return Ok(());
+    };
+
+    match smtp_mailer::send_email(&config, recipient, subject, html.to_string(), attachments).await
+    {
+        Ok(()) => {
+            let _ = deliveries::mark_success(&state.db, &delivery.id, None, None).await;
+        }
+        Err(error) => {
+            let delay = (5i64 * 2i64.pow(delivery.attempts.min(6) as u32)).min(360);
+            let _ =
+                deliveries::reschedule(&state.db, &delivery.id, &format!("{error:#}"), delay).await;
+        }
+    }
+    Ok(())
+}
+
+fn attachments_from_paths(paths: &[String]) -> Vec<EmailAttachment> {
+    paths
+        .iter()
+        .take(5)
+        .filter_map(|path| {
+            let path = PathBuf::from(path);
+            let bytes = std::fs::read(&path).ok()?;
+            if !smtp_mailer::attachment_limit(bytes.len()) {
+                return None;
+            }
+            Some(EmailAttachment {
+                filename: path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("artifact")
+                    .to_string(),
+                mime: mime_for(&path).to_string(),
+                bytes,
+            })
+        })
+        .collect()
 }
 
 /// Best-effort retry for transient network failures. The delivery rows are

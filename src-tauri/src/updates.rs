@@ -94,7 +94,7 @@ pub fn installer_kind() -> &'static str {
     "portable"
 }
 
-fn running_image() -> Option<PathBuf> {
+pub(crate) fn running_image() -> Option<PathBuf> {
     std::env::var_os("APPIMAGE")
         .map(PathBuf::from)
         .or_else(|| std::env::current_exe().ok())
@@ -506,7 +506,7 @@ fn write_executable(path: &Path, bytes: &[u8]) -> AppResult<()> {
 /// Write a small detached helper that waits for the current process to exit,
 /// then replaces the binary and relaunches it. This avoids corrupting a running
 /// AppImage and keeps the old file as `.bak` for a manual rollback.
-fn spawn_replacer(staged: &Path, target: &Path, pid: u32) -> AppResult<()> {
+pub(crate) fn spawn_replacer(staged: &Path, target: &Path, pid: u32) -> AppResult<()> {
     let script_path = target.with_extension(format!("update-{pid}.sh"));
     let launch = format!("nohup \"{}\" >/dev/null 2>&1 &", target.display());
     let script = format!(

@@ -683,3 +683,14 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   - resumo `TASK OK`;
   - artefato criado em `output/2026-11/teste-real/TASK_OK.txt`;
   - job `COMPLETED`, sem erro.
+
+## 2026-11-06 — 0.10.2: importação fiel, retry e rollback
+
+- Importação de agentes/comandos/skills preserva frontmatter, permissões, modelo,
+  modo e arquivos extras.
+- GitHub usa default branch, `@ref` e token para repositório privado.
+- Retry durável de SMTP em SQLite (`next_retry_at`, `max_attempts`, payload) com
+  worker pós-restart e backoff.
+- Rollback de OpenDesk pelo `.bak` e de OpenCode pelo binário anterior.
+- Testes: 92 Rust, 8 Playwright.
+- E2E cobre importação local com permissões/modelo e asset de skill.
