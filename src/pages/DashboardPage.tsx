@@ -30,7 +30,7 @@ import { StatusDot, statusTone } from "@/components/ui/status-dot";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiGet } from "@/lib/api";
-import type { AgentFile, AgentInfo } from "@/lib/types";
+import type { AgentFile, AgentInfo, Artifact, TaskRun } from "@/lib/types";
 import { ROUTER_POLICY_LABELS } from "@/lib/types";
 import {
   formatNumber,
@@ -60,6 +60,10 @@ export function DashboardPage() {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [presentation, setPresentation] = useState<Record<string, AgentFile>>({});
   const [agentsError, setAgentsError] = useState<string | null>(null);
+  const [recentRuns, setRecentRuns] = useState<TaskRun[]>([]);
+  const [recentArtifacts, setRecentArtifacts] = useState<Artifact[]>([]);
+  const lastRunEvent = useAppStore((state) => state.lastRunEvent);
+  const lastArtifactEvent = useAppStore((state) => state.lastArtifactEvent);
 
   useEffect(() => {
     if (!activeWorkspace || !daemon?.online) {
@@ -96,6 +100,24 @@ export function DashboardPage() {
       cancelled = true;
     };
   }, [activeWorkspace?.root_path, activeWorkspace?.id, daemon?.online]);
+
+  useEffect(() => {
+    if (!activeWorkspace) return;
+    let cancelled = false;
+    const query = encodeURIComponent(activeWorkspace.id);
+    Promise.all([
+      apiGet<TaskRun[]>(`/api/runs?workspace_id=${query}`).catch(() => []),
+      apiGet<Artifact[]>(`/api/artifacts?workspace_id=${query}&limit=8`).catch(() => []),
+    ]).then(([runs, artifacts]) => {
+      if (!cancelled) {
+        setRecentRuns(runs);
+        setRecentArtifacts(artifacts);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspace?.id, lastRunEvent?.run_id, lastArtifactEvent]);
 
   if (!activeWorkspace) {
     return (
@@ -134,6 +156,28 @@ export function DashboardPage() {
   const cacheHit =
     cacheBase > 0 ? ((dashboard?.tokens_cache_read ?? 0) / cacheBase) * 100 : 0;
   const spent = dashboard?.estimated_cost_usd ?? 0;
+
+  const modelUsage = Object.values(
+    recentRuns.reduce<Record<string, { model: string; calls: number; tokens: number; cost: number; duration: number }>>(
+      (accumulator, run) => {
+        const key = run.model_id || "unknown";
+        const entry = accumulator[key] ?? {
+          model: key,
+          calls: 0,
+          tokens: 0,
+          cost: 0,
+          duration: 0,
+        };
+        entry.calls += 1;
+        entry.tokens += run.tokens_input + run.tokens_output;
+        entry.cost += run.estimated_cost_usd;
+        entry.duration += run.duration_ms;
+        accumulator[key] = entry;
+        return accumulator;
+      },
+      {},
+    ),
+  ).sort((a, b) => b.cost - a.cost);
 
   return (
     <PageBody>
@@ -332,11 +376,46 @@ export function DashboardPage() {
             <Badge variant="default">em breve</Badge>
           </CardHeader>
           <CardContent>
-            <EmptyState
-              icon={Cpu}
-              title="Sem telemetria por modelo ainda"
-              description="A tabela é alimentada pelos eventos session.usage.recorded e pelos runs persistidos."
-            />
+            {modelUsage.length === 0 ? (
+              <EmptyState
+                icon={Cpu}
+                title="Sem telemetria por modelo ainda"
+                description="A tabela é alimentada pelos runs persistidos em task_runs."
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="border-b border-zinc-800/70 text-[9px] uppercase tracking-[0.12em] text-zinc-600">
+                    <tr>
+                      <th className="pb-2 font-medium">Modelo</th>
+                      <th className="pb-2 text-right font-medium">Chamadas</th>
+                      <th className="pb-2 text-right font-medium">Tokens</th>
+                      <th className="pb-2 text-right font-medium">Custo</th>
+                      <th className="pb-2 text-right font-medium">Latência média</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modelUsage.map((model) => (
+                      <tr key={model.model} className="border-b border-zinc-800/40 text-[10px]">
+                        <td className="max-w-[220px] truncate py-2 font-mono text-zinc-300">
+                          {model.model}
+                        </td>
+                        <td className="py-2 text-right font-mono text-zinc-500">{model.calls}</td>
+                        <td className="py-2 text-right font-mono text-zinc-500">
+                          {formatNumber(model.tokens)}
+                        </td>
+                        <td className="py-2 text-right font-mono text-zinc-400">
+                          {formatUsd(model.cost)}
+                        </td>
+                        <td className="py-2 text-right font-mono text-zinc-600">
+                          {Math.round(model.duration / Math.max(1, model.calls))} ms
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -354,11 +433,55 @@ export function DashboardPage() {
             <Badge variant="default">em breve</Badge>
           </CardHeader>
           <CardContent>
-            <EmptyState
-              icon={Archive}
-              title="Nenhuma atividade ainda"
-              description="Quando a fila entrar em operação, runs e artefatos aparecerão aqui em tempo real via WebSocket."
-            />
+            {recentArtifacts.length === 0 && recentRuns.length === 0 ? (
+              <EmptyState
+                icon={Archive}
+                title="Nenhuma atividade ainda"
+                description="Runs e artefatos aparecerão aqui em tempo real via WebSocket."
+              />
+            ) : (
+              <div className="space-y-2">
+                {recentArtifacts.slice(0, 4).map((artifact) => (
+                  <div
+                    key={artifact.id}
+                    className="flex items-center gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
+                  >
+                    <Archive size={13} className="text-emerald-400/70" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-mono text-[10px] text-zinc-300">
+                        {artifact.file_path}
+                      </p>
+                      <p className="truncate text-[9px] text-zinc-600">
+                        @{artifact.created_by_agent} · {artifact.creation_reason}
+                      </p>
+                    </div>
+                    <span className="font-mono text-[8px] text-zinc-600">
+                      {relativeTime(artifact.created_at)}
+                    </span>
+                  </div>
+                ))}
+                {recentRuns.slice(0, 3).map((run) => (
+                  <div
+                    key={run.id}
+                    className="flex items-center gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
+                  >
+                    <Cpu size={13} className="text-blue-400/70" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[10px] text-zinc-300">
+                        {run.task_title ?? run.agent_name} · {run.phase ?? run.execution_mode}
+                      </p>
+                      <p className="truncate font-mono text-[9px] text-zinc-600">
+                        {run.status} · {formatUsd(run.estimated_cost_usd)} ·{" "}
+                        {formatNumber(run.tokens_input + run.tokens_output)} tokens
+                      </p>
+                    </div>
+                    <span className="font-mono text-[8px] text-zinc-600">
+                      {relativeTime(run.started_at)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -99,3 +99,14 @@ export async function websocketUrl(): Promise<string> {
   const { port, token } = await getEndpoint();
   return `ws://127.0.0.1:${port}/ws?token=${encodeURIComponent(token)}`;
 }
+
+export async function apiText(path: string): Promise<string> {
+  const { port, token } = await getEndpoint();
+  const response = await fetch(`http://127.0.0.1:${port}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error(`Request failed (${response.status})`);
+  }
+  return response.text();
+}

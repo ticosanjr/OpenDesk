@@ -1,5 +1,12 @@
+pub mod artifacts;
+pub mod budget;
 pub mod commands;
+pub mod meta;
+pub mod queue;
+pub mod router;
+pub mod runs;
 pub mod studio;
+pub mod tasks;
 pub mod ws;
 
 use crate::{
@@ -13,7 +20,7 @@ use axum::{
     http::{HeaderValue, Method, StatusCode, header::AUTHORIZATION},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{get, post, put},
+    routing::{get, patch, post, put},
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -59,6 +66,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/healthz", get(healthz))
         .route("/api/health", get(health))
         .route("/api/meta", get(meta))
+        .route("/api/meta/build", post(meta::build))
         .route("/api/daemon/status", get(daemon_status))
         .route("/api/daemon/restart", post(restart_daemon))
         .route("/api/models", get(models))
@@ -108,6 +116,49 @@ fn router(state: Arc<AppState>) -> Router {
             "/api/studio/mcp/{name}",
             put(studio::put_mcp).delete(studio::delete_mcp),
         )
+        .route(
+            "/api/tasks",
+            get(tasks::list_tasks).post(tasks::create_task),
+        )
+        .route(
+            "/api/tasks/{id}",
+            get(tasks::get_task)
+                .patch(tasks::update_task)
+                .delete(tasks::delete_task),
+        )
+        .route("/api/tasks/{id}/dispatch", post(tasks::dispatch_task))
+        .route("/api/tasks/{id}/approve-plan", post(tasks::approve_plan))
+        .route("/api/tasks/{id}/move", post(tasks::move_task))
+        .route("/api/queue", get(queue::list_queue))
+        .route("/api/queue/status", get(queue::queue_status))
+        .route("/api/queue/pause", post(queue::pause_queue))
+        .route("/api/queue/resume", post(queue::resume_queue))
+        .route("/api/queue/{id}/cancel", post(queue::cancel_job))
+        .route("/api/queue/{id}/retry", post(queue::retry_job))
+        .route("/api/queue/{id}/priority", patch(queue::update_priority))
+        .route("/api/runs", get(runs::list_runs))
+        .route("/api/runs/{id}", get(runs::get_run))
+        .route("/api/runs/{id}/log", get(runs::run_log))
+        .route("/api/artifacts", get(artifacts::list_artifacts))
+        .route("/api/artifacts/{id}", get(artifacts::get_artifact))
+        .route(
+            "/api/artifacts/{id}/content",
+            get(artifacts::artifact_content),
+        )
+        .route("/api/router/config", get(router::get_config))
+        .route(
+            "/api/router/rules",
+            get(router::list_rules).post(router::create_rule),
+        )
+        .route(
+            "/api/router/rules/{id}",
+            patch(router::update_rule).delete(router::delete_rule),
+        )
+        .route(
+            "/api/budget",
+            get(budget::get_budget).put(budget::put_budget),
+        )
+        .route("/api/budget/status", get(budget::budget_status))
         .route("/ws", get(ws::ws_handler))
         .fallback(not_found)
         .layer(middleware::from_fn_with_state(
@@ -137,7 +188,7 @@ async fn meta() -> impl IntoResponse {
     Json(json!({
         "name": "OpenDesk",
         "version": env!("CARGO_PKG_VERSION"),
-        "phase": "foundation",
+        "phase": "execution",
         "opencode_api": "v2",
         "features": [
             "daemon-manager",
@@ -145,7 +196,15 @@ async fn meta() -> impl IntoResponse {
             "local-api",
             "websocket-events",
             "system-tray",
-            "workspace-registry"
+            "workspace-registry",
+            "studio-ssot",
+            "dsh-router",
+            "persistent-queue",
+            "budget-guard",
+            "opencode-sessions",
+            "artifact-provenance",
+            "kanban",
+            "meta-builder"
         ]
     }))
 }

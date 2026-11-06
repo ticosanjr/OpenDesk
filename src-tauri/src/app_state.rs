@@ -5,6 +5,7 @@ use crate::{
     events::EventBus,
     opencode_client::daemon_manager::DaemonManager,
     paths::AppPaths,
+    queue_scheduler::QueueManager,
 };
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -22,6 +23,7 @@ pub struct AppState {
     pub db: SqlitePool,
     pub events: EventBus,
     pub daemon: Arc<DaemonManager>,
+    pub queue: Arc<QueueManager>,
     pub api_port: u16,
     pub api_token: String,
     pub listener: Mutex<Option<TcpListener>>,
@@ -69,12 +71,14 @@ impl AppState {
 
         let events = EventBus::new(2048);
         let daemon = DaemonManager::new(paths.clone(), events.clone());
+        let queue = QueueManager::new(db.clone(), paths.clone(), events.clone(), daemon.clone());
 
         let state = Self {
             paths,
             db,
             events,
             daemon,
+            queue,
             api_port,
             api_token,
             listener: Mutex::new(Some(listener)),

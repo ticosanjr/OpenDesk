@@ -60,19 +60,30 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
   await expect(page.getByText("Revisor Fiscal").first()).toBeVisible();
 
   const auth = api();
-  const response = await request.get(`${auth.baseURL}/api/studio/agents?scope=workspace`, {
-    headers: auth.headers,
-  });
-  expect(response.ok()).toBeTruthy();
-  const agents = (await response.json()) as Array<{
+  type AgentShape = {
     id: string;
     name?: string;
     avatar?: string;
     color?: string;
     path: string;
-  }>;
-  const agent = agents.find((item) => item.id === "revisor-fiscal");
-  expect(agent).toBeTruthy();
+  };
+  let agent: AgentShape | undefined;
+  await expect
+    .poll(
+      async () => {
+        const response = await request.get(
+          `${auth.baseURL}/api/studio/agents?scope=workspace`,
+          { headers: auth.headers },
+        );
+        if (!response.ok()) return false;
+        const agents = (await response.json()) as AgentShape[];
+        agent = agents.find((item) => item.id === "revisor-fiscal");
+        return Boolean(agent);
+      },
+      { timeout: 5000 },
+    )
+    .toBeTruthy();
+
   expect(agent?.name).toBe("Revisor Fiscal");
   expect(agent?.avatar).toBe("🧾");
   expect(agent?.color).toMatch(/^#[0-9a-f]{6}$/);
@@ -106,4 +117,45 @@ test("adds an existing workspace from another folder without touching it", async
 
   await expect(page.locator("select").first()).toContainText("Existing Workspace");
   expect(existsSync(`${existing}/keep-me.txt`)).toBeTruthy();
+});
+
+test("creates a Kanban task and enqueues it with the queue paused", async ({
+  page,
+  request,
+}) => {
+  const auth = api();
+  const pause = await request.post(`${auth.baseURL}/api/queue/pause?reason=e2e`, {
+    headers: auth.headers,
+  });
+  expect(pause.ok()).toBeTruthy();
+
+  await page.goto("/#/kanban");
+  await expect(page.getByRole("heading", { name: "Kanban & Fila" })).toBeVisible();
+
+  await page.getByRole("main").getByRole("button", { name: "Nova tarefa" }).click();
+  await page
+    .getByPlaceholder("Relatório executivo de vendas")
+    .fill("Tarefa E2E do Kanban");
+  await page
+    .getByPlaceholder("Descreva o objetivo, as entradas e os critérios de aceite…")
+    .fill("Criar um artefato de teste e registrar proveniência.");
+  await page.getByRole("button", { name: "Criar tarefa" }).click();
+
+  await expect(page.getByText("Tarefa E2E do Kanban").first()).toBeVisible();
+  await page.getByRole("button", { name: "Executar" }).first().click();
+  await expect(page.getByText("QUEUED").first()).toBeVisible();
+
+  const tasks = await request.get(`${auth.baseURL}/api/tasks`, {
+    headers: auth.headers,
+  });
+  expect(tasks.ok()).toBeTruthy();
+  const taskList = (await tasks.json()) as Array<{
+    title: string;
+    column_stage: string;
+    output_dir_path?: string;
+  }>;
+  const task = taskList.find((item) => item.title === "Tarefa E2E do Kanban");
+  expect(task).toBeTruthy();
+  expect(task?.column_stage).toBe("BUILD");
+  expect(task?.output_dir_path).toContain("/output/");
 });

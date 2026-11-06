@@ -70,6 +70,20 @@ pub enum OpenDeskWsEvent {
     ArtifactCreated {
         artifact: ArtifactProvenanceDto,
     },
+    TaskUpdated {
+        task_id: String,
+        workspace_id: String,
+        stage: String,
+        phase_status: Option<String>,
+    },
+    RunFinished {
+        run_id: String,
+        task_id: Option<String>,
+        status: String,
+        estimated_cost_usd: f64,
+        tokens_input: i64,
+        tokens_output: i64,
+    },
     BudgetAlert {
         level: String,
         daily_spent: f64,

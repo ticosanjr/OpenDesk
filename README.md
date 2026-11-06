@@ -4,8 +4,8 @@ Sistema operacional visual de governança, automação e observabilidade sobre o
 OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
-> **Status:** fundação (Fase 1) e Studio SSOT (Fase 2) prontos. A próxima
-> entrega é o núcleo de execução (Fase 3). Consulte
+> **Status:** fundação (Fase 1), Studio SSOT (Fase 2) e núcleo de execução
+> (Fase 3) prontos. A próxima entrega é automação/cron (Fase 4). Consulte
 > [docs/implementation-plan.md](docs/implementation-plan.md) e
 > [docs/progress.md](docs/progress.md).
 
@@ -27,6 +27,16 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Watcher bidirecional com debounce de 150 ms: editar um `.md` por fora atualiza
   a UI via WebSocket.
 - Agentes customizáveis com nome de exibição, avatar (emoji/2 caracteres) e cor.
+- Roteador DSH com políticas de custo/qualidade, regras IF-THEN, resolução de
+  modelo e Context Packer com a regra de output.
+- Fila SQLite com prioridade, pausa, retry, cancelamento, recuperação de crash e
+  worker Tokio.
+- Budget Guard diário/mensal/5h com hard cap que pausa a fila.
+- Execução real no OpenCode V2 via sessão/prompt/SSE, com streaming de logs,
+  tokens/custo, interrupção e broker de permissões auditado.
+- Proveniência de artefatos com diff autoritativo e fallback por tool calls.
+- Kanban com 5 colunas, aprovação Plan → Build, logs por run e controlador da
+  fila; Chat com tarefa rápida e Meta-Builder de agentes/skills/comandos.
 - Dashboard executivo, shell de navegação com 10 views, command bar
   (Cmd/Ctrl+K), seletor de workspace e indicadores de daemon, fila e orçamento.
 - Endpoints de leitura de agentes e modelos direto do OpenCode V2
@@ -70,8 +80,8 @@ No primeiro boot o OpenDesk:
 ```bash
 npm run check          # TypeScript
 npm run build          # frontend
-npm run test:rust      # testes Rust
-npm run test:e2e       # Playwright (headless + Vite)
+npm run test:rust      # 24 testes Rust
+npm run test:e2e       # 3 testes Playwright (headless + Vite)
 cd src-tauri && cargo check
 cd src-tauri && cargo test
 scripts/release.sh     # build + release local + retenção de 3 versões
@@ -121,10 +131,14 @@ docs/                       plano, decisões e histórico
 
 ## Limitações atuais
 
-- Fila, Kanban, cron, artefatos e integrações ainda são telas de fundação com
-  suas fases indicadas na UI. O Studio já opera no disco.
-- O Playwright usa o backend headless com `OPENDESK_SKIP_DAEMON=1`; testes de
-  execução real do OpenCode ficam para a Fase 3.
+- Cron, SMTP, Google Workspace e entregas pós-run ainda são Fase 4/5.
+- A fila executa **um job por vez**; concorrência configurável fica para a
+  próxima iteração.
+- O broker de permissões de runs autônomos responde `once` e audita em
+  `permission_audit`; políticas por workspace ainda não têm UI.
+- O Playwright usa o backend headless com `OPENDESK_SKIP_DAEMON=1`; o teste live
+  com `deepseek/deepseek-flash` foi feito manualmente e gerou custo real de
+  ~US$ 0,0023.
 - Releases são construídas localmente; não há CI.
 - O frontend em modo browser puro exige `VITE_OPENDESK_PORT` e
   `VITE_OPENDESK_TOKEN`; o caminho normal é `npm run tauri dev`.
@@ -136,6 +150,8 @@ docs/                       plano, decisões e histórico
 - [Plano de implementação](docs/implementation-plan.md)
 - [ADR 0001 — OpenCode V2 only](docs/decisions/0001-opencode-v2-only.md)
 - [ADR 0002 — Metadados de apresentação de agentes](docs/decisions/0002-agent-presentation-metadata.md)
+- [ADR 0003 — Permissões em runs autônomos](docs/decisions/0003-unattended-permissions.md)
+- [ADR 0004 — Proveniência com fallback por tool calls](docs/decisions/0004-artifact-diff-fallback.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)

@@ -161,3 +161,129 @@ export const ROUTER_POLICY_LABELS: Record<string, string> = {
   MANUAL: "Manual",
   CUSTOM_RULES: "Regras customizadas",
 };
+
+export interface Task {
+  id: string;
+  workspace_id: string;
+  title: string;
+  description: string;
+  column_stage: string;
+  phase_status?: string | null;
+  priority: number;
+  execution_mode: string;
+  assigned_agent?: string | null;
+  preferred_model?: string | null;
+  effort_level: string;
+  plan_markdown?: string | null;
+  output_dir_path?: string | null;
+  notify_email?: string | null;
+  export_to_gdocs: boolean;
+  tags_json: string;
+  position_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DispatchDecision {
+  phase: string;
+  selected_agent: string;
+  selected_model: string;
+  effort: string;
+  output_directory: string;
+  rationale: string;
+  requires_plan_approval: boolean;
+  audit_after_build: boolean;
+  policy_applied: string;
+  rule_name?: string | null;
+}
+
+export interface TaskRun {
+  id: string;
+  queue_job_id?: string | null;
+  workspace_id: string;
+  task_id?: string | null;
+  parent_run_id?: string | null;
+  phase?: string | null;
+  agent_name: string;
+  execution_mode: string;
+  provider_id?: string | null;
+  model_id: string;
+  effort_level: string;
+  status: string;
+  tokens_input: number;
+  tokens_output: number;
+  tokens_reasoning: number;
+  tokens_cache_read: number;
+  tokens_cache_write: number;
+  estimated_cost_usd: number;
+  duration_ms: number;
+  log_path?: string | null;
+  summary_response?: string | null;
+  started_at: string;
+  completed_at?: string | null;
+  task_title?: string | null;
+}
+
+export interface Artifact {
+  id: string;
+  workspace_id: string;
+  task_id?: string | null;
+  run_id: string;
+  file_path: string;
+  absolute_path: string;
+  file_type: string;
+  file_size_bytes: number;
+  content_sha256?: string | null;
+  action_type: string;
+  created_by_agent: string;
+  creation_reason: string;
+  diff_patch?: string | null;
+  google_doc_url?: string | null;
+  google_drive_url?: string | null;
+  emailed_to?: string | null;
+  created_at: string;
+}
+
+export interface BudgetStatus {
+  daily_spent: number;
+  monthly_spent: number;
+  five_hour_tokens: number;
+  daily_limit: number;
+  monthly_limit: number;
+  five_hour_limit: number;
+  daily_pct: number;
+  monthly_pct: number;
+  soft_alert: boolean;
+  hard_stop: boolean;
+  hard_stop_enabled: boolean;
+}
+
+export interface BudgetSettings {
+  daily_limit_usd: number;
+  monthly_limit_usd: number;
+  soft_alert_threshold_pct: number;
+  hard_stop_enabled: boolean;
+  opencode_go_5h_token_limit: number;
+  updated_at: string;
+}
+
+export interface RouterRule {
+  id: string;
+  workspace_id?: string | null;
+  name: string;
+  priority_order: number;
+  condition_json: string;
+  target_mode: string;
+  target_agent?: string | null;
+  target_model: string;
+  target_effort: string;
+  is_enabled: boolean;
+}
+
+export interface QueueStatus {
+  paused: boolean;
+  pause_reason?: string | null;
+  active_jobs: number;
+  running: number;
+  waiting: number;
+}

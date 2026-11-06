@@ -63,10 +63,11 @@ scripts/release.sh     # build local + retenção de 3 releases (sem CI)
 
 ## Estado atual
 
-Fases 1 e 2 concluídas: fundação, Studio SSOT (JSONC/agentes/skills/comandos/MCP,
-watcher, escrita atômica, hash de concorrência), configuração de pasta de
-workspaces, agentes com nome/avatar/cor e testes Playwright. A próxima é a Fase 3:
-roteador DSH, fila, budget guard, sessões/prompt/SSE, permissões e proveniência.
+Fases 1, 2 e 3 concluídas: fundação, Studio SSOT, workspaces configuráveis,
+agentes com nome/avatar/cor, roteador DSH, fila, budget guard, execução
+OpenCode V2 via SSE, proveniência, Kanban, Chat, Meta-Builder e testes
+Playwright. A próxima é a Fase 4: cron, pastas determinísticas, SMTP e entregas
+pós-run.
 
 Releases são locais (`releases/`, máximo 3 versões) e nunca via CI. `name` e
 `avatar` de agentes são metadados do OpenDesk no frontmatter; `color` é nativo

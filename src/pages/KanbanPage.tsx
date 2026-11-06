@@ -1,19 +1,35 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  CheckCircle2,
+  FileText,
   GripVertical,
-  KanbanSquare,
   ListChecks,
+  Loader2,
   Pause,
   Play,
   Plus,
+  RotateCw,
   Square,
+  XCircle,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppStore } from "@/store/app-store";
-import { relativeTime } from "@/lib/format";
+import { useUiStore } from "@/store/ui-store";
+import { apiGet, apiPost, apiText } from "@/lib/api";
+import type {
+  DispatchDecision,
+  QueueJob,
+  QueueStatus,
+  Task,
+  TaskRun,
+} from "@/lib/types";
+import { formatUsd, relativeTime } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 const COLUMNS = [
   { id: "BACKLOG", label: "Backlog", tone: "default" as const },
@@ -23,45 +39,325 @@ const COLUMNS = [
   { id: "DONE", label: "Done", tone: "green" as const },
 ];
 
+const PRIORITY_LABEL: Record<number, string> = {
+  1: "baixa",
+  2: "normal",
+  3: "alta",
+  4: "crítica",
+};
+
+const PRIORITY_TONE: Record<number, "default" | "yellow" | "red"> = {
+  1: "default",
+  2: "default",
+  3: "yellow",
+  4: "red",
+};
+
 export function KanbanPage() {
+  const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
+  const workspaces = useAppStore((state) => state.workspaces);
   const queue = useAppStore((state) => state.queue);
-  const dashboard = useAppStore((state) => state.dashboard);
+  const lastTaskEvent = useAppStore((state) => state.lastTaskEvent);
+  const lastRunEvent = useAppStore((state) => state.lastRunEvent);
+  const setWorkspaceDialogOpen = useUiStore(
+    (state) => state.setWorkspaceDialogOpen,
+  );
+  const taskDialogOpen = useUiStore((state) => state.taskDialogOpen);
+  const setTaskDialogOpen = useUiStore((state) => state.setTaskDialogOpen);
+
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [logTask, setLogTask] = useState<Task | null>(null);
+  const [decision, setDecision] = useState<DispatchDecision | null>(null);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+
+  const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
+  const workspaceQuery = useMemo(
+    () => (activeWorkspaceId ? `?workspace_id=${encodeURIComponent(activeWorkspaceId)}` : ""),
+    [activeWorkspaceId],
+  );
+
+  const load = useCallback(async () => {
+    if (!activeWorkspaceId) {
+      setTasks([]);
+      setQueueStatus(null);
+      return;
+    }
+    setLoading(true);
+    try {
+      const [taskList, jobs, status] = await Promise.all([
+        apiGet<Task[]>(`/api/tasks${workspaceQuery}`),
+        apiGet<QueueJob[]>(`/api/queue${workspaceQuery}`),
+        apiGet<QueueStatus>(`/api/queue/status${workspaceQuery}`),
+      ]);
+      setTasks(taskList);
+      setQueueStatus(status);
+      useAppStore.setState({ queue: jobs });
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setLoading(false);
+    }
+  }, [activeWorkspaceId, workspaceQuery]);
+
+  useEffect(() => {
+    void load();
+  }, [load, lastTaskEvent?.task_id, lastRunEvent?.run_id, lastRunEvent?.status]);
+
+  useEffect(() => {
+    if (taskDialogOpen) {
+      setCreateOpen(true);
+      setTaskDialogOpen(false);
+    }
+  }, [taskDialogOpen, setTaskDialogOpen]);
+
+  async function dispatch(task: Task) {
+    setError(null);
+    try {
+      const response = await apiPost<{ decision: DispatchDecision }>(
+        `/api/tasks/${task.id}/dispatch`,
+        {},
+      );
+      setDecision(response.decision);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  async function approve(task: Task) {
+    setError(null);
+    try {
+      const response = await apiPost<{ decision: DispatchDecision }>(
+        `/api/tasks/${task.id}/approve-plan`,
+        {},
+      );
+      setDecision(response.decision);
+      setSelectedTask(null);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  async function moveTask(taskId: string, stage: string) {
+    setDraggedId(null);
+    if (!stage) return;
+    try {
+      await apiPost(`/api/tasks/${taskId}/move`, { column_stage: stage });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  async function toggleQueue(pause: boolean) {
+    setError(null);
+    try {
+      await apiPost(
+        pause
+          ? "/api/queue/pause?reason=paused%20from%20Kanban"
+          : "/api/queue/resume",
+      );
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  async function jobAction(id: string, action: "cancel" | "retry") {
+    try {
+      await apiPost(`/api/queue/${id}/${action}`);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  if (!activeWorkspaceId) {
+    return (
+      <PageBody>
+        <PageHeader
+          eyebrow="gestão de tarefas"
+          title="Kanban & Fila"
+          description="Crie um workspace para planejar, executar e auditar tarefas."
+        />
+        <EmptyState
+          icon={ListChecks}
+          title="Nenhum workspace ativo"
+          description="O Kanban opera sobre o workspace selecionado."
+          action={
+            <Button size="sm" onClick={() => setWorkspaceDialogOpen(true)}>
+              <Plus size={14} />
+              Criar workspace
+            </Button>
+          }
+        />
+      </PageBody>
+    );
+  }
 
   return (
     <PageBody>
       <PageHeader
         eyebrow="gestão de tarefas"
         title="Kanban & Fila"
-        description="Cards passam por Plan, Build e Audit. A fila controla concorrência, pausa, cancelamento e retry."
+        description={`${workspace?.name ?? "Workspace"} · tarefas passam por Plan, Build e Audit; a fila executa no OpenCode com budget guard.`}
         actions={
-          <Button size="sm" disabled title="Disponível na Fase 3">
-            <Plus size={15} />
-            Nova tarefa
-            <Badge variant="default" className="ml-1">
-              fase 3
-            </Badge>
-          </Button>
+          <>
+            {queueStatus ? (
+              <Badge variant={queueStatus.paused ? "yellow" : "green"}>
+                {queueStatus.paused ? "fila pausada" : "fila ativa"}
+              </Badge>
+            ) : null}
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus size={15} />
+              Nova tarefa
+            </Button>
+          </>
         }
       />
 
+      {error ? (
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+          {error}
+        </p>
+      ) : null}
+
+      {decision ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-500/20 bg-blue-500/[0.06] px-4 py-3 text-[11px] text-blue-200">
+          <Badge variant="blue">{decision.phase}</Badge>
+          <span className="font-medium">
+            {decision.selected_agent} · {decision.selected_model} · {decision.effort}
+          </span>
+          <span className="text-blue-300/70">{decision.rationale}</span>
+          <button
+            type="button"
+            className="ml-auto text-[10px] text-blue-300/60 hover:text-blue-200"
+            onClick={() => setDecision(null)}
+          >
+            fechar
+          </button>
+        </div>
+      ) : null}
+
       <div className="grid gap-3 xl:grid-cols-5">
-        {COLUMNS.map((column) => (
-          <Card key={column.id} className="flex min-h-[360px] flex-col">
-            <CardHeader className="px-3.5 py-3">
-              <CardTitle className="flex items-center gap-2 text-[12px]">
-                <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
-                {column.label}
-              </CardTitle>
-              <Badge variant={column.tone}>0</Badge>
-            </CardHeader>
-            <CardContent className="flex flex-1 items-center justify-center p-3">
-              <div className="w-full rounded-lg border border-dashed border-zinc-800/80 bg-zinc-950/30 px-3 py-8 text-center">
-                <GripVertical size={16} className="mx-auto text-zinc-700" />
-                <p className="mt-2 text-[10px] text-zinc-600">Sem tarefas</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {COLUMNS.map((column) => {
+          const columnTasks = tasks.filter((task) => task.column_stage === column.id);
+          return (
+            <Card
+              key={column.id}
+              className="flex min-h-[380px] flex-col"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={() => {
+                if (draggedId) void moveTask(draggedId, column.id);
+              }}
+            >
+              <CardHeader className="px-3.5 py-3">
+                <CardTitle className="flex items-center gap-2 text-[12px]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
+                  {column.label}
+                </CardTitle>
+                <Badge variant={column.tone}>{columnTasks.length}</Badge>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-2 p-2.5">
+                {columnTasks.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-zinc-800/80 bg-zinc-950/30 px-3 py-8 text-center">
+                    <GripVertical size={15} className="mx-auto text-zinc-700" />
+                    <p className="mt-2 text-[10px] text-zinc-600">Arraste uma tarefa</p>
+                  </div>
+                ) : (
+                  columnTasks.map((task) => (
+                    <div
+                      key={task.id}
+                      draggable
+                      onDragStart={() => setDraggedId(task.id)}
+                      onDragEnd={() => setDraggedId(null)}
+                      className="cursor-grab rounded-lg border border-zinc-800/80 bg-zinc-950/50 p-2.5 active:cursor-grabbing"
+                      onClick={() => setSelectedTask(task)}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-[11px] font-medium leading-snug text-zinc-200">
+                          {task.title}
+                        </p>
+                        <Badge variant={PRIORITY_TONE[task.priority]}>
+                          {PRIORITY_LABEL[task.priority] ?? task.priority}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-zinc-600">
+                        {task.description}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-1">
+                        {task.assigned_agent ? (
+                          <Badge variant="purple">@{task.assigned_agent}</Badge>
+                        ) : null}
+                        <Badge variant="default">{task.effort_level}</Badge>
+                        {task.phase_status ? (
+                          <Badge
+                            variant={
+                              task.phase_status.includes("failed")
+                                ? "red"
+                                : task.phase_status.includes("approval")
+                                  ? "yellow"
+                                  : "default"
+                            }
+                          >
+                            {task.phase_status}
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <div className="mt-2 flex items-center gap-1 border-t border-zinc-800/60 pt-2">
+                        {task.phase_status === "awaiting_approval" ? (
+                          <Button
+                            size="sm"
+                            className="h-6 px-1.5 text-[9px]"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void approve(task);
+                            }}
+                          >
+                            <CheckCircle2 size={11} />
+                            Aprovar plano
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-1.5 text-[9px]"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void dispatch(task);
+                            }}
+                          >
+                            <Play size={11} />
+                            Executar
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-1.5 text-[9px]"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setLogTask(task);
+                          }}
+                        >
+                          <FileText size={11} />
+                          Logs
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <Card>
@@ -72,38 +368,38 @@ export function KanbanPage() {
               Controlador da fila
             </CardTitle>
             <p className="mt-1 text-xs text-zinc-500">
-              {dashboard?.queue_running ?? 0} rodando ·{" "}
-              {dashboard?.queue_waiting ?? 0} aguardando
+              {queueStatus?.running ?? 0} rodando · {queueStatus?.waiting ?? 0} aguardando
+              {queueStatus?.pause_reason ? ` · ${queueStatus.pause_reason}` : ""}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" disabled>
-              <Pause size={13} />
-              Pausar
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void toggleQueue(!(queueStatus?.paused ?? false))}
+            >
+              {queueStatus?.paused ? <Play size={13} /> : <Pause size={13} />}
+              {queueStatus?.paused ? "Retomar" : "Pausar"}
             </Button>
-            <Button variant="outline" size="sm" disabled>
-              <Play size={13} />
-              Retomar
-            </Button>
-            <Button variant="outline" size="sm" disabled>
-              <Square size={13} />
-              Cancelar
+            <Button variant="ghost" size="sm" onClick={() => void load()} disabled={loading}>
+              <RotateCw size={13} className={loading ? "animate-spin" : undefined} />
+              Atualizar
             </Button>
           </div>
         </CardHeader>
         <CardContent>
           {queue.length === 0 ? (
             <EmptyState
-              icon={KanbanSquare}
+              icon={ListChecks}
               title="Fila vazia"
-              description="Jobs enfileirados aparecem aqui em tempo real. A execução e o controle de concorrência entram na Fase 3."
+              description="Execute uma tarefa para enfileirar um job. A fila persiste no SQLite e recupera jobs interrompidos após reinício."
             />
           ) : (
             <div className="space-y-2">
               {queue.map((job) => (
                 <div
                   key={job.id}
-                  className="flex items-center gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5"
+                  className="flex flex-wrap items-center gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5"
                 >
                   <Badge
                     variant={
@@ -111,29 +407,436 @@ export function KanbanPage() {
                         ? "blue"
                         : job.status === "FAILED"
                           ? "red"
-                          : "default"
+                          : job.status === "COMPLETED"
+                            ? "green"
+                            : job.status === "CANCELLED"
+                              ? "default"
+                              : "yellow"
                     }
                   >
                     {job.status}
                   </Badge>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[12px] text-zinc-200">
+                    <p className="truncate text-[11px] text-zinc-200">
                       {job.title ?? job.id}
                     </p>
                     <p className="truncate font-mono text-[9px] text-zinc-600">
-                      {job.resolved_agent} · {job.resolved_model} ·{" "}
+                      {job.resolved_mode} · {job.resolved_agent} · {job.resolved_model} ·{" "}
                       {job.resolved_effort}
                     </p>
                   </div>
                   <span className="font-mono text-[9px] text-zinc-600">
                     {relativeTime(job.enqueued_at)}
                   </span>
+                  {job.status === "RUNNING" || job.status === "QUEUED" ? (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="h-6 px-1.5 text-[9px]"
+                      onClick={() => void jobAction(job.id, "cancel")}
+                    >
+                      <Square size={10} />
+                      Cancelar
+                    </Button>
+                  ) : null}
+                  {job.status === "FAILED" || job.status === "CANCELLED" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-1.5 text-[9px]"
+                      onClick={() => void jobAction(job.id, "retry")}
+                    >
+                      <RotateCw size={10} />
+                      Retry
+                    </Button>
+                  ) : null}
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <CreateTaskModal
+        open={createOpen}
+        workspaceId={activeWorkspaceId}
+        onClose={() => setCreateOpen(false)}
+        onCreated={async () => {
+          setCreateOpen(false);
+          await load();
+        }}
+      />
+
+      <TaskDetailsModal
+        task={selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onApprove={(task) => void approve(task)}
+        onDispatch={(task) => void dispatch(task)}
+        onLogs={(task) => {
+          setLogTask(task);
+          setSelectedTask(null);
+        }}
+      />
+
+      <LogDrawer
+        task={logTask}
+        onClose={() => setLogTask(null)}
+        lastRunEvent={lastRunEvent}
+      />
     </PageBody>
   );
 }
+
+function CreateTaskModal({
+  open,
+  workspaceId,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  workspaceId: string;
+  onClose: () => void;
+  onCreated: () => Promise<void>;
+}) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [mode, setMode] = useState("AUTO_DSH");
+  const [priority, setPriority] = useState(2);
+  const [tags, setTags] = useState("");
+  const [agent, setAgent] = useState("");
+  const [model, setModel] = useState("");
+  const [effort, setEffort] = useState("medium");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    if (!title.trim() || !description.trim()) {
+      setError("Título e descrição são obrigatórios.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await apiPost(`/api/tasks?workspace_id=${encodeURIComponent(workspaceId)}`, {
+        title: title.trim(),
+        description: description.trim(),
+        execution_mode: mode,
+        priority,
+        tags: tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+        assigned_agent: agent.trim() || null,
+        preferred_model: model.trim() || null,
+        effort_level: effort,
+      });
+      setTitle("");
+      setDescription("");
+      setTags("");
+      setAgent("");
+      setModel("");
+      await onCreated();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Nova tarefa"
+      description="O roteador DSH decide Plan/Build, agente, modelo e effort. Você pode sobrescrever manualmente."
+      className="max-w-2xl"
+    >
+      <div className="grid gap-3 md:grid-cols-2">
+        <label className="md:col-span-2">
+          <span className={labelClass}>Título</span>
+          <input
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Relatório executivo de vendas"
+            className={inputClass}
+          />
+        </label>
+        <label className="md:col-span-2">
+          <span className={labelClass}>Descrição / prompt</span>
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            rows={5}
+            placeholder="Descreva o objetivo, as entradas e os critérios de aceite…"
+            className={cn(inputClass, "h-auto resize-y py-2")}
+          />
+        </label>
+        <label>
+          <span className={labelClass}>Modo</span>
+          <select value={mode} onChange={(event) => setMode(event.target.value)} className={inputClass}>
+            <option value="AUTO_DSH">AUTO_DSH — roteador decide</option>
+            <option value="PLAN_ONLY">PLAN_ONLY — só plano</option>
+            <option value="PLAN_THEN_BUILD">PLAN_THEN_BUILD — aprovar plano</option>
+            <option value="BUILD_DIRECT">BUILD_DIRECT — executar direto</option>
+          </select>
+        </label>
+        <label>
+          <span className={labelClass}>Prioridade</span>
+          <select
+            value={priority}
+            onChange={(event) => setPriority(Number(event.target.value))}
+            className={inputClass}
+          >
+            <option value={1}>1 — baixa</option>
+            <option value={2}>2 — normal</option>
+            <option value={3}>3 — alta</option>
+            <option value={4}>4 — crítica</option>
+          </select>
+        </label>
+        <label>
+          <span className={labelClass}>Tags (vírgula)</span>
+          <input
+            value={tags}
+            onChange={(event) => setTags(event.target.value)}
+            placeholder="roteiro, code, auditoria"
+            className={inputClass}
+          />
+        </label>
+        <label>
+          <span className={labelClass}>Agente manual (opcional)</span>
+          <input
+            value={agent}
+            onChange={(event) => setAgent(event.target.value)}
+            placeholder="build, plan, auditor…"
+            className={inputClass}
+          />
+        </label>
+        <label>
+          <span className={labelClass}>Modelo manual (opcional)</span>
+          <input
+            value={model}
+            onChange={(event) => setModel(event.target.value)}
+            placeholder="opencode-go/glm-5.3"
+            className={inputClass}
+          />
+        </label>
+        <label>
+          <span className={labelClass}>Effort manual</span>
+          <select value={effort} onChange={(event) => setEffort(event.target.value)} className={inputClass}>
+            <option value="low">low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+          </select>
+        </label>
+      </div>
+      {error ? (
+        <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+          {error}
+        </p>
+      ) : null}
+      <div className="mt-4 flex justify-end gap-2 border-t border-zinc-800/70 pt-4">
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button size="sm" onClick={() => void submit()} disabled={saving}>
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+          Criar tarefa
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+function TaskDetailsModal({
+  task,
+  onClose,
+  onApprove,
+  onDispatch,
+  onLogs,
+}: {
+  task: Task | null;
+  onClose: () => void;
+  onApprove: (task: Task) => void;
+  onDispatch: (task: Task) => void;
+  onLogs: (task: Task) => void;
+}) {
+  return (
+    <Modal
+      open={!!task}
+      onClose={onClose}
+      title={task?.title ?? "Tarefa"}
+      description={task ? `${task.execution_mode} · ${task.effort_level} · ${task.assigned_agent ?? "router"}` : undefined}
+      className="max-w-3xl"
+    >
+      {task ? (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="default">{task.column_stage}</Badge>
+            <Badge variant="default">prioridade {task.priority}</Badge>
+            {task.phase_status ? <Badge variant="yellow">{task.phase_status}</Badge> : null}
+            {task.output_dir_path ? (
+              <Badge variant="blue">{task.output_dir_path}</Badge>
+            ) : null}
+          </div>
+          <div>
+            <p className={labelClass}>Descrição</p>
+            <p className="whitespace-pre-wrap rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3 text-[11px] leading-relaxed text-zinc-400">
+              {task.description}
+            </p>
+          </div>
+          {task.plan_markdown ? (
+            <div>
+              <p className={labelClass}>Plano</p>
+              <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3 font-mono text-[10px] leading-relaxed text-zinc-300">
+                {task.plan_markdown}
+              </pre>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-800/70 pt-4">
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Fechar
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => onLogs(task)}>
+              <FileText size={13} />
+              Logs
+            </Button>
+            {task.phase_status === "awaiting_approval" ? (
+              <Button size="sm" onClick={() => onApprove(task)}>
+                <CheckCircle2 size={13} />
+                Aprovar plano e iniciar Build
+              </Button>
+            ) : (
+              <Button size="sm" onClick={() => onDispatch(task)}>
+                <Play size={13} />
+                Executar agora
+              </Button>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </Modal>
+  );
+}
+
+function LogDrawer({
+  task,
+  onClose,
+  lastRunEvent,
+}: {
+  task: Task | null;
+  onClose: () => void;
+  lastRunEvent: { run_id: string; status: string } | null;
+}) {
+  const [runs, setRuns] = useState<TaskRun[]>([]);
+  const [selectedRun, setSelectedRun] = useState<string | null>(null);
+  const [log, setLog] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!task) return;
+    let cancelled = false;
+    setLoading(true);
+    apiGet<TaskRun[]>(
+      `/api/runs?task_id=${encodeURIComponent(task.id)}&workspace_id=${encodeURIComponent(task.workspace_id)}`,
+    )
+      .then((items) => {
+        if (cancelled) return;
+        setRuns(items);
+        setSelectedRun((current) => current ?? items[0]?.id ?? null);
+      })
+      .catch((cause) =>
+        setError(cause instanceof Error ? cause.message : String(cause)),
+      )
+      .finally(() => setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [task, lastRunEvent?.run_id, lastRunEvent?.status]);
+
+  useEffect(() => {
+    if (!selectedRun) return;
+    let cancelled = false;
+    apiText(`/api/runs/${selectedRun}/log`)
+      .then((content) => {
+        if (!cancelled) setLog(content);
+      })
+      .catch((cause) =>
+        setError(cause instanceof Error ? cause.message : String(cause)),
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRun, lastRunEvent?.run_id, lastRunEvent?.status]);
+
+  if (!task) return null;
+
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end">
+      <button
+        type="button"
+        aria-label="Fechar logs"
+        className="absolute inset-0 bg-black/60"
+        onClick={onClose}
+      />
+      <aside className="relative flex h-full w-full max-w-2xl flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-zinc-800/70 px-4 py-3">
+          <div>
+            <p className="text-[12px] font-medium text-zinc-200">{task.title}</p>
+            <p className="font-mono text-[9px] text-zinc-600">
+              {task.column_stage} · {task.phase_status ?? "sem fase"}
+            </p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <XCircle size={14} />
+            Fechar
+          </Button>
+        </div>
+        <div className="flex min-h-0 flex-1">
+          <div className="w-44 shrink-0 overflow-y-auto border-r border-zinc-800/70 p-2">
+            {loading && runs.length === 0 ? (
+              <p className="p-2 text-[10px] text-zinc-600">Carregando…</p>
+            ) : runs.length === 0 ? (
+              <p className="p-2 text-[10px] text-zinc-600">Nenhum run.</p>
+            ) : (
+              runs.map((run) => (
+                <button
+                  key={run.id}
+                  type="button"
+                  onClick={() => setSelectedRun(run.id)}
+                  className={cn(
+                    "mb-1 w-full rounded-lg px-2 py-1.5 text-left",
+                    selectedRun === run.id
+                      ? "bg-zinc-800 text-zinc-100"
+                      : "text-zinc-500 hover:bg-zinc-900",
+                  )}
+                >
+                  <p className="truncate text-[10px]">{run.phase ?? "run"}</p>
+                  <p className="font-mono text-[8px] text-zinc-600">{run.status}</p>
+                  <p className="font-mono text-[8px] text-zinc-600">
+                    {formatUsd(run.estimated_cost_usd)} · {relativeTime(run.started_at)}
+                  </p>
+                </button>
+              ))
+            )}
+          </div>
+          <div className="min-w-0 flex-1 overflow-auto bg-zinc-950/60 p-3">
+            {error ? (
+              <p className="mb-2 rounded border border-red-500/20 bg-red-500/10 p-2 text-[10px] text-red-300">
+                {error}
+              </p>
+            ) : null}
+            <pre className="whitespace-pre-wrap break-words font-mono text-[9px] leading-relaxed text-zinc-400">
+              {log || "Sem log ainda."}
+            </pre>
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+const inputClass =
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
+const labelClass =
+  "mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500";

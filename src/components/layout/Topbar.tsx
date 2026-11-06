@@ -1,4 +1,5 @@
 import { ChevronDown, Command, Plus, RefreshCw, Search } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,8 @@ export function Topbar() {
   const setWorkspaceDialogOpen = useUiStore(
     (state) => state.setWorkspaceDialogOpen,
   );
+  const setTaskDialogOpen = useUiStore((state) => state.setTaskDialogOpen);
+  const navigate = useNavigate();
 
   const activeWorkspace = workspaces.find(
     (workspace) => workspace.id === activeWorkspaceId,
@@ -137,8 +140,11 @@ export function Topbar() {
         <Button
           size="sm"
           className="h-9"
-          onClick={() => setCommandOpen(true)}
-          title="Nova tarefa (disponível na Fase 3)"
+          onClick={() => {
+            navigate("/kanban");
+            setTaskDialogOpen(true);
+          }}
+          title="Nova tarefa"
         >
           <Plus size={15} />
           <span className="hidden sm:inline">Nova tarefa</span>

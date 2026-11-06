@@ -1,0 +1,752 @@
+use crate::{
+    db::{
+        artifacts::{self, CreateArtifactInput},
+        budget, queue, runs, tasks, workspaces,
+    },
+    dsh_router::{self, PackContext},
+    error::{AppError, AppResult},
+    events::{ArtifactProvenanceDto, EventBus, OpenDeskWsEvent, QueueJobDto},
+    opencode_client::{
+        daemon_manager::DaemonManager,
+        session_runner::{self, RunRequest, RunStatus},
+    },
+    paths::AppPaths,
+};
+use serde::Serialize;
+use sha2::{Digest, Sha256};
+use sqlx::SqlitePool;
+use std::{
+    collections::{HashMap, HashSet},
+    path::{Path, PathBuf},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
+    time::Instant,
+};
+use tokio::sync::Notify;
+use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct QueueStatus {
+    pub paused: bool,
+    pub pause_reason: Option<String>,
+    pub active_jobs: usize,
+    pub running: i64,
+    pub waiting: i64,
+}
+
+pub struct QueueManager {
+    pool: SqlitePool,
+    paths: AppPaths,
+    events: EventBus,
+    daemon: Arc<DaemonManager>,
+    paused: AtomicBool,
+    pause_reason: Mutex<Option<String>>,
+    active: AtomicUsize,
+    notify: Notify,
+    shutdown: CancellationToken,
+    running_jobs: Mutex<HashMap<String, CancellationToken>>,
+}
+
+impl QueueManager {
+    pub fn new(
+        pool: SqlitePool,
+        paths: AppPaths,
+        events: EventBus,
+        daemon: Arc<DaemonManager>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            pool,
+            paths,
+            events,
+            daemon,
+            paused: AtomicBool::new(false),
+            pause_reason: Mutex::new(None),
+            active: AtomicUsize::new(0),
+            notify: Notify::new(),
+            shutdown: CancellationToken::new(),
+            running_jobs: Mutex::new(HashMap::new()),
+        })
+    }
+
+    pub fn spawn_worker(self: &Arc<Self>) {
+        let manager = Arc::clone(self);
+        tauri::async_runtime::spawn(async move {
+            manager.worker_loop().await;
+        });
+    }
+
+    pub async fn shutdown(&self) {
+        self.shutdown.cancel();
+        let tokens = self
+            .running_jobs
+            .lock()
+            .expect("running jobs mutex")
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        for token in tokens {
+            token.cancel();
+        }
+        self.notify.notify_waiters();
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.paused.load(Ordering::Relaxed)
+    }
+
+    pub async fn status(&self, workspace_id: Option<&str>) -> AppResult<QueueStatus> {
+        let (running, waiting) = queue::counts(&self.pool, workspace_id).await?;
+        Ok(QueueStatus {
+            paused: self.is_paused(),
+            pause_reason: self
+                .pause_reason
+                .lock()
+                .expect("pause reason mutex")
+                .clone(),
+            active_jobs: self.active.load(Ordering::Relaxed),
+            running,
+            waiting,
+        })
+    }
+
+    pub async fn pause(&self, reason: impl Into<String>) {
+        self.paused.store(true, Ordering::Relaxed);
+        *self.pause_reason.lock().expect("pause reason mutex") = Some(reason.into());
+        self.publish_status_for_all().await;
+    }
+
+    pub async fn resume(&self) -> AppResult<()> {
+        self.paused.store(false, Ordering::Relaxed);
+        *self.pause_reason.lock().expect("pause reason mutex") = None;
+        self.notify.notify_waiters();
+        self.publish_status_for_all().await;
+        Ok(())
+    }
+
+    pub async fn list(&self, workspace_id: Option<&str>) -> AppResult<Vec<QueueJobDto>> {
+        let jobs = queue::list(&self.pool, workspace_id).await?;
+        Ok(jobs.into_iter().map(job_dto).collect())
+    }
+
+    pub async fn enqueue(&self, input: queue::EnqueueInput) -> AppResult<queue::QueueJob> {
+        let workspace_id = input.workspace_id.clone();
+        let job = queue::enqueue(&self.pool, input).await?;
+        self.publish_queue(&workspace_id).await;
+        self.notify.notify_waiters();
+        Ok(job)
+    }
+
+    pub async fn cancel(&self, id: &str) -> AppResult<queue::QueueJob> {
+        let job = queue::get(&self.pool, id).await?;
+        if job.status == "RUNNING" {
+            let token = self
+                .running_jobs
+                .lock()
+                .expect("running jobs mutex")
+                .get(id)
+                .cloned();
+            if let Some(token) = token {
+                token.cancel();
+                self.publish_queue(&job.workspace_id).await;
+                return Ok(job);
+            }
+            return Err(AppError::Conflict(
+                "the runner for this job is not available".into(),
+            ));
+        }
+        let job = queue::cancel(&self.pool, id).await?;
+        self.publish_queue(&job.workspace_id).await;
+        Ok(job)
+    }
+
+    pub async fn retry(&self, id: &str) -> AppResult<queue::QueueJob> {
+        let job = queue::retry(&self.pool, id).await?;
+        self.publish_queue(&job.workspace_id).await;
+        self.notify.notify_waiters();
+        Ok(job)
+    }
+
+    pub async fn update_priority(&self, id: &str, priority: i64) -> AppResult<queue::QueueJob> {
+        let job = queue::update_priority(&self.pool, id, priority).await?;
+        self.publish_queue(&job.workspace_id).await;
+        Ok(job)
+    }
+
+    async fn worker_loop(self: Arc<Self>) {
+        if let Err(error) = self.recover().await {
+            tracing::error!(error = %error, "queue recovery failed");
+        }
+
+        loop {
+            tokio::select! {
+                _ = self.shutdown.cancelled() => break,
+                _ = self.notify.notified() => {}
+                _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {}
+            }
+
+            if self.shutdown.is_cancelled() || self.is_paused() {
+                continue;
+            }
+
+            match budget::check(&self.pool).await {
+                Ok(check) if !check.allowed => {
+                    self.pause(check.message.clone()).await;
+                    self.events.publish(OpenDeskWsEvent::BudgetAlert {
+                        level: check.level.into(),
+                        daily_spent: check.status.daily_spent,
+                        daily_limit: check.status.daily_limit,
+                        message: check.message,
+                    });
+                    continue;
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    tracing::warn!(error = %error, "could not check budget");
+                }
+            }
+
+            let Some(job) = (match queue::next_queued(&self.pool).await {
+                Ok(job) => job,
+                Err(error) => {
+                    tracing::error!(error = %error, "could not read queue");
+                    None
+                }
+            }) else {
+                continue;
+            };
+
+            if !queue::claim(&self.pool, &job.id).await.unwrap_or(false) {
+                continue;
+            }
+
+            self.execute_job(job).await;
+        }
+    }
+
+    async fn recover(&self) -> AppResult<()> {
+        let runs = runs::recover_running(&self.pool).await?;
+        let jobs = queue::recover_running(&self.pool).await?;
+        if runs > 0 || jobs > 0 {
+            tracing::warn!(runs, jobs, "recovered interrupted jobs after restart");
+        }
+        self.notify.notify_waiters();
+        Ok(())
+    }
+
+    async fn execute_job(&self, job: queue::QueueJob) {
+        let workspace = match workspaces::get(&self.pool, &job.workspace_id).await {
+            Ok(workspace) => workspace,
+            Err(error) => {
+                let _ =
+                    queue::finish(&self.pool, &job.id, "FAILED", Some(&error.to_string())).await;
+                self.publish_queue(&job.workspace_id).await;
+                return;
+            }
+        };
+
+        let task = match &job.task_id {
+            Some(task_id) => tasks::get(&self.pool, task_id).await.ok(),
+            None => None,
+        };
+
+        let run_id = Uuid::now_v7().to_string();
+        let log_path = self.paths.run_logs_dir.join(format!("{run_id}.jsonl"));
+        let phase = if job.job_kind == "audit" {
+            "audit"
+        } else {
+            job.resolved_mode.as_str()
+        };
+        let (provider_id, model_id) = split_model(&job.resolved_model);
+        let title = task
+            .as_ref()
+            .map(|task| task.title.clone())
+            .unwrap_or_else(|| {
+                job.task_title
+                    .clone()
+                    .unwrap_or_else(|| "Scheduled task".into())
+            });
+        let workspace_path = PathBuf::from(&workspace.root_path);
+        let output_dir = task
+            .as_ref()
+            .and_then(|task| task.output_dir_path.clone())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                workspace_path
+                    .join("output")
+                    .join(chrono::Utc::now().format("%Y-%m").to_string())
+                    .join(crate::dsh_router::slugify(&title))
+            });
+        let output_dir_string = output_dir.to_string_lossy().to_string();
+
+        if let Err(error) = std::fs::create_dir_all(&output_dir) {
+            tracing::warn!(path = %output_dir.display(), error = %error, "could not create output directory");
+        }
+
+        let run = match runs::create(
+            &self.pool,
+            runs::CreateRunInput {
+                id: run_id.clone(),
+                queue_job_id: Some(job.id.clone()),
+                workspace_id: job.workspace_id.clone(),
+                task_id: job.task_id.clone(),
+                parent_run_id: None,
+                phase: Some(phase.to_string()),
+                agent_name: job.resolved_agent.clone(),
+                execution_mode: job.resolved_mode.clone(),
+                provider_id,
+                model_id: model_id.clone(),
+                effort_level: job.resolved_effort.clone(),
+                pricing_snapshot_json: None,
+                log_path: Some(log_path.to_string_lossy().to_string()),
+            },
+        )
+        .await
+        {
+            Ok(run) => run,
+            Err(error) => {
+                let _ =
+                    queue::finish(&self.pool, &job.id, "FAILED", Some(&error.to_string())).await;
+                self.publish_queue(&job.workspace_id).await;
+                return;
+            }
+        };
+
+        let Some(rest) = self.daemon.client().await else {
+            let _ = runs::finish(
+                &self.pool,
+                &run.id,
+                "FAILED",
+                &runs::RunUsage::default(),
+                0,
+                Some("OpenCode daemon is offline"),
+                None,
+            )
+            .await;
+            let _ = queue::finish(
+                &self.pool,
+                &job.id,
+                "FAILED",
+                Some("OpenCode daemon is offline"),
+            )
+            .await;
+            if let Some(task) = &task {
+                let _ = tasks::set_phase_status(&self.pool, &task.id, Some("failed"), None).await;
+                self.events.publish(OpenDeskWsEvent::TaskUpdated {
+                    task_id: task.id.clone(),
+                    workspace_id: task.workspace_id.clone(),
+                    stage: task.column_stage.clone(),
+                    phase_status: Some("failed".into()),
+                });
+            }
+            self.publish_queue(&job.workspace_id).await;
+            return;
+        };
+
+        let cancel = CancellationToken::new();
+        self.running_jobs
+            .lock()
+            .expect("running jobs mutex")
+            .insert(job.id.clone(), cancel.clone());
+        self.set_active(1).await;
+
+        let started = Instant::now();
+        let request = RunRequest {
+            run_id: &run_id,
+            task_id: job.task_id.as_deref(),
+            workspace_root: &workspace_path,
+            agent: &job.resolved_agent,
+            model: &job.resolved_model,
+            phase,
+            title: &title,
+            prompt: &job.prompt_payload,
+            output_directory: &output_dir_string,
+            log_path: &log_path,
+            cancel,
+        };
+
+        let outcome = session_runner::execute_run(rest.clone(), request, &self.events).await;
+
+        let reason = format!(
+            "{} · fase {}",
+            task.as_ref()
+                .map(|task| task.title.clone())
+                .unwrap_or(title.clone()),
+            phase
+        );
+
+        let mut seen_files = HashSet::new();
+        for diff in &outcome.diffs {
+            seen_files.insert(diff.file.clone());
+            let action = match diff.status.as_str() {
+                "added" => "CREATED",
+                "deleted" => "DELETED",
+                _ => "MODIFIED",
+            };
+            self.record_artifact(
+                &job.workspace_id,
+                job.task_id.as_deref(),
+                &run_id,
+                &job.resolved_agent,
+                &reason,
+                &workspace_path,
+                &diff.file,
+                action,
+                Some(&diff.patch),
+            )
+            .await;
+        }
+
+        for write in &outcome.writes {
+            if seen_files.contains(&write.path) {
+                continue;
+            }
+            self.record_artifact(
+                &job.workspace_id,
+                job.task_id.as_deref(),
+                &run_id,
+                &job.resolved_agent,
+                &reason,
+                &workspace_path,
+                &write.path,
+                &write.action,
+                write.diff_patch.as_deref(),
+            )
+            .await;
+        }
+
+        for permission in &outcome.permissions {
+            let _ = sqlx::query(
+                "INSERT INTO permission_audit (
+                    id, run_id, session_id, request_id, permission_action, resource, decision
+                 ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(Uuid::now_v7().to_string())
+            .bind(&run_id)
+            .bind(&outcome.session_id)
+            .bind(&permission.request_id)
+            .bind(&permission.action)
+            .bind(permission.resources.join(","))
+            .bind(&permission.decision)
+            .execute(&self.pool)
+            .await;
+        }
+
+        let _ = runs::finish(
+            &self.pool,
+            &run_id,
+            outcome.status.as_str(),
+            &outcome.usage,
+            started.elapsed().as_millis() as i64,
+            outcome.summary.as_deref(),
+            outcome.log_tail.as_deref(),
+        )
+        .await;
+
+        let queue_status = match outcome.status {
+            RunStatus::Success => "COMPLETED",
+            RunStatus::Failed => "FAILED",
+            RunStatus::Cancelled => "CANCELLED",
+        };
+        let _ = queue::finish(&self.pool, &job.id, queue_status, outcome.error.as_deref()).await;
+
+        if let Some(task) = &task {
+            let stage: String;
+            let phase_status: String;
+
+            if phase == "plan" && outcome.status == RunStatus::Success {
+                tasks::set_plan(
+                    &self.pool,
+                    &task.id,
+                    outcome
+                        .summary
+                        .as_deref()
+                        .unwrap_or("Plano concluído sem texto retornado pelo modelo."),
+                )
+                .await
+                .ok();
+                if task.execution_mode == "PLAN_ONLY" {
+                    let _ = tasks::set_phase_status(
+                        &self.pool,
+                        &task.id,
+                        Some("plan_complete"),
+                        Some("PLAN"),
+                    )
+                    .await;
+                    phase_status = "plan_complete".into();
+                } else {
+                    phase_status = "awaiting_approval".into();
+                }
+                stage = "PLAN".into();
+            } else if phase == "build" && outcome.status == RunStatus::Success {
+                let _ = tasks::set_phase_status(
+                    &self.pool,
+                    &task.id,
+                    Some("build_complete"),
+                    Some("REVIEW"),
+                )
+                .await;
+                stage = "REVIEW".into();
+                phase_status = "build_complete".into();
+            } else if phase == "audit" && outcome.status == RunStatus::Success {
+                let approved = outcome
+                    .summary
+                    .as_deref()
+                    .map(|summary| summary.to_uppercase().contains("APROVADO"))
+                    .unwrap_or(false);
+                let _ = tasks::set_phase_status(
+                    &self.pool,
+                    &task.id,
+                    Some(if approved {
+                        "audit_approved"
+                    } else {
+                        "audit_failed"
+                    }),
+                    Some(if approved { "DONE" } else { "REVIEW" }),
+                )
+                .await;
+                stage = if approved { "DONE" } else { "REVIEW" }.into();
+                phase_status = if approved {
+                    "audit_approved".into()
+                } else {
+                    "audit_failed".into()
+                };
+            } else {
+                let _ = tasks::set_phase_status(&self.pool, &task.id, Some("failed"), None).await;
+                stage = task.column_stage.clone();
+                phase_status = "failed".into();
+            }
+
+            self.events.publish(OpenDeskWsEvent::TaskUpdated {
+                task_id: task.id.clone(),
+                workspace_id: task.workspace_id.clone(),
+                stage: stage.clone(),
+                phase_status: Some(phase_status.clone()),
+            });
+
+            if phase == "build"
+                && outcome.status == RunStatus::Success
+                && job.job_kind != "audit"
+                && workspace.default_router_policy == "BEST_QUALITY"
+            {
+                let tags = task.tags();
+                let audit_prompt = dsh_router::pack(&PackContext {
+                    workspace_root: &workspace_path,
+                    output_directory: &output_dir_string,
+                    task_title: &task.title,
+                    task_description: &task.description,
+                    tags: &tags,
+                    priority: task.priority,
+                    phase: "audit",
+                    plan: task.plan_markdown.as_deref(),
+                    agent: "explore",
+                });
+                if let Ok(audit_job) = self
+                    .enqueue(queue::EnqueueInput {
+                        workspace_id: task.workspace_id.clone(),
+                        task_id: Some(task.id.clone()),
+                        schedule_id: None,
+                        prompt_payload: audit_prompt,
+                        resolved_mode: "build".into(),
+                        resolved_agent: "explore".into(),
+                        resolved_model: job.resolved_model.clone(),
+                        resolved_effort: "high".into(),
+                        job_kind: "audit".into(),
+                        scheduled_for: None,
+                        priority: task.priority,
+                        max_retries: 1,
+                    })
+                    .await
+                {
+                    let _ = tasks::set_phase_status(
+                        &self.pool,
+                        &task.id,
+                        Some("audit_queued"),
+                        Some("REVIEW"),
+                    )
+                    .await;
+                    self.events.publish(OpenDeskWsEvent::TaskUpdated {
+                        task_id: task.id.clone(),
+                        workspace_id: task.workspace_id.clone(),
+                        stage: "REVIEW".into(),
+                        phase_status: Some("audit_queued".into()),
+                    });
+                    let _ = audit_job;
+                }
+            }
+        }
+
+        self.events.publish(OpenDeskWsEvent::RunFinished {
+            run_id: run_id.clone(),
+            task_id: job.task_id.clone(),
+            status: outcome.status.as_str().to_string(),
+            estimated_cost_usd: outcome.usage.estimated_cost_usd,
+            tokens_input: outcome.usage.tokens_input,
+            tokens_output: outcome.usage.tokens_output,
+        });
+
+        self.running_jobs
+            .lock()
+            .expect("running jobs mutex")
+            .remove(&job.id);
+        self.set_active(0).await;
+        self.publish_queue(&job.workspace_id).await;
+
+        if let Ok(check) = budget::check(&self.pool).await {
+            if !check.allowed {
+                self.pause(check.message.clone()).await;
+                self.events.publish(OpenDeskWsEvent::BudgetAlert {
+                    level: check.level.into(),
+                    daily_spent: check.status.daily_spent,
+                    daily_limit: check.status.daily_limit,
+                    message: check.message,
+                });
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn record_artifact(
+        &self,
+        workspace_id: &str,
+        task_id: Option<&str>,
+        run_id: &str,
+        agent: &str,
+        reason: &str,
+        workspace_root: &Path,
+        file_path: &str,
+        action: &str,
+        diff_patch: Option<&str>,
+    ) {
+        if artifacts::exists(&self.pool, run_id, file_path)
+            .await
+            .unwrap_or(false)
+        {
+            return;
+        }
+
+        let absolute = if Path::new(file_path).is_absolute() {
+            PathBuf::from(file_path)
+        } else {
+            workspace_root.join(file_path)
+        };
+        let relative = absolute
+            .strip_prefix(workspace_root)
+            .map(|path| path.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_else(|_| file_path.to_string());
+        let file_type = absolute
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .unwrap_or("")
+            .to_string();
+        let (size, hash) = file_fingerprint(&absolute);
+
+        match artifacts::create(
+            &self.pool,
+            CreateArtifactInput {
+                workspace_id: workspace_id.to_string(),
+                task_id: task_id.map(str::to_string),
+                run_id: run_id.to_string(),
+                file_path: relative,
+                absolute_path: absolute.to_string_lossy().to_string(),
+                file_type,
+                file_size_bytes: size,
+                content_sha256: hash,
+                previous_sha256: None,
+                action_type: action.to_string(),
+                created_by_agent: agent.to_string(),
+                creation_reason: reason.to_string(),
+                diff_patch: diff_patch.map(str::to_string),
+            },
+        )
+        .await
+        {
+            Ok(artifact) => self.events.publish(OpenDeskWsEvent::ArtifactCreated {
+                artifact: artifact_dto(&artifact),
+            }),
+            Err(error) => tracing::warn!(error = %error, "could not record artifact"),
+        }
+    }
+
+    async fn set_active(&self, value: usize) {
+        self.active.store(value, Ordering::Relaxed);
+        self.daemon.set_active_jobs(value).await;
+    }
+
+    async fn publish_queue(&self, workspace_id: &str) {
+        if let Ok(jobs) = queue::list(&self.pool, Some(workspace_id)).await {
+            self.events.publish(OpenDeskWsEvent::QueueUpdated {
+                workspace_id: workspace_id.to_string(),
+                jobs: jobs.into_iter().map(job_dto).collect(),
+            });
+        }
+    }
+
+    async fn publish_status_for_all(&self) {
+        let _ = self.status(None).await;
+    }
+
+    pub async fn workspace_queue(&self, workspace_id: &str) -> AppResult<Vec<QueueJobDto>> {
+        self.list(Some(workspace_id)).await
+    }
+}
+
+fn split_model(model: &str) -> (Option<String>, String) {
+    let base = model.split('#').next().unwrap_or(model);
+    match base.split_once('/') {
+        Some((provider, id)) => (Some(provider.to_string()), id.to_string()),
+        None => (None, base.to_string()),
+    }
+}
+
+fn file_fingerprint(path: &Path) -> (i64, Option<String>) {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return (0, None);
+    };
+    if !metadata.is_file() {
+        return (0, None);
+    }
+    let hash = std::fs::read(path).ok().map(|bytes| {
+        let digest = Sha256::digest(&bytes);
+        digest
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    });
+    (metadata.len() as i64, hash)
+}
+
+fn job_dto(job: queue::QueueJob) -> QueueJobDto {
+    QueueJobDto {
+        id: job.id,
+        task_id: job.task_id,
+        title: job.task_title,
+        status: job.status,
+        priority: job.priority as i32,
+        resolved_mode: job.resolved_mode,
+        resolved_agent: job.resolved_agent,
+        resolved_model: job.resolved_model,
+        resolved_effort: job.resolved_effort,
+        enqueued_at: job.enqueued_at,
+        started_at: job.started_at,
+    }
+}
+
+fn artifact_dto(artifact: &artifacts::ArtifactProvenance) -> ArtifactProvenanceDto {
+    ArtifactProvenanceDto {
+        id: artifact.id.clone(),
+        workspace_id: artifact.workspace_id.clone(),
+        task_id: artifact.task_id.clone(),
+        run_id: artifact.run_id.clone(),
+        file_path: artifact.file_path.clone(),
+        absolute_path: artifact.absolute_path.clone(),
+        file_type: artifact.file_type.clone(),
+        action_type: artifact.action_type.clone(),
+        created_by_agent: artifact.created_by_agent.clone(),
+        creation_reason: artifact.creation_reason.clone(),
+        diff_patch: artifact.diff_patch.clone(),
+        created_at: artifact.created_at.clone(),
+    }
+}

@@ -150,18 +150,19 @@ workspace persiste, API responde com e sem token.
 - [x] Agentes com nome de exibição, avatar e cor (ADR 0002).
 - [x] Testes Playwright end-to-end.
 
-### Fase 3 — Execução
+### Fase 3 — Execução (concluída)
 
-- [ ] Roteador DSH: políticas, regras IF-THEN, classificador, context packer,
+- [x] Roteador DSH: políticas, regras IF-THEN, classificador, context packer,
       output rule, Meta-Builder.
-- [ ] Fila com prioridade, concorrência, pausa, cancelamento, retry e
-      recuperação de crash.
-- [ ] Budget Guard com hard/soft cap e alerta nativo.
-- [ ] Cliente de sessão/prompt/eventos/wait/interrupt + broker de permissões.
-- [ ] Stream interceptor + proveniência + logs + custo/tokens.
-- [ ] Kanban, aprovação de plano, controlador de fila e chat.
+- [x] Fila com prioridade, pausa, cancelamento, retry e recuperação de crash.
+- [x] Budget Guard com hard/soft cap diário, mensal e janela de 5h.
+- [x] Cliente de sessão/prompt/eventos/wait/interrupt + broker de permissões.
+- [x] Stream interceptor + proveniência + logs + custo/tokens.
+- [x] Kanban, aprovação de plano, controlador de fila, Chat e Meta-Builder.
+- [x] Auditoria automática na política BEST_QUALITY.
+- [x] Concorrência configurável (pendente; hoje 1 job por vez).
 
-### Fase 4 — Automação
+### Fase 4 — Automação (próxima)
 
 - [ ] Cron dirigido pelo SQLite, idempotência e timezone/DST.
 - [ ] Pastas determinísticas `output/YYYY-MM/<slug>/`.

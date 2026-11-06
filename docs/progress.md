@@ -143,3 +143,89 @@
 - O binário de release abriu a janela Tauri e renderizou o dashboard com o menu
   de Configurações; SIGTERM encerrou o app e o daemon filho.
 - Checksums e manifesto conferidos em `releases/0.2.0/`.
+
+## 2026-11-06 — Fase 3: roteador DSH, fila, execução e proveniência
+
+### Entregue
+
+- **DSH Router**:
+  - políticas `MANUAL`, `CHEAPEST`, `COST_BENEFIT`, `BEST_QUALITY` e
+    `CUSTOM_RULES`;
+  - regras IF-THEN com `all`/`any`/`not`, campos `tags`, `title`, `prompt`,
+    `priority`, `estimated_complexity`, `budget_daily_pct`, `workspace_id` e
+    `execution_mode`;
+  - classificação de complexidade, escolha de fase Plan/Build, agente, modelo e
+    effort;
+  - resolução de modelo contra `/api/model` com fallback quando o modelo
+    preferido não existe na instância;
+  - `Context Packer` com regra obrigatória de output, arquivos de `input/`,
+    plano aprovado e critérios de aceite.
+- **Fila persistente**:
+  - worker em Tokio com prioridade, pausa/retomada, cancelamento, retry,
+    recuperação de jobs `RUNNING` após reinício e eventos `QueueUpdated`;
+  - controle da fila no Kanban e endpoints REST.
+- **Budget Guard**:
+  - hard/soft cap diário, mensal e janela de 5h do opencode-go;
+  - hard cap pausa a fila e emite `BudgetAlert`; soft cap notifica;
+  - UI de configuração em Roteador & Custos.
+- **Execução no OpenCode V2**:
+  - criação de sessão com `location.directory`, agente e `Model.Ref`;
+  - prompt assíncrono, assinatura do SSE global `/api/event`, filtragem por
+    sessão, streaming de texto/raciocínio/tools e logs JSONL;
+  - espera de conclusão por `session.idle`/`session.execution.*`, fallback
+    `session/:id/wait`, timeout e interrupção;
+  - broker de permissões: em runs autônomos responde `once` e grava
+    `permission_audit`;
+  - telemetria de tokens/custo/latência e resumo final.
+- **Proveniência**:
+  - diff autoritativo via `/api/session/:id/diff`;
+  - fallback por tool calls `write`/`edit`/`patch` quando o diff vem vazio;
+  - registro de arquivo, agente, motivo, tamanho, sha256, ação e patch em
+    `artifacts_provenance`, com evento `ArtifactCreated`.
+- **Kanban & Chat**:
+  - Kanban com 5 colunas, drag-and-drop nativo, criação de tarefa, dispatch,
+    aprovação de plano, logs por run e controlador da fila;
+  - Chat & Criador com tarefa rápida que passa pelo router/fila;
+  - Meta-Builder por linguagem natural para agentes, skills e comandos.
+- **Auditoria automática**:
+  - na política `BEST_QUALITY`, após Build bem-sucedido o OpenDesk enfileira um
+    run `audit` read-only com o agente `explore`.
+- **UI**:
+  - Artefatos com filtros, preview, diff e ações;
+  - Dashboard com runs reais, uso por modelo e feed de artefatos/runs;
+  - Roteador & Custos com política, regras e budget editáveis.
+
+### Verificado
+
+- `cargo test` — **24 passed**.
+- `npm run check` — ok.
+- `npm run build` — ok.
+- `npm run test:e2e` — **3 passed** (workspace, Studio, edição externa,
+  Kanban/fila).
+- Teste live com `deepseek/deepseek-flash`:
+  - job `COMPLETED`, tarefa em `REVIEW`/`build_complete`;
+  - tokens 13.816 input / 295 output, custo ~US$ 0,0023;
+  - `hello.txt` criado em `output/2026-11/crie-hello-artifacts/`;
+  - artefato registrado com ação `CREATED`, agente `build`, tamanho 11 bytes e
+    diff.
+- `crouton-alpha-free` falhou por restrição regional do provedor (403), não por
+  bug do OpenDesk; o erro foi persistido corretamente no run e no job.
+
+### Observações
+
+- O broker de permissões aprova automaticamente (`once`) e audita. Uma política
+  por workspace/UI pode ser adicionada na Fase 4/5.
+- O diff do OpenCode pode vir vazio em workspaces sem snapshot; o fallback por
+  tool calls cobre `write`/`edit`/`patch`.
+- O evento `session.execution.failed` é tratado como falha do run, com a
+  mensagem estruturada do provedor.
+- A fila executa um job por vez; concorrência configurável fica para a próxima
+  iteração.
+
+### Próximo
+
+1. Fase 4 — cron, pastas determinísticas por rotina, SMTP e entregas
+   pós-processamento.
+2. Concorrência configurável e política de permissões por workspace.
+3. Testes de contrato opt-in contra `opencode serve` real.
+4. Release 0.3.0.

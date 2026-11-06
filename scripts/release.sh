@@ -14,6 +14,7 @@ if [[ "$SKIP_BUILD" != "--skip-build" ]]; then
 fi
 
 echo "==> Collecting v${VERSION} artifacts"
+rm -rf "$DEST"
 mkdir -p "$DEST"
 
 for pattern in deb rpm appimage; do
@@ -21,6 +22,7 @@ for pattern in deb rpm appimage; do
   [[ -d "$bundle" ]] || continue
   find "$bundle" -maxdepth 1 -type f \
     \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) \
+    -name "*${VERSION}*" \
     -exec cp -f {} "$DEST/" \;
 done
 

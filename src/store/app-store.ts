@@ -33,6 +33,24 @@ interface AppStore {
     path: string;
     workspace_id: string;
   } | null;
+  lastTaskEvent: {
+    task_id: string;
+    workspace_id: string;
+    stage: string;
+    phase_status?: string | null;
+  } | null;
+  lastRunEvent: {
+    run_id: string;
+    task_id?: string | null;
+    status: string;
+  } | null;
+  lastArtifactEvent: number;
+  budgetAlert: {
+    level: string;
+    message: string;
+    daily_spent: number;
+    daily_limit: number;
+  } | null;
   boot: () => Promise<void>;
   refresh: () => Promise<void>;
   selectWorkspace: (id: string) => Promise<void>;
@@ -57,6 +75,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   queue: [],
   lastEventId: 0,
   lastFsEvent: null,
+  lastTaskEvent: null,
+  lastRunEvent: null,
+  lastArtifactEvent: 0,
+  budgetAlert: null,
 
   boot: async () => {
     if (bootPromise) return bootPromise;
@@ -230,8 +252,45 @@ function handleEvent(event: WsEvent) {
     case "ResyncRequired":
       void state.refresh();
       break;
+    case "TaskUpdated": {
+      const payload = event.payload as {
+        task_id?: string;
+        workspace_id?: string;
+        stage?: string;
+        phase_status?: string | null;
+      };
+      if (payload.task_id && payload.workspace_id && payload.stage) {
+        useAppStore.setState({
+          lastTaskEvent: {
+            task_id: payload.task_id,
+            workspace_id: payload.workspace_id,
+            stage: payload.stage,
+            phase_status: payload.phase_status,
+          },
+        });
+      }
+      break;
+    }
+    case "RunFinished": {
+      const payload = event.payload as {
+        run_id?: string;
+        task_id?: string | null;
+        status?: string;
+      };
+      if (payload.run_id && payload.status) {
+        useAppStore.setState({
+          lastRunEvent: {
+            run_id: payload.run_id,
+            task_id: payload.task_id,
+            status: payload.status,
+          },
+        });
+      }
+      break;
+    }
     case "ArtifactCreated":
       useAppStore.setState((current) => ({
+        lastArtifactEvent: current.lastArtifactEvent + 1,
         dashboard: current.dashboard
           ? {
               ...current.dashboard,
@@ -240,6 +299,23 @@ function handleEvent(event: WsEvent) {
           : current.dashboard,
       }));
       break;
+    case "BudgetAlert": {
+      const payload = event.payload as {
+        level?: string;
+        message?: string;
+        daily_spent?: number;
+        daily_limit?: number;
+      };
+      useAppStore.setState({
+        budgetAlert: {
+          level: payload.level ?? "soft",
+          message: payload.message ?? "orçamento próximo do limite",
+          daily_spent: payload.daily_spent ?? 0,
+          daily_limit: payload.daily_limit ?? 0,
+        },
+      });
+      break;
+    }
     default:
       break;
   }
