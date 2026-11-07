@@ -35,6 +35,7 @@ import { ModelCombobox } from "@/components/ui/model-combobox";
 import { SlashTextarea } from "@/components/ui/slash-textarea";
 import { toast } from "@/store/toast-store";
 import { RunLogView } from "@/components/runs/RunLogView";
+import { QueueController } from "@/components/queue/QueueController";
 import { links } from "@/lib/links";
 import { EntityLink } from "@/components/ui/entity-link";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -118,9 +119,11 @@ export function KanbanPage() {
   const [query, setQuery] = useState("");
   const [agentFilter, setAgentFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
-  const [view, setView] = useState<"board" | "list">("board");
+  const [view, setView] = useState<"board" | "list" | "queue">("board");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const draggedRef = useRef<string | null>(null);
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
@@ -304,6 +307,15 @@ export function KanbanPage() {
     }
   }
 
+  async function updateJobPriority(id: string, priority: number) {
+    try {
+      await apiPatch(`/api/queue/${id}/priority`, { priority });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
   async function jobAction(id: string, action: "cancel" | "retry") {
     try {
       await apiPost(`/api/queue/${id}/${action}`);
@@ -393,6 +405,7 @@ export function KanbanPage() {
         </div>
       ) : null}
 
+      {view !== "queue" ? (
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/20 px-3 py-2">
         <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
           <Search size={13} className="text-zinc-600" />
@@ -407,6 +420,7 @@ export function KanbanPage() {
           {([
             ["board", Columns3, "Board"],
             ["list", LayoutList, "Lista"],
+            ["queue", ListChecks, "Fila"],
           ] as const).map(([value, Icon, label]) => (
             <button
               key={value}
@@ -482,6 +496,8 @@ export function KanbanPage() {
         </label>
       </div>
 
+      ) : null}
+
       {selected.size > 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-500/25 bg-blue-500/[0.06] px-3 py-2">
           <Badge variant="blue">{selected.size} selecionada(s)</Badge>
@@ -513,20 +529,44 @@ export function KanbanPage() {
       ) : null}
 
       {view === "board" ? (
-      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
+      <div
+        ref={boardRef}
+        className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2"
+        onDragOver={(event) => {
+          event.preventDefault();
+          const element = boardRef.current;
+          if (!element) return;
+          const rect = element.getBoundingClientRect();
+          if (event.clientX < rect.left + 72) element.scrollLeft -= 18;
+          else if (event.clientX > rect.right - 72) element.scrollLeft += 18;
+        }}
+      >
         {COLUMNS.map((column) => {
           const columnTasks = filteredTasks.filter((task) => task.status === column.id);
           return (
             <Card
               key={column.id}
               data-column={column.id}
-              className="flex min-h-[440px] w-[280px] shrink-0 flex-col"
+              className={cn(
+                "flex min-h-[440px] w-[280px] shrink-0 flex-col transition-colors",
+                dragOverColumn === column.id &&
+                  "border-blue-500/50 bg-blue-500/[0.04]",
+              )}
+              onDragEnter={() => setDragOverColumn(column.id)}
+              onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                  setDragOverColumn((current) =>
+                    current === column.id ? null : current,
+                  );
+                }
+              }}
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 const taskId =
                   event.dataTransfer.getData("text/task-id") ||
                   draggedRef.current;
                 draggedRef.current = null;
+                setDragOverColumn(null);
                 const task = tasks.find((item) => item.id === taskId);
                 if (task) void transitionTask(task, column.id);
               }}
@@ -757,7 +797,7 @@ export function KanbanPage() {
           );
         })}
       </div>
-      ) : (
+      ) : view === "list" ? (
         <Card>
           <CardContent className="p-0">
             <div className="scroll-area max-h-[calc(100dvh-18rem)]">
@@ -846,129 +886,18 @@ export function KanbanPage() {
             </div>
           </CardContent>
         </Card>
+      ) : (
+        <QueueController
+          queue={queue}
+          status={queueStatus}
+          loading={loading}
+          onRefresh={() => void load()}
+          onTogglePause={(pause) => void toggleQueue(pause)}
+          onConcurrency={(value) => void setConcurrency(value)}
+          onJobAction={(id, action) => void jobAction(id, action)}
+          onPriority={(id, priority) => void updateJobPriority(id, priority)}
+        />
       )}
-
-      <Card>
-        <CardHeader>
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <ListChecks size={15} className="text-zinc-500" />
-              Controlador da fila
-            </CardTitle>
-            <p className="mt-1 text-xs text-zinc-500">
-              {queueStatus?.running ?? 0} rodando · {queueStatus?.waiting ?? 0} aguardando
-              {queueStatus?.pause_reason ? ` · ${queueStatus.pause_reason}` : ""}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 text-[10px] text-zinc-500">
-              concorrência
-              <select
-                value={queueStatus?.concurrency ?? 1}
-                onChange={(event) => void setConcurrency(Number(event.target.value))}
-                className="h-7 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 text-[10px] text-zinc-200 outline-none focus:border-blue-500/60"
-              >
-                {[1, 2, 3, 4].map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void toggleQueue(!(queueStatus?.paused ?? false))}
-            >
-              {queueStatus?.paused ? <Play size={13} /> : <Pause size={13} />}
-              {queueStatus?.paused ? "Retomar" : "Pausar"}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => void load()} disabled={loading}>
-              <RotateCw size={13} className={loading ? "animate-spin" : undefined} />
-              Atualizar
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {queue.length === 0 ? (
-            <EmptyState
-              icon={ListChecks}
-              title="Fila vazia"
-              description="Execute uma tarefa para enfileirar um job. A fila persiste no SQLite e recupera jobs interrompidos após reinício."
-            />
-          ) : (
-            <div className="space-y-2">
-              {queue.map((job) => (
-                <div
-                  key={job.id}
-                  className="flex flex-wrap items-center gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5"
-                >
-                  <Badge
-                    variant={
-                      job.status === "RUNNING"
-                        ? "blue"
-                        : job.status === "FAILED"
-                          ? "red"
-                          : job.status === "COMPLETED"
-                            ? "green"
-                            : job.status === "CANCELLED"
-                              ? "default"
-                              : "yellow"
-                    }
-                  >
-                    {job.status}
-                  </Badge>
-                  {job.job_kind && job.job_kind !== "task" ? (
-                    <Badge variant="purple">{job.job_kind}</Badge>
-                  ) : null}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[11px] text-zinc-200">
-                      {job.title ?? job.id}
-                    </p>
-                    <p className="truncate font-mono text-[9px] text-zinc-600">
-                      {job.resolved_mode} · {job.resolved_agent} · {job.resolved_model} ·{" "}
-                      {job.resolved_effort}
-                      {(job.retry_count ?? 0) > 0
-                        ? ` · retry ${job.retry_count}/${job.max_retries ?? "?"}`
-                        : ""}
-                    </p>
-                    {job.error_message ? (
-                      <p className="mt-0.5 truncate text-[9px] text-red-300/80">
-                        {job.error_message}
-                      </p>
-                    ) : null}
-                  </div>
-                  <span className="font-mono text-[9px] text-zinc-600">
-                    {relativeTime(job.enqueued_at)}
-                  </span>
-                  {job.status === "RUNNING" || job.status === "QUEUED" ? (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="h-6 px-1.5 text-[9px]"
-                      onClick={() => void jobAction(job.id, "cancel")}
-                    >
-                      <Square size={10} />
-                      Cancelar
-                    </Button>
-                  ) : null}
-                  {job.status === "FAILED" || job.status === "CANCELLED" ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-6 px-1.5 text-[9px]"
-                      onClick={() => void jobAction(job.id, "retry")}
-                    >
-                      <RotateCw size={10} />
-                      Retry
-                    </Button>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       <CreateTaskModal
         open={createOpen}

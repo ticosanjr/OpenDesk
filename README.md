@@ -95,6 +95,9 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Quick Capture global e blueprints de equipe.
 - Prompt caching com métrica de cache hit, metadados de mídia via ffprobe.
 - Aprovação remota de permissões pelo Signal e chat com anexos.
+- Janela maximizada, “X” mantendo o app na bandeja e abas em Configurações,
+  Integrações e Kanban.
+- Timeline de execução ao vivo com links para artefatos e pasta de resultados.
 - Backup rotativo do SQLite antes de migrações.
 - Limpeza automática de artefatos de build após cada release.
 - Auto-atualização do OpenDesk por release privada com SHA256 e backup.
@@ -246,6 +249,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0024 — Fila, atenção, cron e entregáveis](docs/decisions/0024-queue-attention-cron-and-assets.md)
 - [ADR 0025 — Permissões, swarm, captura e blueprints](docs/decisions/0025-permissions-swarm-capture-blueprints.md)
 - [ADR 0026 — Cache, mídia, aprovações, segredos e chat](docs/decisions/0026-cache-media-approvals-chat-secrets.md)
+- [ADR 0027 — Bandeja, abas, timeline e fila](docs/decisions/0027-tray-tabs-live-timeline-queue.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)

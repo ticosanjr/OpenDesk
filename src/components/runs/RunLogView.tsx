@@ -8,6 +8,7 @@ import {
   Copy,
   ExternalLink,
   FileText,
+  FolderOpen,
   Loader2,
   MessageSquare,
   PlayCircle,
@@ -18,6 +19,7 @@ import {
   Wrench,
   XCircle,
 } from "lucide-react";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { apiGet, apiPost, apiText } from "@/lib/api";
 import type {
   RunTimeline,
@@ -63,6 +65,7 @@ export function RunLogView({
   compact?: boolean;
 }) {
   const lastRunEvent = useAppStore((state) => state.lastRunEvent);
+  const lastRunChunk = useAppStore((state) => state.lastRunChunk);
   const [timeline, setTimeline] = useState<RunTimeline | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +119,12 @@ export function RunLogView({
     if (lastRunEvent?.run_id === runId) void load();
   }, [lastRunEvent?.run_id, lastRunEvent?.status, load, runId]);
 
+  useEffect(() => {
+    if (lastRunChunk?.run_id !== runId) return;
+    const handle = window.setTimeout(() => void load(), 250);
+    return () => window.clearTimeout(handle);
+  }, [lastRunChunk?.seq, lastRunChunk?.run_id, load, runId]);
+
   const running =
     timeline?.status === "RUNNING" ||
     timeline?.run?.status === "RUNNING" ||
@@ -123,7 +132,7 @@ export function RunLogView({
 
   useEffect(() => {
     if (!running && !follow) return;
-    const handle = window.setInterval(() => void load(), 2500);
+    const handle = window.setInterval(() => void load(), 1000);
     return () => window.clearInterval(handle);
   }, [follow, load, running]);
 
@@ -213,6 +222,20 @@ export function RunLogView({
     }
   }
 
+  async function openOutputFolder() {
+    const path = timeline?.output_directory;
+    if (!path) return;
+    try {
+      await openPath(path);
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível abrir a pasta",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  }
+
   async function copy(text: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -281,6 +304,31 @@ export function RunLogView({
                 <FileText size={10} />
                 abrir tarefa
               </EntityLink>
+            ) : null}
+            {timeline?.artifacts.length ? (
+              <EntityLink to={`/artifacts?run=${encodeURIComponent(runId)}`} chip>
+                <FileText size={10} />
+                artefatos ({timeline.artifacts.length})
+              </EntityLink>
+            ) : null}
+            {timeline?.output_directory ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7"
+                  onClick={() => void openOutputFolder()}
+                  title={timeline.output_directory}
+                >
+                  <FolderOpen size={12} />
+                  pasta
+                </Button>
+                {timeline.output_directory_relative ? (
+                  <EntityLink to={links.file(timeline.output_directory_relative)} chip>
+                    explorador
+                  </EntityLink>
+                ) : null}
+              </>
             ) : null}
             {timeline?.run?.task_id ? (
               <>
@@ -378,6 +426,25 @@ export function RunLogView({
           </span>
         </div>
       </div>
+
+      {timeline?.artifacts.length ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-zinc-800/70 bg-zinc-950/40 px-4 py-2">
+          <span className="mr-1 font-mono text-[9px] uppercase tracking-wide text-zinc-600">
+            entregáveis
+          </span>
+          {timeline.artifacts.slice(0, 8).map((artifact) => (
+            <EntityLink key={artifact.id} to={links.artifact(artifact.id)} chip>
+              <FileText size={9} />
+              {artifact.file_path.split("/").pop() ?? artifact.file_path}
+            </EntityLink>
+          ))}
+          {timeline.artifacts.length > 8 ? (
+            <EntityLink to={`/artifacts?run=${encodeURIComponent(runId)}`} chip>
+              +{timeline.artifacts.length - 8}
+            </EntityLink>
+          ) : null}
+        </div>
+      ) : null}
 
       {showRaw ? (
         <div className="min-h-0 flex-1 overflow-auto p-4">

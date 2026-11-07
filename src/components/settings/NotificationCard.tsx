@@ -8,7 +8,7 @@ import { toast } from "@/store/toast-store";
 export function NotificationCard() {
   const [native, setNative] = useState(true);
   const [artifacts, setArtifacts] = useState(true);
-  const [closeToTray, setCloseToTray] = useState(false);
+  const [closeToTray, setCloseToTray] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -20,7 +20,7 @@ export function NotificationCard() {
     void apiGet<Array<{ key: string; value_json: string }>>("/api/settings")
       .then((settings) => {
         const entry = settings.find((item) => item.key === "close_to_tray");
-        if (!entry) return false;
+        if (!entry) return true;
         try {
           return JSON.parse(entry.value_json) === true;
         } catch {
@@ -28,7 +28,7 @@ export function NotificationCard() {
         }
       })
       .then((value) => setCloseToTray(value))
-      .catch(() => setCloseToTray(false))
+      .catch(() => setCloseToTray(true))
       .finally(() => setLoading(false));
   }, []);
 
@@ -122,7 +122,7 @@ export function NotificationCard() {
               Fechar janela mantendo na bandeja
             </span>
             <span className="text-[11px] text-zinc-500">
-              Desligado: fechar encerra o app e para as notificações.
+              Padrão: ligado. Desligado, o “X” encerra o app e para as notificações.
             </span>
           </span>
           <input

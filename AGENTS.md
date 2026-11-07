@@ -87,7 +87,8 @@ preferências de notificação, Kanban em lista/lote, paginação, lease/heartbe
 Attention Card, cron com misfire/safe/dry-run, pin de artefatos, MEMORY.md,
 fork de tarefa, model mix/economia, permissões interativas, compactação de
 contexto, A/B swarm, fork por run, rollback de artefato, Quick Capture global e
-blueprints de equipe.
+blueprints de equipe, janela maximizada, ciclo de bandeja, abas em
+Configurações/Integrações/Kanban, timeline ao vivo e controlador de fila em aba.
 Próxima frente: retry durável de Google/Drive, assinatura de updates, cobertura
 Rust ≥80%, Windows/macOS e testes de contrato Google/OpenCode.
 

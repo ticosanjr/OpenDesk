@@ -12,9 +12,17 @@ export const links = {
     return `/studio?${params.toString()}`;
   },
   file: (path: string) => `/files?path=${encodeURIComponent(path)}`,
-  settings: (section: "general" | "engine" | "updates" | "about" | "workspaces" = "general") =>
+  settings: (
+    section:
+      | "general"
+      | "engine"
+      | "updates"
+      | "notifications"
+      | "about"
+      | "workspaces" = "general",
+  ) =>
     `/settings?section=${section}`,
   integration: (
-    section: "smtp" | "google" | "signal" | "deliveries" = "smtp",
+    section: "smtp" | "google" | "signal" | "deliveries" | "mcp" = "smtp",
   ) => `/integrations?section=${section}`,
 };

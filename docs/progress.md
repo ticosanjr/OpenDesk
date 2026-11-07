@@ -994,3 +994,18 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - SecretStore aceita variáveis `OPENDESK_<NAMESPACE>_<KEY>` como fallback.
 - Chat aceita imagens e arquivos por colagem/arraste, salvos em input/chat/.
 - `cargo test` — 125 passed.
+
+## 2026-11-07 — 0.20.0: bandeja, abas, timeline ao vivo e fila
+
+- Janela principal abre maximizada; “X” esconde na bandeja por padrão e “Sair”
+  no tray encerra. Quick Capture fecha normalmente.
+- Configurações, Integrações e Kanban em abas reais; somente o painel ativo é
+  renderizado.
+- Timeline de execução atualiza por `RunStreamChunk` com debounce, mantém status
+  RUNNING até evento terminal e mostra artefatos/pasta de resultados.
+- Filtro de artefatos por `run_id` e links diretos para artefato, pasta e
+  explorador.
+- Controlador de fila em aba própria com lease, heartbeat, grupo de concorrência,
+  prioridade, retry em lote e pasta de saída.
+- Kanban com destaque de coluna de destino e auto-scroll no arraste.
+- `cargo test` — 126 passed; Playwright — 20 passed.

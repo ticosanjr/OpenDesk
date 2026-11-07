@@ -45,16 +45,19 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
   await page.getByRole("button", { name: "Salvar", exact: true }).first().click();
   await expect(page.getByText("salvo", { exact: true })).toBeVisible();
 
-  // Engine card: reports the resolved binary candidates even when headless
-  // mode deliberately keeps the daemon offline.
+  // Only the active tab is rendered.
+  await expect(page.getByText("OpenCode Engine")).toHaveCount(0);
+  await page.getByRole("tab", { name: "Engine" }).click();
   await expect(page.getByText("OpenCode Engine")).toBeVisible();
+  await page.getByRole("tab", { name: "Atualizações" }).click();
   await expect(page.getByText("Atualizações do OpenDesk")).toBeVisible();
+  await page.getByRole("tab", { name: "Sobre" }).click();
   await expect(page.getByText("Sobre & diagnóstico")).toBeVisible();
   const about = await request.get(`${auth.baseURL}/api/about`, {
     headers: auth.headers,
   });
   expect(about.ok()).toBeTruthy();
-  expect((await about.json()).app.version).toBe("0.19.0");
+  expect((await about.json()).app.version).toBe("0.20.0");
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });
@@ -400,17 +403,20 @@ test("creates and edits a recurrence routine with calendar, agent search and not
 
   await page.goto("/#/integrations");
   await expect(page.getByRole("heading", { name: "Integrações" })).toBeVisible();
-  await expect(page.getByText("Signal (celular)")).toBeVisible();
   await page.getByLabel("Host").fill("smtp.example.com");
   await page.getByLabel("Remetente").fill("OpenDesk <e2e@example.com>");
   await page.getByLabel("Senha / app password").fill("e2e-secret");
   await page.getByRole("button", { name: "Salvar" }).first().click();
   await expect(page.getByText("configurado").first()).toBeVisible();
 
+  await page.getByRole("tab", { name: "Google" }).click();
   await page.getByLabel("Client ID").fill("e2e.apps.googleusercontent.com");
   await page.getByLabel("Client secret").fill("e2e-google-secret");
   await page.getByRole("button", { name: "Salvar credenciais" }).click();
   await expect(page.getByText("Credenciais Google salvas.")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Signal" }).click();
+  await expect(page.getByText("Signal (celular)")).toBeVisible();
 });
 
 
@@ -860,7 +866,7 @@ test("edits and removes a workspace without touching its folder", async ({
   expect(created.ok()).toBeTruthy();
   const workspace = (await created.json()) as { id: string; root_path: string };
 
-  await page.goto("/#/settings");
+  await page.goto("/#/settings?section=workspaces");
   await expect(page.getByText("Workspace Editável").first()).toBeVisible();
   const row = page
     .locator("p")
@@ -1031,13 +1037,28 @@ test("notification preferences and kanban list view are available", async ({
   });
 
   await page.goto("/#/settings");
+  await expect(page.getByText("Pasta padrão de workspaces")).toBeVisible();
+  await expect(page.getByText("OpenCode Engine")).toHaveCount(0);
+  await page.getByRole("tab", { name: "Engine" }).click();
+  await expect(page.getByText("OpenCode Engine")).toBeVisible();
+  await expect(page.getByText("Pasta padrão de workspaces")).toHaveCount(0);
+  await page.getByRole("tab", { name: "Notificações" }).click();
   await expect(page.getByText("Notificações e fechamento")).toBeVisible();
   await expect(page.getByText("Fechar janela mantendo na bandeja")).toBeVisible();
+
+  await page.goto("/#/integrations");
+  await expect(page.getByText("Host", { exact: true })).toBeVisible();
+  await expect(page.getByText("OAuth2 loopback + PKCE")).toHaveCount(0);
+  await page.getByRole("tab", { name: "Google" }).click();
+  await expect(page.getByText("OAuth2 loopback + PKCE")).toBeVisible();
+  await expect(page.getByText("Host", { exact: true })).toHaveCount(0);
 
   await page.goto("/#/kanban");
   await page.getByTitle("Lista").click();
   await expect(page.getByText("Último run")).toBeVisible();
   await expect(page.getByText("Tarefa Lista E2E")).toBeVisible();
+  await page.getByTitle("Fila").click();
+  await expect(page.getByText("Controlador da fila")).toBeVisible();
 
   const saved = await request.put(`${auth.baseURL}/api/settings/close_to_tray`, {
     headers: auth.headers,

@@ -18,7 +18,19 @@ pub struct RunTimeline {
     pub result: TimelineSection,
     pub log_missing: bool,
     pub workspace_root: Option<String>,
+    pub output_directory: Option<String>,
+    pub output_directory_relative: Option<String>,
+    pub artifacts: Vec<TimelineArtifact>,
     pub events: Vec<TimelineEvent>,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct TimelineArtifact {
+    pub id: String,
+    pub file_path: String,
+    pub absolute_path: String,
+    pub action_type: String,
+    pub created_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -133,6 +145,11 @@ pub fn timeline_from_events(
         let data = event.get("data").cloned().unwrap_or(Value::Null);
 
         match kind {
+            "session.execution.started" => {
+                if timeline.status.is_empty() {
+                    timeline.status = "RUNNING".into();
+                }
+            }
             "session.step.started" => {
                 let index = timeline.steps.len() + 1;
                 let started = data
@@ -453,13 +470,18 @@ pub fn timeline_from_events(
     timeline.started_at = first_ms
         .and_then(iso)
         .or_else(|| timeline.run.as_ref().map(|run| run.started_at.clone()));
-    timeline.completed_at = timeline.completed_at.or_else(|| {
-        timeline
-            .run
-            .as_ref()
-            .and_then(|run| run.completed_at.clone())
-            .or_else(|| last_ms.and_then(iso))
-    });
+    let terminal = matches!(timeline.status.as_str(), "SUCCESS" | "FAILED" | "CANCELLED");
+    timeline.completed_at = if terminal {
+        timeline.completed_at.clone().or_else(|| {
+            timeline
+                .run
+                .as_ref()
+                .and_then(|run| run.completed_at.clone())
+                .or_else(|| last_ms.and_then(iso))
+        })
+    } else {
+        None
+    };
     timeline.duration_ms = timeline
         .run
         .as_ref()
@@ -680,6 +702,22 @@ mod tests {
         let tool = kinds.iter().position(|kind| *kind == "tool").unwrap();
         let comment = kinds.iter().position(|kind| *kind == "comment").unwrap();
         assert!(thinking < tool && tool < comment);
+    }
+
+    #[test]
+    fn running_timeline_stays_open_until_terminal_event() {
+        let timeline = timeline_from_events(
+            None,
+            vec![
+                json!({"created": 1000, "type": "session.execution.started", "data": {}}),
+                json!({"created": 1200, "type": "session.reasoning.delta", "data": {"delta": "pensando"}}),
+            ],
+            false,
+        );
+        assert_eq!(timeline.status, "RUNNING");
+        assert!(timeline.completed_at.is_none());
+        assert_eq!(timeline.thinking.text, "pensando");
+        assert!(timeline.artifacts.is_empty());
     }
 
     #[test]

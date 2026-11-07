@@ -22,6 +22,7 @@ pub struct ArtifactQuery {
     pub workspace_id: Option<String>,
     pub agent: Option<String>,
     pub task_id: Option<String>,
+    pub run_id: Option<String>,
     pub action: Option<String>,
     pub limit: Option<i64>,
 }
@@ -44,7 +45,9 @@ pub async fn list_artifacts(
         Some(id) => id,
         None => crate::api::tasks::resolve_workspace_id(&state, None).await?,
     };
-    Ok(Json(
+    let list = if let Some(run_id) = query.run_id.as_deref() {
+        artifacts::list_by_run(&state.db, run_id, query.limit.unwrap_or(200)).await?
+    } else {
         artifacts::list(
             &state.db,
             &workspace_id,
@@ -53,8 +56,9 @@ pub async fn list_artifacts(
             query.action.as_deref(),
             query.limit.unwrap_or(200),
         )
-        .await?,
-    ))
+        .await?
+    };
+    Ok(Json(list))
 }
 
 pub async fn pinned_artifacts(

@@ -175,6 +175,9 @@ pub fn run() {
             state.queue.spawn_worker();
             state.cron.spawn();
             tray::setup(app.handle(), state.clone())?;
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.maximize();
+            }
             tauri::async_runtime::block_on(state.refresh_watcher())?;
             tauri::async_runtime::block_on(api::spawn_server(state.clone()))?;
 
@@ -184,6 +187,11 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Only the main window belongs to the tray lifecycle. The
+                // Quick Capture window must close normally.
+                if window.label() != "main" {
+                    return;
+                }
                 let app = window.app_handle();
                 let close_to_tray = app
                     .try_state::<Arc<AppState>>()
@@ -194,10 +202,10 @@ pub fn run() {
                                 .ok()
                                 .flatten()
                                 .and_then(|value| value.as_bool())
-                                .unwrap_or(false)
+                                .unwrap_or(true)
                         })
                     })
-                    .unwrap_or(false);
+                    .unwrap_or(true);
                 if close_to_tray {
                     api.prevent_close();
                     let _ = window.hide();

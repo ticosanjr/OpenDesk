@@ -68,13 +68,15 @@ export function ArtifactsPage() {
     return () => window.clearTimeout(handle);
   }, [agentFilter]);
 
+  const runFilter = searchParams.get("run") ?? "";
   const query = useMemo(() => {
     if (!activeWorkspaceId) return "";
     const params = new URLSearchParams({ workspace_id: activeWorkspaceId, limit: String(limit) });
     if (debouncedAgent.trim()) params.set("agent", debouncedAgent.trim());
     if (actionFilter) params.set("action", actionFilter);
+    if (runFilter) params.set("run_id", runFilter);
     return params.toString();
-  }, [activeWorkspaceId, debouncedAgent, actionFilter, limit]);
+  }, [activeWorkspaceId, debouncedAgent, actionFilter, limit, runFilter]);
 
   const load = useCallback(async () => {
     if (!activeWorkspaceId) {
@@ -104,7 +106,11 @@ export function ArtifactsPage() {
     const artifact = artifacts.find((item) => item.id === id);
     if (artifact) {
       setSelected(artifact);
-      setSearchParams({}, { replace: true });
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.delete("id");
+        return next;
+      }, { replace: true });
     }
   }, [artifacts, searchParams, setSearchParams]);
 
@@ -250,6 +256,23 @@ export function ArtifactsPage() {
               </select>
             </div>
             <Badge variant="default">{artifacts.length} artefatos</Badge>
+            {runFilter ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setSearchParams((current) => {
+                    const next = new URLSearchParams(current);
+                    next.delete("run");
+                    return next;
+                  }, { replace: true })
+                }
+                className="inline-flex items-center gap-1 rounded-md border border-blue-500/25 bg-blue-500/10 px-1.5 py-0.5 font-mono text-[9px] text-blue-300 hover:text-blue-100"
+                title="Remover filtro por execução"
+              >
+                run {runFilter.slice(0, 8)}
+                <X size={9} />
+              </button>
+            ) : null}
           </div>
         </CardHeader>
         <CardContent className="p-0">

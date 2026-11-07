@@ -1,8 +1,12 @@
 use crate::{
     app_state::AppState,
-    db::runs::{self, TaskRun},
+    db::{
+        artifacts, queue,
+        runs::{self, TaskRun},
+        tasks, workspaces,
+    },
     error::{AppError, AppResult},
-    run_timeline::{RunTimeline, timeline_from_events},
+    run_timeline::{RunTimeline, TimelineArtifact, timeline_from_events},
 };
 use axum::{
     Json,
@@ -66,18 +70,59 @@ pub async fn run_timeline(
     Path(id): Path<String>,
 ) -> AppResult<Json<RunTimeline>> {
     let run = runs::get(&state.db, &id).await?;
-    let Some(path) = run.log_path.as_deref() else {
-        return Ok(Json(timeline_from_events(Some(run), Vec::new(), true)));
+    let path = run.log_path.clone();
+    let events = path
+        .as_deref()
+        .and_then(|path| std::fs::File::open(path).ok())
+        .map(|file| {
+            std::io::BufReader::new(file)
+                .lines()
+                .map_while(Result::ok)
+                .filter_map(|line| serde_json::from_str::<serde_json::Value>(&line).ok())
+                .collect::<Vec<_>>()
+        });
+    let log_missing = events.is_none();
+    let mut timeline =
+        timeline_from_events(Some(run.clone()), events.unwrap_or_default(), log_missing);
+
+    let workspace = workspaces::get(&state.db, &run.workspace_id).await.ok();
+    if let Some(workspace) = &workspace {
+        timeline.workspace_root = Some(workspace.root_path.clone());
+    }
+    let mut output_directory = match run.task_id.as_deref() {
+        Some(task_id) => tasks::get(&state.db, task_id)
+            .await
+            .ok()
+            .and_then(|task| task.output_dir_path),
+        None => None,
     };
-    let file = match std::fs::File::open(path) {
-        Ok(file) => file,
-        Err(_) => return Ok(Json(timeline_from_events(Some(run), Vec::new(), true))),
-    };
-    let reader = std::io::BufReader::new(file);
-    let events = reader
-        .lines()
-        .map_while(Result::ok)
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(&line).ok())
-        .collect::<Vec<_>>();
-    Ok(Json(timeline_from_events(Some(run), events, false)))
+    if output_directory.is_none()
+        && let Some(job_id) = run.queue_job_id.as_deref()
+    {
+        output_directory = queue::get(&state.db, job_id)
+            .await
+            .ok()
+            .and_then(|job| job.output_dir);
+    }
+    if let Some(output) = &output_directory {
+        timeline.output_directory = Some(output.clone());
+        if let Some(workspace) = &workspace {
+            timeline.output_directory_relative = output
+                .strip_prefix(&workspace.root_path)
+                .map(str::to_string);
+        }
+    }
+    timeline.artifacts = artifacts::list_by_run(&state.db, &id, 200)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|artifact| TimelineArtifact {
+            id: artifact.id,
+            file_path: artifact.file_path,
+            absolute_path: artifact.absolute_path,
+            action_type: artifact.action_type,
+            created_at: artifact.created_at,
+        })
+        .collect();
+    Ok(Json(timeline))
 }

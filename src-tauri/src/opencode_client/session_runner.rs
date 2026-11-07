@@ -416,6 +416,17 @@ async fn handle_event(
     append_log(log_path, event);
 
     match event_type {
+        "session.execution.started"
+        | "session.execution.succeeded"
+        | "session.execution.failed"
+        | "session.step.started"
+        | "session.step.ended"
+        | "session.text.started"
+        | "session.text.ended"
+        | "session.reasoning.started"
+        | "session.reasoning.ended" => {
+            publish_chunk(events, run_id, task_id, "event", event_type.to_string());
+        }
         "session.text.delta" => {
             if let Some(delta) = event.pointer("/data/delta").and_then(Value::as_str) {
                 publish_chunk(events, run_id, task_id, "text", delta.to_string());
@@ -427,6 +438,7 @@ async fn handle_event(
             }
         }
         "session.tool.called"
+        | "session.tool.input.started"
         | "session.tool.input.ended"
         | "session.tool.success"
         | "session.tool.failed" => {

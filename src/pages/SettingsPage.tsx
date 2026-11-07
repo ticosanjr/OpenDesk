@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
+  Bell,
   Check,
+  Cpu,
+  Download,
   ExternalLink,
   FolderOpen,
   FolderPlus,
@@ -9,6 +12,7 @@ import {
   Info,
   Loader2,
   Save,
+  Settings,
 } from "lucide-react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
@@ -20,6 +24,7 @@ import { EngineCard } from "@/components/settings/EngineCard";
 import { UpdatesCard } from "@/components/settings/UpdatesCard";
 import { AboutCard } from "@/components/settings/AboutCard";
 import { NotificationCard } from "@/components/settings/NotificationCard";
+import { SectionTabs } from "@/components/ui/section-tabs";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiDelete, apiGet, apiPatch, apiPut } from "@/lib/api";
@@ -49,18 +54,19 @@ export function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const section = params.get("section");
-    if (!section) return;
-    const handle = window.setTimeout(() => {
-      document
-        .getElementById(`settings-${section}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-      setParams({}, { replace: true });
-    }, 180);
-    return () => window.clearTimeout(handle);
-  }, [params, setParams]);
+  const section = params.get("section") ?? "general";
+  const tabs = [
+    { id: "general", label: "Geral", icon: Settings },
+    { id: "engine", label: "Engine", icon: Cpu },
+    { id: "updates", label: "Atualizações", icon: Download },
+    { id: "notifications", label: "Notificações", icon: Bell },
+    { id: "workspaces", label: "Workspaces", icon: FolderOpen },
+    { id: "about", label: "Sobre", icon: Info },
+  ] as const;
+  const activeTab = tabs.some((tab) => tab.id === section) ? section : "general";
+  function selectTab(id: string) {
+    setParams({ section: id }, { replace: true });
+  }
 
   useEffect(() => {
     apiGet<{ workspaces_root: string }>("/api/app/defaults")
@@ -121,39 +127,26 @@ export function SettingsPage() {
         }
       />
 
-      <div className="sticky top-0 z-20 -mx-5 flex flex-wrap gap-1 border-b border-zinc-800/60 bg-[#09090b]/95 px-5 py-2 backdrop-blur lg:-mx-7 lg:px-7">
-        {[
-          ["Geral", "settings-general"],
-          ["Engine", "settings-engine"],
-          ["Atualizações", "settings-updates"],
-          ["Sobre", "settings-about"],
-          ["Notificações", "settings-notifications"],
-          ["Workspaces", "settings-workspaces"],
-        ].map(([label, id]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() =>
-              document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
-            }
-            className="rounded-lg px-2.5 py-1 text-[10px] font-medium text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200"
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <SectionTabs items={[...tabs]} value={activeTab} onChange={selectTab} />
 
-      <div id="settings-engine" className="scroll-mt-14">
-        <EngineCard />
-      </div>
-      <div id="settings-updates" className="scroll-mt-14">
-        <UpdatesCard />
-      </div>
-      <div id="settings-about" className="scroll-mt-14">
-        <AboutCard />
-      </div>
-      <NotificationCard />
+      {activeTab === "engine" ? (
+        <div id="settings-engine">
+          <EngineCard />
+        </div>
+      ) : null}
+      {activeTab === "updates" ? (
+        <div id="settings-updates">
+          <UpdatesCard />
+        </div>
+      ) : null}
+      {activeTab === "about" ? (
+        <div id="settings-about">
+          <AboutCard />
+        </div>
+      ) : null}
+      {activeTab === "notifications" ? <NotificationCard /> : null}
 
+      {activeTab === "general" ? (
       <div id="settings-general" className="grid scroll-mt-14 gap-3 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -223,9 +216,44 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
-
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Settings size={15} className="text-zinc-500" />
+                Segundo plano
+              </CardTitle>
+              <p className="mt-1 text-xs text-zinc-500">
+                O OpenDesk continua executando fila, cron e notificações com a janela
+                escondida.
+              </p>
+            </div>
+            <Badge variant="green">bandeja</Badge>
+          </CardHeader>
+          <CardContent className="space-y-2 text-[11px] leading-relaxed text-zinc-500">
+            <p>
+              Fechar pelo “X” mantém o app na bandeja por padrão. Para encerrar de
+              verdade, use <span className="text-zinc-300">Sair</span> no menu do
+              ícone da bandeja.
+            </p>
+            <p>
+              O comportamento do “X” pode ser alterado em{" "}
+              <button
+                type="button"
+                onClick={() => selectTab("notifications")}
+                className="text-blue-300 underline-offset-2 hover:underline"
+              >
+                Notificações
+              </button>
+              .
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
+      ) : null}
+
+      {activeTab === "workspaces" ? (
       <Card id="settings-workspaces" className="scroll-mt-14">
         <CardHeader>
           <div>
@@ -328,10 +356,6 @@ export function SettingsPage() {
                           return;
                         }
                         try {
-                          if (active) {
-                            const next = workspaces.find((item) => item.id !== workspace.id);
-                            if (next) await selectWorkspace(next.id);
-                          }
                           await apiDelete(`/api/workspaces/${workspace.id}`);
                           await refresh();
                           toast({
@@ -358,6 +382,8 @@ export function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      ) : null}
 
       <WorkspaceEditModal
         workspace={editing}

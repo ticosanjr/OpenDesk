@@ -140,6 +140,9 @@ export interface QueueJob {
   finished_at?: string | null;
   retry_count?: number;
   max_retries?: number;
+  concurrency_group?: string | null;
+  lease_expires_at?: string | null;
+  last_heartbeat_at?: string | null;
   error_message?: string | null;
 }
 
@@ -778,7 +781,18 @@ export interface RunTimeline {
   result: TimelineSection;
   log_missing: boolean;
   workspace_root?: string | null;
+  output_directory?: string | null;
+  output_directory_relative?: string | null;
+  artifacts: TimelineArtifact[];
   events: TimelineEvent[];
+}
+
+export interface TimelineArtifact {
+  id: string;
+  file_path: string;
+  absolute_path: string;
+  action_type: string;
+  created_at: string;
 }
 
 

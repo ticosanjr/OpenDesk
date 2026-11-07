@@ -15,6 +15,8 @@ describe("entity links", () => {
       "/studio?kind=agent&id=build&scope=workspace&workspace_id=ws+1",
     );
     expect(links.settings("engine")).toBe("/settings?section=engine");
+    expect(links.settings("notifications")).toBe("/settings?section=notifications");
     expect(links.integration("google")).toBe("/integrations?section=google");
+    expect(links.integration("mcp")).toBe("/integrations?section=mcp");
   });
 });

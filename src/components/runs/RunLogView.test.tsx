@@ -19,6 +19,9 @@ const timeline: RunTimeline = {
   events_count: 20,
   log_missing: false,
   workspace_root: "/tmp/workspace",
+  output_directory: "/tmp/workspace/output/2026-11/test",
+  output_directory_relative: "output/2026-11/test",
+  artifacts: [],
   events: [
     {
       kind: "thinking",

@@ -49,6 +49,12 @@ interface AppStore {
     task_id?: string | null;
     status: string;
   } | null;
+  lastRunChunk: {
+    run_id: string;
+    task_id?: string | null;
+    chunk_type: string;
+    seq: number;
+  } | null;
   lastArtifactEvent: number;
   lastArtifact: Artifact | null;
   lastPermissionEvent: {
@@ -104,6 +110,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   lastFsEvent: null,
   lastTaskEvent: null,
   lastRunEvent: null,
+  lastRunChunk: null,
   lastArtifactEvent: 0,
   lastArtifact: null,
   lastPermissionEvent: null,
@@ -298,6 +305,24 @@ export function handleEvent(event: WsEvent) {
             workspace_id: payload.workspace_id,
             stage: payload.stage,
             phase_status: payload.phase_status,
+          },
+        });
+      }
+      break;
+    }
+    case "RunStreamChunk": {
+      const payload = event.payload as {
+        run_id?: string;
+        task_id?: string | null;
+        chunk_type?: string;
+      };
+      if (payload.run_id) {
+        useAppStore.setState({
+          lastRunChunk: {
+            run_id: payload.run_id,
+            task_id: payload.task_id,
+            chunk_type: payload.chunk_type ?? "event",
+            seq: event.event_id,
           },
         });
       }

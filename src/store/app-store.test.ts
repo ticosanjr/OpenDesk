@@ -168,6 +168,20 @@ describe("websocket event reducer", () => {
     expect(useAppStore.getState().dashboard?.artifacts_total).toBe(3);
 
     handleEvent({
+      event_id: 124,
+      event_type: "RunStreamChunk",
+      payload: {
+        run_id: "r1",
+        task_id: "t1",
+        chunk_type: "event",
+      },
+    });
+    expect(useAppStore.getState().lastRunChunk).toMatchObject({
+      run_id: "r1",
+      chunk_type: "event",
+    });
+
+    handleEvent({
       event_id: 125,
       event_type: "PermissionRequested",
       payload: {

@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SignalCard } from "@/components/settings/SignalCard";
+import { SectionTabs } from "@/components/ui/section-tabs";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -81,23 +82,23 @@ export function IntegrationsPage() {
   const [testing, setTesting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const section = params.get("section") ?? "smtp";
+  const tabs = [
+    { id: "smtp", label: "SMTP", icon: Mail },
+    { id: "google", label: "Google", icon: Cloud },
+    { id: "signal", label: "Signal", icon: Plug },
+    { id: "deliveries", label: "Entregas", icon: Send },
+    { id: "mcp", label: "MCP e segurança", icon: ShieldCheck },
+  ] as const;
+  const activeTab = tabs.some((tab) => tab.id === section) ? section : "smtp";
+  function selectTab(id: string) {
+    setParams({ section: id }, { replace: true });
+  }
 
   const query = useMemo(
     () => (activeWorkspaceId ? `?workspace_id=${encodeURIComponent(activeWorkspaceId)}` : ""),
     [activeWorkspaceId],
   );
-
-  useEffect(() => {
-    const section = params.get("section");
-    if (!section) return;
-    const handle = window.setTimeout(() => {
-      document
-        .getElementById(`integrations-${section}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-      setParams({}, { replace: true });
-    }, 180);
-    return () => window.clearTimeout(handle);
-  }, [params, setParams]);
 
   const load = useCallback(async () => {
     if (!activeWorkspaceId) return;
@@ -299,28 +300,10 @@ export function IntegrationsPage() {
         </p>
       ) : null}
 
-      <div className="sticky top-0 z-20 -mx-5 flex flex-wrap gap-1 border-b border-zinc-800/60 bg-[#09090b]/95 px-5 py-2 backdrop-blur lg:-mx-7 lg:px-7">
-        {[
-          ["SMTP", "integrations-smtp"],
-          ["Google", "integrations-google"],
-          ["Signal", "integrations-signal"],
-          ["Entregas", "integrations-deliveries"],
-        ].map(([label, id]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() =>
-              document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
-            }
-            className="rounded-lg px-2.5 py-1 text-[10px] font-medium text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200"
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <SectionTabs items={[...tabs]} value={activeTab} onChange={selectTab} />
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Card id="integrations-smtp" className="scroll-mt-14">
+      {activeTab === "smtp" ? (
+        <Card id="integrations-smtp">
           <CardHeader>
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -423,8 +406,10 @@ export function IntegrationsPage() {
             </p>
           </CardContent>
         </Card>
+      ) : null}
 
-        <Card id="integrations-google" className="scroll-mt-14">
+      {activeTab === "google" ? (
+        <Card id="integrations-google">
           <CardHeader>
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -499,13 +484,16 @@ export function IntegrationsPage() {
             </p>
           </CardContent>
         </Card>
+      ) : null}
 
-        <div id="integrations-signal" className="scroll-mt-14">
+      {activeTab === "signal" ? (
+        <div id="integrations-signal">
           <SignalCard />
         </div>
-      </div>
+      ) : null}
 
-      <Card id="integrations-deliveries" className="scroll-mt-14">
+      {activeTab === "deliveries" ? (
+      <Card id="integrations-deliveries">
         <CardHeader>
           <div>
             <CardTitle className="flex items-center gap-2">
@@ -561,7 +549,10 @@ export function IntegrationsPage() {
           )}
         </CardContent>
       </Card>
+      ) : null}
 
+      {activeTab === "mcp" ? (
+        <>
       <Card>
         <CardHeader>
           <div>
@@ -604,6 +595,8 @@ export function IntegrationsPage() {
           </p>
         </CardContent>
       </Card>
+        </>
+      ) : null}
     </PageBody>
   );
 }

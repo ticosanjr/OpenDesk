@@ -46,7 +46,13 @@ pub async fn active_workspace_id(pool: &SqlitePool) -> AppResult<Option<String>>
     if let Some(value) = get(pool, "active_workspace_id").await?
         && let Some(id) = value.as_str()
     {
-        return Ok(Some(id.to_string()));
+        let exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM workspaces WHERE id = ?")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
+        if exists.is_some() {
+            return Ok(Some(id.to_string()));
+        }
     }
 
     let first: Option<String> =

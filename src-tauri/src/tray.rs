@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tauri::{
     AppHandle, Manager,
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::TrayIconBuilder,
+    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
 };
 
 pub fn setup(app: &AppHandle, state: Arc<AppState>) -> tauri::Result<()> {
@@ -81,6 +81,16 @@ pub fn setup(app: &AppHandle, state: Arc<AppState>) -> tauri::Result<()> {
         .tooltip(version_label(&version))
         .menu(&menu)
         .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: tauri::tray::MouseButtonState::Up,
+                ..
+            } = event
+            {
+                focus_main(tray.app_handle());
+            }
+        })
         .on_menu_event(|app, event| match event.id().as_ref() {
             "quit" => app.exit(0),
             "open_dashboard" => focus_main(app),
