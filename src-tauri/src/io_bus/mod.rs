@@ -14,10 +14,12 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
+pub mod chat;
 pub mod inbound;
 pub mod outbound;
 pub mod preprocess;
 pub mod runtime;
+pub mod sql;
 pub mod tools;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -47,6 +47,7 @@ pub struct HitlRequest {
     pub workspace_id: String,
     pub checkpoint_id: String,
     pub interaction_type: String,
+    pub options_json: String,
     pub status: String,
     pub on_timeout: String,
     pub dispatched_channels_json: String,
@@ -65,7 +66,7 @@ const RUN_COLUMNS: &str = "id, recipe_id, workspace_id, task_id, status, current
     trigger_context_json, step_outputs_json, output_dir_path, dry_run, error_message, \
     started_at, completed_at";
 const HITL_COLUMNS: &str = "token, recipe_run_id, workspace_id, checkpoint_id, interaction_type, \
-    status, on_timeout, dispatched_channels_json, resolved_by_channel, resolved_by_sender, \
+    options_json, status, on_timeout, dispatched_channels_json, resolved_by_channel, resolved_by_sender, \
     resolution_type, resolution_payload, expires_at, created_at, resolved_at";
 
 fn sha256(text: &str) -> String {
@@ -291,26 +292,29 @@ pub async fn update_run(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn create_hitl(
     pool: &SqlitePool,
     token: &str,
     run: &RecipeRun,
     checkpoint_id: &str,
     interaction_type: &str,
+    options: &[String],
     on_timeout: &str,
     expires_at: &str,
 ) -> AppResult<HitlRequest> {
     sqlx::query(
         "INSERT INTO hitl_requests (
             token, recipe_run_id, workspace_id, checkpoint_id, interaction_type,
-            on_timeout, expires_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            options_json, on_timeout, expires_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(token)
     .bind(&run.id)
     .bind(&run.workspace_id)
     .bind(checkpoint_id)
     .bind(interaction_type)
+    .bind(serde_json::to_string(options).unwrap_or_else(|_| "[]".into()))
     .bind(on_timeout)
     .bind(expires_at)
     .execute(pool)
@@ -437,6 +441,7 @@ mod tests {
             &run,
             "h1",
             "BINARY_GATE",
+            &[],
             "PAUSE_AND_ALERT",
             "2999-01-01T00:00:00Z",
         )

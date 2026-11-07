@@ -55,12 +55,7 @@ pub async fn run(
         .cloned()
         .unwrap_or_else(|| vec![value.clone()]);
 
-    sqlx::any::install_default_drivers();
-    let pool = sqlx::any::AnyPoolOptions::new()
-        .max_connections(1)
-        .connect(&database_url)
-        .await
-        .map_err(|error| AppError::Daemon(format!("conexão SQL: {error}")))?;
+    let pool = crate::io_bus::sql::connect(&database_url).await?;
     let mut affected = 0u64;
     for row in rows {
         let mut query = sqlx::query(&config.query);

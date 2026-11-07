@@ -52,7 +52,11 @@ pub async fn handle_reply(
             Some(serde_json::json!({ "path": path }).to_string()),
         )
     } else {
-        parse_reply(&request.interaction_type, &[], text)
+        {
+            let options: Vec<String> =
+                serde_json::from_str(&request.options_json).unwrap_or_default();
+            parse_reply(&request.interaction_type, &options, text)
+        }
     };
     resolve(
         state,

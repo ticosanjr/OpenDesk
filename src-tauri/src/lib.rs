@@ -188,8 +188,11 @@ pub fn run() {
                 state.db.clone(),
                 state.paths.clone(),
             ));
-            tauri::async_runtime::block_on(state.io_bus.start(state.clone()))?;
-            let _ = recipes::runtime::start(state.clone());
+            tauri::async_runtime::block_on(async {
+                state.io_bus.start(state.clone()).await?;
+                recipes::runtime::start(state.clone());
+                Ok::<(), crate::error::AppError>(())
+            })?;
             tray::setup(app.handle(), state.clone())?;
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.maximize();

@@ -68,6 +68,7 @@ pub async fn request(
         run,
         &checkpoint.id,
         &checkpoint.interaction_type,
+        &checkpoint.options,
         &checkpoint.on_timeout,
         &expires_at,
     )
@@ -294,5 +295,10 @@ mod tests {
             "FEEDBACK"
         );
         assert_eq!(extract_token("ok [OD-#8F2A]").as_deref(), Some("8F2A"));
+        assert_eq!(extract_token("sem token").as_deref(), None);
+        let options = vec!["A".to_string(), "B".to_string()];
+        let (kind, payload) = parse_reply("MULTI_CHOICE", &options, "2");
+        assert_eq!(kind, "CHOICE");
+        assert!(payload.expect("payload").contains("B"));
     }
 }

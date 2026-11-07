@@ -1041,3 +1041,12 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   opt-in.
 - rsync no catálogo de ferramentas externas.
 - `cargo test` — 159 passed; Playwright — 22 passed.
+
+## 2026-11-07 — 0.22.1: hotfix de inicialização e migração incremental
+
+- Corrigida a inicialização do runtime de receitas no Tauri GUI: `tokio::spawn`
+  agora roda dentro do runtime async, evitando panic no boot.
+- Migração 0017 mantida intacta para compatibilidade de checksum; a coluna
+  `options_json` passou para a migração 0018.
+- Testado boot GUI com janela, boot headless e upgrade de um banco criado pela
+  v0.22.0.

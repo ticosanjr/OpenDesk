@@ -97,7 +97,7 @@ mod migration_tests {
                 .fetch_all(&pool)
                 .await
                 .unwrap();
-        assert_eq!(rows.last().unwrap().0, 17, "rows: {rows:?}");
+        assert_eq!(rows.last().unwrap().0, 18, "rows: {rows:?}");
         let cols: Vec<(String,)> =
             sqlx::query_as("SELECT name FROM pragma_table_info('execution_queue')")
                 .fetch_all(&pool)

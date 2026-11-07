@@ -57,12 +57,7 @@ async fn poll_once(
     config: &PollerConfig,
 ) -> AppResult<()> {
     let database_url = database_url(state, config)?;
-    sqlx::any::install_default_drivers();
-    let pool = sqlx::any::AnyPoolOptions::new()
-        .max_connections(1)
-        .connect(&database_url)
-        .await
-        .map_err(|error| AppError::Daemon(format!("SQL poller: {error}")))?;
+    let pool = crate::io_bus::sql::connect(&database_url).await?;
     let rows = sqlx::query(&config.query)
         .fetch_all(&pool)
         .await
@@ -149,4 +144,24 @@ fn row_json(row: &sqlx::any::AnyRow) -> serde_json::Value {
         object.insert(name.to_string(), value);
     }
     serde_json::Value::Object(object)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn serializes_any_row_to_json() {
+        let pool = crate::io_bus::sql::connect("sqlite::memory:")
+            .await
+            .expect("pool");
+        let row = sqlx::query("SELECT 7 AS n, 'x' AS s")
+            .fetch_one(&pool)
+            .await
+            .expect("row");
+        let value = row_json(&row);
+        assert_eq!(value["n"], 7);
+        assert_eq!(value["s"], "x");
+        pool.close().await;
+    }
 }

@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { createHmac } from "node:crypto";
 
 const DATA_DIR = "/tmp/opendesk-e2e/data";
 
@@ -107,4 +108,58 @@ test("io bus inbound, outbound, bindings and webhook idempotency", async ({
     { headers: auth.headers },
   );
   expect(deleted.ok()).toBeTruthy();
+});
+
+
+test("signed webhook rejects tampering and accepts a valid HMAC", async ({ request }) => {
+  const auth = api();
+  const workspaces = (await (
+    await request.get(`${auth.baseURL}/api/workspaces`, { headers: auth.headers })
+  ).json()) as Array<{ id: string }>;
+  let workspaceId = workspaces[0]?.id;
+  if (!workspaceId) {
+    const created = await request.post(`${auth.baseURL}/api/workspaces`, {
+      headers: auth.headers,
+      data: { name: "HMAC", root_path: "/tmp/opendesk-e2e/hmac" },
+    });
+    workspaceId = ((await created.json()) as { id: string }).id;
+  }
+  const secret = "e2e-hmac-secret";
+  const stored = await request.post(`${auth.baseURL}/api/io/secrets`, {
+    headers: auth.headers,
+    data: { key: "hmac-e2e", value: secret },
+  });
+  expect(stored.ok()).toBeTruthy();
+
+  const source = (await (
+    await request.post(`${auth.baseURL}/api/io/inbound?workspace_id=${workspaceId}`, {
+      headers: auth.headers,
+      data: {
+        name: "HMAC Webhook",
+        source_type: "WEBHOOK_HTTP",
+        config: {
+          secret_ref: "hmac-e2e",
+          title_path: "$.title",
+          body_path: "$.body",
+        },
+        auto_execute: false,
+        is_enabled: true,
+      },
+    })
+  ).json()) as { id: string };
+
+  const payload = JSON.stringify({ title: "HMAC ok", body: "conteúdo" });
+  const bad = await request.post(`${auth.baseURL}/api/webhooks/${source.id}`, {
+    data: payload,
+    headers: { "content-type": "application/json", "x-opendesk-signature": "00" },
+  });
+  expect(bad.status()).toBe(400);
+
+  const signature = createHmac("sha256", secret).update(payload).digest("hex");
+  const good = await request.post(`${auth.baseURL}/api/webhooks/${source.id}`, {
+    data: payload,
+    headers: { "content-type": "application/json", "x-opendesk-signature": signature },
+  });
+  expect(good.ok()).toBeTruthy();
+  expect(((await good.json()) as { task_id: string }).task_id).toBeTruthy();
 });

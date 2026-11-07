@@ -5,7 +5,6 @@ use crate::{
     events::OpenDeskWsEvent,
     io_bus::{NormalizedTaskEvent, source_config},
 };
-use reqwest::Client;
 use serde::Deserialize;
 use std::{sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
@@ -52,7 +51,7 @@ async fn run_telegram(
 ) -> AppResult<()> {
     let config: TelegramConfig = source_config(&source)?;
     let token = secret(&state, config.token_ref.as_deref(), config.token.as_deref())?;
-    let client = client();
+    let client = crate::io_bus::http_client(40);
     let mut offset = 0i64;
     loop {
         if cancel.is_cancelled() {
@@ -102,7 +101,7 @@ async fn run_telegram(
 async fn handle_telegram_update(
     state: &Arc<AppState>,
     source: &db::io_bus::InboundSource,
-    client: &Client,
+    client: &reqwest::Client,
     token: &str,
     update: &serde_json::Value,
     config: &TelegramConfig,
@@ -173,7 +172,9 @@ async fn handle_telegram_update(
                 request_id: request.request_id,
                 decision: "once".into(),
             });
-            let _ = send_telegram(client, token, &chat_id, "Permissão aprovada.").await;
+            let _ =
+                crate::io_bus::chat::send_telegram(token, &chat_id, "Permissão aprovada.", None)
+                    .await;
         }
         return;
     }
@@ -183,7 +184,8 @@ async fn handle_telegram_update(
                 request_id: request.request_id,
                 decision: "reject".into(),
             });
-            let _ = send_telegram(client, token, &chat_id, "Permissão negada.").await;
+            let _ = crate::io_bus::chat::send_telegram(token, &chat_id, "Permissão negada.", None)
+                .await;
         }
         return;
     }
@@ -211,7 +213,8 @@ async fn handle_telegram_update(
     if let Err(error) = crate::io_bus::ingest(state, source, event).await {
         tracing::warn!(error = %error, "Telegram ingest failed");
     }
-    let _ = send_telegram(client, token, &chat_id, "Tarefa criada no OpenDesk.").await;
+    let _ = crate::io_bus::chat::send_telegram(token, &chat_id, "Tarefa criada no OpenDesk.", None)
+        .await;
 }
 
 async fn run_matrix(
@@ -225,7 +228,7 @@ async fn run_matrix(
         config.access_token_ref.as_deref(),
         config.access_token.as_deref(),
     )?;
-    let client = client();
+    let client = crate::io_bus::http_client(40);
     let mut since: Option<String> = None;
     loop {
         if cancel.is_cancelled() {
@@ -316,16 +319,6 @@ async fn run_matrix(
     Ok(())
 }
 
-async fn send_telegram(client: &Client, token: &str, chat_id: &str, text: &str) -> AppResult<()> {
-    client
-        .post(format!("https://api.telegram.org/bot{token}/sendMessage"))
-        .json(&serde_json::json!({ "chat_id": chat_id, "text": text }))
-        .send()
-        .await
-        .map_err(|error| AppError::Daemon(format!("Telegram send: {error}")))?;
-    Ok(())
-}
-
 fn secret(
     state: &Arc<AppState>,
     reference: Option<&str>,
@@ -339,11 +332,4 @@ async fn sleep_or_cancel(cancel: &CancellationToken, seconds: u64) {
         _ = cancel.cancelled() => {}
         _ = tokio::time::sleep(Duration::from_secs(seconds)) => {}
     }
-}
-
-fn client() -> Client {
-    Client::builder()
-        .timeout(Duration::from_secs(40))
-        .build()
-        .unwrap_or_default()
 }

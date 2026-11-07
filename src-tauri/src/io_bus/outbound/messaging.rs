@@ -160,23 +160,7 @@ async fn telegram(ctx: &IoContext, config: &Config, message: &str) -> AppResult<
         .chat_id
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("Telegram sink exige chat_id".into()))?;
-    let response = client()
-        .post(format!("https://api.telegram.org/bot{token}/sendMessage"))
-        .json(&serde_json::json!({
-            "chat_id": chat_id,
-            "text": message,
-            "parse_mode": "HTML",
-            "disable_web_page_preview": true
-        }))
-        .send()
-        .await
-        .map_err(|error| AppError::Daemon(format!("Telegram: {error}")))?;
-    if !response.status().is_success() {
-        return Err(AppError::Daemon(format!(
-            "Telegram respondeu {}",
-            response.status()
-        )));
-    }
+    crate::io_bus::chat::send_telegram(&token, chat_id, message, Some("HTML")).await?;
     Ok(vec![format!("telegram:{chat_id}")])
 }
 
@@ -190,29 +174,13 @@ async fn matrix(ctx: &IoContext, config: &Config, message: &str) -> AppResult<Ve
         .room_id
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("Matrix sink exige room_id".into()))?;
-    let txn = uuid::Uuid::now_v7();
-    let response = client()
-        .put(format!(
-            "{}/_matrix/client/v3/rooms/{room}/send/m.room.message/{txn}",
-            homeserver.trim_end_matches('/')
-        ))
-        .bearer_auth(token)
-        .json(&serde_json::json!({ "msgtype": "m.text", "body": message }))
-        .send()
-        .await
-        .map_err(|error| AppError::Daemon(format!("Matrix: {error}")))?;
-    if !response.status().is_success() {
-        return Err(AppError::Daemon(format!(
-            "Matrix respondeu {}",
-            response.status()
-        )));
-    }
+    crate::io_bus::chat::send_matrix(homeserver, &token, room, message).await?;
     Ok(vec![format!("matrix:{room}")])
 }
 
 async fn mattermost(config: &Config, message: &str) -> AppResult<Vec<String>> {
     if let Some(webhook) = config.webhook_url.as_deref() {
-        let response = client()
+        let response = crate::io_bus::http_client(30)
             .post(webhook)
             .json(&serde_json::json!({ "text": message }))
             .send()
@@ -229,10 +197,6 @@ async fn mattermost(config: &Config, message: &str) -> AppResult<Vec<String>> {
     Err(AppError::BadRequest(
         "Mattermost sink exige webhook_url".into(),
     ))
-}
-
-fn client() -> reqwest::Client {
-    crate::io_bus::http_client(30)
 }
 
 #[cfg(test)]
