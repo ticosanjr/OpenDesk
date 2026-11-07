@@ -168,6 +168,23 @@ describe("websocket event reducer", () => {
     expect(useAppStore.getState().dashboard?.artifacts_total).toBe(3);
 
     handleEvent({
+      event_id: 125,
+      event_type: "PermissionRequested",
+      payload: {
+        request_id: "req-1",
+        task_id: "t1",
+        workspace_id: "ws",
+        action: "bash",
+        resources: ["rm -rf build"],
+      },
+    });
+    expect(useAppStore.getState().lastPermissionEvent).toMatchObject({
+      request_id: "req-1",
+      action: "bash",
+      resources: ["rm -rf build"],
+    });
+
+    handleEvent({
       event_id: 13,
       event_type: "ScheduleUpdated",
       payload: { schedule_id: "s1", workspace_id: "ws" },

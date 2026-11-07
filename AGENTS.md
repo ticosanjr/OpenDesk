@@ -84,7 +84,9 @@ Studio, versão no tray, contrato de scroll com auditoria E2E, model refs sem
 `variant: null`, política de notificações sem repetição, continuidade de sessão,
 preferências de notificação, Kanban em lista/lote, paginação, lease/heartbeat,
 Attention Card, cron com misfire/safe/dry-run, pin de artefatos, MEMORY.md,
-fork de tarefa e model mix/economia.
+fork de tarefa, model mix/economia, permissões interativas, compactação de
+contexto, A/B swarm, fork por run, rollback de artefato, Quick Capture global e
+blueprints de equipe.
 Próxima frente: retry durável de Google/Drive, assinatura de updates, cobertura
 Rust ≥80%, Windows/macOS e testes de contrato Google/OpenCode.
 

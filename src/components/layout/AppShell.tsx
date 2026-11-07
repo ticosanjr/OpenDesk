@@ -250,6 +250,16 @@ export function AppShell() {
       if (
         (event.metaKey || event.ctrlKey) &&
         event.shiftKey &&
+        event.code === "Space" &&
+        !("__TAURI_INTERNALS__" in window)
+      ) {
+        event.preventDefault();
+        navigate("/capture");
+        return;
+      }
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.shiftKey &&
         event.key.toLowerCase() === "r"
       ) {
         event.preventDefault();
@@ -388,6 +398,7 @@ export function AppShell() {
           {[
             ["Ctrl/Cmd + K", "Abrir busca global / command palette"],
             ["Ctrl/Cmd + N", "Criar nova tarefa"],
+            ["Ctrl/Cmd + Shift + Space", "Quick Capture (texto, link ou print)"],
             ["Ctrl/Cmd + Shift + R", "Atualizar dados do workspace"],
             ["?", "Mostrar ou esconder esta ajuda"],
             ["Esc", "Fechar modal, drawer ou paleta"],

@@ -22,6 +22,7 @@ import {
   RotateCw,
   Search,
   Square,
+  Star,
   XCircle,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
@@ -43,12 +44,13 @@ import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
 import type {
   DispatchDecision,
   QueueJob,
+  Artifact,
   QueueStatus,
   Task,
   TaskDiagnostics,
   TaskRun,
 } from "@/lib/types";
-import { formatUsd, relativeTime } from "@/lib/format";
+import { formatNumber, formatUsd, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { WorkingIndicator } from "@/components/ui/working-indicator";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -101,11 +103,13 @@ export function KanbanPage() {
   const setTaskDialogOpen = useUiStore((state) => state.setTaskDialogOpen);
 
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [pinned, setPinned] = useState<Record<string, number>>({});
   const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [swarmTask, setSwarmTask] = useState<Task | null>(null);
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [logTask, setLogTask] = useState<Task | null>(null);
   const [initialRunId, setInitialRunId] = useState<string | null>(null);
@@ -154,12 +158,21 @@ export function KanbanPage() {
     }
     setLoading(true);
     try {
-      const [taskList, jobs, status] = await Promise.all([
+      const [taskList, jobs, status, pinnedArtifacts] = await Promise.all([
         apiGet<Task[]>(`/api/tasks${workspaceQuery}`),
         apiGet<QueueJob[]>(`/api/queue${workspaceQuery}`),
         apiGet<QueueStatus>(`/api/queue/status${workspaceQuery}`),
+        apiGet<Artifact[]>(`/api/artifacts/pinned${workspaceQuery}`).catch(() => []),
       ]);
       setTasks(taskList);
+      setPinned(
+        pinnedArtifacts.reduce<Record<string, number>>((accumulator, artifact) => {
+          if (artifact.task_id) {
+            accumulator[artifact.task_id] = (accumulator[artifact.task_id] ?? 0) + 1;
+          }
+          return accumulator;
+        }, {}),
+      );
       setQueueStatus(status);
       useAppStore.setState({ queue: jobs });
       setError(null);
@@ -618,6 +631,12 @@ export function KanbanPage() {
                               {task.effort_level}
                             </Badge>
                           </Tooltip>
+                          {pinned[task.id] ? (
+                            <Badge variant="yellow" title="Entregáveis oficiais fixados">
+                              <Star size={9} fill="currentColor" />
+                              {pinned[task.id]}
+                            </Badge>
+                          ) : null}
                           {task.phase_status ? (
                             <Badge
                               variant={
@@ -973,6 +992,10 @@ export function KanbanPage() {
         onStatus={(task, status) => void transitionTask(task, status)}
         onWait={(task) => void setWaiting(task)}
         onFork={(task) => void forkTask(task)}
+        onSwarm={(task) => {
+          setSwarmTask(task);
+          setSelectedTask(null);
+        }}
         onLogs={(task) => {
           setLogTask(task);
           setInitialRunId(null);
@@ -997,6 +1020,14 @@ export function KanbanPage() {
               setError(cause instanceof Error ? cause.message : String(cause));
             }
           }
+          await load();
+        }}
+      />
+
+      <SwarmModal
+        task={swarmTask}
+        onClose={() => setSwarmTask(null)}
+        onCreated={async () => {
           await load();
         }}
       />
@@ -1363,6 +1394,7 @@ function TaskDetailsModal({
   onStatus,
   onWait,
   onFork,
+  onSwarm,
   onLogs,
 }: {
   task: Task | null;
@@ -1373,12 +1405,70 @@ function TaskDetailsModal({
   onStatus: (task: Task, status: string) => void;
   onWait: (task: Task) => void;
   onFork: (task: Task) => void;
+  onSwarm: (task: Task) => void;
   onLogs: (task: Task) => void;
 }) {
   const [diagnostics, setDiagnostics] = useState<TaskDiagnostics | null>(null);
   const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [context, setContext] = useState<{
+    session_id?: string | null;
+    tokens_input: number;
+    window: number;
+    percent: number;
+    messages: number;
+  } | null>(null);
+  const [compacting, setCompacting] = useState(false);
   const daemon = useAppStore((state) => state.daemon);
+
+  useEffect(() => {
+    if (!task) {
+      setContext(null);
+      return;
+    }
+    let cancelled = false;
+    apiGet<{
+      session_id?: string | null;
+      tokens_input: number;
+      window: number;
+      percent: number;
+      messages: number;
+    }>(`/api/tasks/${task.id}/context`)
+      .then((value) => {
+        if (!cancelled) setContext(value);
+      })
+      .catch(() => {
+        if (!cancelled) setContext(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [task]);
+
+  async function compactContext() {
+    if (!task) return;
+    setCompacting(true);
+    try {
+      await apiPost(`/api/tasks/${task.id}/compact`, {});
+      toast({ tone: "success", title: "Compactação solicitada ao engine" });
+      const refreshed = await apiGet<{
+        session_id?: string | null;
+        tokens_input: number;
+        window: number;
+        percent: number;
+        messages: number;
+      }>(`/api/tasks/${task.id}/context`);
+      setContext(refreshed);
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível compactar",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setCompacting(false);
+    }
+  }
 
   useEffect(() => {
     if (!task) {
@@ -1508,6 +1598,43 @@ function TaskDetailsModal({
             </p>
           ) : null}
 
+          {context?.session_id ? (
+            <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                  contexto
+                </span>
+                <div className="h-1.5 min-w-32 flex-1 overflow-hidden rounded-full bg-zinc-800">
+                  <div
+                    className={cn(
+                      "h-full rounded-full",
+                      context.percent > 80
+                        ? "bg-red-400"
+                        : context.percent > 60
+                          ? "bg-amber-400"
+                          : "bg-blue-400",
+                    )}
+                    style={{ width: `${Math.min(100, context.percent)}%` }}
+                  />
+                </div>
+                <span className="font-mono text-[10px] text-zinc-500">
+                  {formatNumber(context.tokens_input)} / {formatNumber(context.window)} ·{" "}
+                  {context.percent.toFixed(0)}% · {context.messages} msgs
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7"
+                  disabled={compacting}
+                  onClick={() => void compactContext()}
+                >
+                  {compacting ? <Loader2 size={12} className="animate-spin" /> : null}
+                  Compactar contexto agora
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           {diagnostics?.error ? (
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-3 text-red-200">
               <div className="flex flex-wrap items-center gap-2">
@@ -1594,6 +1721,15 @@ function TaskDetailsModal({
             >
               <GitBranch size={13} />
               Fork
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onSwarm(task)}
+              title="Rodar a mesma tarefa em 2 modelos e comparar os entregáveis"
+            >
+              <Columns3 size={13} />
+              A/B
             </Button>
             <Button variant="outline" size="sm" onClick={() => onEdit(task)}>
               <Pencil size={13} />
@@ -1832,3 +1968,140 @@ const inputClass =
   "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
 const labelClass =
   "mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500";
+
+
+function SwarmModal({
+  task,
+  onClose,
+  onCreated,
+}: {
+  task: Task | null;
+  onClose: () => void;
+  onCreated: () => Promise<void>;
+}) {
+  const [models, setModels] = useState([
+    "opencode-go/deepseek-v4.1-flash",
+    "opencode-go/glm-5.3",
+  ]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [created, setCreated] = useState<
+    Array<{ id: string; title: string; model: string }>
+  >([]);
+
+  useEffect(() => {
+    if (task) {
+      setError(null);
+      setCreated([]);
+    }
+  }, [task]);
+
+  async function run() {
+    if (!task) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await apiPost<{
+        tasks: Array<{ id: string; title: string; model: string }>;
+      }>(`/api/tasks/${task.id}/swarm`, { models });
+      setCreated(result.tasks);
+      toast({
+        tone: "success",
+        title: `${result.tasks.length} cópias enfileiradas`,
+        description: "Compare os entregáveis e marque o vencedor.",
+      });
+      await onCreated();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function chooseWinner(winnerId: string) {
+    for (const copy of created) {
+      await apiPost(`/api/tasks/${copy.id}/transition`, {
+        status: copy.id === winnerId ? "DONE" : "CANCELLED",
+      });
+    }
+    toast({ tone: "success", title: "Vencedor marcado como Done" });
+    setCreated([]);
+    onClose();
+  }
+
+  return (
+    <Modal
+      open={!!task}
+      onClose={onClose}
+      title="Enxame A/B"
+      description="Duas cópias isoladas da mesma tarefa, com modelos diferentes. O original não muda."
+      className="max-w-2xl"
+    >
+      <div className="space-y-4">
+        {models.map((model, index) => (
+          <label key={index}>
+            <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+              Modelo {index + 1}
+            </span>
+            <ModelCombobox
+              value={model}
+              onChange={(value) =>
+                setModels((current) =>
+                  current.map((item, itemIndex) =>
+                    itemIndex === index ? value : item,
+                  ),
+                )
+              }
+            />
+          </label>
+        ))}
+        {error ? (
+          <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-200">
+            {error}
+          </p>
+        ) : null}
+        {created.length > 0 ? (
+          <div className="space-y-2">
+            {created.map((copy) => (
+              <div
+                key={copy.id}
+                className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12px] text-zinc-200">{copy.title}</p>
+                  <p className="font-mono text-[10px] text-zinc-500">{copy.model}</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  onClick={() => {
+                    window.location.hash = `#${links.task(copy.id)}`;
+                  }}
+                >
+                  Abrir
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-7"
+                  onClick={() => void chooseWinner(copy.id)}
+                >
+                  Escolher vencedor
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Fechar
+          </Button>
+          <Button size="sm" onClick={() => void run()} disabled={saving || !task}>
+            {saving ? <Loader2 size={13} className="animate-spin" /> : null}
+            Rodar em paralelo
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}

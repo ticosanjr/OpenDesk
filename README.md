@@ -90,6 +90,9 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Lease/heartbeat de jobs e Attention Card no Dashboard.
 - Cron com misfire policy, modo seguro e dry-run.
 - Artefatos fixáveis, MEMORY.md, fork de tarefa e model mix/economia.
+- Permissões interativas com Attention Card e estados de agente.
+- Compactação de contexto, A/B swarm, fork por run e rollback de artefato.
+- Quick Capture global e blueprints de equipe.
 - Backup rotativo do SQLite antes de migrações.
 - Limpeza automática de artefatos de build após cada release.
 - Auto-atualização do OpenDesk por release privada com SHA256 e backup.
@@ -239,6 +242,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0022 — Model refs e notificações](docs/decisions/0022-model-refs-and-notification-policy.md)
 - [ADR 0023 — Sessão, notificações e Kanban em lista](docs/decisions/0023-session-continuity-notifications-and-kanban-list.md)
 - [ADR 0024 — Fila, atenção, cron e entregáveis](docs/decisions/0024-queue-attention-cron-and-assets.md)
+- [ADR 0025 — Permissões, swarm, captura e blueprints](docs/decisions/0025-permissions-swarm-capture-blueprints.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)

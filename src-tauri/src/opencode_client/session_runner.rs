@@ -1,10 +1,11 @@
 use crate::{
-    db::runs::RunUsage,
+    db::{permissions, runs::RunUsage},
     events::{EventBus, OpenDeskWsEvent},
     opencode_client::rest_client::{FileDiff, ModelRefDto, RestClient},
 };
 use futures_util::StreamExt;
 use serde_json::Value;
+use sqlx::SqlitePool;
 use std::{
     path::Path,
     time::{Duration, Instant},
@@ -61,6 +62,8 @@ pub struct RunOutcome {
 }
 
 pub struct RunRequest<'a> {
+    pub pool: &'a SqlitePool,
+    pub workspace_id: &'a str,
     pub run_id: &'a str,
     pub task_id: Option<&'a str>,
     pub session_id: Option<&'a str>,
@@ -194,10 +197,13 @@ pub async fn execute_run(
                                     &session_id,
                                     request.run_id,
                                     request.task_id,
+                                    request.workspace_id,
+                                    request.pool,
                                     request.log_path,
                                     events,
                                     &rest,
                                     &mut permissions,
+                                    &request.cancel,
                                 )
                                 .await;
 
@@ -391,10 +397,13 @@ async fn handle_event(
     session_id: &str,
     run_id: &str,
     task_id: Option<&str>,
+    workspace_id: &str,
+    pool: &SqlitePool,
     log_path: &Path,
     events: &EventBus,
     rest: &RestClient,
     permissions: &mut Vec<PermissionDecision>,
+    cancel: &CancellationToken,
 ) {
     if !session_matches(event, session_id) {
         return;
@@ -469,12 +478,53 @@ async fn handle_event(
             );
 
             if !request_id.is_empty() {
-                match rest.reply_permission(session_id, &request_id, "once").await {
+                let created = permissions::create(
+                    pool,
+                    Some(run_id),
+                    task_id,
+                    workspace_id,
+                    session_id,
+                    &request_id,
+                    &action,
+                    &resources,
+                )
+                .await;
+                if let Err(error) = &created {
+                    append_log(
+                        log_path,
+                        &serde_json::json!({
+                            "type": "opendesk.permission.error",
+                            "error": format!("{error:#}"),
+                        }),
+                    );
+                }
+                events.publish(OpenDeskWsEvent::PermissionRequested {
+                    request_id: request_id.clone(),
+                    run_id: run_id.to_string(),
+                    task_id: task_id.map(str::to_string),
+                    workspace_id: workspace_id.to_string(),
+                    action: action.clone(),
+                    resources: resources.clone(),
+                });
+
+                let decision = permissions::wait_for_decision(
+                    pool,
+                    &request_id,
+                    cancel,
+                    Duration::from_secs(15 * 60),
+                )
+                .await
+                .unwrap_or_else(|| "reject".into());
+
+                match rest
+                    .reply_permission(session_id, &request_id, &decision)
+                    .await
+                {
                     Ok(()) => permissions.push(PermissionDecision {
                         request_id,
                         action,
                         resources,
-                        decision: "allow".into(),
+                        decision,
                     }),
                     Err(error) => {
                         append_log(
@@ -747,11 +797,16 @@ mod tests {
         let (url, handle) = fake_opencode().await;
         let rest = RestClient::new_with_url(&url, "secret".into());
         let temp = tempfile::TempDir::new().expect("temp");
+        let pool = crate::db::init(&temp.path().join("runner.db"))
+            .await
+            .expect("db");
         let log = temp.path().join("run.jsonl");
         let events = EventBus::new(16);
         let outcome = execute_run(
             rest,
             RunRequest {
+                pool: &pool,
+                workspace_id: "ws-1",
                 run_id: "run-1",
                 task_id: None,
                 session_id: None,

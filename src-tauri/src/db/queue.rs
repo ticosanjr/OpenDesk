@@ -10,6 +10,8 @@ pub struct QueueJob {
     pub task_id: Option<String>,
     pub schedule_id: Option<String>,
     pub session_id: Option<String>,
+    #[serde(default)]
+    pub concurrency_group: Option<String>,
     pub prompt_payload: String,
     pub resolved_mode: String,
     pub resolved_agent: String,
@@ -41,6 +43,8 @@ pub struct EnqueueInput {
     pub schedule_id: Option<String>,
     #[serde(default)]
     pub session_id: Option<String>,
+    #[serde(default)]
+    pub concurrency_group: Option<String>,
     pub prompt_payload: String,
     pub resolved_mode: String,
     pub resolved_agent: String,
@@ -69,7 +73,7 @@ fn default_max_retries() -> i64 {
     1
 }
 
-const COLUMNS: &str = "q.id, q.workspace_id, q.task_id, q.schedule_id, q.session_id, q.prompt_payload, \
+const COLUMNS: &str = "q.id, q.workspace_id, q.task_id, q.schedule_id, q.session_id, q.concurrency_group, q.prompt_payload, \
     q.resolved_mode, q.resolved_agent, q.resolved_model, q.resolved_effort, q.job_kind, \
     q.scheduled_for, q.output_dir, q.priority, q.status, q.retry_count, q.max_retries, q.error_message, \
     q.enqueued_at, q.started_at, q.finished_at, t.title AS task_title";
@@ -78,16 +82,17 @@ pub async fn enqueue(pool: &SqlitePool, input: EnqueueInput) -> AppResult<QueueJ
     let id = Uuid::now_v7().to_string();
     sqlx::query(
         "INSERT INTO execution_queue (
-            id, workspace_id, task_id, schedule_id, session_id, prompt_payload,
-            resolved_mode, resolved_agent, resolved_model, resolved_effort,
+            id, workspace_id, task_id, schedule_id, session_id, concurrency_group,
+            prompt_payload, resolved_mode, resolved_agent, resolved_model, resolved_effort,
             job_kind, scheduled_for, output_dir, priority, max_retries
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&input.workspace_id)
     .bind(input.task_id.as_deref())
     .bind(input.schedule_id.as_deref())
     .bind(input.session_id.as_deref())
+    .bind(input.concurrency_group.as_deref().unwrap_or("default"))
     .bind(&input.prompt_payload)
     .bind(&input.resolved_mode)
     .bind(&input.resolved_agent)
@@ -140,6 +145,15 @@ pub async fn next_queued(pool: &SqlitePool) -> AppResult<Option<QueueJob>> {
         "SELECT {COLUMNS} FROM execution_queue q
          LEFT JOIN tasks t ON t.id = q.task_id
          WHERE q.status = 'QUEUED'
+           AND (
+             SELECT COUNT(*) FROM execution_queue r
+             WHERE r.status = 'RUNNING' AND r.concurrency_group = q.concurrency_group
+           ) < CASE q.concurrency_group
+             WHEN 'local_llm_heavy' THEN 1
+             WHEN 'web_scraper' THEN 2
+             WHEN 'light_api' THEN 5
+             ELSE 100
+           END
          ORDER BY q.priority DESC, q.enqueued_at ASC
          LIMIT 1"
     );
@@ -331,6 +345,7 @@ mod tests {
             task_id: None,
             schedule_id: None,
             session_id: None,
+            concurrency_group: None,
             prompt_payload: "prompt".into(),
             resolved_mode: "build".into(),
             resolved_agent: "build".into(),
@@ -364,6 +379,17 @@ mod tests {
         assert!(claim(&pool, &job.id).await.expect("claim 2"));
         assert_eq!(recover_running(&pool).await.expect("recover"), 1);
         assert_eq!(get(&pool, &job.id).await.expect("get 2").status, "FAILED");
+    }
+
+    #[tokio::test]
+    async fn concurrency_group_blocks_second_heavy_job() {
+        let (_temp, pool) = setup().await;
+        let mut heavy = input();
+        heavy.concurrency_group = Some("local_llm_heavy".into());
+        let first = enqueue(&pool, heavy.clone()).await.expect("first");
+        enqueue(&pool, heavy).await.expect("second");
+        assert!(claim(&pool, &first.id).await.expect("claim"));
+        assert!(next_queued(&pool).await.expect("next").is_none());
     }
 
     #[tokio::test]

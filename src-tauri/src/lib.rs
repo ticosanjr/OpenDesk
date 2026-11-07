@@ -20,7 +20,8 @@ mod updates;
 use app_state::AppState;
 use paths::AppPaths;
 use std::sync::{Arc, OnceLock};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_global_shortcut::ShortcutState;
 use tracing_subscriber::EnvFilter;
 
 static LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLock::new();
@@ -76,6 +77,29 @@ fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
     }
 }
 
+/// Open (or focus) the floating Quick Capture window. This is the only window
+/// besides the main one and it is intentionally tiny.
+fn open_capture(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("capture") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        return;
+    }
+    let _ = WebviewWindowBuilder::new(
+        app,
+        "capture",
+        WebviewUrl::App("index.html#/capture".into()),
+    )
+    .title("Quick Capture")
+    .inner_size(620.0, 360.0)
+    .min_inner_size(480.0, 240.0)
+    .resizable(true)
+    .always_on_top(true)
+    .decorations(false)
+    .build();
+}
+
 fn init_logging() {
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
@@ -113,6 +137,17 @@ pub fn run() {
 
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_shortcuts(["CommandOrControl+Shift+Space"])
+                .expect("valid global shortcut")
+                .with_handler(|app, _shortcut, event| {
+                    if event.state == ShortcutState::Pressed {
+                        open_capture(app);
+                    }
+                })
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {

@@ -338,14 +338,14 @@ impl RestClient {
         &self,
         session_id: &str,
         request_id: &str,
-        reply: &str,
+        decision: &str,
     ) -> Result<()> {
         let response = self
             .request(
                 reqwest::Method::POST,
                 &format!("/api/session/{session_id}/permission/{request_id}/reply"),
             )
-            .json(&serde_json::json!({ "reply": reply }))
+            .json(&serde_json::json!({ "decision": decision }))
             .send()
             .await
             .context("could not reply to OpenCode permission request")?;
@@ -355,6 +355,34 @@ impl RestClient {
             anyhow::bail!("OpenCode permission reply failed ({status}): {body}");
         }
         Ok(())
+    }
+
+    /// Ask the engine to compact the session context at the next step
+    /// boundary. This is the engine-side durable compaction, not a prompt.
+    pub async fn compact_session(&self, session_id: &str) -> Result<Value> {
+        let response = self
+            .request(
+                reqwest::Method::POST,
+                &format!("/api/session/{session_id}/compact"),
+            )
+            .json(&serde_json::json!({}))
+            .send()
+            .await
+            .context("could not request session compaction")?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            anyhow::bail!("OpenCode compaction failed ({status}): {body}");
+        }
+        response.json().await.context("invalid compaction response")
+    }
+
+    /// Active context messages (everything after the last compaction).
+    pub async fn context(&self, session_id: &str) -> Result<Vec<Value>> {
+        let envelope: DataEnvelope<Vec<Value>> = self
+            .get_json(&format!("/api/session/{session_id}/context"), None)
+            .await?;
+        Ok(envelope.data)
     }
 
     pub async fn event_response(&self) -> Result<reqwest::Response> {
@@ -511,6 +539,14 @@ mod tests {
                 post(|| async { StatusCode::NO_CONTENT }),
             )
             .route(
+                "/api/session/{id}/compact",
+                post(|| async { Json(serde_json::json!({ "data": { "id": "cmp-1" } })) }),
+            )
+            .route(
+                "/api/session/{id}/context",
+                get(|| async { Json(serde_json::json!({ "data": [] })) }),
+            )
+            .route(
                 "/api/event",
                 get(|| async { ([("content-type", "text/event-stream")], "data: ok\n\n") }),
             );
@@ -563,9 +599,15 @@ mod tests {
         let diff = client.diff(&session).await.expect("diff");
         assert_eq!(diff[0].file, "a.md");
         client
-            .reply_permission(&session, "req-1", "allow")
+            .reply_permission(&session, "req-1", "once")
             .await
             .expect("permission");
+        let compacted = client.compact_session(&session).await.expect("compact");
+        assert_eq!(
+            compacted.pointer("/data/id").and_then(Value::as_str),
+            Some("cmp-1")
+        );
+        assert!(client.context(&session).await.expect("context").is_empty());
         let event = client.event_response().await.expect("event");
         assert!(event.status().is_success());
 

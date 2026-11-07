@@ -361,8 +361,26 @@ pub async fn move_to(
 }
 
 pub async fn fork(pool: &SqlitePool, id: &str) -> AppResult<Task> {
+    fork_with_model(pool, id, None).await
+}
+
+/// Fork a task, optionally pinning the copy to a specific model. Used by the
+/// comparative A/B swarm so both cards stay independent.
+pub async fn fork_with_model(pool: &SqlitePool, id: &str, model: Option<&str>) -> AppResult<Task> {
     let source = get(pool, id).await?;
     let new_id = Uuid::now_v7().to_string();
+    let suffix = model
+        .map(|model| {
+            let short = model
+                .split('#')
+                .next()
+                .unwrap_or(model)
+                .rsplit('/')
+                .next()
+                .unwrap_or(model);
+            format!(" · {short}")
+        })
+        .unwrap_or_default();
     sqlx::query(
         "INSERT INTO tasks (
             id, workspace_id, title, description, status, phase, phase_status, priority,
@@ -373,14 +391,14 @@ pub async fn fork(pool: &SqlitePool, id: &str) -> AppResult<Task> {
     )
     .bind(&new_id)
     .bind(&source.workspace_id)
-    .bind(format!("{} (fork)", source.title))
+    .bind(format!("{} (fork{suffix})", source.title))
     .bind(&source.description)
     .bind(source.priority)
     .bind(&source.execution_mode)
     .bind(&source.assigned_agent)
-    .bind(&source.preferred_model)
+    .bind(model.map(str::to_string).or(source.preferred_model.clone()))
     .bind(source.agent_override)
-    .bind(source.model_override)
+    .bind(model.is_some() || source.model_override)
     .bind(&source.effort_level)
     .bind(&source.plan_markdown)
     .bind(&source.notify_email)
@@ -587,6 +605,19 @@ mod tests {
             export_to_gdocs: true,
             tags: vec!["financeiro".into(), "mensal".into()],
         }
+    }
+
+    #[tokio::test]
+    async fn fork_can_pin_a_model() {
+        let (_temp, pool) = setup().await;
+        let task = create(&pool, "ws-1", input()).await.expect("create");
+        let fork = fork_with_model(&pool, &task.id, Some("opencode-go/glm-5.3"))
+            .await
+            .expect("fork");
+        assert_eq!(fork.forked_from_task_id.as_deref(), Some(task.id.as_str()));
+        assert_eq!(fork.preferred_model.as_deref(), Some("opencode-go/glm-5.3"));
+        assert!(fork.model_override);
+        assert!(fork.title.contains("glm-5.3"));
     }
 
     #[tokio::test]

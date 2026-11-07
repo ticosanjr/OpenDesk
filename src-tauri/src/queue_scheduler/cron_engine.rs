@@ -306,6 +306,7 @@ impl CronEngine {
                 task_id: None,
                 schedule_id: Some(schedule.id.clone()),
                 session_id: None,
+                concurrency_group: Some("light_api".into()),
                 prompt_payload: packed,
                 resolved_mode: decision.phase,
                 resolved_agent: decision.selected_agent,

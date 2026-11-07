@@ -190,6 +190,29 @@ export function RunLogView({
     }
   }
 
+  async function forkHere() {
+    const taskId = timeline?.run?.task_id;
+    if (!taskId) return;
+    try {
+      const forked = await apiPost<{ id: string; title: string }>(
+        `/api/runs/${runId}/fork`,
+        {},
+      );
+      toast({
+        tone: "success",
+        title: "Fork criado a partir deste run",
+        description: forked.title,
+        href: links.task(forked.id),
+      });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível criar o fork",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  }
+
   async function copy(text: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -260,15 +283,26 @@ export function RunLogView({
               </EntityLink>
             ) : null}
             {timeline?.run?.task_id ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7"
-                onClick={() => void pinMemory()}
-                title="Adicionar o resultado à MEMORY.md do workspace"
-              >
-                memória
-              </Button>
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7"
+                  onClick={() => void pinMemory()}
+                  title="Adicionar o resultado à MEMORY.md do workspace"
+                >
+                  memória
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7"
+                  onClick={() => void forkHere()}
+                  title="Criar uma tarefa independente com os artefatos deste run"
+                >
+                  fork daqui
+                </Button>
+              </>
             ) : null}
             <Button
               variant="ghost"

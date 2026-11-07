@@ -1,7 +1,9 @@
 pub mod about;
 pub mod artifacts;
 pub mod attention;
+pub mod blueprints;
 pub mod budget;
+pub mod capture;
 pub mod chat;
 pub mod commands;
 pub mod cost;
@@ -10,6 +12,7 @@ pub mod files;
 pub mod google;
 pub mod integrations;
 pub mod meta;
+pub mod permissions;
 pub mod queue;
 pub mod router;
 pub mod runs;
@@ -105,7 +108,19 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/agents", get(agents))
         .route("/api/dashboard", get(dashboard))
         .route("/api/attention", get(attention::attention))
+        .route("/api/capture", post(capture::capture))
+        .route("/api/blueprints", get(blueprints::list_blueprints))
+        .route(
+            "/api/blueprints/{id}/apply",
+            post(blueprints::apply_blueprint),
+        )
         .route("/api/cost/mix", get(cost::model_mix))
+        .route("/api/permissions", get(permissions::list_permissions))
+        .route(
+            "/api/permissions/{request_id}/reply",
+            post(permissions::reply_permission),
+        )
+        .route("/api/agents/states", get(permissions::agent_states))
         .route(
             "/api/workspaces",
             get(list_workspaces).post(create_workspace),
@@ -197,6 +212,9 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/tasks/{id}/transition", post(tasks::transition_task))
         .route("/api/tasks/{id}/diagnostics", get(tasks::task_diagnostics))
         .route("/api/tasks/{id}/fork", post(tasks::fork_task))
+        .route("/api/tasks/{id}/swarm", post(tasks::swarm_task))
+        .route("/api/tasks/{id}/context", get(permissions::context))
+        .route("/api/tasks/{id}/compact", post(permissions::compact))
         .route(
             "/api/tasks/{id}/memory",
             get(tasks::get_task_memory).post(tasks::post_task_memory),
@@ -228,14 +246,24 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/runs/{id}", get(runs::get_run))
         .route("/api/runs/{id}/log", get(runs::run_log))
         .route("/api/runs/{id}/timeline", get(runs::run_timeline))
+        .route(
+            "/api/runs/{id}/retry-other-model",
+            post(tasks::retry_other_model),
+        )
+        .route("/api/runs/{id}/fork", post(tasks::fork_from_run))
         .route("/api/search", get(search::search))
         .route("/api/files/tree", get(files::tree))
         .route("/api/files/content", get(files::content))
         .route("/api/files/raw", get(files::raw))
         .route("/api/artifacts", get(artifacts::list_artifacts))
+        .route("/api/artifacts/pinned", get(artifacts::pinned_artifacts))
         .route("/api/artifacts/{id}", get(artifacts::get_artifact))
         .route("/api/artifacts/{id}/raw", get(artifacts::artifact_raw))
         .route("/api/artifacts/{id}/pin", post(artifacts::pin_artifact))
+        .route(
+            "/api/artifacts/{id}/rollback",
+            post(artifacts::rollback_artifact),
+        )
         .route(
             "/api/artifacts/{id}/content",
             get(artifacts::artifact_content),

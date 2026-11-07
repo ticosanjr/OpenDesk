@@ -129,6 +129,23 @@ pub async fn list(
         .await?)
 }
 
+pub async fn list_pinned(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    limit: i64,
+) -> AppResult<Vec<ArtifactProvenance>> {
+    let query = format!(
+        "SELECT {COLUMNS} FROM artifacts_provenance
+         WHERE workspace_id = ? AND pinned = 1
+         ORDER BY created_at DESC LIMIT ?"
+    );
+    Ok(sqlx::query_as::<_, ArtifactProvenance>(&query)
+        .bind(workspace_id)
+        .bind(limit.clamp(1, 200))
+        .fetch_all(pool)
+        .await?)
+}
+
 pub async fn set_pinned(
     pool: &SqlitePool,
     id: &str,

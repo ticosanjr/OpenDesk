@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { useUiStore } from "@/store/ui-store";
 import { useAppStore } from "@/store/app-store";
 import { ROUTER_POLICY_LABELS } from "@/lib/types";
-import { apiGet, apiPut } from "@/lib/api";
+import { apiGet, apiPost, apiPut } from "@/lib/api";
+import { toast } from "@/store/toast-store";
 import { joinPath, pickFolder, slugifyWorkspace } from "@/lib/folder";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,10 @@ export function WorkspaceDialog() {
   const [existingPath, setExistingPath] = useState("");
   const [color, setColor] = useState("#3b82f6");
   const [policy, setPolicy] = useState("COST_BENEFIT");
+  const [blueprints, setBlueprints] = useState<
+    Array<{ id: string; name: string; description: string }>
+  >([]);
+  const [blueprint, setBlueprint] = useState("");
   const [useAsDefault, setUseAsDefault] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +42,11 @@ export function WorkspaceDialog() {
   useEffect(() => {
     if (!open) return;
     setError(null);
+    void apiGet<Array<{ id: string; name: string; description: string }>>(
+      "/api/blueprints",
+    )
+      .then(setBlueprints)
+      .catch(() => setBlueprints([]));
     apiGet<{ workspaces_root: string }>("/api/app/defaults")
       .then((defaults) => {
         setRootParent((current) => current || defaults.workspaces_root);
@@ -89,12 +99,32 @@ export function WorkspaceDialog() {
     setSaving(true);
     setError(null);
     try {
-      await createWorkspace({
+      const workspace = await createWorkspace({
         name: name.trim(),
         root_path: targetPath.trim(),
         color_hex: color,
         default_router_policy: policy,
       });
+
+      if (blueprint) {
+        try {
+          const applied = await apiPost<{ created: string[]; skipped: string[] }>(
+            `/api/blueprints/${blueprint}/apply?workspace_id=${encodeURIComponent(workspace.id)}`,
+            {},
+          );
+          toast({
+            tone: "success",
+            title: "Equipe aplicada",
+            description: `${applied.created.length} arquivos criados, ${applied.skipped.length} preservados.`,
+          });
+        } catch (cause) {
+          toast({
+            tone: "warning",
+            title: "Workspace criado, equipe não aplicada",
+            description: cause instanceof Error ? cause.message : String(cause),
+          });
+        }
+      }
 
       if (mode === "create" && useAsDefault && rootParent.trim()) {
         await apiPut("/api/settings/workspaces_root", rootParent.trim());
@@ -104,6 +134,7 @@ export function WorkspaceDialog() {
       setName("");
       setExistingPath("");
       setUseAsDefault(false);
+      setBlueprint("");
       setOpen(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -275,6 +306,27 @@ export function WorkspaceDialog() {
             </div>
           </label>
         </div>
+
+        <label className="block">
+          <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
+            Equipe inicial (opcional)
+          </span>
+          <select
+            value={blueprint}
+            onChange={(event) => setBlueprint(event.target.value)}
+            className={cn(inputClass, "px-2.5 text-[12px]")}
+          >
+            <option value="">Nenhuma — começar vazio</option>
+            {blueprints.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[9px] leading-relaxed text-zinc-600">
+            Cria agentes e skills em .opencode/ sem sobrescrever arquivos existentes.
+          </p>
+        </label>
 
         {error ? (
           <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">

@@ -1,5 +1,9 @@
 import { create } from "zustand";
 import { apiGet, apiPost, websocketUrl } from "@/lib/api";
+import {
+  markNotificationOnce,
+  sendNativeNotification,
+} from "@/lib/notification-policy";
 import type {
   Artifact,
   DaemonStatus,
@@ -47,6 +51,13 @@ interface AppStore {
   } | null;
   lastArtifactEvent: number;
   lastArtifact: Artifact | null;
+  lastPermissionEvent: {
+    request_id: string;
+    task_id?: string | null;
+    workspace_id: string;
+    action: string;
+    resources: string[];
+  } | null;
   lastScheduleEvent: {
     schedule_id: string;
     workspace_id: string;
@@ -95,6 +106,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   lastRunEvent: null,
   lastArtifactEvent: 0,
   lastArtifact: null,
+  lastPermissionEvent: null,
   lastScheduleEvent: null,
   lastGoogleEvent: null,
   lastEngineUpdate: null,
@@ -288,6 +300,33 @@ export function handleEvent(event: WsEvent) {
             phase_status: payload.phase_status,
           },
         });
+      }
+      break;
+    }
+    case "PermissionRequested": {
+      const payload = event.payload as {
+        request_id?: string;
+        task_id?: string | null;
+        workspace_id?: string;
+        action?: string;
+        resources?: string[];
+      };
+      if (payload.request_id && payload.workspace_id) {
+        useAppStore.setState({
+          lastPermissionEvent: {
+            request_id: payload.request_id,
+            task_id: payload.task_id,
+            workspace_id: payload.workspace_id,
+            action: payload.action ?? "permission",
+            resources: payload.resources ?? [],
+          },
+        });
+        if (markNotificationOnce(`permission:${payload.request_id}`)) {
+          void sendNativeNotification(
+            "Agente bloqueado esperando você",
+            `${payload.action ?? "permissão"}: ${(payload.resources ?? []).join(", ").slice(0, 120)}`,
+          );
+        }
       }
       break;
     }

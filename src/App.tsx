@@ -41,11 +41,15 @@ const IntegrationsPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import("@/pages/SettingsPage").then((module) => ({ default: module.SettingsPage })),
 );
+const CapturePage = lazy(() =>
+  import("@/pages/CapturePage").then((module) => ({ default: module.CapturePage })),
+);
 
 export default function App() {
   return (
     <HashRouter>
       <Routes>
+        <Route path="capture" element={<CapturePage />} />
         <Route element={<AppShell />}>
           <Route index element={<DashboardPage />} />
           <Route path="search" element={<SearchPage />} />

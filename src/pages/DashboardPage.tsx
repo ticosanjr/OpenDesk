@@ -8,6 +8,7 @@ import {
   Clock3,
   Cpu,
   Database,
+  FileText,
   FolderPlus,
   Gauge,
   RefreshCw,
@@ -64,13 +65,37 @@ export function DashboardPage() {
     (workspace) => workspace.id === activeWorkspaceId,
   );
   const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [agentStates, setAgentStates] = useState<Record<string, string>>({});
   const [presentation, setPresentation] = useState<Record<string, AgentFile>>({});
   const [agentsError, setAgentsError] = useState<string | null>(null);
   const [recentRuns, setRecentRuns] = useState<TaskRun[]>([]);
   const [recentArtifacts, setRecentArtifacts] = useState<Artifact[]>([]);
+  const [pinnedArtifacts, setPinnedArtifacts] = useState<Artifact[]>([]);
   const lastRunEvent = useAppStore((state) => state.lastRunEvent);
   const lastArtifactEvent = useAppStore((state) => state.lastArtifactEvent);
+  const lastPermissionEvent = useAppStore((state) => state.lastPermissionEvent);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!activeWorkspaceId) {
+      setAgentStates({});
+      return;
+    }
+    void apiGet<{ agents: Array<{ agent: string; state: string }> }>(
+      `/api/agents/states?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+    )
+      .then((result) => {
+        setAgentStates(
+          Object.fromEntries(result.agents.map((item) => [item.agent, item.state])),
+        );
+      })
+      .catch(() => setAgentStates({}));
+  }, [
+    activeWorkspaceId,
+    lastRunEvent?.run_id,
+    lastRunEvent?.status,
+    lastPermissionEvent?.request_id,
+  ]);
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -141,10 +166,12 @@ export function DashboardPage() {
     Promise.all([
       apiGet<TaskRun[]>(`/api/runs?workspace_id=${query}`).catch(() => []),
       apiGet<Artifact[]>(`/api/artifacts?workspace_id=${query}&limit=8`).catch(() => []),
-    ]).then(([runs, artifacts]) => {
+      apiGet<Artifact[]>(`/api/artifacts/pinned?workspace_id=${query}`).catch(() => []),
+    ]).then(([runs, artifacts, pinned]) => {
       if (!cancelled) {
         setRecentRuns(runs);
         setRecentArtifacts(artifacts);
+        setPinnedArtifacts(pinned);
       }
     });
     return () => {
@@ -288,6 +315,32 @@ export function DashboardPage() {
 
       <CostMixCard />
 
+      {pinnedArtifacts.length > 0 ? (
+        <Card className="border-amber-500/20 bg-amber-500/[0.02]">
+          <CardHeader className="py-3">
+            <CardTitle className="flex items-center gap-2 text-[13px]">
+              <Archive size={15} className="text-amber-300" />
+              Entregáveis oficiais
+            </CardTitle>
+            <Badge variant="yellow">{pinnedArtifacts.length} fixados</Badge>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2 pt-0">
+            {pinnedArtifacts.slice(0, 8).map((artifact) => (
+              <button
+                key={artifact.id}
+                type="button"
+                onClick={() => navigate(links.artifact(artifact.id))}
+                className="flex max-w-full items-center gap-1.5 rounded-lg border border-amber-500/20 bg-zinc-950/40 px-2.5 py-1.5 text-left text-[11px] text-zinc-300 hover:border-amber-500/40 hover:text-zinc-100"
+                title={artifact.file_path}
+              >
+                <FileText size={12} className="shrink-0 text-amber-300" />
+                <span className="max-w-56 truncate">{artifact.file_path}</span>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="grid gap-3 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -352,9 +405,12 @@ export function DashboardPage() {
                             </p>
                           </div>
                         </div>
-                        <Badge variant={agent.mode === "primary" ? "green" : "purple"}>
-                          {agent.mode ?? "agent"}
-                        </Badge>
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge variant={agent.mode === "primary" ? "green" : "purple"}>
+                            {agent.mode ?? "agent"}
+                          </Badge>
+                          <AgentStateBadge state={agentStates[agent.id]} />
+                        </div>
                       </div>
                       <p className="mt-2 truncate text-[10px] text-zinc-600">
                         {custom?.description || agent.description || "sem descrição"}
@@ -629,4 +685,18 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <span className="font-mono text-[10px] text-zinc-300">{value}</span>
     </div>
   );
+}
+
+
+function AgentStateBadge({ state }: { state?: string }) {
+  const label = state ?? "IDLE";
+  const tone =
+    label === "WORKING"
+      ? "blue"
+      : label === "BLOCKED"
+        ? "red"
+        : label === "DONE"
+          ? "green"
+          : "default";
+  return <Badge variant={tone}>{label.toLowerCase()}</Badge>;
 }

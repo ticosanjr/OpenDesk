@@ -1,6 +1,6 @@
 [package]
 name = "opendesk"
-version = "0.17.0"
+version = "0.18.0"
 description = "OpenDesk — visual governance, automation and observability for OpenCode"
 authors = ["OpenDesk"]
 edition = "2024"
@@ -59,6 +59,7 @@ semver = "1.0.28"
 zip = "9.4.1"
 iana-time-zone = "0.1.65"
 tauri-plugin-notification = "2.8.0"
+tauri-plugin-global-shortcut = "2"
 
 [dev-dependencies]
 tempfile = "3"

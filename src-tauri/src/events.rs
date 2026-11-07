@@ -85,6 +85,18 @@ pub enum OpenDeskWsEvent {
         stage: String,
         phase_status: Option<String>,
     },
+    PermissionRequested {
+        request_id: String,
+        run_id: String,
+        task_id: Option<String>,
+        workspace_id: String,
+        action: String,
+        resources: Vec<String>,
+    },
+    PermissionDecided {
+        request_id: String,
+        decision: String,
+    },
     RunFinished {
         run_id: String,
         task_id: Option<String>,

@@ -8,6 +8,7 @@ import {
   GitCompare,
   Mail,
   RefreshCw,
+  RotateCcw,
   Search,
   Star,
   X,
@@ -28,6 +29,7 @@ import { links } from "@/lib/links";
 import { EntityLink } from "@/components/ui/entity-link";
 import { LazyFileViewer } from "@/components/viewer/LazyFileViewer";
 import { toast } from "@/store/toast-store";
+import { confirmAction } from "@/store/confirm-store";
 
 interface ArtifactContent {
   path: string;
@@ -146,6 +148,30 @@ export function ArtifactsPage() {
       toast({
         tone: "error",
         title: "Não foi possível fixar",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  }
+
+  async function rollback(artifact: Artifact) {
+    const confirmed = await confirmAction({
+      title: "Reverter esta alteração?",
+      description:
+        artifact.action_type === "CREATED"
+          ? "O arquivo criado será removido do workspace."
+          : "Os trechos alterados voltam ao conteúdo anterior. Se o arquivo mudou depois, o rollback é recusado.",
+      confirmLabel: "Reverter",
+      tone: "destructive",
+    });
+    if (!confirmed) return;
+    try {
+      await apiPost(`/api/artifacts/${artifact.id}/rollback`, {});
+      toast({ tone: "success", title: "Alteração revertida", href: links.artifact(artifact.id) });
+      await load();
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Rollback não aplicado",
         description: cause instanceof Error ? cause.message : String(cause),
       });
     }
@@ -379,6 +405,18 @@ export function ArtifactsPage() {
                   <Star size={12} fill={selected.pinned ? "currentColor" : "none"} />
                   {selected.pinned ? "Fixado" : "Fixar"}
                 </Button>
+                {selected.diff_patch || selected.action_type === "CREATED" ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-amber-500/30 text-amber-200"
+                    onClick={() => void rollback(selected)}
+                    title="Reverter esta alteração no arquivo"
+                  >
+                    <RotateCcw size={12} />
+                    Reverter
+                  </Button>
+                ) : null}
                 {selected.run_id ? (
                   <Button
                     variant="outline"

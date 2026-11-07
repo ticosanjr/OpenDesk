@@ -12,6 +12,7 @@ pub mod deliveries;
 pub mod integrations;
 pub mod model_health;
 pub mod models;
+pub mod permissions;
 pub mod queue;
 pub mod router;
 pub mod runs;
@@ -81,4 +82,26 @@ pub async fn ping(pool: &SqlitePool) -> bool {
         .await
         .map(|value| value == 1)
         .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod migration_tests {
+    #[tokio::test]
+    async fn all_migrations_apply() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let pool = super::init(&dir.path().join("m.db")).await.unwrap();
+        let rows: Vec<(i64, String)> =
+            sqlx::query_as("SELECT version, description FROM _sqlx_migrations ORDER BY version")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        assert_eq!(rows.last().unwrap().0, 15, "rows: {rows:?}");
+        let cols: Vec<(String,)> =
+            sqlx::query_as("SELECT name FROM pragma_table_info('execution_queue')")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        let names: Vec<&str> = cols.iter().map(|c| c.0.as_str()).collect();
+        assert!(names.contains(&"concurrency_group"), "cols: {names:?}");
+    }
 }

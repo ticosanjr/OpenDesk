@@ -501,6 +501,8 @@ impl QueueManager {
 
         let started = Instant::now();
         let request = RunRequest {
+            pool: &self.pool,
+            workspace_id: &job.workspace_id,
             run_id: &run_id,
             task_id: job.task_id.as_deref(),
             session_id: job.session_id.as_deref(),
@@ -606,8 +608,14 @@ impl QueueManager {
         )
         .await;
 
+        let mut fallback_enqueued = false;
         if outcome.status == RunStatus::Success {
             let _ = model_health::record_success(&self.pool, &job.resolved_model).await;
+            // Keep the session usable for follow-ups: compact automatically
+            // once the context is close to the 128k window.
+            if outcome.usage.tokens_input > 100_000 && !outcome.session_id.is_empty() {
+                let _ = rest.compact_session(&outcome.session_id).await;
+            }
         } else {
             let message = outcome
                 .error
@@ -616,7 +624,51 @@ impl QueueManager {
                 .unwrap_or("run failed without a message");
             let (code, hint) = classify_run_error(message);
             let _ = runs::set_error(&self.pool, &run_id, code, message, hint).await;
-            if matches!(code, "model_unavailable" | "auth_failed") {
+            if code == "rate_limited" {
+                let _ =
+                    model_health::record_cooldown(&self.pool, &job.resolved_model, code, 5).await;
+                if job.job_kind != "fallback"
+                    && let Some(fallback) = self
+                        .pick_fallback_model(&workspace_path, &job.resolved_model)
+                        .await
+                {
+                    let _ = self
+                        .enqueue(queue::EnqueueInput {
+                            workspace_id: job.workspace_id.clone(),
+                            task_id: job.task_id.clone(),
+                            schedule_id: job.schedule_id.clone(),
+                            session_id: None,
+                            concurrency_group: job.concurrency_group.clone(),
+                            prompt_payload: job.prompt_payload.clone(),
+                            resolved_mode: job.resolved_mode.clone(),
+                            resolved_agent: job.resolved_agent.clone(),
+                            resolved_model: fallback.clone(),
+                            resolved_effort: job.resolved_effort.clone(),
+                            job_kind: "fallback".into(),
+                            scheduled_for: None,
+                            output_dir: job.output_dir.clone(),
+                            priority: job.priority,
+                            max_retries: 1,
+                        })
+                        .await;
+                    if let Some(task) = &task {
+                        let _ = tasks::set_phase_status(
+                            &self.pool,
+                            &task.id,
+                            Some("fallback_queued"),
+                            Some("TODO"),
+                        )
+                        .await;
+                        self.events.publish(OpenDeskWsEvent::TaskUpdated {
+                            task_id: task.id.clone(),
+                            workspace_id: task.workspace_id.clone(),
+                            stage: "TODO".into(),
+                            phase_status: Some("fallback_queued".into()),
+                        });
+                    }
+                    fallback_enqueued = true;
+                }
+            } else if matches!(code, "model_unavailable" | "auth_failed") {
                 let _ = model_health::record_failure(&self.pool, &job.resolved_model, code).await;
             }
         }
@@ -628,7 +680,9 @@ impl QueueManager {
         };
         let _ = queue::finish(&self.pool, &job.id, queue_status, outcome.error.as_deref()).await;
 
-        if let Some(task) = &task {
+        if let Some(task) = &task
+            && !fallback_enqueued
+        {
             let _ = tasks::set_last_run(
                 &self.pool,
                 &task.id,
@@ -748,6 +802,46 @@ impl QueueManager {
         }
     }
 
+    async fn pick_fallback_model(&self, workspace_root: &Path, current: &str) -> Option<String> {
+        let models = self
+            .daemon
+            .models(Some(&workspace_root.to_string_lossy()))
+            .await
+            .ok()?;
+        let cooling = model_health::cooling(&self.pool, 24)
+            .await
+            .unwrap_or_default();
+        let current_base = current.split('#').next().unwrap_or(current).to_string();
+        let key = |model: &crate::opencode_client::rest_client::ModelDto| {
+            let provider = model.provider_id.clone().unwrap_or_default();
+            let id = model.model_id.clone().unwrap_or_else(|| model.id.clone());
+            format!("{provider}/{id}")
+        };
+        let preferred = ["opencode-go/deepseek-v4.1-flash", "opencode-go/glm-5.3"];
+        let mut candidates = models
+            .iter()
+            .filter(|model| model.enabled.unwrap_or(true))
+            .filter(|model| {
+                let name = key(model);
+                name != current_base && !cooling.contains(&name)
+            })
+            .collect::<Vec<_>>();
+        candidates.sort_by_key(|model| {
+            let name = key(model);
+            preferred
+                .iter()
+                .position(|candidate| *candidate == name)
+                .unwrap_or(usize::MAX)
+        });
+        let model = candidates.first()?;
+        let base = key(model);
+        if model.variants.iter().any(|variant| variant.id == "low") {
+            Some(format!("{base}#low"))
+        } else {
+            Some(base)
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     async fn record_artifact(
         &self,
@@ -850,6 +944,15 @@ fn classify_run_error(message: &str) -> (&'static str, &'static str) {
         (
             "agent_not_found",
             "O agente configurado não existe no workspace. Edite a tarefa e escolha outro agente.",
+        )
+    } else if lower.contains("429")
+        || lower.contains("too many requests")
+        || lower.contains("503")
+        || lower.contains("service unavailable")
+    {
+        (
+            "rate_limited",
+            "O provedor limitou temporariamente o modelo. O OpenDesk tenta um fallback configurado; se não houver, a tarefa fica bloqueada.",
         )
     } else if lower.contains("timed out") || lower.contains("timeout") {
         (
@@ -970,6 +1073,14 @@ mod tests {
         assert_eq!(classify_run_error("request timed out").0, "timeout");
         assert_eq!(classify_run_error("cancelled by user").0, "cancelled");
         assert_eq!(classify_run_error("budget hard stop").0, "budget_blocked");
+        assert_eq!(
+            classify_run_error("429 Too Many Requests").0,
+            "rate_limited"
+        );
+        assert_eq!(
+            classify_run_error("503 Service Unavailable").0,
+            "rate_limited"
+        );
         assert_eq!(
             classify_run_error("No such file or directory").0,
             "binary_missing"

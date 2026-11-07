@@ -963,3 +963,18 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Fork de tarefa (`forked_from_task_id`).
 - Model mix/economia dos últimos 7 dias no Dashboard.
 - `cargo test` — 115 passed; Playwright — 19 passed.
+
+## 2026-11-07 — 0.18.0: permissões interativas, swarm e captura rápida
+
+- Permissões interativas (`permission_requests`) com decisão once/always/reject
+  direto no Attention Card e estados BLOCKED/WORKING/DONE/IDLE por agente.
+- Medidor de contexto por tarefa e compactação manual/automática via API do
+  engine.
+- A/B swarm em 2–4 modelos com pastas isoladas e escolha do vencedor.
+- Fork de tarefa a partir de um run, copiando os artefatos até aquele ponto.
+- Quick Capture global (`Ctrl/Cmd+Shift+Space`) com texto, link e imagem colada.
+- Rollback de artefato criado/editado em um clique.
+- Blueprints de equipe ao criar workspace.
+- Retry de falha em outro modelo pelo Attention Card.
+- Entregáveis fixados no Dashboard e nos cards do Kanban.
+- `cargo test` — 124 passed; `clippy` limpo.

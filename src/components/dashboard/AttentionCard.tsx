@@ -9,7 +9,19 @@ import { links } from "@/lib/links";
 import { useAppStore } from "@/store/app-store";
 import { toast } from "@/store/toast-store";
 
+interface PermissionRequest {
+  id: string;
+  request_id: string;
+  task_id?: string | null;
+  run_id?: string | null;
+  permission_action: string;
+  resources?: string | null;
+  status: string;
+  created_at: string;
+}
+
 interface Attention {
+  requests: PermissionRequest[];
   awaiting_approval: Array<{ id: string; title: string; phase_status?: string | null }>;
   blocked: Array<{ id: string; title: string; reason?: string | null }>;
   failed_runs: Array<{
@@ -24,6 +36,7 @@ export function AttentionCard() {
   const workspaceId = useAppStore((state) => state.activeWorkspaceId);
   const lastTaskEvent = useAppStore((state) => state.lastTaskEvent);
   const lastRunEvent = useAppStore((state) => state.lastRunEvent);
+  const lastPermissionEvent = useAppStore((state) => state.lastPermissionEvent);
   const [data, setData] = useState<Attention | null>(null);
 
   const load = useCallback(async () => {
@@ -32,11 +45,15 @@ export function AttentionCard() {
       return;
     }
     try {
-      setData(
-        await apiGet<Attention>(
+      const [attention, permissions] = await Promise.all([
+        apiGet<Omit<Attention, "requests">>(
           `/api/attention?workspace_id=${encodeURIComponent(workspaceId)}`,
         ),
-      );
+        apiGet<{ requests: PermissionRequest[] }>(
+          `/api/permissions?workspace_id=${encodeURIComponent(workspaceId)}`,
+        ),
+      ]);
+      setData({ ...attention, requests: permissions.requests });
     } catch {
       setData(null);
     }
@@ -44,15 +61,66 @@ export function AttentionCard() {
 
   useEffect(() => {
     void load();
-  }, [load, lastTaskEvent?.task_id, lastRunEvent?.run_id, lastRunEvent?.status]);
+  }, [
+    load,
+    lastTaskEvent?.task_id,
+    lastRunEvent?.run_id,
+    lastRunEvent?.status,
+    lastPermissionEvent?.request_id,
+  ]);
 
   if (
     !data ||
-    (data.awaiting_approval.length === 0 &&
+    (data.requests.length === 0 &&
+      data.awaiting_approval.length === 0 &&
       data.blocked.length === 0 &&
       data.failed_runs.length === 0)
   ) {
     return null;
+  }
+
+  async function decide(request: PermissionRequest, decision: string) {
+    try {
+      await apiPost(`/api/permissions/${request.request_id}/reply`, { decision });
+      toast({
+        tone: "success",
+        title:
+          decision === "reject"
+            ? "Permissão negada"
+            : decision === "always"
+              ? "Permitido nesta tarefa"
+              : "Permitido uma vez",
+        href: request.task_id ? links.task(request.task_id) : undefined,
+      });
+      await load();
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível responder",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  }
+
+  async function retryOther(runId: string) {
+    try {
+      const result = await apiPost<{ model: string }>(
+        `/api/runs/${runId}/retry-other-model`,
+        {},
+      );
+      toast({
+        tone: "success",
+        title: "Reenfileirado com outro modelo",
+        description: result.model,
+      });
+      await load();
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível reenfileirar",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
   }
 
   async function approve(taskId: string) {
@@ -78,12 +146,63 @@ export function AttentionCard() {
             Precisa da sua atenção
           </p>
           <Badge variant="yellow">
-            {data.awaiting_approval.length + data.blocked.length + data.failed_runs.length}
+            {data.requests.length +
+              data.awaiting_approval.length +
+              data.blocked.length +
+              data.failed_runs.length}
           </Badge>
           <Button variant="ghost" size="sm" className="ml-auto h-7" onClick={() => void load()}>
             atualizar
           </Button>
         </div>
+
+        {data.requests.map((request) => (
+          <div
+            key={`permission-${request.request_id}`}
+            className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-zinc-950/40 px-3 py-2"
+          >
+            <Clock3 size={13} className="text-amber-300" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[12px] text-zinc-200">
+                <span className="font-mono text-[10px] uppercase text-amber-300">
+                  {request.permission_action}
+                </span>{" "}
+                {request.resources || "ação do agente"}
+              </p>
+              {request.task_id ? (
+                <Link
+                  to={links.task(request.task_id)}
+                  className="text-[10px] text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline"
+                >
+                  abrir tarefa
+                </Link>
+              ) : null}
+            </div>
+            <Button
+              size="sm"
+              className="h-7"
+              onClick={() => void decide(request, "once")}
+            >
+              Permitir
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7"
+              onClick={() => void decide(request, "always")}
+            >
+              Sempre nesta tarefa
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 border-red-500/30 text-red-300"
+              onClick={() => void decide(request, "reject")}
+            >
+              Negar
+            </Button>
+          </div>
+        ))}
 
         {data.awaiting_approval.map((task) => (
           <div
@@ -146,6 +265,14 @@ export function AttentionCard() {
                 {run.error}
               </span>
             ) : null}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7"
+              onClick={() => void retryOther(run.id)}
+            >
+              Retry com outro modelo
+            </Button>
             <Link
               to={links.run(run.id)}
               className="inline-flex items-center gap-1 text-[11px] text-zinc-400 underline-offset-2 hover:text-zinc-200 hover:underline"
@@ -156,7 +283,8 @@ export function AttentionCard() {
           </div>
         ))}
 
-        {data.awaiting_approval.length +
+        {data.requests.length +
+          data.awaiting_approval.length +
           data.blocked.length +
           data.failed_runs.length ===
         0 ? (
