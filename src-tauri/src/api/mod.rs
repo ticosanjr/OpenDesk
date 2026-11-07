@@ -11,6 +11,7 @@ pub mod engine;
 pub mod files;
 pub mod google;
 pub mod integrations;
+pub mod io_bus;
 pub mod meta;
 pub mod permissions;
 pub mod queue;
@@ -256,6 +257,38 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/files/content", get(files::content))
         .route("/api/files/raw", get(files::raw))
         .route("/api/files/media", get(files::media))
+        .route(
+            "/api/io/inbound",
+            get(io_bus::list_inbound).post(io_bus::create_inbound),
+        )
+        .route(
+            "/api/io/inbound/{id}",
+            axum::routing::patch(io_bus::update_inbound).delete(io_bus::delete_inbound),
+        )
+        .route(
+            "/api/io/outbound",
+            get(io_bus::list_outbound).post(io_bus::create_outbound),
+        )
+        .route(
+            "/api/io/outbound/{id}",
+            axum::routing::patch(io_bus::update_outbound).delete(io_bus::delete_outbound),
+        )
+        .route("/api/io/secrets", post(io_bus::put_secret))
+        .route(
+            "/api/io/secrets/{key}",
+            axum::routing::delete(io_bus::delete_secret),
+        )
+        .route("/api/io/tools", get(io_bus::tools))
+        .route("/api/io/tools/{name}/install", post(io_bus::install_tool))
+        .route(
+            "/api/tasks/{id}/sinks",
+            get(io_bus::task_sinks).post(io_bus::set_task_sinks),
+        )
+        .route(
+            "/api/schedules/{id}/sinks",
+            get(io_bus::schedule_sinks).post(io_bus::set_schedule_sinks),
+        )
+        .route("/api/webhooks/{source_id}", post(io_bus::webhook))
         .route("/api/artifacts", get(artifacts::list_artifacts))
         .route("/api/artifacts/pinned", get(artifacts::pinned_artifacts))
         .route("/api/artifacts/{id}", get(artifacts::get_artifact))
@@ -626,7 +659,11 @@ async fn auth_middleware(
 ) -> Response {
     let path = request.uri().path();
 
-    if request.method() == Method::OPTIONS || path == "/healthz" || path == "/api/health" {
+    if request.method() == Method::OPTIONS
+        || path == "/healthz"
+        || path == "/api/health"
+        || path.starts_with("/api/webhooks/")
+    {
         return next.run(request).await;
     }
 

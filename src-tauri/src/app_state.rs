@@ -38,6 +38,7 @@ pub struct AppState {
     pub secrets: Arc<SecretStore>,
     pub google: Arc<GoogleOAuth>,
     pub signal: Arc<SignalBridge>,
+    pub io_bus: Arc<crate::io_bus::runtime::IoBus>,
     pub api_port: u16,
     pub api_token: String,
     pub listener: Mutex<Option<TcpListener>>,
@@ -54,6 +55,7 @@ pub struct ApiEndpoint {
 impl AppState {
     pub async fn initialize(paths: AppPaths) -> Result<Self> {
         let db = db::init(&paths.db_path).await?;
+        db::maintenance::boot_check(&db).await?;
 
         if settings::get(&db, "workspaces_root").await?.is_none() {
             let root = crate::paths::default_workspaces_root();
@@ -93,6 +95,7 @@ impl AppState {
 
         let google = GoogleOAuth::new(db.clone(), secrets.clone(), events.clone());
         let signal = Arc::new(SignalBridge::default());
+        let io_bus = Arc::new(crate::io_bus::runtime::IoBus::new());
         let concurrency = settings::get(&db, QUEUE_CONCURRENCY_SETTING)
             .await?
             .and_then(|value| value.as_u64())
@@ -124,6 +127,7 @@ impl AppState {
             secrets,
             google,
             signal,
+            io_bus,
             api_port,
             api_token,
             listener: Mutex::new(Some(listener)),

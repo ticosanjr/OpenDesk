@@ -1009,3 +1009,20 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   prioridade, retry em lote e pasta de saída.
 - Kanban com destaque de coluna de destino e auto-scroll no arraste.
 - `cargo test` — 126 passed; Playwright — 20 passed.
+
+## 2026-11-07 — 0.21.0: barramento de I/O, ferramentas externas e hardening
+
+- Migração 0016 com sources, sinks e bindings.
+- Core UEN com ingestão idempotente e sinks pós-run.
+- Inbounds: dropzone/OCR/Whisper, IMAP, SQL poller, webhooks assinados,
+  Telegram e Matrix.
+- Sinks: compilador XLSX/PDF, FS atômico, S3/MinIO, Git, SQL, SMTP e chat.
+- UI de Integrações: Entradas, Saídas, Histórico, MCP e segurança.
+- Vínculo de sinks em tarefas e rotinas.
+- Ferramentas externas com detecção/download em pasta fora do release.
+- Permissão com timeout que libera o worker.
+- Watcher com supressão de eco.
+- Manutenção periódica do SQLite (checkpoint, backup, retenção).
+- Quick Capture fecha ao perder foco e reutiliza a janela.
+- Protocolo V2 documentado em `docs/protocol/opencode-v2.md`.
+- `cargo test` — 133 passed; Playwright — 21 passed.

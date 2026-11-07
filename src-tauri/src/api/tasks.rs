@@ -135,16 +135,27 @@ pub async fn dispatch_task(
     Path(id): Path<String>,
     Json(body): Json<DispatchBody>,
 ) -> AppResult<Json<serde_json::Value>> {
+    Ok(Json(dispatch_task_internal(&state, &id, body, None).await?))
+}
+
+/// Shared dispatch path used by HTTP handlers, cron and the I/O bus. It keeps
+/// router, budget, queue and status transitions in one place.
+pub(crate) async fn dispatch_task_internal(
+    state: &Arc<AppState>,
+    id: &str,
+    body: DispatchBody,
+    approved_plan: Option<&str>,
+) -> AppResult<serde_json::Value> {
     validate_model_ref(body.manual_model.as_deref())?;
-    crate::api::engine::require_engine(&state).await?;
-    let task = tasks::get(&state.db, &id).await?;
+    crate::api::engine::require_engine_strict(state).await?;
+    let task = tasks::get(&state.db, id).await?;
     let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
-    let decision = plan_decision(&state, &task, &workspace, &body, None).await?;
-    let job = enqueue_decision(&state, &task, &workspace, &decision, None).await?;
-    Ok(Json(serde_json::json!({
+    let decision = plan_decision(state, &task, &workspace, &body, approved_plan).await?;
+    let job = enqueue_decision(state, &task, &workspace, &decision, approved_plan).await?;
+    Ok(serde_json::json!({
         "decision": decision,
         "job": job,
-    })))
+    }))
 }
 
 pub async fn approve_plan(

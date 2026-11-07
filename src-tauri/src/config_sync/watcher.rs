@@ -8,10 +8,89 @@ use notify_debouncer_full::{
     notify::{RecommendedWatcher, RecursiveMode},
 };
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    time::Duration,
+    sync::{Mutex, OnceLock},
+    time::{Duration, Instant},
 };
+
+const EXPECTATION_TTL: Duration = Duration::from_secs(2);
+const MAX_EXPECTATIONS: usize = 512;
+
+#[derive(Clone)]
+struct ExpectedWrite {
+    sha256: Option<String>,
+    expires_at: Instant,
+}
+
+static EXPECTED_WRITES: OnceLock<Mutex<HashMap<PathBuf, ExpectedWrite>>> = OnceLock::new();
+
+fn expectations() -> &'static Mutex<HashMap<PathBuf, ExpectedWrite>> {
+    EXPECTED_WRITES.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Register an internal write so the watcher does not echo it back to the UI.
+pub fn expect_write(path: &Path, sha256: Option<String>) {
+    let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let mut map = expectations().lock().expect("watcher expectations");
+    let now = Instant::now();
+    map.retain(|_, value| value.expires_at > now);
+    if map.len() >= MAX_EXPECTATIONS {
+        map.clear();
+    }
+    map.insert(
+        canonical,
+        ExpectedWrite {
+            sha256,
+            expires_at: now + EXPECTATION_TTL,
+        },
+    );
+}
+
+pub fn expect_delete(path: &Path) {
+    expect_write(path, None);
+}
+
+fn is_transient(path: &Path) -> bool {
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    (name.starts_with('.') && name.ends_with(".tmp"))
+        || name.ends_with(".swp")
+        || name.ends_with(".swx")
+}
+
+fn should_suppress(path: &Path) -> bool {
+    let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let mut map = expectations().lock().expect("watcher expectations");
+    let now = Instant::now();
+    map.retain(|_, value| value.expires_at > now);
+    let Some(expected) = map.get(&canonical).cloned() else {
+        return false;
+    };
+    match expected.sha256 {
+        None => {
+            // Delete/rename can emit create/remove/modify events; keep the
+            // suppression until the short TTL expires.
+            true
+        }
+        Some(hash) => match std::fs::read(&canonical) {
+            Ok(bytes) => {
+                let actual = crate::config_sync::file_ops::sha256_hex(&bytes);
+                if actual == hash {
+                    true
+                } else {
+                    // Someone else changed the file inside the suppression
+                    // window; let this and future events through.
+                    map.remove(&canonical);
+                    false
+                }
+            }
+            Err(_) => false,
+        },
+    }
+}
 
 pub struct ConfigWatcher {
     debouncer: Option<Debouncer<RecommendedWatcher, RecommendedCache>>,
@@ -57,6 +136,9 @@ impl ConfigWatcher {
                     for debounced in events {
                         for path in debounced.event.paths {
                             if !seen.insert(path.clone()) {
+                                continue;
+                            }
+                            if path.is_dir() || is_transient(&path) || should_suppress(&path) {
                                 continue;
                             }
                             let entity =
@@ -221,5 +303,54 @@ mod tests {
         .expect("watcher timeout");
 
         assert!(event.ends_with("external.md"));
+    }
+
+    #[tokio::test]
+    async fn internal_write_does_not_echo_but_external_does() {
+        let temp = TempDir::new().expect("temp");
+        let workspace = temp.path().join("ws");
+        let global = temp.path().join("global");
+        std::fs::create_dir_all(workspace.join(".opencode/agents")).expect("agents");
+        std::fs::create_dir_all(workspace.join("input")).expect("input");
+        std::fs::create_dir_all(workspace.join("output")).expect("output");
+        std::fs::create_dir_all(&global).expect("global");
+        let paths = StudioPaths {
+            global_dir: global,
+            workspace_root: Some(workspace.clone()),
+        };
+        let bus = EventBus::new(64);
+        let mut receiver = bus.subscribe();
+        let mut watcher = ConfigWatcher::new();
+        watcher
+            .watch(&paths, "ws-test", bus.clone())
+            .expect("watch");
+        tokio::time::sleep(TokioDuration::from_millis(250)).await;
+
+        let agent = workspace.join(".opencode/agents/internal.md");
+        crate::config_sync::file_ops::write_text_atomic(
+            &agent,
+            "---\ndescription: internal\n---\nbody\n",
+            None,
+            &temp.path().join("backups"),
+        )
+        .expect("internal write");
+        match timeout(TokioDuration::from_millis(900), receiver.recv()).await {
+            Err(_) => {}
+            Ok(Ok(envelope)) => panic!("internal write emitted {envelope:?}"),
+            Ok(Err(error)) => panic!("watcher error {error}"),
+        }
+
+        std::fs::write(&agent, "---\ndescription: external\n---\nbody\n").expect("external");
+        let event = timeout(TokioDuration::from_secs(5), async {
+            loop {
+                let envelope = receiver.recv().await.expect("event");
+                if let OpenDeskWsEvent::FsSyncTriggered { path, .. } = envelope.event {
+                    return path;
+                }
+            }
+        })
+        .await
+        .expect("external event");
+        assert!(event.ends_with("internal.md"));
     }
 }

@@ -88,6 +88,7 @@ pub struct GoogleOAuth {
     http: reqwest::Client,
     pending: Mutex<HashMap<String, PendingFlow>>,
     cache: Mutex<HashMap<String, CachedToken>>,
+    refresh_lock: tokio::sync::Mutex<()>,
     callback_port: u16,
     callback_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
@@ -108,6 +109,7 @@ impl GoogleOAuth {
                 .expect("Google HTTP client"),
             pending: Mutex::new(HashMap::new()),
             cache: Mutex::new(HashMap::new()),
+            refresh_lock: tokio::sync::Mutex::new(()),
             callback_port,
             callback_task: Mutex::new(None),
         })
@@ -251,6 +253,12 @@ impl GoogleOAuth {
             return Ok(token);
         }
 
+        // Multiple MCP processes may request a refresh at the same time.
+        // Serialize and re-check so only one network refresh happens.
+        let _guard = self.refresh_lock.lock().await;
+        if let Some(token) = self.cached_token(workspace_id) {
+            return Ok(token);
+        }
         let refresh_token = self
             .secrets
             .get("google", &refresh_key(workspace_id))?

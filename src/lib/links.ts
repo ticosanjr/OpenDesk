@@ -18,11 +18,19 @@ export const links = {
       | "engine"
       | "updates"
       | "notifications"
+      | "tools"
       | "about"
       | "workspaces" = "general",
   ) =>
     `/settings?section=${section}`,
   integration: (
-    section: "smtp" | "google" | "signal" | "deliveries" | "mcp" = "smtp",
+    section:
+      | "smtp"
+      | "google"
+      | "signal"
+      | "inbound"
+      | "sinks"
+      | "deliveries"
+      | "mcp" = "smtp",
   ) => `/integrations?section=${section}`,
 };

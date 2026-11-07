@@ -93,7 +93,9 @@ pub fn write_text_atomic(
     }
 
     std::fs::rename(&temp_path, path)?;
-    Ok(sha256_hex(content.as_bytes()))
+    let hash = sha256_hex(content.as_bytes());
+    crate::config_sync::watcher::expect_write(path, Some(hash.clone()));
+    Ok(hash)
 }
 
 fn backup_file(path: &Path, snapshot: &FileSnapshot, backups_dir: &Path) -> AppResult<()> {
@@ -208,6 +210,7 @@ pub fn delete_path(path: &Path) -> AppResult<()> {
     if !path.exists() {
         return Err(AppError::NotFound(format!("path {}", path.display())));
     }
+    crate::config_sync::watcher::expect_delete(path);
     if path.is_dir() {
         std::fs::remove_dir_all(path)?;
     } else {

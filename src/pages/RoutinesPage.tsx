@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import type { OutboundSink } from "@/components/integrations/OutboundSinksCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -602,6 +603,8 @@ function CreateScheduleModal({
   );
   const [misfirePolicy, setMisfirePolicy] = useState("SKIP_TO_NEXT");
   const [safeReadonly, setSafeReadonly] = useState(true);
+  const [sinks, setSinks] = useState<OutboundSink[]>([]);
+  const [selectedSinks, setSelectedSinks] = useState<Set<string>>(new Set());
   const [recurrence, setRecurrence] = useState<Recurrence>(() => ({
     frequency: "daily",
     interval: 1,
@@ -670,7 +673,15 @@ function CreateScheduleModal({
       apiGet<StudioRuntime>(
         `/api/studio/runtime?workspace_id=${encodeURIComponent(workspaceId)}`,
       ).catch(() => null),
-    ]).then(([workspaceAgents, globalAgents, runtimeResponse]) => {
+      apiGet<{ sinks: OutboundSink[] }>(
+        `/api/io/outbound?workspace_id=${encodeURIComponent(workspaceId)}`,
+      ).catch(() => ({ sinks: [] })),
+      schedule
+        ? apiGet<{ bindings: Array<{ sink_id: string }> }>(
+            `/api/schedules/${schedule.id}/sinks`,
+          ).catch(() => ({ bindings: [] }))
+        : Promise.resolve({ bindings: [] }),
+    ]).then(([workspaceAgents, globalAgents, runtimeResponse, sinkList, bindings]) => {
       const seen = new Set<string>();
       setAgents(
         [...workspaceAgents, ...globalAgents].filter((item) => {
@@ -680,6 +691,8 @@ function CreateScheduleModal({
         }),
       );
       setRuntime(runtimeResponse);
+      setSinks(sinkList.sinks);
+      setSelectedSinks(new Set(bindings.bindings.map((binding) => binding.sink_id)));
     });
   }, [open, schedule, workspaceId, workspace?.default_router_policy, workspace?.default_email_recipient]);
 
@@ -782,10 +795,17 @@ function CreateScheduleModal({
         sync_to_google_calendar: schedule?.sync_to_google_calendar ?? false,
         is_active: schedule?.is_active ?? true,
       };
+      let scheduleId = schedule?.id;
       if (schedule) {
         await apiPatch(`/api/schedules/${schedule.id}`, payload);
       } else {
-        await apiPost("/api/schedules", payload);
+        const created = await apiPost<Schedule>("/api/schedules", payload);
+        scheduleId = created.id;
+      }
+      if (scheduleId) {
+        await apiPost(`/api/schedules/${scheduleId}/sinks`, {
+          sink_ids: Array.from(selectedSinks),
+        });
       }
       await onCreated();
     } catch (cause) {
@@ -961,6 +981,34 @@ function CreateScheduleModal({
             </label>
           </div>
         </div>
+
+        {sinks.length > 0 ? (
+          <div className="rounded-xl border border-zinc-800/70 bg-zinc-950/30 p-3">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+              Entregas automáticas
+            </p>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+              {sinks.map((sink) => (
+                <label key={sink.id} className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+                  <input
+                    type="checkbox"
+                    checked={selectedSinks.has(sink.id)}
+                    onChange={(event) =>
+                      setSelectedSinks((current) => {
+                        const next = new Set(current);
+                        if (event.target.checked) next.add(sink.id);
+                        else next.delete(sink.id);
+                        return next;
+                      })
+                    }
+                    className="accent-blue-500"
+                  />
+                  {sink.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {error ? (
           <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">{error}</p>

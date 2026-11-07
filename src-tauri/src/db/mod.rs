@@ -10,6 +10,8 @@ pub mod budget;
 pub mod chat;
 pub mod deliveries;
 pub mod integrations;
+pub mod io_bus;
+pub mod maintenance;
 pub mod model_health;
 pub mod models;
 pub mod permissions;
@@ -95,7 +97,7 @@ mod migration_tests {
                 .fetch_all(&pool)
                 .await
                 .unwrap();
-        assert_eq!(rows.last().unwrap().0, 15, "rows: {rows:?}");
+        assert_eq!(rows.last().unwrap().0, 16, "rows: {rows:?}");
         let cols: Vec<(String,)> =
             sqlx::query_as("SELECT name FROM pragma_table_info('execution_queue')")
                 .fetch_all(&pool)

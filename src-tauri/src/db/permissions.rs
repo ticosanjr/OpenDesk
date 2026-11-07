@@ -123,23 +123,31 @@ pub async fn decide_prefix(
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PermissionWait {
+    Decided(String),
+    Cancelled,
+    TimedOut,
+}
+
 /// Block the run until a human replies, the run is cancelled, or the request
-/// expires. Returns the decision (`once`, `always`, `reject`) or `None`.
+/// expires. A timeout is explicit so the worker can release the job instead of
+/// holding it forever.
 pub async fn wait_for_decision(
     pool: &SqlitePool,
     request_id: &str,
     cancel: &CancellationToken,
     timeout: Duration,
-) -> Option<String> {
+) -> PermissionWait {
     let started = std::time::Instant::now();
     loop {
         if cancel.is_cancelled() {
-            return None;
+            return PermissionWait::Cancelled;
         }
         if let Ok(request) = get_by_request(pool, request_id).await
             && request.status == "DECIDED"
         {
-            return request.decision;
+            return PermissionWait::Decided(request.decision.unwrap_or_else(|| "reject".into()));
         }
         if started.elapsed() >= timeout {
             let _ = sqlx::query(
@@ -149,10 +157,10 @@ pub async fn wait_for_decision(
             .bind(request_id)
             .execute(pool)
             .await;
-            return None;
+            return PermissionWait::TimedOut;
         }
         tokio::select! {
-            _ = cancel.cancelled() => return None,
+            _ = cancel.cancelled() => return PermissionWait::Cancelled,
             _ = sleep(Duration::from_millis(400)) => {}
         }
     }
@@ -205,7 +213,10 @@ mod tests {
         });
         sleep(Duration::from_millis(50)).await;
         decide(&pool, "req-1", "always").await.expect("decide");
-        assert_eq!(waiter.await.expect("join"), Some("always".into()));
+        assert_eq!(
+            waiter.await.expect("join"),
+            PermissionWait::Decided("always".into())
+        );
         assert!(pending(&pool, "ws-1").await.expect("pending").is_empty());
     }
 
@@ -247,7 +258,7 @@ mod tests {
         cancel.cancel();
         assert_eq!(
             wait_for_decision(&pool, "req-2", &cancel, Duration::from_secs(1)).await,
-            None
+            PermissionWait::Cancelled
         );
     }
 }

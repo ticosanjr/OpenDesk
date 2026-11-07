@@ -13,6 +13,7 @@ import {
   Loader2,
   Save,
   Settings,
+  Wrench,
 } from "lucide-react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
@@ -25,6 +26,7 @@ import { UpdatesCard } from "@/components/settings/UpdatesCard";
 import { AboutCard } from "@/components/settings/AboutCard";
 import { NotificationCard } from "@/components/settings/NotificationCard";
 import { SectionTabs } from "@/components/ui/section-tabs";
+import { ToolsCard } from "@/components/settings/ToolsCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiDelete, apiGet, apiPatch, apiPut } from "@/lib/api";
@@ -61,6 +63,7 @@ export function SettingsPage() {
     { id: "updates", label: "Atualizações", icon: Download },
     { id: "notifications", label: "Notificações", icon: Bell },
     { id: "workspaces", label: "Workspaces", icon: FolderOpen },
+    { id: "tools", label: "Ferramentas", icon: Wrench },
     { id: "about", label: "Sobre", icon: Info },
   ] as const;
   const activeTab = tabs.some((tab) => tab.id === section) ? section : "general";
@@ -145,6 +148,7 @@ export function SettingsPage() {
         </div>
       ) : null}
       {activeTab === "notifications" ? <NotificationCard /> : null}
+      {activeTab === "tools" ? <ToolsCard /> : null}
 
       {activeTab === "general" ? (
       <div id="settings-general" className="grid scroll-mt-14 gap-3 lg:grid-cols-2">

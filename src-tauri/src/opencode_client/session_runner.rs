@@ -1,5 +1,5 @@
 use crate::{
-    db::{permissions, runs::RunUsage},
+    db::{permissions, runs::RunUsage, settings},
     events::{EventBus, OpenDeskWsEvent},
     opencode_client::rest_client::{FileDiff, ModelRefDto, RestClient},
 };
@@ -192,7 +192,7 @@ pub async fn execute_run(
                             buffer = buffer.replace("\r\n", "\n");
 
                             for event in extract_events(&mut buffer) {
-                                handle_event(
+                                if handle_event(
                                     &event,
                                     &session_id,
                                     request.run_id,
@@ -205,7 +205,17 @@ pub async fn execute_run(
                                     &mut permissions,
                                     &request.cancel,
                                 )
-                                .await;
+                                .await
+                                {
+                                    let _ = rest.interrupt(&session_id).await;
+                                    status = RunStatus::Failed;
+                                    error_message = Some(
+                                        "permission_timeout: decisão humana não chegou a tempo"
+                                            .into(),
+                                    );
+                                    completed = true;
+                                    break;
+                                }
 
                                 match event.get("type").and_then(Value::as_str) {
                                     Some("session.idle") | Some("session.execution.succeeded") => {
@@ -404,9 +414,9 @@ async fn handle_event(
     rest: &RestClient,
     permissions: &mut Vec<PermissionDecision>,
     cancel: &CancellationToken,
-) {
+) -> bool {
     if !session_matches(event, session_id) {
-        return;
+        return false;
     }
 
     let event_type = event
@@ -542,14 +552,32 @@ async fn handle_event(
                     }
                 }
 
-                let decision = permissions::wait_for_decision(
+                let minutes = settings::get(pool, "permission_timeout_minutes")
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|value| value.as_u64())
+                    .unwrap_or(10)
+                    .clamp(1, 60);
+                let wait = permissions::wait_for_decision(
                     pool,
                     &request_id,
                     cancel,
-                    Duration::from_secs(15 * 60),
+                    Duration::from_secs(minutes * 60),
                 )
-                .await
-                .unwrap_or_else(|| "reject".into());
+                .await;
+                let decision = match wait {
+                    permissions::PermissionWait::Decided(decision) => decision,
+                    permissions::PermissionWait::Cancelled => {
+                        return false;
+                    }
+                    permissions::PermissionWait::TimedOut => {
+                        let _ = rest
+                            .reply_permission(session_id, &request_id, "reject")
+                            .await;
+                        return true;
+                    }
+                };
 
                 match rest
                     .reply_permission(session_id, &request_id, &decision)
@@ -575,6 +603,7 @@ async fn handle_event(
         }
         _ => {}
     }
+    false
 }
 
 fn publish_chunk(

@@ -36,6 +36,7 @@ import { SlashTextarea } from "@/components/ui/slash-textarea";
 import { toast } from "@/store/toast-store";
 import { RunLogView } from "@/components/runs/RunLogView";
 import { QueueController } from "@/components/queue/QueueController";
+import type { OutboundSink } from "@/components/integrations/OutboundSinksCard";
 import { links } from "@/lib/links";
 import { EntityLink } from "@/components/ui/entity-link";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -1348,7 +1349,60 @@ function TaskDetailsModal({
     messages: number;
   } | null>(null);
   const [compacting, setCompacting] = useState(false);
+  const [sinks, setSinks] = useState<OutboundSink[]>([]);
+  const [selectedSinks, setSelectedSinks] = useState<Set<string>>(new Set());
+  const [savingSinks, setSavingSinks] = useState(false);
   const daemon = useAppStore((state) => state.daemon);
+
+  useEffect(() => {
+    if (!task) {
+      setSinks([]);
+      setSelectedSinks(new Set());
+      return;
+    }
+    let cancelled = false;
+    void Promise.all([
+      apiGet<{ sinks: OutboundSink[] }>(
+        `/api/io/outbound?workspace_id=${encodeURIComponent(task.workspace_id)}`,
+      ),
+      apiGet<{ bindings: Array<{ sink_id: string }> }>(
+        `/api/tasks/${task.id}/sinks`,
+      ),
+    ])
+      .then(([sinkList, bindings]) => {
+        if (cancelled) return;
+        setSinks(sinkList.sinks);
+        setSelectedSinks(new Set(bindings.bindings.map((binding) => binding.sink_id)));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSinks([]);
+          setSelectedSinks(new Set());
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [task?.id]);
+
+  async function saveSinks() {
+    if (!task) return;
+    setSavingSinks(true);
+    try {
+      await apiPost(`/api/tasks/${task.id}/sinks`, {
+        sink_ids: Array.from(selectedSinks),
+      });
+      toast({ tone: "success", title: "Entregas automáticas atualizadas" });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível salvar as entregas",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setSavingSinks(false);
+    }
+  }
 
   useEffect(() => {
     if (!task) {
@@ -1525,6 +1579,44 @@ function TaskDetailsModal({
               Esta tarefa está em execução. Cancele no controlador da fila antes de
               editar agente, modelo ou prompt.
             </p>
+          ) : null}
+
+          {sinks.length > 0 ? (
+            <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                Entregas automáticas
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+                {sinks.map((sink) => (
+                  <label key={sink.id} className="flex items-center gap-1.5 text-[10px] text-zinc-400">
+                    <input
+                      type="checkbox"
+                      checked={selectedSinks.has(sink.id)}
+                      onChange={(event) =>
+                        setSelectedSinks((current) => {
+                          const next = new Set(current);
+                          if (event.target.checked) next.add(sink.id);
+                          else next.delete(sink.id);
+                          return next;
+                        })
+                      }
+                      className="accent-blue-500"
+                    />
+                    {sink.name}
+                  </label>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto h-7"
+                  disabled={savingSinks}
+                  onClick={() => void saveSinks()}
+                >
+                  {savingSinks ? <Loader2 size={12} className="animate-spin" /> : null}
+                  Salvar entregas
+                </Button>
+              </div>
+            </div>
           ) : null}
 
           {context?.session_id ? (

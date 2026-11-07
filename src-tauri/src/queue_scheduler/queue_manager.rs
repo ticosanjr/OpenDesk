@@ -767,6 +767,11 @@ impl QueueManager {
         let delivery_schedule = job.schedule_id.clone();
         let delivery_run = run_id.clone();
         let delivery_google = self.google.clone();
+        let io_ctx = crate::io_bus::IoContext {
+            pool: self.pool.clone(),
+            paths: self.paths.clone(),
+        };
+        let run_success = outcome.status == RunStatus::Success;
         tauri::async_runtime::spawn(async move {
             if let Err(error) = delivery::deliver_run(
                 &delivery_pool,
@@ -780,6 +785,18 @@ impl QueueManager {
             .await
             {
                 tracing::warn!(error = %error, "post-run delivery failed");
+            }
+            if run_success
+                && let Err(error) = crate::io_bus::run_sinks(
+                    &io_ctx,
+                    &delivery_workspace,
+                    delivery_task.as_deref(),
+                    delivery_schedule.as_deref(),
+                    &delivery_run,
+                )
+                .await
+            {
+                tracing::warn!(error = %error, "post-run io sinks failed");
             }
         });
 

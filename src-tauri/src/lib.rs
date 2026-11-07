@@ -8,6 +8,7 @@ mod dsh_router;
 mod error;
 mod events;
 mod integrations;
+mod io_bus;
 mod mcp_bridge;
 mod opencode_client;
 mod paths;
@@ -56,6 +57,7 @@ fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
             }
 
             state.cron.shutdown();
+            state.io_bus.stop().await;
             state.queue.shutdown().await;
             state.signal.stop().await;
             state.daemon.shutdown().await;
@@ -69,6 +71,7 @@ fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
             let _ = tokio::signal::ctrl_c().await;
             tracing::info!("shutdown signal received");
             state.cron.shutdown();
+            state.io_bus.stop().await;
             state.queue.shutdown().await;
             state.signal.stop().await;
             state.daemon.shutdown().await;
@@ -96,8 +99,14 @@ fn open_capture(app: &AppHandle) {
     .min_inner_size(480.0, 240.0)
     .resizable(true)
     .always_on_top(true)
+    .skip_taskbar(true)
     .decorations(false)
-    .build();
+    .visible(false)
+    .build()
+    .map(|window| {
+        let _ = window.show();
+        let _ = window.set_focus();
+    });
 }
 
 fn init_logging() {
@@ -174,6 +183,11 @@ pub fn run() {
             }
             state.queue.spawn_worker();
             state.cron.spawn();
+            tauri::async_runtime::spawn(crate::db::maintenance::run_loop(
+                state.db.clone(),
+                state.paths.clone(),
+            ));
+            tauri::async_runtime::block_on(state.io_bus.start(state.clone()))?;
             tray::setup(app.handle(), state.clone())?;
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.maximize();
@@ -186,6 +200,11 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Focused(false) = event
+                && window.label() == "capture"
+            {
+                let _ = window.hide();
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 // Only the main window belongs to the tray lifecycle. The
                 // Quick Capture window must close normally.
@@ -265,8 +284,13 @@ pub fn run_headless() {
             tracing::warn!(error = %error, "Signal bridge was not started");
         }
         state.queue.spawn_worker();
+        tauri::async_runtime::spawn(crate::db::maintenance::run_loop(
+            state.db.clone(),
+            state.paths.clone(),
+        ));
         tauri::async_runtime::spawn(integrations::delivery::retry_loop(state.clone()));
         state.cron.spawn();
+        state.io_bus.start(state.clone()).await.expect("io bus");
         api::spawn_server(state.clone())
             .await
             .expect("OpenDesk API server");
@@ -278,6 +302,7 @@ pub fn run_headless() {
 
         let _ = tokio::signal::ctrl_c().await;
         state.cron.shutdown();
+        state.io_bus.stop().await;
         state.queue.shutdown().await;
         state.daemon.shutdown().await;
     });

@@ -38,7 +38,7 @@ export function CapturePage() {
   async function close() {
     if (isTauri()) {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      await getCurrentWindow().close();
+      await getCurrentWindow().hide();
     } else {
       navigate("/");
     }

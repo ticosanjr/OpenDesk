@@ -186,6 +186,15 @@ pub async fn create(
     workspace_id: &str,
     input: CreateTaskInput,
 ) -> AppResult<Task> {
+    create_with_id(pool, workspace_id, None, input).await
+}
+
+pub async fn create_with_id(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    id: Option<&str>,
+    input: CreateTaskInput,
+) -> AppResult<Task> {
     let title = input.title.trim();
     if title.is_empty() {
         return Err(AppError::BadRequest("task title is required".into()));
@@ -207,7 +216,9 @@ pub async fn create(
     .fetch_one(pool)
     .await?;
 
-    let id = Uuid::now_v7().to_string();
+    let id = id
+        .map(str::to_string)
+        .unwrap_or_else(|| Uuid::now_v7().to_string());
     sqlx::query(
         "INSERT INTO tasks (
             id, workspace_id, title, description, status, priority,

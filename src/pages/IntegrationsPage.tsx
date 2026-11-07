@@ -15,6 +15,8 @@ import {
   Save,
   Send,
   ShieldCheck,
+  Inbox,
+  Package,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +25,8 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SignalCard } from "@/components/settings/SignalCard";
 import { SectionTabs } from "@/components/ui/section-tabs";
+import { InboundSourcesCard } from "@/components/integrations/InboundSourcesCard";
+import { OutboundSinksCard } from "@/components/integrations/OutboundSinksCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -87,7 +91,9 @@ export function IntegrationsPage() {
     { id: "smtp", label: "SMTP", icon: Mail },
     { id: "google", label: "Google", icon: Cloud },
     { id: "signal", label: "Signal", icon: Plug },
-    { id: "deliveries", label: "Entregas", icon: Send },
+    { id: "inbound", label: "Entradas", icon: Inbox },
+    { id: "sinks", label: "Saídas", icon: Package },
+    { id: "deliveries", label: "Histórico", icon: Send },
     { id: "mcp", label: "MCP e segurança", icon: ShieldCheck },
   ] as const;
   const activeTab = tabs.some((tab) => tab.id === section) ? section : "smtp";
@@ -490,6 +496,14 @@ export function IntegrationsPage() {
         <div id="integrations-signal">
           <SignalCard />
         </div>
+      ) : null}
+
+      {activeTab === "inbound" ? (
+        <InboundSourcesCard workspaceId={activeWorkspaceId ?? ""} />
+      ) : null}
+
+      {activeTab === "sinks" ? (
+        <OutboundSinksCard workspaceId={activeWorkspaceId ?? ""} />
       ) : null}
 
       {activeTab === "deliveries" ? (

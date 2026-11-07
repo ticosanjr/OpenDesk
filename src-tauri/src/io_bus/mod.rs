@@ -1,0 +1,374 @@
+use crate::{
+    app_state::AppState,
+    db::{
+        self,
+        io_bus::{InboundSource, OutboundSink},
+        tasks::{self, CreateTaskInput},
+    },
+    error::{AppError, AppResult},
+    events::OpenDeskWsEvent,
+    paths::AppPaths,
+    secrets::SecretStore,
+};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use uuid::Uuid;
+
+pub mod inbound;
+pub mod outbound;
+pub mod preprocess;
+pub mod runtime;
+pub mod tools;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NormalizedTaskEvent {
+    pub source_id: String,
+    pub external_id: String,
+    pub title: String,
+    pub body_markdown: String,
+    #[serde(default)]
+    pub priority: Option<i64>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub attachments: Vec<String>,
+    #[serde(default)]
+    pub metadata: serde_json::Value,
+}
+
+#[derive(Clone)]
+pub struct IoContext {
+    pub pool: sqlx::SqlitePool,
+    pub paths: AppPaths,
+}
+
+impl IoContext {
+    pub fn secrets(&self) -> SecretStore {
+        SecretStore::new(&self.paths)
+    }
+}
+
+/// Convert any inbound signal into exactly one deterministic task.
+pub async fn ingest(
+    state: &Arc<AppState>,
+    source: &InboundSource,
+    event: NormalizedTaskEvent,
+) -> AppResult<tasks::Task> {
+    let seed = format!(
+        "opendesk:io:{}:{}",
+        source.id,
+        if event.external_id.trim().is_empty() {
+            format!("{}:{}", event.title, event.body_markdown)
+        } else {
+            event.external_id.clone()
+        }
+    );
+    let id = Uuid::new_v5(&Uuid::NAMESPACE_URL, seed.as_bytes()).to_string();
+    if let Ok(existing) = tasks::get(&state.db, &id).await {
+        return Ok(existing);
+    }
+
+    let mut body = event.body_markdown.trim().to_string();
+    if body.is_empty() {
+        body = event.title.clone();
+    }
+    if !event.attachments.is_empty() {
+        body.push_str("\n\n## Arquivos de entrada\n\n");
+        for path in &event.attachments {
+            body.push_str(&format!("- `{path}`\n"));
+        }
+    }
+    let mut tags = event.tags.clone();
+    tags.push("io-bus".into());
+    tags.push(format!("io-source:{}", source.id));
+    let task = tasks::create_with_id(
+        &state.db,
+        &source.workspace_id,
+        Some(&id),
+        CreateTaskInput {
+            title: event.title.chars().take(180).collect(),
+            description: body,
+            execution_mode: Some("AUTO_DSH".into()),
+            priority: event.priority.or(Some(2)),
+            assigned_agent: source.target_agent.clone(),
+            preferred_model: None,
+            effort_level: None,
+            notify_email: None,
+            export_to_gdocs: false,
+            tags,
+        },
+    )
+    .await?;
+
+    if source.target_agent.is_some() {
+        let _ = tasks::update(
+            &state.db,
+            &task.id,
+            tasks::UpdateTaskInput {
+                agent_override: Some(true),
+                ..Default::default()
+            },
+        )
+        .await;
+    }
+    if !source.auto_execute {
+        let column = if source.target_column.is_empty() {
+            "BACKLOG"
+        } else {
+            &source.target_column
+        };
+        let _ = tasks::move_to(&state.db, &task.id, column, None).await;
+    }
+    state.events.publish(OpenDeskWsEvent::TaskUpdated {
+        task_id: task.id.clone(),
+        workspace_id: task.workspace_id.clone(),
+        stage: task.status.clone(),
+        phase_status: task.phase_status.clone(),
+    });
+
+    if source.auto_execute {
+        let body = crate::api::tasks::DispatchBody {
+            policy: None,
+            manual_agent: source.target_agent.clone(),
+            manual_model: None,
+            manual_effort: None,
+            execution_mode: None,
+        };
+        if let Err(error) =
+            crate::api::tasks::dispatch_task_internal(state, &task.id, body, None).await
+        {
+            tracing::warn!(task = %task.id, error = %error, "io bus task queued without engine dispatch");
+            let _ = db::io_bus::mark_inbound(
+                &state.db,
+                &source.id,
+                "QUEUED_TASK",
+                Some(&format!("{error:#}")),
+            )
+            .await;
+            let column = if source.target_column.is_empty() {
+                "TODO"
+            } else {
+                &source.target_column
+            };
+            let _ = tasks::move_to(&state.db, &task.id, column, None).await;
+            return tasks::get(&state.db, &task.id).await;
+        }
+    } else {
+        let _ = db::io_bus::mark_inbound(&state.db, &source.id, "TASK_CREATED", None).await;
+    }
+    tasks::get(&state.db, &task.id).await
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RunOutput {
+    pub workspace_id: String,
+    pub workspace_root: String,
+    pub output_directory: Option<String>,
+    pub task_id: Option<String>,
+    pub run_id: String,
+    pub title: String,
+    pub summary: String,
+    pub artifacts: Vec<RunArtifact>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RunArtifact {
+    pub file_path: String,
+    pub absolute_path: String,
+    pub action_type: String,
+}
+
+pub async fn load_run_output(
+    ctx: &IoContext,
+    workspace_id: &str,
+    task_id: Option<&str>,
+    _schedule_id: Option<&str>,
+    run_id: &str,
+) -> AppResult<RunOutput> {
+    let run = db::runs::get(&ctx.pool, run_id).await?;
+    let workspace = db::workspaces::get(&ctx.pool, workspace_id).await?;
+    let output_directory = if let Some(task_id) = task_id {
+        db::tasks::get(&ctx.pool, task_id)
+            .await
+            .ok()
+            .and_then(|task| task.output_dir_path)
+    } else {
+        None
+    };
+    let artifacts = db::artifacts::list_by_run(&ctx.pool, run_id, 500)
+        .await?
+        .into_iter()
+        .map(|artifact| RunArtifact {
+            file_path: artifact.file_path,
+            absolute_path: artifact.absolute_path,
+            action_type: artifact.action_type,
+        })
+        .collect();
+    Ok(RunOutput {
+        workspace_id: workspace_id.to_string(),
+        workspace_root: workspace.root_path,
+        output_directory,
+        task_id: task_id.map(str::to_string),
+        run_id: run_id.to_string(),
+        title: run
+            .task_title
+            .clone()
+            .unwrap_or_else(|| "OpenDesk run".into()),
+        summary: run.summary_response.unwrap_or_default(),
+        artifacts,
+    })
+}
+
+/// Execute all sinks bound to a task/schedule after a successful run. Sink
+/// failures are isolated and never change the run status.
+pub async fn run_sinks(
+    ctx: &IoContext,
+    workspace_id: &str,
+    task_id: Option<&str>,
+    schedule_id: Option<&str>,
+    run_id: &str,
+) -> AppResult<()> {
+    let sinks = db::io_bus::sinks_for_run(&ctx.pool, task_id, schedule_id).await?;
+    if sinks.is_empty() {
+        return Ok(());
+    }
+    let output = load_run_output(ctx, workspace_id, task_id, schedule_id, run_id).await?;
+    for sink in sinks {
+        let result = outbound::execute(ctx, &sink, &output).await;
+        match &result {
+            Ok(_) => {
+                let _ = db::io_bus::mark_outbound(&ctx.pool, &sink.id, "SUCCESS", None).await;
+            }
+            Err(error) => {
+                tracing::warn!(sink = %sink.id, run = %run_id, error = %error, "outbound sink failed");
+                let _ = db::io_bus::mark_outbound(
+                    &ctx.pool,
+                    &sink.id,
+                    "FAILED",
+                    Some(&format!("{error:#}")),
+                )
+                .await;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn config_value<T: for<'de> Deserialize<'de>>(sink: &OutboundSink) -> AppResult<T> {
+    serde_json::from_str(&sink.config_json)
+        .map_err(|error| AppError::BadRequest(format!("config_json inválido: {error}")))
+}
+
+pub fn source_config<T: for<'de> Deserialize<'de>>(source: &InboundSource) -> AppResult<T> {
+    serde_json::from_str(&source.config_json)
+        .map_err(|error| AppError::BadRequest(format!("config_json inválido: {error}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::io_bus::{InboundSource, OutboundSink};
+
+    #[tokio::test]
+    async fn ingests_same_external_id_as_one_task() {
+        use crate::paths::AppPaths;
+        let temp = tempfile::TempDir::new().expect("temp");
+        let root = temp.path();
+        let paths = AppPaths {
+            data_dir: root.join("data"),
+            config_dir: root.join("config"),
+            cache_dir: root.join("cache"),
+            log_dir: root.join("logs"),
+            db_path: root.join("data").join("opendesk.db"),
+            backups_dir: root.join("backups"),
+            artifacts_dir: root.join("artifacts"),
+            run_logs_dir: root.join("runs"),
+            daemon_lock_path: root.join("daemon.json"),
+            api_lock_path: root.join("api.json"),
+        };
+        for dir in [
+            &paths.data_dir,
+            &paths.config_dir,
+            &paths.cache_dir,
+            &paths.log_dir,
+            &paths.backups_dir,
+            &paths.artifacts_dir,
+            &paths.run_logs_dir,
+        ] {
+            std::fs::create_dir_all(dir).expect("dir");
+        }
+        let state = Arc::new(
+            crate::app_state::AppState::initialize(paths)
+                .await
+                .expect("state"),
+        );
+        sqlx::query("INSERT INTO workspaces (id, name, root_path) VALUES ('ws-1', 'WS', ?)")
+            .bind(root.to_string_lossy().to_string())
+            .execute(&state.db)
+            .await
+            .expect("workspace");
+        let source = crate::db::io_bus::create_inbound(
+            &state.db,
+            "ws-1",
+            crate::db::io_bus::InboundInput {
+                name: "webhook".into(),
+                source_type: "WEBHOOK_HTTP".into(),
+                config: serde_json::json!({}),
+                target_agent: None,
+                target_column: Some("TODO".into()),
+                auto_execute: false,
+                is_enabled: true,
+            },
+        )
+        .await
+        .expect("source");
+        let event = NormalizedTaskEvent {
+            source_id: source.id.clone(),
+            external_id: "same".into(),
+            title: "Tarefa".into(),
+            body_markdown: "corpo".into(),
+            priority: None,
+            tags: vec![],
+            attachments: vec![],
+            metadata: serde_json::json!({}),
+        };
+        let first = ingest(&state, &source, event.clone()).await.expect("first");
+        let second = ingest(&state, &source, event).await.expect("second");
+        assert_eq!(first.id, second.id);
+        assert_eq!(first.status, "TODO");
+    }
+
+    #[test]
+    fn parses_config_values_and_rejects_invalid_json() {
+        let sink = OutboundSink {
+            id: "s".into(),
+            workspace_id: "ws".into(),
+            name: "S".into(),
+            sink_type: "DOC_COMPILER".into(),
+            config_json: "{\"format\":\"pdf\"}".into(),
+            is_enabled: true,
+            last_run_at: None,
+            last_status: None,
+            last_error: None,
+            created_at: "now".into(),
+        };
+        let value: serde_json::Value = config_value(&sink).expect("config");
+        assert_eq!(value["format"], "pdf");
+        let source = InboundSource {
+            id: "i".into(),
+            workspace_id: "ws".into(),
+            name: "I".into(),
+            source_type: "FOLDER_WATCH".into(),
+            config_json: "{invalid".into(),
+            target_agent: None,
+            target_column: "TODO".into(),
+            auto_execute: true,
+            is_enabled: true,
+            last_triggered_at: None,
+            last_status: None,
+            last_error: None,
+            created_at: "now".into(),
+        };
+        assert!(source_config::<serde_json::Value>(&source).is_err());
+    }
+}

@@ -98,6 +98,9 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Janela maximizada, “X” mantendo o app na bandeja e abas em Configurações,
   Integrações e Kanban.
 - Timeline de execução ao vivo com links para artefatos e pasta de resultados.
+- Barramento universal de I/O: dropzone/OCR/áudio, IMAP, webhooks, SQL poller,
+  Telegram/Matrix e sinks de PDF/XLSX, FS, S3, Git, SQL e chat.
+- Ferramentas externas opcionais em pasta própria, com detecção e download.
 - Backup rotativo do SQLite antes de migrações.
 - Limpeza automática de artefatos de build após cada release.
 - Auto-atualização do OpenDesk por release privada com SHA256 e backup.
@@ -250,6 +253,9 @@ docs/                       plano, decisões e histórico
 - [ADR 0025 — Permissões, swarm, captura e blueprints](docs/decisions/0025-permissions-swarm-capture-blueprints.md)
 - [ADR 0026 — Cache, mídia, aprovações, segredos e chat](docs/decisions/0026-cache-media-approvals-chat-secrets.md)
 - [ADR 0027 — Bandeja, abas, timeline e fila](docs/decisions/0027-tray-tabs-live-timeline-queue.md)
+- [ADR 0028 — Barramento Universal de I/O](docs/decisions/0028-io-bus-uen.md)
+- [SPEC_IO_BUS](docs/specs/SPEC_IO_BUS.md)
+- [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)
