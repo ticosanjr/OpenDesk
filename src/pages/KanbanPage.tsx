@@ -1988,13 +1988,28 @@ function SwarmModal({
   const [created, setCreated] = useState<
     Array<{ id: string; title: string; model: string }>
   >([]);
+  const [artifacts, setArtifacts] = useState<Record<string, Artifact[]>>({});
+  const lastRunEvent = useAppStore((state) => state.lastRunEvent);
 
   useEffect(() => {
     if (task) {
       setError(null);
       setCreated([]);
+      setArtifacts({});
     }
   }, [task]);
+
+  useEffect(() => {
+    if (created.length === 0) return;
+    void Promise.all(
+      created.map(async (copy) => {
+        const list = await apiGet<Artifact[]>(
+          `/api/artifacts?task_id=${encodeURIComponent(copy.id)}`,
+        ).catch(() => []);
+        return [copy.id, list] as const;
+      }),
+    ).then((entries) => setArtifacts(Object.fromEntries(entries)));
+  }, [created, lastRunEvent?.run_id]);
 
   async function run() {
     if (!task) return;
@@ -2061,33 +2076,57 @@ function SwarmModal({
           </p>
         ) : null}
         {created.length > 0 ? (
-          <div className="space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             {created.map((copy) => (
               <div
                 key={copy.id}
-                className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2"
+                className="flex min-w-0 flex-col gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2"
               >
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0">
                   <p className="truncate text-[12px] text-zinc-200">{copy.title}</p>
                   <p className="font-mono text-[10px] text-zinc-500">{copy.model}</p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7"
-                  onClick={() => {
-                    window.location.hash = `#${links.task(copy.id)}`;
-                  }}
-                >
-                  Abrir
-                </Button>
-                <Button
-                  size="sm"
-                  className="h-7"
-                  onClick={() => void chooseWinner(copy.id)}
-                >
-                  Escolher vencedor
-                </Button>
+                <div className="min-h-10 flex-1 space-y-1">
+                  {(artifacts[copy.id] ?? []).length === 0 ? (
+                    <p className="text-[10px] text-zinc-600">
+                      aguardando entregáveis…
+                    </p>
+                  ) : (
+                    artifacts[copy.id].slice(0, 6).map((artifact) => (
+                      <button
+                        key={artifact.id}
+                        type="button"
+                        onClick={() => {
+                          window.location.hash = `#/artifacts?id=${encodeURIComponent(artifact.id)}`;
+                        }}
+                        className="flex w-full items-center gap-1.5 truncate rounded border border-zinc-800/70 px-1.5 py-1 text-left text-[10px] text-zinc-400 hover:text-zinc-100"
+                        title={artifact.file_path}
+                      >
+                        <FileText size={10} className="shrink-0" />
+                        <span className="truncate">{artifact.file_path}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    onClick={() => {
+                      window.location.hash = `#${links.task(copy.id)}`;
+                    }}
+                  >
+                    Abrir
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7"
+                    onClick={() => void chooseWinner(copy.id)}
+                  >
+                    Vencedor
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

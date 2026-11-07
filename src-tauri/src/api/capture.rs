@@ -15,6 +15,7 @@ pub struct CaptureBody {
     pub content: String,
     pub image_base64: Option<String>,
     pub filename: Option<String>,
+    pub assigned_agent: Option<String>,
 }
 
 /// Quick Capture entry point: text, links and clipboard images become a
@@ -84,7 +85,13 @@ pub async fn capture(
                 chrono::Utc::now().format("%d/%m %H:%M")
             )
         });
-    let task = tasks::create(
+    let agent = body
+        .assigned_agent
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let mut task = tasks::create(
         &state.db,
         &workspace_id,
         tasks::CreateTaskInput {
@@ -92,7 +99,7 @@ pub async fn capture(
             description,
             execution_mode: Some("BUILD_DIRECT".into()),
             priority: Some(2),
-            assigned_agent: None,
+            assigned_agent: agent.clone(),
             preferred_model: None,
             effort_level: None,
             notify_email: None,
@@ -101,6 +108,17 @@ pub async fn capture(
         },
     )
     .await?;
+    if agent.is_some() {
+        task = tasks::update(
+            &state.db,
+            &task.id,
+            tasks::UpdateTaskInput {
+                agent_override: Some(true),
+                ..Default::default()
+            },
+        )
+        .await?;
+    }
     state.events.publish(OpenDeskWsEvent::TaskUpdated {
         task_id: task.id.clone(),
         workspace_id: task.workspace_id.clone(),

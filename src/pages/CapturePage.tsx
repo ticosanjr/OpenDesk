@@ -17,6 +17,7 @@ export function CapturePage() {
   const boot = useAppStore((state) => state.boot);
   const [workspaceId, setWorkspaceId] = useState(activeWorkspaceId ?? "");
   const [content, setContent] = useState("");
+  const [agent, setAgent] = useState("");
   const [image, setImage] = useState<{ data: string; name: string } | null>(null);
   const [sending, setSending] = useState(false);
   const textarea = useRef<HTMLTextAreaElement>(null);
@@ -74,6 +75,7 @@ export function CapturePage() {
         content,
         image_base64: image?.data,
         filename: image?.name,
+        assigned_agent: agent.trim() || undefined,
       });
       toast({
         tone: "success",
@@ -158,9 +160,17 @@ export function CapturePage() {
       ) : null}
 
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] text-zinc-600">
-          Vai para Backlog · Ctrl+Enter envia · Esc fecha
-        </p>
+        <div className="flex items-center gap-2">
+          <input
+            value={agent}
+            onChange={(event) => setAgent(event.target.value)}
+            placeholder="@agente (opcional)"
+            className="h-7 w-36 rounded-md border border-zinc-800 bg-zinc-900 px-2 font-mono text-[10px] outline-none placeholder:text-zinc-600 focus:border-blue-500/40"
+          />
+          <p className="text-[10px] text-zinc-600">
+            Backlog · Ctrl+Enter envia · Esc fecha
+          </p>
+        </div>
         <Button size="sm" onClick={() => void save()} disabled={sending || (!content.trim() && !image)}>
           {sending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
           Capturar

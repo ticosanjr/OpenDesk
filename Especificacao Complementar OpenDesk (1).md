@@ -74,3 +74,38 @@
    * Opção no card da tarefa para **"Rodar em 2 Agentes/Modelos em Paralelo"** (ex.: disparar a mesma tarefa para deepseek-v4.1-flash e glm-5.3 em pastas isoladas) e exibir os dois arquivos gerados lado a lado para o usuário escolher o vencedor.  
 > 5. **Templates de Equipe em 1 Clique (*Workspace Blueprints*):**  
    * Ao criar um novo Workspace, permitir escolher um pacote pré-configurado (ex.: *Equipe de Conteúdo/YouTube*, *Equipe de Engenharia de Software*, *Equipe de Pesquisa & Mercado*) que já popula automaticamente a pasta .opencode/agents/ e .opencode/skills/ com os especialistas padrão daquela operação.
+
+A especificação anterior cobriu com precisão as engrenagens de backend, o SSOT no disco, o roteador DSH e os diferenciais operacionais dos concorrentes. No entanto, para que o \*\*OpenDesk\*\* atinja um padrão \*\*10/10 absoluto\*\* em experiência de uso e se alinhe perfeitamente ao seu ecossistema atual e histórico de desenvolvimento, faltaram \*\*5 pontos críticos e diferenciais de integração fina\*\*:
+
+\---
+
+\#\#\# 1\. Integração Direta com a Cota do OpenCode Go (Porta \`3100\`) e Cache Hit Optimization
+
+\* \*\*O que faltou:\*\* A especificação detalhou o uso de modelos mas não pontuou a otimização de \*\*Prompt Caching\*\* e o gerenciamento de sessões para aproveitar ao máximo a assinatura do OpenCode Go.  
+\* \*\*Como entra no OpenDesk:\*\*  
+\* O \`context\_packer\` e o roteador DSH devem estruturar os prompts fixando os System Prompts e as Skills no início da requisição (utilizando marcadores de cache do provedor) para maximizar o \*\*Cache Hit Ratio\*\* no endpoint local \`:3100\`.  
+\* Um widget de telemetria dedicado na UI para mostrar o percentual de tokens economizados graças ao cache do OpenCode Go.
+
+\#\#\# 2\. Suporte Nativo a Codecs de Vídeo / Mídia (DaVinci Resolve / OBS Workflows)
+
+\* \*\*O que faltou:\*\* Considerando seus projetos de mídia, canais de IA e edição de vídeo, o OpenDesk tratou apenas de arquivos textuais (\`.md\`, código, PDFs). Agentes que lidam com automação de conteúdo precisam interagir com ativos multimídia.  
+\* \*\*Como entra no OpenDesk:\*\*  
+\* Adicionar nas Skills padrão e ferramentas do OpenCode a capacidade de ler metadados de arquivos de vídeo/áudio e se conectar via MCP a ferramentas de automação de pós-produção (como scripts de corte do DaVinci Resolve ou organização de pastas de assets de vídeo).
+
+\#\#\# 3\. Mecanismo de "Human-in-the-Loop" por E-mail / Telegram / WhatsApp (Notificações Interativas)
+
+\* \*\*O que faltou:\*\* A especificação citou notificações por e-mail e bloqueio por estado 🔴 \`BLOCKED\`, mas focou apenas na interface web. Se você estiver longe do PC e um agente precisar de aprovação, ele fica travado no daemon.  
+\* \*\*Como entra no OpenDesk:\*\*  
+\* \*\*Aprovação via E-mail ou Webhook:\*\* Quando um agente entra em estado \`BLOCKED\` (ex.: precisa de autorização para rodar um comando bash sensível ou aprovar um plano), o OpenDesk pode disparar um e-mail formatado ou uma notificação contendo botões criptografados de ação rápida (\*\[Aprovar\]\*, \*\[Rejeitar\]\*) permitindo desbloquear a tarefa diretamente pelo celular sem abrir o app desktop.
+
+\#\#\# 4\. Gestão e Sincronização de Credenciais / Segredos Locais (Bitwarden / Dotfiles)
+
+\* \*\*O que faltou:\*\* Como o OpenDesk gerencia integrações com Google Workspace (OAuth2), chaves de API do DeepSeek, Amazon SES e servidores MCP, faltou definir como o sistema lida com segredos sem expô-los em texto plano no banco SQLite ou no \`opencode.jsonc\`.  
+\* \*\*Como entra no OpenDesk:\*\*  
+\* O OpenDesk deve se integrar nativamente ao \*\*Keyring do Sistema Operacional\*\* (GNOME Keyring / Windows Credential Manager) ou ler variáveis de ambiente seguras de arquivos \`.env\` locais por workspace, sem nunca gravar credenciais sensíveis nas tabelas do SQLite de tarefas ou logs de execução.
+
+\#\#\# 5\. Modo "Pair-Programming / Conversa Contínua" com o Agente Principal (O Balcão de Despacho)
+
+\* \*\*O que faltou:\*\* O foco ficou muito nos cards do Kanban e na automação em background, deixando vaga a experiência de "bater papo" quando você quer co-criar algo do zero com o modelo principal do OpenCode.  
+\* \*\*Comportamento esperado:\*\*  
+\* A aba \*\*Chat & Criador\*\* do OpenDesk precisa simular um terminal moderno de IA (estilo Cursor/Raycast Chat) onde você pode alternar instantaneamente entre o modelo leve (Flash) para perguntas rápidas e o modelo pesado (Pro/GLM) para debugar um erro complexo de código ou estruturar uma pauta, com arraste e solto de arquivos e imagens direto na caixa de texto.  

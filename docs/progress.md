@@ -978,3 +978,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Retry de falha em outro modelo pelo Attention Card.
 - Entregáveis fixados no Dashboard e nos cards do Kanban.
 - `cargo test` — 124 passed; `clippy` limpo.
+
+## 2026-11-07 — 0.18.1: captura com subagente e comparação lado a lado
+
+- Quick Capture aceita agente/subagente opcional e envia com override explícito.
+- Swarm A/B mostra os entregáveis de cada modelo em duas colunas assim que os
+  runs terminam.
