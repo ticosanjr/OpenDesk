@@ -146,7 +146,7 @@ export function StudioPage() {
         </div>
       </div>
 
-      <div className="mt-3 min-h-0 flex-1 overflow-hidden border-t border-zinc-800/70">
+      <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-zinc-800/70">
         {scope === "effective" ? (
           <StudioOverview
             workspaceId={activeWorkspaceId}

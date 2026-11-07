@@ -423,7 +423,7 @@ export function DashboardPage() {
                 description="A tabela é alimentada pelos runs persistidos em task_runs."
               />
             ) : (
-              <div className="overflow-x-auto">
+              <div className="scroll-area overflow-auto">
                 <table className="w-full text-left">
                   <thead className="border-b border-zinc-800/70 text-[9px] uppercase tracking-[0.12em] text-zinc-600">
                     <tr>

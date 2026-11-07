@@ -907,3 +907,16 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `vitest` — 48 passed.
 - Playwright — 15 passed.
 - Clippy limpo.
+
+## 2026-11-07 — 0.15.1: versão no tray e contrato de scroll
+
+- Menu da bandeja mostra `OpenDesk vX.Y.Z` no topo e no tooltip.
+- `PageBodyFill` + regras de `min-h-0`/`overflow` para telas split-pane.
+- `100dvh` no shell, modais, drawers e run detail.
+- Kanban sem scroll aninhado nas colunas: board rola na horizontal e a página
+  rola na vertical.
+- Files/Artefatos com visualizador ocupando altura disponível e corpo rolável.
+- Studio, ConfigPanel, LogDrawer e RunLogView com wrappers flex corrigidos.
+- Tabelas e blocos de diagnóstico com scroll nos dois eixos.
+- Auditoria Playwright de scroll em todas as rotas, 1100×700 e 1440×900.
+- `cargo test` — 111 passed; Playwright — 16 passed.

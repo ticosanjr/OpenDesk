@@ -10,6 +10,14 @@ use tauri::{
 };
 
 pub fn setup(app: &AppHandle, state: Arc<AppState>) -> tauri::Result<()> {
+    let version = app.package_info().version.to_string();
+    let version_item = MenuItem::with_id(
+        app,
+        "app_version",
+        version_label(&version),
+        false,
+        None::<&str>,
+    )?;
     let status_item = MenuItem::with_id(
         app,
         "daemon_status",
@@ -42,12 +50,15 @@ pub fn setup(app: &AppHandle, state: Arc<AppState>) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let quit_item = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
+    let separator_zero = PredefinedMenuItem::separator(app)?;
     let separator_one = PredefinedMenuItem::separator(app)?;
     let separator_two = PredefinedMenuItem::separator(app)?;
 
     let menu = Menu::with_items(
         app,
         &[
+            &version_item,
+            &separator_zero,
             &status_item,
             &queue_item,
             &spend_item,
@@ -67,7 +78,7 @@ pub fn setup(app: &AppHandle, state: Arc<AppState>) -> tauri::Result<()> {
 
     TrayIconBuilder::with_id("main")
         .icon(icon)
-        .tooltip("OpenDesk")
+        .tooltip(version_label(&version))
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -152,10 +163,24 @@ fn spawn_menu_updater(
     });
 }
 
+fn version_label(version: &str) -> String {
+    format!("OpenDesk v{version}")
+}
+
 fn focus_main(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::version_label;
+
+    #[test]
+    fn tray_version_label_is_explicit() {
+        assert_eq!(version_label("0.15.1"), "OpenDesk v0.15.1");
     }
 }

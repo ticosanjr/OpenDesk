@@ -241,7 +241,7 @@ export function AppShell() {
   }, [navigate, refresh, setCommandOpen, setTaskDialogOpen]);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#09090b] text-zinc-100">
+    <div className="flex h-dvh w-screen overflow-hidden bg-[#09090b] text-zinc-100">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
@@ -332,7 +332,7 @@ export function AppShell() {
             </button>
           </div>
         ) : null}
-        <main className="min-h-0 flex-1 overflow-y-auto">
+        <main className="app-main min-h-0 flex-1">
           <Suspense
             fallback={
               <div className="space-y-3 p-5 lg:p-7">

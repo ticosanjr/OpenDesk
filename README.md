@@ -76,6 +76,8 @@ OpenCode permanecendo nos arquivos nativos do disco.
   respostas do usuário e resultado intercalados.
 - Visualizador interno para Markdown, HTML, imagens, PDF, vídeo, áudio e código.
 - Busca global com abas por tipologia.
+- Contrato de scroll com auditoria Playwright em todas as rotas e tamanhos.
+- Versão do OpenDesk visível no menu da bandeja e no tooltip.
 - Backup rotativo do SQLite antes de migrações.
 - Limpeza automática de artefatos de build após cada release.
 - Auto-atualização do OpenDesk por release privada com SHA256 e backup.
@@ -221,6 +223,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0018 — Arquivos, feedback e gestão de workspace](docs/decisions/0018-files-feedback-and-workspace-management.md)
 - [ADR 0019 — Timeline de execução e referências navegáveis](docs/decisions/0019-run-timeline-and-entity-links.md)
 - [ADR 0020 — Status Paperclip, execução e visualizadores](docs/decisions/0020-task-status-execution-viewer-and-search.md)
+- [ADR 0021 — Contrato de layout e scroll](docs/decisions/0021-layout-and-scroll-contract.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)

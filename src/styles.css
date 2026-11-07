@@ -32,6 +32,7 @@ body,
 body {
   min-width: 320px;
   overflow: hidden;
+  overscroll-behavior: none;
   background:
     radial-gradient(1200px 600px at 70% -10%, rgba(59, 130, 246, 0.06), transparent 60%),
     #09090b;
@@ -57,7 +58,27 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: #52525b;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 transparent;
+}
+
+.app-main {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.scroll-area {
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 input,

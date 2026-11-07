@@ -473,7 +473,7 @@ export function RoutinesPage() {
             Nenhum run registrado ainda. Use “Executar agora” ou aguarde o próximo disparo.
           </p>
         ) : (
-          <div className="max-h-[55vh] space-y-1.5 overflow-y-auto pr-1">
+          <div className="max-h-[55dvh] space-y-1.5 overflow-y-auto pr-1">
             {historyRuns.map((run) => (
               <Link
                 key={run.id}

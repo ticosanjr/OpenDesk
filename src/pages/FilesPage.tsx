@@ -13,7 +13,7 @@ import {
   Search,
 } from "lucide-react";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { PageBody, PageBodyFill, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -190,7 +190,8 @@ export function FilesPage() {
   }
 
   return (
-    <PageBody>
+    <PageBodyFill>
+      <div className="shrink-0">
       <PageHeader
         eyebrow="explorador"
         title="Arquivos"
@@ -214,14 +215,16 @@ export function FilesPage() {
         }
       />
 
+      </div>
+
       {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="shrink-0 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
           {error}
         </p>
       ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(280px,380px)_1fr]">
-        <Card className="flex max-h-[70vh] min-h-[420px] flex-col">
+      <div className="grid min-h-0 flex-1 gap-3 overflow-hidden lg:grid-cols-[minmax(280px,380px)_1fr]">
+        <Card className="flex h-full min-h-0 flex-col">
           <CardHeader className="gap-2 px-3.5 py-3">
             <div className="flex w-full flex-wrap items-center gap-1 text-[10px] text-zinc-500">
               {crumbs.map((crumb, index) => (
@@ -296,7 +299,7 @@ export function FilesPage() {
           </CardContent>
         </Card>
 
-        <Card className="flex max-h-[70vh] min-h-[420px] flex-col">
+        <Card className="flex h-full min-h-0 flex-col">
           <CardHeader className="px-3.5 py-3">
             <div className="min-w-0">
               <CardTitle className="flex items-center gap-2 text-[12px]">
@@ -331,7 +334,7 @@ export function FilesPage() {
               </div>
             ) : null}
           </CardHeader>
-          <CardContent className="min-h-0 flex-1 overflow-hidden p-0">
+          <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
             {loadingFile ? (
               <p className="p-3 text-[11px] text-zinc-600">Carregando arquivo…</p>
             ) : !selected ? (
@@ -359,6 +362,6 @@ export function FilesPage() {
           </CardContent>
         </Card>
       </div>
-    </PageBody>
+    </PageBodyFill>
   );
 }

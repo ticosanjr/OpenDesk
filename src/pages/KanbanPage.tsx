@@ -432,7 +432,7 @@ export function KanbanPage() {
             <Card
               key={column.id}
               data-column={column.id}
-              className="flex max-h-[calc(100vh-15rem)] min-h-[440px] w-[280px] shrink-0 flex-col"
+              className="flex min-h-[440px] w-[280px] shrink-0 flex-col"
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 const taskId =
@@ -450,7 +450,7 @@ export function KanbanPage() {
                 </CardTitle>
                 <Badge variant={column.tone}>{columnTasks.length}</Badge>
               </CardHeader>
-              <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2.5">
+              <CardContent className="flex-1 space-y-2 p-2.5">
                 {columnTasks.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-zinc-800/80 bg-zinc-950/30 px-3 py-8 text-center">
                     <GripVertical size={15} className="mx-auto text-zinc-700" />
@@ -1554,7 +1554,7 @@ function LogDrawer({
         className="absolute inset-0 bg-black/60"
         onClick={onClose}
       />
-      <aside className="relative flex h-full w-full max-w-5xl flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl">
+      <aside className="relative flex h-dvh w-full max-w-5xl flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl">
         <div className="flex items-center justify-between border-b border-zinc-800/70 px-4 py-3">
           <div className="min-w-0">
             <p className="truncate text-[12px] font-medium text-zinc-200">
@@ -1618,7 +1618,7 @@ function LogDrawer({
               ))
             )}
           </div>
-          <div className="min-w-0 flex-1 overflow-hidden bg-zinc-950/60">
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-zinc-950/60">
             {selectedRun ? (
               <RunLogView runId={selectedRun} compact />
             ) : (

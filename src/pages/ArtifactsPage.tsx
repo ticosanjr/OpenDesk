@@ -209,7 +209,7 @@ export function ArtifactsPage() {
               />
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="scroll-area max-h-[calc(100dvh-18rem)] overflow-auto">
               <table className="w-full text-left">
                 <thead className="border-b border-zinc-800/70 text-[9px] uppercase tracking-[0.12em] text-zinc-600">
                   <tr>
@@ -300,7 +300,7 @@ export function ArtifactsPage() {
             className="absolute inset-0 bg-black/60"
             onClick={() => setSelected(null)}
           />
-          <aside className="relative flex h-full w-full max-w-3xl flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl">
+          <aside className="relative flex h-dvh w-full max-w-3xl flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl">
             <div className="flex items-start justify-between gap-3 border-b border-zinc-800/70 px-4 py-3">
               <div className="min-w-0">
                 <p className="truncate font-mono text-[11px] text-zinc-200">
@@ -391,7 +391,7 @@ export function ArtifactsPage() {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               {tab === "content" ? (
                 content ? (
                   <FileViewer

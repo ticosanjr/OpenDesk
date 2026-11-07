@@ -35,5 +35,18 @@ export function PageHeader({
 }
 
 export function PageBody({ children }: { children: ReactNode }) {
-  return <div className="space-y-5 p-5 lg:p-7">{children}</div>;
+  return (
+    <div className="min-w-0 space-y-5 p-5 pb-10 lg:p-7 lg:pb-12">
+      {children}
+    </div>
+  );
+}
+
+/** Full-height page where only explicit child scrollers should scroll. */
+export function PageBodyFill({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-hidden p-5 lg:p-7">
+      {children}
+    </div>
+  );
 }

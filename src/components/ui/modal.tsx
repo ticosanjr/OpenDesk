@@ -81,7 +81,7 @@ export function Modal({
         aria-labelledby="modal-title"
         tabIndex={-1}
         className={cn(
-          "relative w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl outline-none",
+          "relative w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl outline-none",
           className,
         )}
       >

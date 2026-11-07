@@ -103,7 +103,7 @@ export function ConfigPanel({
           value={content}
           onChange={(event) => setContent(event.target.value)}
           spellCheck={false}
-          className="h-full min-h-[420px] w-full resize-none rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 font-mono text-[12px] leading-relaxed text-zinc-200 outline-none focus:border-blue-500/60"
+          className="h-full min-h-0 w-full resize-none rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 font-mono text-[12px] leading-relaxed text-zinc-200 outline-none focus:border-blue-500/60"
         />
       </div>
 

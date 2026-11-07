@@ -214,8 +214,8 @@ export function RunLogView({
   }
 
   return (
-    <div className={cn("flex min-h-0 flex-col", compact ? "" : "gap-3")}>
-      <div className="border-b border-zinc-800/70 px-4 py-3">
+    <div className={cn("flex h-full min-h-0 flex-col", compact ? "" : "gap-3")}>
+      <div className="shrink-0 border-b border-zinc-800/70 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={statusVariant(status)}>{status}</Badge>
           {status === "RUNNING" ? <WorkingIndicator label="executando" /> : null}
