@@ -180,6 +180,7 @@ async fn execute(
         "date": Utc::now().format("%Y-%m-%d").to_string(),
     });
     let mut outputs = serde_json::json!({});
+    let mut session_id: Option<String> = None;
 
     for step in &recipe.steps {
         let mut feedback: Option<String> = None;
@@ -222,8 +223,16 @@ async fn execute(
                 manual_effort: step.effort.clone(),
                 execution_mode: Some(mode_for_step(step)),
             };
-            crate::api::tasks::dispatch_task_internal(state, &task_id, body, None).await?;
+            crate::api::tasks::dispatch_task_with_session(
+                state,
+                &task_id,
+                body,
+                None,
+                session_id.as_deref(),
+            )
+            .await?;
             let run_result = wait_for_run(state, &run.workspace_id, &task_id, &started).await?;
+            session_id = run_result.session_id.clone();
             let summary = run_result.summary_response.clone().unwrap_or_default();
             let artifacts = db::artifacts::list_by_run(&state.db, &run_result.id, 200)
                 .await

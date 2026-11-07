@@ -393,6 +393,9 @@ pub async fn send_with_attachments(
 pub struct IncomingSignal {
     pub source: String,
     pub text: String,
+    pub reaction: Option<String>,
+    pub quote: Option<String>,
+    pub attachments: Vec<String>,
 }
 
 pub fn parse_incoming(line: &str) -> Option<IncomingSignal> {
@@ -419,9 +422,44 @@ pub fn parse_incoming(line: &str) -> Option<IncomingSignal> {
                 .or_else(|| message.as_str())
         })
         .map(str::trim)
-        .filter(|text| !text.is_empty())?
+        .unwrap_or_default()
         .to_string();
-    Some(IncomingSignal { source, text })
+    let reaction = envelope
+        .pointer("/dataMessage/reaction/emoji")
+        .or_else(|| value.pointer("/params/dataMessage/reaction/emoji"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let quote = envelope
+        .pointer("/dataMessage/quote/text")
+        .or_else(|| value.pointer("/params/dataMessage/quote/text"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let attachments = envelope
+        .pointer("/dataMessage/attachments")
+        .or_else(|| value.pointer("/params/dataMessage/attachments"))
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    item.get("filename")
+                        .or_else(|| item.get("path"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if text.is_empty() && reaction.is_none() && attachments.is_empty() {
+        return None;
+    }
+    Some(IncomingSignal {
+        source,
+        text,
+        reaction,
+        quote,
+        attachments,
+    })
 }
 
 pub fn allowed(allowlist: &[String], source: &str) -> bool {
@@ -488,7 +526,10 @@ mod tests {
             parse_incoming(json_rpc),
             Some(IncomingSignal {
                 source: "+15551234567".into(),
-                text: "Olá".into()
+                text: "Olá".into(),
+                reaction: None,
+                quote: None,
+                attachments: vec![]
             })
         );
 
@@ -498,7 +539,10 @@ mod tests {
             parse_incoming(daemon),
             Some(IncomingSignal {
                 source: "+15557654321".into(),
-                text: "Oi".into()
+                text: "Oi".into(),
+                reaction: None,
+                quote: None,
+                attachments: vec![]
             })
         );
         assert!(parse_incoming("not json").is_none());

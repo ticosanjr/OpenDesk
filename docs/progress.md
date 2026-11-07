@@ -1061,3 +1061,14 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Workspaces padrão em `~/Documents/OpenDesk Workareas`; raízes temporárias
   recusadas fora do modo de teste/Rogue (`OPENDESK_ALLOW_TEMP_WORKSPACES=1`).
 - `cargo test` — 162 passed; Playwright — 24 passed.
+
+## 2026-11-08 — 0.23.1: receitas contínuas, gatilhos I/O e Signal
+
+- Steps de receita reutilizam `session_id`, mantendo contexto entre etapas.
+- Receitas podem ser acionadas por fontes de I/O via `config.recipe_id`
+  (webhook, IMAP, Signal, SQL poller e dropzone).
+- Runtime de receitas ganhou gatilho CRON com timezone e catch-up.
+- Signal agora extrai quote, reação, anexos e tenta transcrever áudio de voz.
+- Workspaces padrão em `OpenDesk Workareas`; `/tmp` só com
+  `OPENDESK_ALLOW_TEMP_WORKSPACES=1` para testes/automação Rogue.
+- Testes: 162 Rust, 55 Vitest, 24 Playwright.

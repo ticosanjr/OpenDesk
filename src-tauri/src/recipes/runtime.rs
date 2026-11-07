@@ -40,6 +40,9 @@ pub fn start(state: Arc<AppState>) -> Arc<RecipeRuntime> {
             if let Err(error) = scan_folder_triggers(&state, &runtime_clone).await {
                 tracing::warn!(error = %error, "recipe folder scan failed");
             }
+            if let Err(error) = scan_cron_triggers(&state).await {
+                tracing::warn!(error = %error, "recipe cron scan failed");
+            }
             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         }
     });
@@ -110,6 +113,59 @@ async fn scan_folder_triggers(
             let trigger = serde_json::json!({
                 "file_path": file.to_string_lossy(),
                 "file_name": file.file_name().and_then(|value| value.to_str()).unwrap_or("arquivo"),
+                "recipe_id": recipe.id,
+            });
+            let _ = engine::start(state.clone(), recipe.clone(), trigger, false).await;
+        }
+    }
+    Ok(())
+}
+
+async fn scan_cron_triggers(state: &Arc<AppState>) -> AppResult<()> {
+    let now = chrono::Utc::now();
+    for index in store::list_all(&state.db).await? {
+        if !index.is_enabled {
+            continue;
+        }
+        let Ok(yaml) = store::yaml_for(&state.db, &index.id).await else {
+            continue;
+        };
+        let Ok(recipe) = parser::parse(&yaml) else {
+            continue;
+        };
+        if recipe.trigger.trigger_type != "CRON" {
+            continue;
+        }
+        let expression = recipe
+            .trigger
+            .config
+            .get("cron")
+            .or_else(|| recipe.trigger.config.get("cron_expression"))
+            .or_else(|| recipe.trigger.config.get("schedule"))
+            .and_then(|value| value.as_str());
+        let Some(expression) = expression else {
+            continue;
+        };
+        let timezone = recipe
+            .trigger
+            .config
+            .get("timezone")
+            .and_then(|value| value.as_str())
+            .unwrap_or("UTC");
+        let after = index
+            .last_run_at
+            .as_deref()
+            .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+            .map(|value| value.with_timezone(&chrono::Utc))
+            .unwrap_or_else(|| now - chrono::Duration::minutes(1));
+        let next =
+            crate::queue_scheduler::cron_engine::next_occurrence(expression, timezone, after);
+        if let Ok(next) = next
+            && next <= now
+        {
+            let trigger = serde_json::json!({
+                "cron": true,
+                "scheduled_for": next.to_rfc3339(),
                 "recipe_id": recipe.id,
             });
             let _ = engine::start(state.clone(), recipe.clone(), trigger, false).await;

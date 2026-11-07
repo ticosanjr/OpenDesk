@@ -56,6 +56,30 @@ pub async fn ingest(
     source: &InboundSource,
     event: NormalizedTaskEvent,
 ) -> AppResult<tasks::Task> {
+    // Sources can route their signal to a declarative recipe instead of creating
+    // a standalone task. This is how IMAP/Signal/SQL/webhook triggers reuse the
+    // recipe engine without duplicating adapters.
+    if let Ok(config) = serde_json::from_str::<serde_json::Value>(&source.config_json)
+        && let Some(recipe_id) = config.get("recipe_id").and_then(|value| value.as_str())
+    {
+        let yaml = crate::recipes::store::yaml_for(&state.db, recipe_id).await?;
+        let recipe = crate::recipes::parser::parse(&yaml)?;
+        let trigger = serde_json::json!({
+            "source_id": source.id,
+            "external_id": event.external_id,
+            "title": event.title,
+            "body": event.body_markdown,
+            "attachments": event.attachments,
+            "metadata": event.metadata,
+        });
+        let run = crate::recipes::engine::start(state.clone(), recipe, trigger, false).await?;
+        if let Some(task_id) = run.task_id {
+            return tasks::get(&state.db, &task_id).await;
+        }
+        return Err(AppError::Internal(
+            "recipe acionada por I/O não criou task".into(),
+        ));
+    }
     let seed = format!(
         "opendesk:io:{}:{}",
         source.id,

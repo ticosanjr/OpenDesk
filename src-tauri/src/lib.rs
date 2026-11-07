@@ -148,11 +148,19 @@ pub fn run() {
     init_logging();
 
     let builder = tauri::Builder::default()
+        // Single-instance must initialize before global shortcuts. Otherwise a
+        // second launch fails while registering the hotkey and never reaches
+        // the single-instance guard.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_shortcuts(["CommandOrControl+Shift+Space"])
-                .expect("valid global shortcut")
                 .with_handler(|app, _shortcut, event| {
                     if event.state == ShortcutState::Pressed {
                         open_capture(app);
@@ -161,14 +169,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
-        }));
+        .plugin(tauri_plugin_dialog::init());
 
     let app = builder
         .setup(|app| {
@@ -177,6 +178,13 @@ pub fn run() {
             let state = Arc::new(state);
 
             app.manage(state.clone());
+            use tauri_plugin_global_shortcut::GlobalShortcutExt;
+            if let Err(error) = app
+                .global_shortcut()
+                .register("CommandOrControl+Shift+Space")
+            {
+                tracing::warn!(error = %error, "Quick Capture global shortcut unavailable");
+            }
             state.daemon.spawn_supervisor();
             tauri::async_runtime::spawn(integrations::delivery::retry_loop(state.clone()));
             if let Err(error) =

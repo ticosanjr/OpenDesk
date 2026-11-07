@@ -146,12 +146,30 @@ pub(crate) async fn dispatch_task_internal(
     body: DispatchBody,
     approved_plan: Option<&str>,
 ) -> AppResult<serde_json::Value> {
+    dispatch_task_with_session(state, id, body, approved_plan, None).await
+}
+
+pub(crate) async fn dispatch_task_with_session(
+    state: &Arc<AppState>,
+    id: &str,
+    body: DispatchBody,
+    approved_plan: Option<&str>,
+    session_id: Option<&str>,
+) -> AppResult<serde_json::Value> {
     validate_model_ref(body.manual_model.as_deref())?;
     crate::api::engine::require_engine_strict(state).await?;
     let task = tasks::get(&state.db, id).await?;
     let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
     let decision = plan_decision(state, &task, &workspace, &body, approved_plan).await?;
-    let job = enqueue_decision(state, &task, &workspace, &decision, approved_plan).await?;
+    let job = enqueue_decision_with_session(
+        state,
+        &task,
+        &workspace,
+        &decision,
+        approved_plan,
+        session_id,
+    )
+    .await?;
     Ok(serde_json::json!({
         "decision": decision,
         "job": job,
@@ -270,6 +288,17 @@ async fn enqueue_decision(
     decision: &dsh_router::RouterDecision,
     approved_plan: Option<&str>,
 ) -> AppResult<crate::db::queue::QueueJob> {
+    enqueue_decision_with_session(state, task, workspace, decision, approved_plan, None).await
+}
+
+pub(crate) async fn enqueue_decision_with_session(
+    state: &AppState,
+    task: &tasks::Task,
+    workspace: &workspaces::Workspace,
+    decision: &dsh_router::RouterDecision,
+    approved_plan: Option<&str>,
+    session_id: Option<&str>,
+) -> AppResult<crate::db::queue::QueueJob> {
     std::fs::create_dir_all(&decision.output_directory).map_err(|error| {
         AppError::Internal(format!("could not create output directory: {error}"))
     })?;
@@ -297,7 +326,7 @@ async fn enqueue_decision(
             workspace_id: task.workspace_id.clone(),
             task_id: Some(task.id.clone()),
             schedule_id: None,
-            session_id: None,
+            session_id: session_id.map(str::to_string),
             concurrency_group: Some(concurrency_group(&decision.selected_agent)),
             prompt_payload: prompt,
             resolved_mode: decision.phase.clone(),
