@@ -117,6 +117,17 @@ pub enum OpenDeskWsEvent {
         token: String,
         status: String,
     },
+    ProposalCreated {
+        proposal_id: String,
+        workspace_id: String,
+        kind: String,
+        title: String,
+    },
+    ProposalResolved {
+        proposal_id: String,
+        status: String,
+        workspace_id: String,
+    },
     RunFinished {
         run_id: String,
         task_id: Option<String>,

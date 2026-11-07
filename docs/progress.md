@@ -1050,3 +1050,14 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   `options_json` passou para a migração 0018.
 - Testado boot GUI com janela, boot headless e upgrade de um banco criado pela
   v0.22.0.
+
+## 2026-11-07 — 0.23.0: auto-organização de agentes com aprovação
+
+- Tabela `config_proposals` e API de propostas de configuração.
+- MCP `opendesk-config` para agentes proporem agentes, skills, comandos,
+  receitas, rotinas, MCPs e arquivos `.opencode`.
+- Attention Card com Aprovar/Negar propostas; aplicação usa os mesmos writers
+  do Studio/receitas/schedules.
+- Workspaces padrão em `~/Documents/OpenDesk Workareas`; raízes temporárias
+  recusadas fora do modo de teste/Rogue (`OPENDESK_ALLOW_TEMP_WORKSPACES=1`).
+- `cargo test` — 162 passed; Playwright — 24 passed.

@@ -51,6 +51,23 @@ fn canonicalize_workspace_path(path: &str, paths: &AppPaths) -> AppResult<String
     let candidate = std::path::Path::new(trimmed);
     std::fs::create_dir_all(candidate).map_err(AppError::Io)?;
     let canonical = std::fs::canonicalize(candidate).map_err(AppError::Io)?;
+    if !cfg!(test)
+        && std::env::var("OPENDESK_ALLOW_TEMP_WORKSPACES")
+            .ok()
+            .as_deref()
+            != Some("1")
+    {
+        let temp = std::fs::canonicalize(std::env::temp_dir()).ok();
+        if temp
+            .as_ref()
+            .map(|temp| canonical.starts_with(temp))
+            .unwrap_or(false)
+        {
+            return Err(AppError::BadRequest(
+                "workspaces temporários não são permitidos; use a pasta OpenDesk Workareas".into(),
+            ));
+        }
+    }
     if !canonical.is_dir() {
         return Err(AppError::BadRequest(format!(
             "workspace path is not a directory: {}",

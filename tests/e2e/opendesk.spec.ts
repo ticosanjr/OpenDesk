@@ -30,7 +30,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     .getByPlaceholder("Neuralab, Bernardes AI, Home Lab…")
     .fill("E2E Workspace");
   await page
-    .getByPlaceholder("~/Documents/OpenDesk Workspaces")
+    .getByPlaceholder("~/Documents/OpenDesk Workareas")
     .fill("/tmp/opendesk-e2e/workspaces");
   await page.getByRole("button", { name: "Criar workspace" }).click();
 
@@ -40,7 +40,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
   await page.getByRole("link", { name: "Configurações" }).click();
   await expect(page.getByRole("heading", { name: "Configurações" })).toBeVisible();
   await page
-    .getByPlaceholder("~/Documents/OpenDesk Workspaces")
+    .getByPlaceholder("~/Documents/OpenDesk Workareas")
     .fill("/tmp/opendesk-e2e/default-root");
   await page.getByRole("button", { name: "Salvar", exact: true }).first().click();
   await expect(page.getByText("salvo", { exact: true })).toBeVisible();
@@ -57,7 +57,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     headers: auth.headers,
   });
   expect(about.ok()).toBeTruthy();
-  expect((await about.json()).app.version).toBe("0.22.1");
+  expect((await about.json()).app.version).toBe("0.23.0");
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });
@@ -241,7 +241,7 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   await page.getByRole("button", { name: "Editar" }).click();
   const modelInput = page.getByPlaceholder(/digite para filtrar/);
   await modelInput.fill("opencode-go/glm-5.3#high");
-  await page.getByRole("option", { name: /opencode-go\/glm-5.3#high/ }).click();
+  await page.keyboard.press("Tab");
   await page.getByRole("button", { name: "Salvar", exact: true }).click();
   await expect(page.getByText("Editar tarefa")).not.toBeVisible();
   await expect(page.getByText("Tarefa atualizada").first()).toBeVisible();

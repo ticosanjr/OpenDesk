@@ -183,7 +183,7 @@ export function SettingsPage() {
                     setRoot(event.target.value);
                     setSaved(false);
                   }}
-                  placeholder="~/Documents/OpenDesk Workspaces"
+                  placeholder="~/Documents/OpenDesk Workareas"
                   className={cn(
                     "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 pl-9 pr-3 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60",
                     loading && "opacity-60",

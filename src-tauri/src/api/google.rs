@@ -142,7 +142,7 @@ pub async fn register_mcp(
 /// The AppImage mounts itself in `/tmp/.mount_*`, which disappears when the app
 /// closes. Point MCP at the AppImage file itself (or the installed binary) so
 /// the server keeps working after a restart.
-fn stable_executable() -> AppResult<PathBuf> {
+pub(crate) fn stable_executable() -> AppResult<PathBuf> {
     if let Some(appimage) = std::env::var_os("APPIMAGE") {
         let path = PathBuf::from(appimage);
         if path.is_file() {

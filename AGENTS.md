@@ -91,7 +91,8 @@ blueprints de equipe, janela maximizada, ciclo de bandeja, abas em
 Configurações/Integrações/Kanban, timeline ao vivo, controlador de fila em aba,
 barramento universal de I/O (UEN), sinks determinísticos, ferramentas externas
 opcionais, hardening de SQLite/watcher/permissões, receitas YAML com HITL
-modular e Rsync local/remoto.
+modular, Rsync local/remoto e auto-organização de agentes com propostas
+aprovadas via HITL.
 Próxima frente: retry durável de Google/Drive, assinatura de updates, cobertura
 Rust ≥80%, Windows/macOS e testes de contrato Google/OpenCode.
 

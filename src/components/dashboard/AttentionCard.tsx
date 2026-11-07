@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Ban, CheckCircle2, Clock3, ExternalLink } from "lucide-react";
+import {
+  AlertTriangle,
+  Ban,
+  CheckCircle2,
+  Clock3,
+  ExternalLink,
+  Sparkles,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,9 +37,21 @@ interface HitlRequest {
   created_at: string;
 }
 
+interface Proposal {
+  id: string;
+  kind: string;
+  action: string;
+  title: string;
+  description?: string | null;
+  status: string;
+  requested_by?: string | null;
+  apply_error?: string | null;
+}
+
 interface Attention {
   requests: PermissionRequest[];
   hitl: HitlRequest[];
+  proposals: Proposal[];
   awaiting_approval: Array<{ id: string; title: string; phase_status?: string | null }>;
   blocked: Array<{ id: string; title: string; reason?: string | null }>;
   failed_runs: Array<{
@@ -49,6 +68,7 @@ export function AttentionCard() {
   const lastRunEvent = useAppStore((state) => state.lastRunEvent);
   const lastPermissionEvent = useAppStore((state) => state.lastPermissionEvent);
   const lastRecipeEvent = useAppStore((state) => state.lastRecipeEvent);
+  const lastProposalEvent = useAppStore((state) => state.lastProposalEvent);
   const [data, setData] = useState<Attention | null>(null);
 
   const load = useCallback(async () => {
@@ -57,8 +77,8 @@ export function AttentionCard() {
       return;
     }
     try {
-      const [attention, permissions, hitl] = await Promise.all([
-        apiGet<Omit<Attention, "requests" | "hitl">>(
+      const [attention, permissions, hitl, proposals] = await Promise.all([
+        apiGet<Omit<Attention, "requests" | "hitl" | "proposals">>(
           `/api/attention?workspace_id=${encodeURIComponent(workspaceId)}`,
         ),
         apiGet<{ requests: PermissionRequest[] }>(
@@ -67,8 +87,16 @@ export function AttentionCard() {
         apiGet<{ requests: HitlRequest[] }>(
           `/api/recipes/hitl?workspace_id=${encodeURIComponent(workspaceId)}`,
         ).catch(() => ({ requests: [] })),
+        apiGet<{ proposals: Proposal[] }>(
+          `/api/proposals?workspace_id=${encodeURIComponent(workspaceId)}`,
+        ).catch(() => ({ proposals: [] })),
       ]);
-      setData({ ...attention, requests: permissions.requests, hitl: hitl.requests });
+      setData({
+        ...attention,
+        requests: permissions.requests,
+        hitl: hitl.requests,
+        proposals: proposals.proposals,
+      });
     } catch {
       setData(null);
     }
@@ -83,17 +111,47 @@ export function AttentionCard() {
     lastRunEvent?.status,
     lastPermissionEvent?.request_id,
     lastRecipeEvent,
+    lastProposalEvent,
   ]);
 
   if (
     !data ||
     (data.requests.length === 0 &&
       data.hitl.length === 0 &&
+      data.proposals.length === 0 &&
       data.awaiting_approval.length === 0 &&
       data.blocked.length === 0 &&
       data.failed_runs.length === 0)
   ) {
     return null;
+  }
+
+  async function resolveProposal(id: string, approved: boolean) {
+    try {
+      const result = await apiPost<{ status: string; apply_error?: string | null }>(
+        `/api/proposals/${id}/resolve`,
+        { approved },
+      );
+      if (result.status === "FAILED") {
+        toast({
+          tone: "error",
+          title: "Aprovação falhou ao aplicar",
+          description: result.apply_error ?? "erro desconhecido",
+        });
+      } else {
+        toast({
+          tone: "success",
+          title: approved ? "Alteração aplicada" : "Proposta negada",
+        });
+      }
+      await load();
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível resolver a proposta",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
   }
 
   async function resolveHitl(token: string, resolution: string, text?: string) {
@@ -179,6 +237,7 @@ export function AttentionCard() {
           <Badge variant="yellow">
             {data.requests.length +
               data.hitl.length +
+              data.proposals.length +
               data.awaiting_approval.length +
               data.blocked.length +
               data.failed_runs.length}
@@ -187,6 +246,43 @@ export function AttentionCard() {
             atualizar
           </Button>
         </div>
+
+        {data.proposals.map((proposal) => (
+          <div
+            key={`proposal-${proposal.id}`}
+            className="flex flex-wrap items-center gap-2 rounded-lg border border-violet-500/25 bg-zinc-950/40 px-3 py-2"
+          >
+            <Sparkles size={13} className="text-violet-300" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[12px] text-zinc-200">{proposal.title}</p>
+              <p className="truncate font-mono text-[9px] text-zinc-600">
+                {proposal.kind} · {proposal.action}
+                {proposal.requested_by ? ` · @${proposal.requested_by}` : ""}
+              </p>
+              {proposal.description ? (
+                <p className="truncate text-[9px] text-zinc-500">{proposal.description}</p>
+              ) : null}
+              {proposal.apply_error ? (
+                <p className="truncate text-[9px] text-red-300">{proposal.apply_error}</p>
+              ) : null}
+            </div>
+            <Button
+              size="sm"
+              className="h-7"
+              onClick={() => void resolveProposal(proposal.id, true)}
+            >
+              Aprovar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 border-red-500/30 text-red-300"
+              onClick={() => void resolveProposal(proposal.id, false)}
+            >
+              Negar
+            </Button>
+          </div>
+        ))}
 
         {data.hitl.map((request) => (
           <div
@@ -365,6 +461,7 @@ export function AttentionCard() {
 
         {data.requests.length +
           data.hitl.length +
+          data.proposals.length +
           data.awaiting_approval.length +
           data.blocked.length +
           data.failed_runs.length ===

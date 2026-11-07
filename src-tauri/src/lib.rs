@@ -10,8 +10,10 @@ mod events;
 mod integrations;
 mod io_bus;
 mod mcp_bridge;
+mod mcp_config;
 mod opencode_client;
 mod paths;
+mod proposals;
 mod queue_scheduler;
 mod recipes;
 mod run_timeline;
@@ -191,6 +193,9 @@ pub fn run() {
             tauri::async_runtime::block_on(async {
                 state.io_bus.start(state.clone()).await?;
                 recipes::runtime::start(state.clone());
+                if let Err(error) = proposals::ensure_all(&state).await {
+                    tracing::warn!(error = %error, "could not register config MCP bridge");
+                }
                 Ok::<(), crate::error::AppError>(())
             })?;
             tray::setup(app.handle(), state.clone())?;
@@ -297,6 +302,9 @@ pub fn run_headless() {
         state.cron.spawn();
         state.io_bus.start(state.clone()).await.expect("io bus");
         let _ = recipes::runtime::start(state.clone());
+        if let Err(error) = proposals::ensure_all(&state).await {
+            tracing::warn!(error = %error, "could not register config MCP bridge");
+        }
         api::spawn_server(state.clone())
             .await
             .expect("OpenDesk API server");
@@ -321,6 +329,14 @@ pub fn run_doctor(json: bool, fix_daemons: bool) {
 
 /// MCP server over stdio used by OpenCode's `mcp.servers.opendesk-google`.
 /// Stdout is reserved for JSON-RPC frames; diagnostics go to stderr.
+pub fn run_mcp_config() {
+    let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+    if let Err(error) = runtime.block_on(mcp_config::run_stdio()) {
+        eprintln!("OpenDesk config MCP bridge failed: {error:#}");
+        std::process::exit(1);
+    }
+}
+
 pub fn run_mcp_google() {
     let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
     if let Err(error) = runtime.block_on(mcp_bridge::run_stdio()) {

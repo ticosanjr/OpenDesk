@@ -14,6 +14,7 @@ pub mod integrations;
 pub mod io_bus;
 pub mod meta;
 pub mod permissions;
+pub mod proposals;
 pub mod queue;
 pub mod recipes;
 pub mod router;
@@ -301,6 +302,11 @@ fn router(state: Arc<AppState>) -> Router {
             get(io_bus::schedule_sinks).post(io_bus::set_schedule_sinks),
         )
         .route("/api/webhooks/{source_id}", post(io_bus::webhook))
+        .route(
+            "/api/proposals",
+            get(proposals::list).post(proposals::create),
+        )
+        .route("/api/proposals/{id}/resolve", post(proposals::resolve))
         .route("/api/artifacts", get(artifacts::list_artifacts))
         .route("/api/artifacts/pinned", get(artifacts::pinned_artifacts))
         .route("/api/artifacts/{id}", get(artifacts::get_artifact))
@@ -560,6 +566,9 @@ async fn create_workspace(
 ) -> AppResult<Json<workspaces::Workspace>> {
     let workspace = workspaces::create(&state.db, &state.paths, input).await?;
     settings::set_active_workspace(&state.db, &workspace.id).await?;
+    if let Err(error) = crate::proposals::ensure_workspace_bridge(&state, &workspace.id).await {
+        tracing::warn!(error = %error, "could not register config MCP bridge for workspace");
+    }
     state.refresh_watcher().await?;
     Ok(Json(workspace))
 }

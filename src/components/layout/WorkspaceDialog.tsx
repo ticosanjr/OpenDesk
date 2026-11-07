@@ -215,7 +215,7 @@ export function WorkspaceDialog() {
                   <input
                     value={rootParent}
                     onChange={(event) => setRootParent(event.target.value)}
-                    placeholder="~/Documents/OpenDesk Workspaces"
+                    placeholder="~/Documents/OpenDesk Workareas"
                     className={cn(inputClass, "pl-9 font-mono text-[11px]")}
                   />
                 </div>

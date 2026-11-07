@@ -90,12 +90,12 @@ pub fn default_workspaces_root() -> PathBuf {
             .document_dir()
             .map(PathBuf::from)
             .unwrap_or_else(|| user_dirs.home_dir().to_path_buf());
-        return base.join("OpenDesk Workspaces");
+        return base.join("OpenDesk Workareas");
     }
 
     std::env::var_os("HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from))
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("OpenDesk Workspaces")
+        .join("OpenDesk Workareas")
 }

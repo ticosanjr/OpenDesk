@@ -103,6 +103,9 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Ferramentas externas opcionais em pasta própria, com detecção e download.
 - Receitas YAML com editor visual, HITL por UI/e-mail/Signal e sinks.
 - Rsync para pastas locais e remotas, com chave SSH e `--delete` opt-in.
+- Agentes podem propor agentes, skills, comandos, receitas, rotinas e MCPs;
+  toda mudança exige Aprovar/Negar no Attention Card.
+- Workspaces padrão em `~/Documents/OpenDesk Workareas`.
 - Backup rotativo do SQLite antes de migrações.
 - Limpeza automática de artefatos de build após cada release.
 - Auto-atualização do OpenDesk por release privada com SHA256 e backup.
@@ -258,6 +261,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0028 — Barramento Universal de I/O](docs/decisions/0028-io-bus-uen.md)
 - [SPEC_IO_BUS](docs/specs/SPEC_IO_BUS.md)
 - [ADR 0029 — Receitas, HITL e Rsync](docs/decisions/0029-recipes-hitl.md)
+- [ADR 0030 — Propostas de configuração de agentes](docs/decisions/0030-agent-config-proposals.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)
