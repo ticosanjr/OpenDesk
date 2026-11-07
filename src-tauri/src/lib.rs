@@ -13,6 +13,7 @@ mod mcp_bridge;
 mod opencode_client;
 mod paths;
 mod queue_scheduler;
+mod recipes;
 mod run_timeline;
 mod secrets;
 mod tray;
@@ -188,6 +189,7 @@ pub fn run() {
                 state.paths.clone(),
             ));
             tauri::async_runtime::block_on(state.io_bus.start(state.clone()))?;
+            let _ = recipes::runtime::start(state.clone());
             tray::setup(app.handle(), state.clone())?;
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.maximize();
@@ -291,6 +293,7 @@ pub fn run_headless() {
         tauri::async_runtime::spawn(integrations::delivery::retry_loop(state.clone()));
         state.cron.spawn();
         state.io_bus.start(state.clone()).await.expect("io bus");
+        let _ = recipes::runtime::start(state.clone());
         api::spawn_server(state.clone())
             .await
             .expect("OpenDesk API server");

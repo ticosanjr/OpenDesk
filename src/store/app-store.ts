@@ -57,6 +57,7 @@ interface AppStore {
   } | null;
   lastArtifactEvent: number;
   lastArtifact: Artifact | null;
+  lastRecipeEvent: number;
   lastPermissionEvent: {
     request_id: string;
     task_id?: string | null;
@@ -113,6 +114,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   lastRunChunk: null,
   lastArtifactEvent: 0,
   lastArtifact: null,
+  lastRecipeEvent: 0,
   lastPermissionEvent: null,
   lastScheduleEvent: null,
   lastGoogleEvent: null,
@@ -328,6 +330,11 @@ export function handleEvent(event: WsEvent) {
       }
       break;
     }
+    case "RecipeRunUpdated":
+    case "HitlRequested":
+    case "HitlResolved":
+      useAppStore.setState((current) => ({ lastRecipeEvent: current.lastRecipeEvent + 1 }));
+      break;
     case "PermissionRequested": {
       const payload = event.payload as {
         request_id?: string;

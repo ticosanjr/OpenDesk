@@ -168,6 +168,19 @@ describe("websocket event reducer", () => {
     expect(useAppStore.getState().dashboard?.artifacts_total).toBe(3);
 
     handleEvent({
+      event_id: 123,
+      event_type: "HitlRequested",
+      payload: {
+        token: "8F2A",
+        run_id: "rr1",
+        workspace_id: "ws",
+        checkpoint_id: "h1",
+        interaction_type: "BINARY_GATE",
+      },
+    });
+    expect(useAppStore.getState().lastRecipeEvent).toBe(1);
+
+    handleEvent({
       event_id: 124,
       event_type: "RunStreamChunk",
       payload: {

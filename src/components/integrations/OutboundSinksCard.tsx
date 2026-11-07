@@ -23,6 +23,7 @@ export interface OutboundSink {
 const TYPES = [
   ["DOC_COMPILER", "Compilar PDF/XLSX"],
   ["ATOMIC_FS", "Pasta/SMB atômica"],
+  ["RSYNC_FS", "Pasta via Rsync (local/remoto)"],
   ["MINIO_S3", "MinIO / S3"],
   ["SMTP_EMAIL", "E-mail SMTP"],
   ["TELEGRAM_MSG", "Telegram"],
@@ -35,6 +36,7 @@ const TYPES = [
 const TEMPLATES: Record<string, string> = {
   DOC_COMPILER: '{\n  "format": "pdf"\n}',
   ATOMIC_FS: '{\n  "destination": "/caminho/da/pasta"\n}',
+  RSYNC_FS: '{\n  "destination": "user@host:/srv/entregas",\n  "transport": "rsync",\n  "ssh_key_ref": "rsync-key",\n  "delete": false,\n  "checksum": true\n}',
   MINIO_S3: '{\n  "bucket": "openDesk",\n  "endpoint": "http://127.0.0.1:9000",\n  "region": "us-east-1",\n  "access_key_ref": "s3-access",\n  "secret_key_ref": "s3-secret",\n  "prefix": "runs"\n}',
   SMTP_EMAIL: '{\n  "to": "ops@exemplo.com",\n  "subject": "[OpenDesk] resultado"\n}',
   TELEGRAM_MSG: '{\n  "token_ref": "telegram-token",\n  "chat_id": "123456"\n}',

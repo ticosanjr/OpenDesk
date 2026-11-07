@@ -20,8 +20,19 @@ interface PermissionRequest {
   created_at: string;
 }
 
+interface HitlRequest {
+  token: string;
+  recipe_run_id: string;
+  workspace_id: string;
+  checkpoint_id: string;
+  interaction_type: string;
+  status: string;
+  created_at: string;
+}
+
 interface Attention {
   requests: PermissionRequest[];
+  hitl: HitlRequest[];
   awaiting_approval: Array<{ id: string; title: string; phase_status?: string | null }>;
   blocked: Array<{ id: string; title: string; reason?: string | null }>;
   failed_runs: Array<{
@@ -37,6 +48,7 @@ export function AttentionCard() {
   const lastTaskEvent = useAppStore((state) => state.lastTaskEvent);
   const lastRunEvent = useAppStore((state) => state.lastRunEvent);
   const lastPermissionEvent = useAppStore((state) => state.lastPermissionEvent);
+  const lastRecipeEvent = useAppStore((state) => state.lastRecipeEvent);
   const [data, setData] = useState<Attention | null>(null);
 
   const load = useCallback(async () => {
@@ -45,15 +57,18 @@ export function AttentionCard() {
       return;
     }
     try {
-      const [attention, permissions] = await Promise.all([
-        apiGet<Omit<Attention, "requests">>(
+      const [attention, permissions, hitl] = await Promise.all([
+        apiGet<Omit<Attention, "requests" | "hitl">>(
           `/api/attention?workspace_id=${encodeURIComponent(workspaceId)}`,
         ),
         apiGet<{ requests: PermissionRequest[] }>(
           `/api/permissions?workspace_id=${encodeURIComponent(workspaceId)}`,
         ),
+        apiGet<{ requests: HitlRequest[] }>(
+          `/api/recipes/hitl?workspace_id=${encodeURIComponent(workspaceId)}`,
+        ).catch(() => ({ requests: [] })),
       ]);
-      setData({ ...attention, requests: permissions.requests });
+      setData({ ...attention, requests: permissions.requests, hitl: hitl.requests });
     } catch {
       setData(null);
     }
@@ -67,16 +82,32 @@ export function AttentionCard() {
     lastRunEvent?.run_id,
     lastRunEvent?.status,
     lastPermissionEvent?.request_id,
+    lastRecipeEvent,
   ]);
 
   if (
     !data ||
     (data.requests.length === 0 &&
+      data.hitl.length === 0 &&
       data.awaiting_approval.length === 0 &&
       data.blocked.length === 0 &&
       data.failed_runs.length === 0)
   ) {
     return null;
+  }
+
+  async function resolveHitl(token: string, resolution: string, text?: string) {
+    try {
+      await apiPost(`/api/recipes/hitl/${token}/resolve`, { resolution, text });
+      toast({ tone: "success", title: resolution === "APPROVED" ? "Receita aprovada" : "Receita rejeitada" });
+      await load();
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível resolver o checkpoint",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
   }
 
   async function decide(request: PermissionRequest, decision: string) {
@@ -147,6 +178,7 @@ export function AttentionCard() {
           </p>
           <Badge variant="yellow">
             {data.requests.length +
+              data.hitl.length +
               data.awaiting_approval.length +
               data.blocked.length +
               data.failed_runs.length}
@@ -155,6 +187,54 @@ export function AttentionCard() {
             atualizar
           </Button>
         </div>
+
+        {data.hitl.map((request) => (
+          <div
+            key={`hitl-${request.token}`}
+            className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-zinc-950/40 px-3 py-2"
+          >
+            <Clock3 size={13} className="text-amber-300" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[12px] text-zinc-200">
+                Receita aguardando decisão ·{" "}
+                <span className="font-mono text-[10px] text-amber-300">
+                  {request.interaction_type}
+                </span>
+              </p>
+              <p className="truncate font-mono text-[9px] text-zinc-600">
+                token {request.token} · {request.checkpoint_id}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              className="h-7"
+              onClick={() => void resolveHitl(request.token, "APPROVED")}
+            >
+              Aprovar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7"
+              onClick={() => {
+                const feedback = window.prompt("Feedback para refazer o step:");
+                if (feedback?.trim()) {
+                  void resolveHitl(request.token, "FEEDBACK", feedback.trim());
+                }
+              }}
+            >
+              Feedback
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 border-red-500/30 text-red-300"
+              onClick={() => void resolveHitl(request.token, "REJECTED")}
+            >
+              Rejeitar
+            </Button>
+          </div>
+        ))}
 
         {data.requests.map((request) => (
           <div
@@ -284,6 +364,7 @@ export function AttentionCard() {
         ))}
 
         {data.requests.length +
+          data.hitl.length +
           data.awaiting_approval.length +
           data.blocked.length +
           data.failed_runs.length ===

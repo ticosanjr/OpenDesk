@@ -17,6 +17,7 @@ import {
   Settings,
   SlidersHorizontal,
   Wand2,
+  Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
@@ -41,6 +42,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
       { to: "/runs", label: "Execuções", icon: Activity },
       { to: "/chat", label: "Chat & Criador", icon: MessageSquare },
       { to: "/routines", label: "Rotinas", icon: CalendarClock },
+      { to: "/recipes", label: "Receitas", icon: Workflow },
     ],
   },
   {

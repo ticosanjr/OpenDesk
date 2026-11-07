@@ -4,9 +4,7 @@ use crate::{
     integrations::smtp_mailer,
     io_bus::{IoContext, RunOutput, config_value, outbound::artifact_paths},
 };
-use reqwest::Client;
 use serde::Deserialize;
-use std::time::Duration;
 
 #[derive(Debug, Deserialize)]
 struct Config {
@@ -20,6 +18,8 @@ struct Config {
     token: Option<String>,
     #[serde(default)]
     chat_id: Option<String>,
+    #[serde(default)]
+    recipient: Option<String>,
     #[serde(default)]
     homeserver: Option<String>,
     #[serde(default)]
@@ -37,6 +37,7 @@ pub async fn run(
     let message = message_markdown(output);
     match sink.sink_type.as_str() {
         "SMTP_EMAIL" => smtp(ctx, &config, output, &message).await,
+        "SIGNAL_MSG" => signal_channel(ctx, &config, &message, output).await,
         "TELEGRAM_MSG" => telegram(ctx, &config, &message).await,
         "MATRIX_MSG" => matrix(ctx, &config, &message).await,
         "MATTERMOST_MSG" => mattermost(&config, &message).await,
@@ -122,6 +123,37 @@ async fn smtp(
     Ok(vec![format!("smtp:{to}")])
 }
 
+async fn signal_channel(
+    ctx: &IoContext,
+    config: &Config,
+    message: &str,
+    output: &RunOutput,
+) -> AppResult<Vec<String>> {
+    let signal = crate::integrations::signal::load(&ctx.pool).await?;
+    if !signal.enabled {
+        return Err(AppError::BadRequest("Signal não está habilitado".into()));
+    }
+    let recipient = config
+        .recipient
+        .as_deref()
+        .or_else(|| signal.allowlist.first().map(String::as_str))
+        .ok_or_else(|| AppError::BadRequest("SIGNAL_MSG sem destinatário".into()))?;
+    let attachments = artifact_paths(output)
+        .into_iter()
+        .take(5)
+        .map(|path| path.to_string_lossy().to_string())
+        .collect::<Vec<_>>();
+    crate::integrations::signal::send_with_attachments(
+        &signal.cli_path,
+        &signal.account,
+        recipient,
+        message,
+        &attachments,
+    )
+    .await?;
+    Ok(vec![format!("signal:{recipient}")])
+}
+
 async fn telegram(ctx: &IoContext, config: &Config, message: &str) -> AppResult<Vec<String>> {
     let token = secret(ctx, config)?;
     let chat_id = config
@@ -199,11 +231,8 @@ async fn mattermost(config: &Config, message: &str) -> AppResult<Vec<String>> {
     ))
 }
 
-fn client() -> Client {
-    Client::builder()
-        .timeout(Duration::from_secs(30))
-        .build()
-        .unwrap_or_default()
+fn client() -> reqwest::Client {
+    crate::io_bus::http_client(30)
 }
 
 #[cfg(test)]

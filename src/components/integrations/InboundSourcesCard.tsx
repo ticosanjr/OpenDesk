@@ -25,6 +25,7 @@ export interface InboundSource {
 
 const TYPES = [
   ["FOLDER_WATCH", "Pasta / Dropzone"],
+  ["RSYNC_FOLDER", "Pasta via Rsync (local/remoto)"],
   ["OCR_WATCH", "OCR de imagens/PDF"],
   ["AUDIO_STT_WATCH", "Áudio → texto"],
   ["IMAP_IDLE", "E-mail IMAP"],
@@ -37,6 +38,7 @@ const TYPES = [
 
 const TEMPLATES: Record<string, string> = {
   FOLDER_WATCH: '{\n  "path": "input/dropzone",\n  "processor": "auto"\n}',
+  RSYNC_FOLDER: '{\n  "path": "input/dropzone",\n  "transport": "rsync",\n  "rsync_source": "user@host:/srv/inbox",\n  "ssh_key_ref": "rsync-key",\n  "interval_secs": 300\n}',
   OCR_WATCH: '{\n  "path": "input/dropzone",\n  "languages": "por+eng"\n}',
   AUDIO_STT_WATCH: '{\n  "path": "input/dropzone",\n  "whisper_model": "/caminho/model.bin"\n}',
   IMAP_IDLE: '{\n  "host": "imap.exemplo.com",\n  "port": 993,\n  "username": "tasks@exemplo.com",\n  "password_ref": "imap-password",\n  "mailbox": "INBOX",\n  "tls": true\n}',

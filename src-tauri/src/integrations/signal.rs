@@ -283,6 +283,11 @@ async fn handle_incoming(
     config: &SignalConfig,
     incoming: IncomingSignal,
 ) -> AppResult<()> {
+    if crate::recipes::hitl::signal::handle_reply(state, &incoming.source, &incoming.text, &[])
+        .await?
+    {
+        return Ok(());
+    }
     let trimmed = incoming.text.trim();
     let lower = trimmed.to_lowercase();
     if let Some(rest) = lower
@@ -354,8 +359,22 @@ pub async fn send_text(
     recipient: &str,
     message: &str,
 ) -> AppResult<()> {
-    let output = Command::new(cli_path)
-        .args(["-a", account, "send", recipient, "-m", message])
+    send_with_attachments(cli_path, account, recipient, message, &[]).await
+}
+
+pub async fn send_with_attachments(
+    cli_path: &str,
+    account: &str,
+    recipient: &str,
+    message: &str,
+    attachments: &[String],
+) -> AppResult<()> {
+    let mut command = Command::new(cli_path);
+    command.args(["-a", account, "send", recipient, "-m", message]);
+    for attachment in attachments {
+        command.arg("--attachment").arg(attachment);
+    }
+    let output = command
         .env("PATH", signal_path())
         .stdin(Stdio::null())
         .output()

@@ -81,6 +81,9 @@ const BINDING_COLUMNS: &str =
 
 fn source_type(value: &str) -> AppResult<String> {
     let value = value.trim().to_uppercase();
+    if value == "RSYNC_FOLDER" {
+        return Ok("FOLDER_WATCH".into());
+    }
     const TYPES: [&str; 9] = [
         "FOLDER_WATCH",
         "OCR_WATCH",
@@ -103,6 +106,9 @@ fn source_type(value: &str) -> AppResult<String> {
 
 fn sink_type(value: &str) -> AppResult<String> {
     let value = value.trim().to_uppercase();
+    if value == "RSYNC_FOLDER" {
+        return Ok("FOLDER_WATCH".into());
+    }
     const TYPES: [&str; 9] = [
         "ATOMIC_FS",
         "MINIO_S3",

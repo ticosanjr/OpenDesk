@@ -38,6 +38,9 @@ const RouterPage = lazy(() =>
 const IntegrationsPage = lazy(() =>
   import("@/pages/IntegrationsPage").then((module) => ({ default: module.IntegrationsPage })),
 );
+const RecipesPage = lazy(() =>
+  import("@/pages/RecipesPage").then((module) => ({ default: module.RecipesPage })),
+);
 const SettingsPage = lazy(() =>
   import("@/pages/SettingsPage").then((module) => ({ default: module.SettingsPage })),
 );
@@ -60,6 +63,7 @@ export default function App() {
           <Route path="artifacts" element={<ArtifactsPage />} />
           <Route path="files" element={<FilesPage />} />
           <Route path="routines" element={<RoutinesPage />} />
+          <Route path="recipes" element={<RecipesPage />} />
           <Route path="studio" element={<StudioPage />} />
           <Route path="router" element={<RouterPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />

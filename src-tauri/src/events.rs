@@ -100,6 +100,23 @@ pub enum OpenDeskWsEvent {
         request_id: String,
         decision: String,
     },
+    RecipeRunUpdated {
+        run_id: String,
+        recipe_id: String,
+        workspace_id: String,
+        status: String,
+    },
+    HitlRequested {
+        token: String,
+        run_id: String,
+        workspace_id: String,
+        checkpoint_id: String,
+        interaction_type: String,
+    },
+    HitlResolved {
+        token: String,
+        status: String,
+    },
     RunFinished {
         run_id: String,
         task_id: Option<String>,

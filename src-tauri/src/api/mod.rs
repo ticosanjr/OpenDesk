@@ -15,6 +15,7 @@ pub mod io_bus;
 pub mod meta;
 pub mod permissions;
 pub mod queue;
+pub mod recipes;
 pub mod router;
 pub mod runs;
 pub mod schedules;
@@ -278,6 +279,17 @@ fn router(state: Arc<AppState>) -> Router {
             "/api/io/secrets/{key}",
             axum::routing::delete(io_bus::delete_secret),
         )
+        .route("/api/recipes", get(recipes::list).post(recipes::sync))
+        .route("/api/recipes/sync", post(recipes::sync))
+        .route("/api/recipes/runs", get(recipes::runs))
+        .route("/api/recipes/runs/{id}", get(recipes::run_detail))
+        .route("/api/recipes/hitl", get(recipes::hitl_pending))
+        .route(
+            "/api/recipes/hitl/{token}/resolve",
+            post(recipes::resolve_hitl),
+        )
+        .route("/api/recipes/{id}", get(recipes::get).put(recipes::save))
+        .route("/api/recipes/{id}/run", post(recipes::run))
         .route("/api/io/tools", get(io_bus::tools))
         .route("/api/io/tools/{name}/install", post(io_bus::install_tool))
         .route(

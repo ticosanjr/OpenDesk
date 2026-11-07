@@ -90,7 +90,8 @@ contexto, A/B swarm, fork por run, rollback de artefato, Quick Capture global e
 blueprints de equipe, janela maximizada, ciclo de bandeja, abas em
 Configurações/Integrações/Kanban, timeline ao vivo, controlador de fila em aba,
 barramento universal de I/O (UEN), sinks determinísticos, ferramentas externas
-opcionais e hardening de SQLite/watcher/permissões.
+opcionais, hardening de SQLite/watcher/permissões, receitas YAML com HITL
+modular e Rsync local/remoto.
 Próxima frente: retry durável de Google/Drive, assinatura de updates, cobertura
 Rust ≥80%, Windows/macOS e testes de contrato Google/OpenCode.
 

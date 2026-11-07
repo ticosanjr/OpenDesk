@@ -159,6 +159,20 @@ async fn poll_once(
                     attachments.push(relative.to_string_lossy().to_string());
                 }
             }
+            if crate::recipes::hitl::extract_token(&subject).is_some()
+                && crate::recipes::hitl::email::handle_reply(
+                    state,
+                    &subject,
+                    &from,
+                    &text,
+                    &attachments,
+                )
+                .await
+                .unwrap_or(false)
+            {
+                let _ = session.store(sequence.to_string(), "+FLAGS (\\Seen)").await;
+                continue;
+            }
             let event = NormalizedTaskEvent {
                 source_id: source.id.clone(),
                 external_id: message_id,
@@ -179,18 +193,9 @@ async fn poll_once(
 }
 
 fn password(state: &Arc<AppState>, config: &ImapConfig) -> AppResult<String> {
-    if let Some(password) = config
-        .password
-        .as_deref()
-        .filter(|value| !value.trim().is_empty())
-    {
-        return Ok(password.to_string());
-    }
-    let key = config
-        .password_ref
-        .as_deref()
-        .ok_or_else(|| AppError::BadRequest("password_ref é obrigatório".into()))?;
-    crate::secrets::SecretStore::new(&state.paths)
-        .get("io_bus", key)?
-        .ok_or_else(|| AppError::NotFound(format!("segredo {key}")))
+    crate::io_bus::secret(
+        &state.paths,
+        config.password_ref.as_deref(),
+        config.password.as_deref(),
+    )
 }

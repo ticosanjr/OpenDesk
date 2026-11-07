@@ -64,6 +64,16 @@ pub const TOOLS: &[ToolSpec] = &[
         manual_hint: "Instale git pelo gerenciador de pacotes.",
     },
     ToolSpec {
+        name: "rsync",
+        label: "Rsync",
+        purpose: "Sincronizar pastas locais e remotas (SSH).",
+        version: "system",
+        optional: true,
+        download_url: None,
+        archive: false,
+        manual_hint: "Instale rsync pelo gerenciador de pacotes.",
+    },
+    ToolSpec {
         name: "ffprobe",
         label: "FFprobe",
         purpose: "Metadados de vídeo e áudio.",

@@ -254,6 +254,26 @@ pub async fn run_sinks(
     Ok(())
 }
 
+/// Resolve a secret from SecretStore or an explicit plain value. Used by every
+/// IO bus adapter so credential rules stay in one place.
+pub fn secret(paths: &AppPaths, reference: Option<&str>, plain: Option<&str>) -> AppResult<String> {
+    if let Some(value) = plain.filter(|value| !value.trim().is_empty()) {
+        return Ok(value.to_string());
+    }
+    let key =
+        reference.ok_or_else(|| AppError::BadRequest("referência de segredo ausente".into()))?;
+    SecretStore::new(paths)
+        .get("io_bus", key)?
+        .ok_or_else(|| AppError::NotFound(format!("segredo {key}")))
+}
+
+pub fn http_client(timeout_secs: u64) -> reqwest::Client {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .build()
+        .unwrap_or_default()
+}
+
 pub fn config_value<T: for<'de> Deserialize<'de>>(sink: &OutboundSink) -> AppResult<T> {
     serde_json::from_str(&sink.config_json)
         .map_err(|error| AppError::BadRequest(format!("config_json inválido: {error}")))

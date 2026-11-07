@@ -1026,3 +1026,18 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Quick Capture fecha ao perder foco e reutiliza a janela.
 - Protocolo V2 documentado em `docs/protocol/opencode-v2.md`.
 - `cargo test` — 133 passed; Playwright — 21 passed.
+
+## 2026-11-07 — 0.22.0: receitas declarativas, HITL e Rsync
+
+- Migração 0017 com recipes_index, recipe_runs e hitl_requests.
+- Parser/validação YAML, sync por watcher, indexação por workspace.
+- Motor de receitas com steps sequenciais, variáveis, checkpoint, retomada de
+  estado e sinks via io_bus.
+- HITL com token one-shot, timeout, Desktop UI, e-mail SMTP/IMAP e Signal.
+- Modalidades binária, múltipla escolha, feedback, edição de artefato e proxy.
+- Página Receitas com stepper visual e editor YAML Monaco.
+- Attention Card lista checkpoints HITL pendentes.
+- Rsync para pastas locais/remotas: sink e trigger, com chave SSH e `--delete`
+  opt-in.
+- rsync no catálogo de ferramentas externas.
+- `cargo test` — 159 passed; Playwright — 22 passed.

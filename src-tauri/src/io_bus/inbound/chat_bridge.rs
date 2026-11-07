@@ -331,13 +331,7 @@ fn secret(
     reference: Option<&str>,
     plain: Option<&str>,
 ) -> AppResult<String> {
-    if let Some(value) = plain.filter(|value| !value.trim().is_empty()) {
-        return Ok(value.to_string());
-    }
-    let key = reference.ok_or_else(|| AppError::BadRequest("token_ref é obrigatório".into()))?;
-    crate::secrets::SecretStore::new(&state.paths)
-        .get("io_bus", key)?
-        .ok_or_else(|| AppError::NotFound(format!("segredo {key}")))
+    crate::io_bus::secret(&state.paths, reference, plain)
 }
 
 async fn sleep_or_cancel(cancel: &CancellationToken, seconds: u64) {

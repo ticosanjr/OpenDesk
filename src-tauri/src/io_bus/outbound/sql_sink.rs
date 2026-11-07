@@ -27,15 +27,7 @@ pub async fn run(
     let config: Config = config_value(sink)?;
     let database_url = match config.database_url {
         Some(url) if !url.trim().is_empty() => url,
-        _ => {
-            let key = config
-                .database_url_ref
-                .as_deref()
-                .ok_or_else(|| AppError::BadRequest("database_url_ref é obrigatório".into()))?;
-            ctx.secrets()
-                .get("io_bus", key)?
-                .ok_or_else(|| AppError::NotFound(format!("segredo {key}")))?
-        }
+        _ => crate::io_bus::secret(&ctx.paths, config.database_url_ref.as_deref(), None)?,
     };
     let source = config
         .artifact

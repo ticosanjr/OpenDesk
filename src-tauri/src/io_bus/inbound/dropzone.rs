@@ -17,7 +17,7 @@ use std::{
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct DropzoneConfig {
     #[serde(default)]
     pub path: Option<String>,
@@ -27,6 +27,22 @@ pub struct DropzoneConfig {
     pub languages: Option<String>,
     #[serde(default)]
     pub whisper_model: Option<String>,
+    #[serde(default)]
+    pub transport: Option<String>,
+    #[serde(default)]
+    pub rsync_source: Option<String>,
+    #[serde(default)]
+    pub interval_secs: Option<u64>,
+    #[serde(default)]
+    pub ssh_key_ref: Option<String>,
+    #[serde(default)]
+    pub ssh_key_path: Option<String>,
+    #[serde(default)]
+    pub port: Option<u16>,
+    #[serde(default)]
+    pub delete: bool,
+    #[serde(default)]
+    pub checksum: bool,
 }
 
 pub async fn run(
@@ -61,6 +77,44 @@ async fn watch(
     dropzone: PathBuf,
     cancel: CancellationToken,
 ) -> AppResult<()> {
+    if config.transport.as_deref() == Some("rsync")
+        && let Some(source) = config.rsync_source.clone()
+    {
+        let state = state.clone();
+        let config = config.clone();
+        let dropzone = dropzone.clone();
+        let cancel = cancel.clone();
+        tokio::spawn(async move {
+            let key_path = if let Some(key) = config.ssh_key_ref.as_deref() {
+                crate::secrets::SecretStore::new(&state.paths)
+                    .get("io_bus", key)
+                    .ok()
+                    .flatten()
+            } else {
+                config.ssh_key_path.clone()
+            };
+            let rsync_config = crate::io_bus::outbound::rsync::RsyncConfig {
+                ssh_key_path: key_path,
+                port: config.port,
+                delete: config.delete,
+                checksum: config.checksum,
+                timeout_secs: Some(120),
+                extra_args: Vec::new(),
+            };
+            loop {
+                if cancel.is_cancelled() {
+                    break;
+                }
+                let _ =
+                    crate::io_bus::outbound::rsync::pull(&source, &dropzone, &rsync_config).await;
+                tokio::select! {
+                    _ = cancel.cancelled() => break,
+                    _ = tokio::time::sleep(Duration::from_secs(config.interval_secs.unwrap_or(300).clamp(15, 3600))) => {}
+                }
+            }
+        });
+    }
+
     let (tx, mut rx) = mpsc::unbounded_channel::<PathBuf>();
     let mut debouncer: Debouncer<RecommendedWatcher, RecommendedCache> = new_debouncer(
         Duration::from_millis(500),

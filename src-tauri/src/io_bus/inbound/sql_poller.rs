@@ -115,13 +115,7 @@ fn database_url(state: &Arc<AppState>, config: &PollerConfig) -> AppResult<Strin
     {
         return Ok(url.to_string());
     }
-    let key = config
-        .database_url_ref
-        .as_deref()
-        .ok_or_else(|| AppError::BadRequest("database_url_ref é obrigatório".into()))?;
-    crate::secrets::SecretStore::new(&state.paths)
-        .get("io_bus", key)?
-        .ok_or_else(|| AppError::NotFound(format!("segredo {key}")))
+    crate::io_bus::secret(&state.paths, config.database_url_ref.as_deref(), None)
 }
 
 fn row_json(row: &sqlx::any::AnyRow) -> serde_json::Value {

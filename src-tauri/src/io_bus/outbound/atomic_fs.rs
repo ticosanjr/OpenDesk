@@ -9,19 +9,61 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use super::rsync::{self, RsyncConfig};
+
 #[derive(Debug, Deserialize)]
 struct Config {
     destination: String,
     #[serde(default)]
     prefix: Option<String>,
+    #[serde(default)]
+    transport: Option<String>,
+    #[serde(default)]
+    ssh_key_ref: Option<String>,
+    #[serde(default)]
+    ssh_key_path: Option<String>,
+    #[serde(default)]
+    port: Option<u16>,
+    #[serde(default)]
+    delete: bool,
+    #[serde(default)]
+    checksum: bool,
+    #[serde(default)]
+    timeout_secs: Option<u64>,
+    #[serde(default)]
+    extra_args: Vec<String>,
 }
 
 pub async fn run(
-    _ctx: &IoContext,
+    ctx: &IoContext,
     sink: &OutboundSink,
     output: &RunOutput,
 ) -> AppResult<Vec<String>> {
     let config: Config = config_value(sink)?;
+    if config.transport.as_deref() == Some("rsync") {
+        let mut rsync_config = RsyncConfig {
+            ssh_key_path: config.ssh_key_path.clone(),
+            port: config.port,
+            delete: config.delete,
+            checksum: config.checksum,
+            timeout_secs: config.timeout_secs,
+            extra_args: config.extra_args.clone(),
+        };
+        if rsync_config.ssh_key_path.is_none()
+            && let Some(key) = config.ssh_key_ref.as_deref()
+        {
+            rsync_config.ssh_key_path = Some(
+                ctx.secrets()
+                    .get("io_bus", key)?
+                    .ok_or_else(|| AppError::NotFound(format!("segredo SSH {key}")))?,
+            );
+        }
+        let sources = artifact_paths(output)
+            .into_iter()
+            .map(Path::to_path_buf)
+            .collect::<Vec<_>>();
+        return rsync::push(&sources, &config.destination, &rsync_config).await;
+    }
     let destination = PathBuf::from(&config.destination);
     std::fs::create_dir_all(&destination)?;
     let mut written = Vec::new();
