@@ -9,6 +9,7 @@ pub struct QueueJob {
     pub workspace_id: String,
     pub task_id: Option<String>,
     pub schedule_id: Option<String>,
+    pub session_id: Option<String>,
     pub prompt_payload: String,
     pub resolved_mode: String,
     pub resolved_agent: String,
@@ -34,6 +35,8 @@ pub struct EnqueueInput {
     pub workspace_id: String,
     pub task_id: Option<String>,
     pub schedule_id: Option<String>,
+    #[serde(default)]
+    pub session_id: Option<String>,
     pub prompt_payload: String,
     pub resolved_mode: String,
     pub resolved_agent: String,
@@ -62,7 +65,7 @@ fn default_max_retries() -> i64 {
     1
 }
 
-const COLUMNS: &str = "q.id, q.workspace_id, q.task_id, q.schedule_id, q.prompt_payload, \
+const COLUMNS: &str = "q.id, q.workspace_id, q.task_id, q.schedule_id, q.session_id, q.prompt_payload, \
     q.resolved_mode, q.resolved_agent, q.resolved_model, q.resolved_effort, q.job_kind, \
     q.scheduled_for, q.output_dir, q.priority, q.status, q.retry_count, q.max_retries, q.error_message, \
     q.enqueued_at, q.started_at, q.finished_at, t.title AS task_title";
@@ -71,15 +74,16 @@ pub async fn enqueue(pool: &SqlitePool, input: EnqueueInput) -> AppResult<QueueJ
     let id = Uuid::now_v7().to_string();
     sqlx::query(
         "INSERT INTO execution_queue (
-            id, workspace_id, task_id, schedule_id, prompt_payload,
+            id, workspace_id, task_id, schedule_id, session_id, prompt_payload,
             resolved_mode, resolved_agent, resolved_model, resolved_effort,
             job_kind, scheduled_for, output_dir, priority, max_retries
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&input.workspace_id)
     .bind(input.task_id.as_deref())
     .bind(input.schedule_id.as_deref())
+    .bind(input.session_id.as_deref())
     .bind(&input.prompt_payload)
     .bind(&input.resolved_mode)
     .bind(&input.resolved_agent)
@@ -298,6 +302,7 @@ mod tests {
             workspace_id: "ws-1".into(),
             task_id: None,
             schedule_id: None,
+            session_id: None,
             prompt_payload: "prompt".into(),
             resolved_mode: "build".into(),
             resolved_agent: "build".into(),

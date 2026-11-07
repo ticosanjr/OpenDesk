@@ -63,6 +63,7 @@ pub struct RunOutcome {
 pub struct RunRequest<'a> {
     pub run_id: &'a str,
     pub task_id: Option<&'a str>,
+    pub session_id: Option<&'a str>,
     pub workspace_root: &'a Path,
     pub agent: &'a str,
     pub model: &'a str,
@@ -79,23 +80,26 @@ pub async fn execute_run(
     events: &EventBus,
 ) -> RunOutcome {
     let model = parse_model_ref(request.model);
-    let session_id = match rest
-        .create_session(
-            &request.workspace_root.to_string_lossy(),
-            request.title,
-            request.agent,
-            model,
-        )
-        .await
-    {
-        Ok(session_id) => session_id,
-        Err(error) => {
-            return failed_outcome(
-                String::new(),
-                format!("could not create OpenCode session: {error:#}"),
-                request.log_path,
-            );
-        }
+    let session_id = match request.session_id.filter(|value| !value.trim().is_empty()) {
+        Some(session_id) => session_id.to_string(),
+        None => match rest
+            .create_session(
+                &request.workspace_root.to_string_lossy(),
+                request.title,
+                request.agent,
+                model,
+            )
+            .await
+        {
+            Ok(session_id) => session_id,
+            Err(error) => {
+                return failed_outcome(
+                    String::new(),
+                    format!("could not create OpenCode session: {error:#}"),
+                    request.log_path,
+                );
+            }
+        },
     };
 
     publish_chunk(
@@ -103,7 +107,15 @@ pub async fn execute_run(
         request.run_id,
         request.task_id,
         "status",
-        format!("session {session_id} created for phase {}", request.phase),
+        format!(
+            "session {session_id} {} for phase {}",
+            if request.session_id.is_some() {
+                "reused"
+            } else {
+                "created"
+            },
+            request.phase
+        ),
     );
     append_log(
         request.log_path,
@@ -742,6 +754,7 @@ mod tests {
             RunRequest {
                 run_id: "run-1",
                 task_id: None,
+                session_id: None,
                 workspace_root: temp.path(),
                 agent: "build",
                 model: "deepseek/deepseek-flash",

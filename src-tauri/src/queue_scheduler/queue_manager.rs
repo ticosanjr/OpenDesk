@@ -445,6 +445,7 @@ impl QueueManager {
         let request = RunRequest {
             run_id: &run_id,
             task_id: job.task_id.as_deref(),
+            session_id: job.session_id.as_deref(),
             workspace_root: &workspace_path,
             agent: &job.resolved_agent,
             model: &job.resolved_model,
@@ -456,6 +457,9 @@ impl QueueManager {
         };
 
         let outcome = session_runner::execute_run(rest.clone(), request, &self.events).await;
+        if !outcome.session_id.is_empty() {
+            let _ = runs::set_session(&self.pool, &run_id, Some(&outcome.session_id)).await;
+        }
 
         let reason = format!(
             "{} · fase {}",

@@ -19,6 +19,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { EngineCard } from "@/components/settings/EngineCard";
 import { UpdatesCard } from "@/components/settings/UpdatesCard";
 import { AboutCard } from "@/components/settings/AboutCard";
+import { NotificationCard } from "@/components/settings/NotificationCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiDelete, apiGet, apiPatch, apiPut } from "@/lib/api";
@@ -126,6 +127,7 @@ export function SettingsPage() {
           ["Engine", "settings-engine"],
           ["Atualizações", "settings-updates"],
           ["Sobre", "settings-about"],
+          ["Notificações", "settings-notifications"],
           ["Workspaces", "settings-workspaces"],
         ].map(([label, id]) => (
           <button
@@ -150,6 +152,7 @@ export function SettingsPage() {
       <div id="settings-about" className="scroll-mt-14">
         <AboutCard />
       </div>
+      <NotificationCard />
 
       <div id="settings-general" className="grid scroll-mt-14 gap-3 lg:grid-cols-2">
         <Card>

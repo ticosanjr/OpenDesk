@@ -9,6 +9,8 @@ pub struct TaskRun {
     pub workspace_id: String,
     pub task_id: Option<String>,
     pub schedule_id: Option<String>,
+    pub attempt_number: i64,
+    pub session_id: Option<String>,
     pub parent_run_id: Option<String>,
     pub phase: Option<String>,
     pub agent_name: String,
@@ -131,16 +133,26 @@ pub async fn list(
     workspace_id: &str,
     task_id: Option<&str>,
 ) -> AppResult<Vec<TaskRun>> {
+    list_with_limit(pool, workspace_id, task_id, 100).await
+}
+
+pub async fn list_with_limit(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    task_id: Option<&str>,
+    limit: i64,
+) -> AppResult<Vec<TaskRun>> {
     let query = format!(
         "SELECT {COLUMNS} FROM task_runs r
          LEFT JOIN tasks t ON t.id = r.task_id
          WHERE r.workspace_id = ? AND (? IS NULL OR r.task_id = ?)
-         ORDER BY r.started_at DESC LIMIT 100"
+         ORDER BY r.started_at DESC LIMIT ?"
     );
     Ok(sqlx::query_as::<_, TaskRun>(&query)
         .bind(workspace_id)
         .bind(task_id)
         .bind(task_id)
+        .bind(limit.clamp(1, 1000))
         .fetch_all(pool)
         .await?)
 }
@@ -223,6 +235,30 @@ pub async fn set_error(
     .execute(pool)
     .await?;
     Ok(())
+}
+
+pub async fn set_session(pool: &SqlitePool, id: &str, session_id: Option<&str>) -> AppResult<()> {
+    sqlx::query("UPDATE task_runs SET session_id = ? WHERE id = ?")
+        .bind(session_id)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn latest_session_for_task(
+    pool: &SqlitePool,
+    task_id: &str,
+) -> AppResult<Option<String>> {
+    Ok(sqlx::query_scalar(
+        "SELECT session_id FROM task_runs
+         WHERE task_id = ? AND session_id IS NOT NULL AND session_id != ''
+         ORDER BY started_at DESC LIMIT 1",
+    )
+    .bind(task_id)
+    .fetch_optional(pool)
+    .await?
+    .flatten())
 }
 
 pub async fn recover_running(pool: &SqlitePool) -> AppResult<u64> {
@@ -315,6 +351,17 @@ mod tests {
         assert_eq!(done.tokens_output, 20);
         assert_eq!(done.duration_ms, 1500);
         assert!(done.completed_at.is_some());
+        set_session(&pool, "run-1", Some("ses-1"))
+            .await
+            .expect("session");
+        assert_eq!(
+            get(&pool, "run-1")
+                .await
+                .expect("get")
+                .session_id
+                .as_deref(),
+            Some("ses-1")
+        );
 
         create(&pool, input("run-2")).await.expect("create 2");
         assert_eq!(recover_running(&pool).await.expect("recover"), 1);

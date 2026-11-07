@@ -28,8 +28,26 @@ export function resetNotificationKeys() {
   seen.clear();
 }
 
+export function nativeNotificationsEnabled(): boolean {
+  return (
+    typeof localStorage === "undefined" ||
+    localStorage.getItem("opendesk.native_notifications") !== "false"
+  );
+}
+
+export function artifactNotificationsEnabled(): boolean {
+  return (
+    typeof localStorage === "undefined" ||
+    localStorage.getItem("opendesk.artifact_notifications") !== "false"
+  );
+}
+
 export function shouldSendNativeNotification(): boolean {
-  return typeof document !== "undefined" && (document.hidden || !document.hasFocus());
+  return (
+    nativeNotificationsEnabled() &&
+    typeof document !== "undefined" &&
+    (document.hidden || !document.hasFocus())
+  );
 }
 
 export async function ensureNativePermission(): Promise<boolean> {

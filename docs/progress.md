@@ -936,3 +936,16 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Dedupe central `markNotificationOnce`, native só com janela oculta, permissão
   solicitada uma vez e toasts limpos ao esconder/descarregar.
 - `cargo test` — 114 passed; `vitest` — 52 passed.
+
+## 2026-11-07 — 0.16.0: continuidade de sessão, preferências e Kanban em lista
+
+- Follow-up de tarefa reutiliza `session_id` da sessão OpenCode.
+- `execution_queue.session_id` + `task_runs.session_id` persistidos.
+- Preferências de notificação: nativas, artefatos e fechar para bandeja.
+- `close_to_tray` respeitado no `CloseRequested`.
+- Botão Executar desabilitado com tooltip quando o engine está offline.
+- Kanban com alternância Board/Lista, seleção múltipla e ações em lote.
+- Paginação “carregar mais” em Artefatos e Execuções.
+- `LazyFileViewer` para carregar o visualizador sob demanda.
+- Ajuda de atalhos com `?`.
+- `cargo test` — 114 passed; `vitest` — 52 passed.

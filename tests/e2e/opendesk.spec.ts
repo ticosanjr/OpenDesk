@@ -54,7 +54,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     headers: auth.headers,
   });
   expect(about.ok()).toBeTruthy();
-  expect((await about.json()).app.version).toBe("0.15.2");
+  expect((await about.json()).app.version).toBe("0.16.0");
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });
@@ -1003,4 +1003,50 @@ test("task can be cancelled from the task panel at any time", async ({ page, req
   });
   const list = (await tasks.json()) as Array<{ id: string; status: string }>;
   expect(list.find((item) => item.id === task.id)?.status).toBe("CANCELLED");
+});
+
+test("notification preferences and kanban list view are available", async ({
+  page,
+  request,
+}) => {
+  const auth = api();
+  const existing = (await (
+    await request.get(`${auth.baseURL}/api/workspaces`, { headers: auth.headers })
+  ).json()) as Array<{ id: string }>;
+  let workspaceId = existing[0]?.id;
+  if (!workspaceId) {
+    const created = await request.post(`${auth.baseURL}/api/workspaces`, {
+      headers: auth.headers,
+      data: { name: "Prefs Workspace", root_path: "/tmp/opendesk-e2e/workspaces-prefs" },
+    });
+    workspaceId = ((await created.json()) as { id: string }).id;
+  }
+  await request.post(`${auth.baseURL}/api/tasks?workspace_id=${workspaceId}`, {
+    headers: auth.headers,
+    data: {
+      title: "Tarefa Lista E2E",
+      description: "Visível na tabela do Kanban.",
+      tags: [],
+    },
+  });
+
+  await page.goto("/#/settings");
+  await expect(page.getByText("Notificações e fechamento")).toBeVisible();
+  await expect(page.getByText("Fechar janela mantendo na bandeja")).toBeVisible();
+
+  await page.goto("/#/kanban");
+  await page.getByTitle("Lista").click();
+  await expect(page.getByText("Último run")).toBeVisible();
+  await expect(page.getByText("Tarefa Lista E2E")).toBeVisible();
+
+  const saved = await request.put(`${auth.baseURL}/api/settings/close_to_tray`, {
+    headers: auth.headers,
+    data: true,
+  });
+  expect(saved.ok()).toBeTruthy();
+  const value = await request.get(
+    `${auth.baseURL}/api/settings/close_to_tray`,
+    { headers: auth.headers },
+  );
+  expect(await value.json()).toBe(true);
 });

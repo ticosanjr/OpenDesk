@@ -280,6 +280,7 @@ impl CronEngine {
                 workspace_id: schedule.workspace_id.clone(),
                 task_id: None,
                 schedule_id: Some(schedule.id.clone()),
+                session_id: None,
                 prompt_payload: packed,
                 resolved_mode: decision.phase,
                 resolved_agent: decision.selected_agent,

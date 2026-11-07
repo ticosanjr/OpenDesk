@@ -25,7 +25,7 @@ import type { FileContent, FileEntry } from "@/lib/types";
 import { formatNumber, relativeTime, shortPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "@/store/toast-store";
-import { FileViewer } from "@/components/viewer/FileViewer";
+import { LazyFileViewer } from "@/components/viewer/LazyFileViewer";
 
 export function FilesPage() {
   const workspaces = useAppStore((state) => state.workspaces);
@@ -345,7 +345,7 @@ export function FilesPage() {
                 className="border-0 bg-transparent"
               />
             ) : content ? (
-              <FileViewer
+              <LazyFileViewer
                 name={selected.name}
                 path={content.path}
                 content={content.content}

@@ -7,6 +7,7 @@ import { CommandPalette } from "@/components/layout/CommandPalette";
 import { WorkspaceDialog } from "@/components/layout/WorkspaceDialog";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Modal } from "@/components/ui/modal";
 import { Toaster } from "@/components/ui/toaster";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
@@ -16,6 +17,7 @@ import { links } from "@/lib/links";
 import { apiGet } from "@/lib/api";
 import type { Schedule } from "@/lib/types";
 import {
+  artifactNotificationsEnabled,
   isTerminalTaskStatus,
   markNotificationOnce,
   sendNativeNotification,
@@ -40,6 +42,7 @@ export function AppShell() {
   const lastScheduleEvent = useAppStore((state) => state.lastScheduleEvent);
   const location = useLocation();
   const [dismissedBudget, setDismissedBudget] = useState<string | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   useEffect(() => {
     setDismissedBudget(null);
@@ -123,6 +126,7 @@ export function AppShell() {
 
   useEffect(() => {
     if (!lastArtifact || location.pathname === "/artifacts") return;
+    if (!artifactNotificationsEnabled()) return;
     const key = `artifacts:${lastArtifact.run_id || lastArtifact.id}`;
     if (!markNotificationOnce(key)) return;
     toast({
@@ -250,6 +254,11 @@ export function AppShell() {
       ) {
         event.preventDefault();
         void refresh();
+        return;
+      }
+      if (event.key === "?" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault();
+        setShortcutsOpen((current) => !current);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -368,6 +377,34 @@ export function AppShell() {
       <CommandPalette />
       <WorkspaceDialog />
       <ConfirmDialog />
+      <Modal
+        open={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+        title="Atalhos do OpenDesk"
+        description="Produtividade sem sair do teclado."
+        className="max-w-lg"
+      >
+        <div className="space-y-1.5">
+          {[
+            ["Ctrl/Cmd + K", "Abrir busca global / command palette"],
+            ["Ctrl/Cmd + N", "Criar nova tarefa"],
+            ["Ctrl/Cmd + Shift + R", "Atualizar dados do workspace"],
+            ["?", "Mostrar ou esconder esta ajuda"],
+            ["Esc", "Fechar modal, drawer ou paleta"],
+            ["Enter", "Abrir tarefa selecionada no Kanban"],
+          ].map(([keys, label]) => (
+            <div
+              key={keys}
+              className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
+            >
+              <span className="text-[12px] text-zinc-300">{label}</span>
+              <kbd className="rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">
+                {keys}
+              </kbd>
+            </div>
+          ))}
+        </div>
+      </Modal>
       <Toaster />
     </div>
   );

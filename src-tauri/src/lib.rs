@@ -148,11 +148,27 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                // Closing the window must stop the background process. The tray
-                // is only a shortcut while the app is open; it is not a reason
-                // to keep notifying after the user closed the app.
-                window.app_handle().exit(0);
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let app = window.app_handle();
+                let close_to_tray = app
+                    .try_state::<Arc<AppState>>()
+                    .map(|state| {
+                        tauri::async_runtime::block_on(async {
+                            crate::db::settings::get(&state.db, "close_to_tray")
+                                .await
+                                .ok()
+                                .flatten()
+                                .and_then(|value| value.as_bool())
+                                .unwrap_or(false)
+                        })
+                    })
+                    .unwrap_or(false);
+                if close_to_tray {
+                    api.prevent_close();
+                    let _ = window.hide();
+                } else {
+                    app.exit(0);
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![

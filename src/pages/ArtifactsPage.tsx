@@ -25,7 +25,7 @@ import { formatNumber, relativeTime, shortPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { links } from "@/lib/links";
 import { EntityLink } from "@/components/ui/entity-link";
-import { FileViewer } from "@/components/viewer/FileViewer";
+import { LazyFileViewer } from "@/components/viewer/LazyFileViewer";
 
 interface ArtifactContent {
   path: string;
@@ -47,6 +47,7 @@ export function ArtifactsPage() {
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [agentFilter, setAgentFilter] = useState("");
   const [debouncedAgent, setDebouncedAgent] = useState("");
+  const [limit, setLimit] = useState(200);
   const [actionFilter, setActionFilter] = useState("");
   const [selected, setSelected] = useState<Artifact | null>(null);
   const [content, setContent] = useState<ArtifactContent | null>(null);
@@ -65,11 +66,11 @@ export function ArtifactsPage() {
 
   const query = useMemo(() => {
     if (!activeWorkspaceId) return "";
-    const params = new URLSearchParams({ workspace_id: activeWorkspaceId, limit: "200" });
+    const params = new URLSearchParams({ workspace_id: activeWorkspaceId, limit: String(limit) });
     if (debouncedAgent.trim()) params.set("agent", debouncedAgent.trim());
     if (actionFilter) params.set("action", actionFilter);
     return params.toString();
-  }, [activeWorkspaceId, debouncedAgent, actionFilter]);
+  }, [activeWorkspaceId, debouncedAgent, actionFilter, limit]);
 
   const load = useCallback(async () => {
     if (!activeWorkspaceId) {
@@ -289,6 +290,13 @@ export function ArtifactsPage() {
               </table>
             </div>
           )}
+          {artifacts.length >= limit ? (
+            <div className="border-t border-zinc-800/60 p-3 text-center">
+              <Button variant="outline" size="sm" onClick={() => setLimit((value) => value + 200)}>
+                Carregar mais artefatos
+              </Button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -394,7 +402,7 @@ export function ArtifactsPage() {
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               {tab === "content" ? (
                 content ? (
-                  <FileViewer
+                  <LazyFileViewer
                     name={selected.file_path}
                     path={content.path}
                     content={content.content}

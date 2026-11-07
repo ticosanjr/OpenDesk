@@ -6,10 +6,12 @@ import {
   Ban,
   CheckCircle2,
   Circle,
+  Columns3,
   Eye,
   FileText,
   GripVertical,
   Inbox,
+  LayoutList,
   ListChecks,
   Loader2,
   Pause,
@@ -88,6 +90,7 @@ export function KanbanPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const workspaces = useAppStore((state) => state.workspaces);
   const queue = useAppStore((state) => state.queue);
+  const daemon = useAppStore((state) => state.daemon);
   const lastTaskEvent = useAppStore((state) => state.lastTaskEvent);
   const lastRunEvent = useAppStore((state) => state.lastRunEvent);
   const setWorkspaceDialogOpen = useUiStore(
@@ -110,6 +113,8 @@ export function KanbanPage() {
   const [query, setQuery] = useState("");
   const [agentFilter, setAgentFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
+  const [view, setView] = useState<"board" | "list">("board");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const draggedRef = useRef<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -368,6 +373,28 @@ export function KanbanPage() {
             className="h-full flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
           />
         </div>
+        <div className="flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5">
+          {([
+            ["board", Columns3, "Board"],
+            ["list", LayoutList, "Lista"],
+          ] as const).map(([value, Icon, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setView(value)}
+              className={cn(
+                "flex items-center gap-1 rounded-md px-2 py-1 text-[10px]",
+                view === value
+                  ? "bg-zinc-800 text-zinc-100"
+                  : "text-zinc-500 hover:text-zinc-200",
+              )}
+              title={label}
+            >
+              <Icon size={12} />
+              {label}
+            </button>
+          ))}
+        </div>
         <select
           value={agentFilter}
           onChange={(event) => setAgentFilter(event.target.value)}
@@ -425,6 +452,37 @@ export function KanbanPage() {
         </label>
       </div>
 
+      {selected.size > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-500/25 bg-blue-500/[0.06] px-3 py-2">
+          <Badge variant="blue">{selected.size} selecionada(s)</Badge>
+          <span className="text-[11px] text-zinc-400">mover para:</span>
+          {["TODO", "IN_PROGRESS", "DONE", "BLOCKED", "CANCELLED"].map((status) => (
+            <Button
+              key={status}
+              variant="outline"
+              size="sm"
+              className="h-7 text-[10px]"
+              onClick={async () => {
+                for (const task of tasks.filter((item) => selected.has(item.id))) {
+                  await transitionTask(task, status);
+                }
+                setSelected(new Set());
+              }}
+            >
+              {STATUS_LABEL[status] ?? status}
+            </Button>
+          ))}
+          <button
+            type="button"
+            className="ml-auto text-[10px] text-zinc-500 hover:text-zinc-200"
+            onClick={() => setSelected(new Set())}
+          >
+            limpar seleção
+          </button>
+        </div>
+      ) : null}
+
+      {view === "board" ? (
       <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
         {COLUMNS.map((column) => {
           const columnTasks = filteredTasks.filter((task) => task.status === column.id);
@@ -624,7 +682,12 @@ export function KanbanPage() {
                                 variant="outline"
                                 size="sm"
                                 className="h-6 px-1.5 text-[10px]"
-                                title="Criar uma nova tentativa de execução"
+                                title={
+                                  daemon?.online
+                                    ? "Criar uma nova tentativa de execução"
+                                    : "OpenCode engine offline: inicie o motor para executar"
+                                }
+                                disabled={!daemon?.online}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   void dispatch(task);
@@ -658,6 +721,96 @@ export function KanbanPage() {
           );
         })}
       </div>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <div className="scroll-area max-h-[calc(100dvh-18rem)]">
+              <table className="w-full text-left">
+                <thead className="sticky top-0 z-10 border-b border-zinc-800/70 bg-zinc-950/95 text-[10px] uppercase tracking-wide text-zinc-500">
+                  <tr>
+                    <th className="w-8 px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={filteredTasks.length > 0 && selected.size === filteredTasks.length}
+                        onChange={(event) =>
+                          setSelected(
+                            event.target.checked
+                              ? new Set(filteredTasks.map((task) => task.id))
+                              : new Set(),
+                          )
+                        }
+                        className="accent-blue-500"
+                      />
+                    </th>
+                    <th className="px-3 py-2">Tarefa</th>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Agente</th>
+                    <th className="px-3 py-2">Último run</th>
+                    <th className="px-3 py-2">Prioridade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTasks.map((task) => (
+                    <tr
+                      key={task.id}
+                      className="cursor-pointer border-b border-zinc-800/50 text-[12px] hover:bg-zinc-900/40"
+                      onClick={() => setSelectedTask(task)}
+                    >
+                      <td className="px-3 py-2" onClick={(event) => event.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(task.id)}
+                          onChange={(event) => {
+                            setSelected((current) => {
+                              const next = new Set(current);
+                              if (event.target.checked) next.add(task.id);
+                              else next.delete(task.id);
+                              return next;
+                            });
+                          }}
+                          className="accent-blue-500"
+                        />
+                      </td>
+                      <td className="max-w-[360px] truncate px-3 py-2 font-medium text-zinc-200">
+                        {task.title}
+                      </td>
+                      <td className="px-3 py-2">
+                        <Badge variant={COLUMNS.find((item) => item.id === task.status)?.tone ?? "default"}>
+                          {STATUS_LABEL[task.status] ?? task.status}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-zinc-400">
+                        {task.assigned_agent ? `@${task.assigned_agent}` : "router"}
+                      </td>
+                      <td className="px-3 py-2">
+                        {task.last_run_status ? (
+                          <span
+                            className={cn(
+                              "font-mono text-[11px]",
+                              task.last_run_status === "SUCCESS"
+                                ? "text-emerald-300"
+                                : task.last_run_status === "FAILED"
+                                  ? "text-red-300"
+                                  : "text-zinc-400",
+                            )}
+                          >
+                            {task.last_run_status} · {relativeTime(task.last_run_at)}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-zinc-600">sem execução</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-zinc-400">
+                        {PRIORITY_LABEL[task.priority] ?? task.priority}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -1205,6 +1358,7 @@ function TaskDetailsModal({
   const [diagnostics, setDiagnostics] = useState<TaskDiagnostics | null>(null);
   const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const daemon = useAppStore((state) => state.daemon);
 
   useEffect(() => {
     if (!task) {
@@ -1481,7 +1635,16 @@ function TaskDetailsModal({
                 Aprovar plano e iniciar Build
               </Button>
             ) : task.status !== "IN_PROGRESS" ? (
-              <Button size="sm" onClick={() => onDispatch(task)}>
+              <Button
+                size="sm"
+                onClick={() => onDispatch(task)}
+                disabled={!daemon?.online}
+                title={
+                  daemon?.online
+                    ? "Executar agora"
+                    : "OpenCode engine offline: inicie o motor para executar"
+                }
+              >
                 <Play size={13} />
                 {task.status === "BLOCKED" ? "Nova tentativa" : "Executar"}
               </Button>

@@ -43,6 +43,7 @@ export function RunsPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
+  const [limit, setLimit] = useState(100);
 
   const load = useCallback(async () => {
     if (!activeWorkspaceId) {
@@ -52,7 +53,7 @@ export function RunsPage() {
     setLoading(true);
     try {
       const list = await apiGet<TaskRun[]>(
-        `/api/runs?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+        `/api/runs?workspace_id=${encodeURIComponent(activeWorkspaceId)}&limit=${limit}`,
       );
       setRuns(list);
       setError(null);
@@ -61,7 +62,7 @@ export function RunsPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeWorkspaceId]);
+  }, [activeWorkspaceId, limit]);
 
   useEffect(() => {
     void load();
@@ -233,6 +234,13 @@ export function RunsPage() {
               ))}
             </div>
           )}
+          {filtered.length >= limit && runs.length >= limit ? (
+            <div className="border-t border-zinc-800/60 p-3 text-center">
+              <Button variant="outline" size="sm" onClick={() => setLimit((value) => value + 100)}>
+                Carregar mais
+              </Button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </PageBody>

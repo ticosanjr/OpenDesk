@@ -82,6 +82,11 @@ OpenCode permanecendo nos arquivos nativos do disco.
   chamadas, sem `variant: null`.
 - Notificações deduplicadas: tarefa só no status terminal, rotina só quando o
   run muda e um aviso por run para artefatos.
+- Preferências de notificação e opção de fechar para a bandeja.
+- Follow-up de tarefa reutiliza a mesma sessão OpenCode.
+- Kanban com visão em lista, seleção múltipla e ações em lote.
+- Paginação em artefatos/execuções e visualizador carregado sob demanda.
+- Botão Executar indica engine offline e ajuda de atalhos com `?`.
 - Backup rotativo do SQLite antes de migrações.
 - Limpeza automática de artefatos de build após cada release.
 - Auto-atualização do OpenDesk por release privada com SHA256 e backup.
@@ -229,6 +234,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0020 — Status Paperclip, execução e visualizadores](docs/decisions/0020-task-status-execution-viewer-and-search.md)
 - [ADR 0021 — Contrato de layout e scroll](docs/decisions/0021-layout-and-scroll-contract.md)
 - [ADR 0022 — Model refs e notificações](docs/decisions/0022-model-refs-and-notification-policy.md)
+- [ADR 0023 — Sessão, notificações e Kanban em lista](docs/decisions/0023-session-continuity-notifications-and-kanban-list.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)

@@ -124,6 +124,7 @@ export interface DashboardStats {
 export interface QueueJob {
   id: string;
   task_id?: string | null;
+  session_id?: string | null;
   title?: string | null;
   status: string;
   priority: number;

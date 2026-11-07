@@ -274,6 +274,7 @@ async fn enqueue_decision(
             workspace_id: task.workspace_id.clone(),
             task_id: Some(task.id.clone()),
             schedule_id: None,
+            session_id: None,
             prompt_payload: prompt,
             resolved_mode: decision.phase.clone(),
             resolved_agent: decision.selected_agent.clone(),
@@ -384,12 +385,14 @@ pub async fn post_task_message(
         "{packed}\n\n## Conversa com o usuário\n\n{conversation}\n\nContinue a execução considerando a mensagem acima. Se precisar de uma decisão, pare e faça a pergunta."
     );
 
+    let session_id = runs::latest_session_for_task(&state.db, &task.id).await?;
     let job = state
         .queue
         .enqueue(EnqueueInput {
             workspace_id: task.workspace_id.clone(),
             task_id: Some(task.id.clone()),
             schedule_id: None,
+            session_id,
             prompt_payload: prompt,
             resolved_mode: "build".into(),
             resolved_agent: decision.selected_agent.clone(),

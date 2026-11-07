@@ -17,6 +17,7 @@ use std::{io::BufRead, sync::Arc};
 pub struct RunQuery {
     pub workspace_id: Option<String>,
     pub task_id: Option<String>,
+    pub limit: Option<i64>,
 }
 
 pub async fn list_runs(
@@ -28,7 +29,13 @@ pub async fn list_runs(
         None => crate::api::tasks::resolve_workspace_id(&state, None).await?,
     };
     Ok(Json(
-        runs::list(&state.db, &workspace_id, query.task_id.as_deref()).await?,
+        runs::list_with_limit(
+            &state.db,
+            &workspace_id,
+            query.task_id.as_deref(),
+            query.limit.unwrap_or(100),
+        )
+        .await?,
     ))
 }
 
