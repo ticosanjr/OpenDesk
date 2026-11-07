@@ -48,8 +48,66 @@ pub struct ModelRefDto {
     #[serde(rename = "providerID")]
     pub provider_id: String,
     pub id: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub variant: Option<String>,
+}
+
+impl ModelRefDto {
+    pub fn parse(value: &str) -> Option<Self> {
+        let value = value.trim();
+        if value.is_empty() {
+            return None;
+        }
+        let (base, variant) = match value.split_once('#') {
+            Some((base, variant)) => {
+                let variant = variant.trim();
+                (
+                    base.trim(),
+                    if variant.is_empty() {
+                        None
+                    } else {
+                        Some(variant.to_string())
+                    },
+                )
+            }
+            None => (value, None),
+        };
+        let (provider, id) = base.split_once('/')?;
+        let provider = provider.trim();
+        let id = id.trim();
+        if provider.is_empty() || id.is_empty() {
+            return None;
+        }
+        Some(Self {
+            provider_id: provider.to_string(),
+            id: id.to_string(),
+            variant,
+        })
+    }
+
+    /// Payload accepted by OpenCode: `variant` is omitted when absent. The
+    /// schema rejects `variant: null`, which used to break every model without
+    /// a variant (e.g. `provider/model`).
+    pub fn to_payload(&self) -> Option<Value> {
+        let provider = self.provider_id.trim();
+        let id = self.id.trim();
+        if provider.is_empty() || id.is_empty() {
+            return None;
+        }
+        let mut payload = serde_json::json!({
+            "providerID": provider,
+            "id": id,
+        });
+        if let Some(variant) = self
+            .variant
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            payload["variant"] = Value::String(variant.to_string());
+        }
+        Some(payload)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -182,12 +240,14 @@ impl RestClient {
         agent: &str,
         model: Option<ModelRefDto>,
     ) -> Result<String> {
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "title": title,
             "agent": agent,
-            "model": model,
             "location": { "directory": directory },
         });
+        if let Some(payload) = model.as_ref().and_then(ModelRefDto::to_payload) {
+            body["model"] = payload;
+        }
 
         let response = self
             .request(reqwest::Method::POST, "/api/session")
@@ -508,6 +568,86 @@ mod tests {
             .expect("permission");
         let event = client.event_response().await.expect("event");
         assert!(event.status().is_success());
+
+        handle.abort();
+    }
+
+    #[test]
+    fn parses_and_serializes_model_refs_without_null_variant() {
+        let plain = ModelRefDto::parse("opencode-go/glm-5.3").expect("plain");
+        assert_eq!(plain.provider_id, "opencode-go");
+        assert_eq!(plain.id, "glm-5.3");
+        assert_eq!(plain.variant, None);
+        assert_eq!(
+            plain.to_payload().expect("payload"),
+            serde_json::json!({"providerID": "opencode-go", "id": "glm-5.3"})
+        );
+
+        let variant = ModelRefDto::parse(" opencode-go/glm-5.3#high ").expect("variant");
+        assert_eq!(variant.variant.as_deref(), Some("high"));
+        assert_eq!(
+            variant.to_payload().expect("payload"),
+            serde_json::json!({"providerID": "opencode-go", "id": "glm-5.3", "variant": "high"})
+        );
+
+        let empty_variant = ModelRefDto::parse("opencode-go/glm-5.3#  ").expect("empty variant");
+        assert_eq!(empty_variant.variant, None);
+        assert_eq!(
+            empty_variant.to_payload().expect("payload"),
+            serde_json::json!({"providerID": "opencode-go", "id": "glm-5.3"})
+        );
+        assert!(ModelRefDto::parse("glm-5.3").is_none());
+        assert!(ModelRefDto::parse("opencode-go/").is_none());
+        assert!(ModelRefDto::parse("/glm-5.3").is_none());
+        assert!(ModelRefDto::parse("  ").is_none());
+    }
+
+    #[tokio::test]
+    async fn session_payload_never_contains_null_model_or_variant() {
+        use std::sync::{Arc, Mutex};
+
+        let bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let capture = bodies.clone();
+        let app = Router::new().route(
+            "/api/session",
+            post(move |Json(body): Json<Value>| {
+                let capture = capture.clone();
+                async move {
+                    capture.lock().expect("bodies").push(body);
+                    Json(serde_json::json!({ "data": { "id": "ses-1" } }))
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .expect("listener");
+        let address = listener.local_addr().expect("address");
+        let handle = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        let client = RestClient::new_with_url(&format!("http://{address}"), "secret".into());
+
+        client
+            .create_session(
+                "/tmp/ws",
+                "Test",
+                "build",
+                Some(ModelRefDto::parse("provider/model").expect("model")),
+            )
+            .await
+            .expect("plain model");
+        client
+            .create_session("/tmp/ws", "Test", "build", None)
+            .await
+            .expect("no model");
+
+        let bodies = bodies.lock().expect("bodies");
+        assert_eq!(
+            bodies[0]["model"],
+            serde_json::json!({ "providerID": "provider", "id": "model" })
+        );
+        assert!(bodies[0]["model"].get("variant").is_none());
+        assert!(bodies[1].get("model").is_none());
 
         handle.abort();
     }

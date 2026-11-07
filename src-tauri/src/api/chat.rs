@@ -35,6 +35,17 @@ pub async fn create_thread(
     if input.agent.trim().is_empty() {
         return Err(AppError::BadRequest("agent is required".into()));
     }
+    if let Some(model) = input
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        && crate::opencode_client::rest_client::ModelRefDto::parse(model).is_none()
+    {
+        return Err(AppError::BadRequest(format!(
+            "modelo inválido '{model}'; use provider/modelo ou provider/modelo#variant"
+        )));
+    }
     Ok(Json(chat_db::create_thread(&state.db, input).await?))
 }
 

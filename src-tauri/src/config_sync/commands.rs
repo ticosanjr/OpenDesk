@@ -3,7 +3,10 @@ use super::{
     markdown::{self, MarkdownDocument},
     paths::StudioPaths,
 };
-use crate::error::{AppError, AppResult};
+use crate::{
+    error::{AppError, AppResult},
+    opencode_client::rest_client::ModelRefDto,
+};
 use serde::{Deserialize, Serialize};
 use serde_yaml::{Mapping, Value};
 use std::path::{Path, PathBuf};
@@ -94,6 +97,17 @@ pub fn write(
     backups_dir: &Path,
 ) -> AppResult<CommandFile> {
     let id = validate_slug(id, true)?;
+    if let Some(model) = input
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        && ModelRefDto::parse(model).is_none()
+    {
+        return Err(AppError::BadRequest(format!(
+            "modelo inválido '{model}'; use provider/modelo ou provider/modelo#variant"
+        )));
+    }
     let path = command_path(paths, scope, &id)?;
 
     let existing = read_text(&path)?;

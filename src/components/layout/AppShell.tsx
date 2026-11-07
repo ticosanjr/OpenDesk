@@ -10,16 +10,16 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Toaster } from "@/components/ui/toaster";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
-import { toast } from "@/store/toast-store";
+import { toast, useToastStore } from "@/store/toast-store";
 import { formatUsd } from "@/lib/format";
 import { links } from "@/lib/links";
 import { apiGet } from "@/lib/api";
 import type { Schedule } from "@/lib/types";
 import {
-  isPermissionGranted,
-  requestPermission,
-  sendNotification,
-} from "@tauri-apps/plugin-notification";
+  isTerminalTaskStatus,
+  markNotificationOnce,
+  sendNativeNotification,
+} from "@/lib/notification-policy";
 
 export function AppShell() {
   const boot = useAppStore((state) => state.boot);
@@ -47,117 +47,109 @@ export function AppShell() {
 
   useEffect(() => {
     if (!lastRunEvent) return;
+    // Tasks go through Plan/Build/Audit runs. Only the terminal task status
+    // notifies; runs without a task (schedules) notify once per run.
+    if (lastRunEvent.task_id) return;
     const status = lastRunEvent.status;
-    void (async () => {
-      try {
-        let granted = await isPermissionGranted();
-        if (!granted) {
-          granted = (await requestPermission()) === "granted";
-        }
-        if (!granted) return;
-        if (status === "SUCCESS") {
-          sendNotification({
-            title: "OpenDesk · execução concluída",
-            body: lastRunEvent.task_id
-              ? "A tarefa terminou com sucesso."
-              : "O run terminou com sucesso.",
-          });
-        } else if (status === "FAILED") {
-          sendNotification({
-            title: "OpenDesk · execução falhou",
-            body: "Abra os logs para ver o diagnóstico.",
-          });
-        }
-      } catch {
-        // Native notifications are best-effort.
-      }
-    })();
-    if (status === "SUCCESS") {
-      toast({
-        tone: "success",
-        title: "Execução concluída",
-        description: lastRunEvent.task_id
-          ? "A tarefa terminou com sucesso."
-          : "O run terminou com sucesso.",
-        href: links.run(lastRunEvent.run_id),
-        key: `run:${lastRunEvent.run_id}:${status}`,
-      });
-    } else if (status === "FAILED") {
-      toast({
-        tone: "error",
-        title: "Execução falhou",
-        description: "Abra os logs para ver o diagnóstico e tentar de novo.",
-        href: links.run(lastRunEvent.run_id),
-        key: `run:${lastRunEvent.run_id}:${status}`,
-      });
-    } else if (status === "CANCELLED") {
-      toast({
-        tone: "warning",
-        title: "Execução cancelada",
-        description: "O run foi interrompido.",
-        href: links.run(lastRunEvent.run_id),
-        key: `run:${lastRunEvent.run_id}:${status}`,
-      });
-    }
-  }, [lastRunEvent, navigate]);
+    const key = `run:${lastRunEvent.run_id}:${status}`;
+    if (!markNotificationOnce(key)) return;
+    const title =
+      status === "SUCCESS"
+        ? "Execução concluída"
+        : status === "FAILED"
+          ? "Execução falhou"
+          : "Execução cancelada";
+    const description =
+      status === "FAILED"
+        ? "Abra a execução para ver o diagnóstico."
+        : status === "CANCELLED"
+          ? "O run foi interrompido."
+          : "O run terminou com sucesso.";
+    toast({
+      tone: status === "SUCCESS" ? "success" : status === "FAILED" ? "error" : "warning",
+      title,
+      description,
+      href: links.run(lastRunEvent.run_id),
+      key,
+    });
+    void sendNativeNotification(title, description);
+  }, [lastRunEvent]);
+
+  useEffect(() => {
+    const event = lastTaskEvent;
+    if (!event || !isTerminalTaskStatus(event.stage)) return;
+    const key = `task:${event.task_id}:${event.stage}`;
+    if (!markNotificationOnce(key)) return;
+    const title =
+      event.stage === "DONE"
+        ? "Tarefa concluída"
+        : event.stage === "BLOCKED"
+          ? "Tarefa bloqueada"
+          : "Tarefa cancelada";
+    const description =
+      event.phase_status === "failed"
+        ? "A execução falhou. Abra a tarefa para ver os detalhes."
+        : event.stage === "DONE"
+          ? "A tarefa foi concluída."
+          : "A tarefa foi encerrada.";
+    toast({
+      tone: event.stage === "DONE" ? "success" : event.stage === "BLOCKED" ? "error" : "warning",
+      title,
+      description,
+      href: links.task(event.task_id),
+      key,
+    });
+    void sendNativeNotification(title, description);
+  }, [lastTaskEvent]);
 
   useEffect(() => {
     if (!lastEngineUpdate) return;
-    if (lastEngineUpdate.phase === "done") {
-      toast({
-        tone: lastEngineUpdate.ok === false ? "error" : "success",
-        title: lastEngineUpdate.ok === false ? "Atualização falhou" : "Atualização concluída",
-        description: lastEngineUpdate.message ?? undefined,
-        href: links.settings("engine"),
-        key: `engine-update:${lastEngineUpdate.phase}:${lastEngineUpdate.message ?? ""}`,
-      });
-    } else if (lastEngineUpdate.phase === "failed") {
-      toast({
-        tone: "error",
-        title: "Atualização falhou",
-        description: lastEngineUpdate.message ?? undefined,
-        href: links.settings("engine"),
-        key: `engine-update:${lastEngineUpdate.phase}:${lastEngineUpdate.message ?? ""}`,
-      });
-    }
+    if (!["done", "failed"].includes(lastEngineUpdate.phase)) return;
+    const key = `engine:${lastEngineUpdate.phase}:${lastEngineUpdate.message ?? ""}`;
+    if (!markNotificationOnce(key)) return;
+    const title =
+      lastEngineUpdate.ok === false || lastEngineUpdate.phase === "failed"
+        ? "Atualização falhou"
+        : "Atualização concluída";
+    toast({
+      tone: title.includes("falhou") ? "error" : "success",
+      title,
+      description: lastEngineUpdate.message ?? undefined,
+      href: links.settings("engine"),
+      key,
+    });
+    void sendNativeNotification(title, lastEngineUpdate.message ?? "");
   }, [lastEngineUpdate]);
 
   useEffect(() => {
     if (!lastArtifact || location.pathname === "/artifacts") return;
+    const key = `artifacts:${lastArtifact.run_id || lastArtifact.id}`;
+    if (!markNotificationOnce(key)) return;
     toast({
       tone: "info",
       title: "Artefato criado",
       description: lastArtifact.file_path,
       href: links.artifact(lastArtifact.id),
-      key: `artifact:${lastArtifact.id}`,
+      key,
       duration: 3200,
     });
   }, [lastArtifact, location.pathname]);
 
   useEffect(() => {
-    if (!lastTaskEvent?.phase_status) return;
-    const status = lastTaskEvent.phase_status;
-    if (!status.includes("fail")) return;
-    toast({
-      tone: "error",
-      title: "Tarefa precisa de atenção",
-      description: status,
-      href: links.task(lastTaskEvent.task_id),
-      key: `task:${lastTaskEvent.task_id}:${status}`,
-    });
-  }, [lastTaskEvent]);
-
-  useEffect(() => {
     if (!lastGoogleEvent) return;
+    const key = `google:${lastGoogleEvent.workspace_id}:${lastGoogleEvent.connected}`;
+    if (!markNotificationOnce(key)) return;
+    const title = lastGoogleEvent.connected
+      ? "Google conectado"
+      : "Google desconectado";
     toast({
       tone: lastGoogleEvent.connected ? "success" : "warning",
-      title: lastGoogleEvent.connected
-        ? "Google conectado"
-        : "Google desconectado",
+      title,
       description: lastGoogleEvent.email ?? undefined,
       href: links.integration("google"),
-      key: `google:${lastGoogleEvent.workspace_id}:${lastGoogleEvent.connected}`,
+      key,
     });
+    void sendNativeNotification(title, lastGoogleEvent.email ?? "");
   }, [lastGoogleEvent]);
 
   useEffect(() => {
@@ -172,17 +164,24 @@ export function AppShell() {
           (item) => item.id === lastScheduleEvent.schedule_id,
         );
         const status = schedule?.last_run_status ?? "";
-        if (!["FAILED", "SKIPPED_OFFLINE", "INVALID_CRON"].includes(status)) return;
+        const stamp = schedule?.last_run_at ?? "";
+        if (!stamp || !["FAILED", "SKIPPED_OFFLINE", "INVALID_CRON"].includes(status)) {
+          return;
+        }
+        const key = `schedule:${lastScheduleEvent.schedule_id}:${stamp}:${status}`;
+        if (!markNotificationOnce(key)) return;
+        const title =
+          status === "SKIPPED_OFFLINE"
+            ? "Rotina pulada: engine offline"
+            : "Rotina falhou";
         toast({
           tone: status === "SKIPPED_OFFLINE" ? "warning" : "error",
-          title:
-            status === "SKIPPED_OFFLINE"
-              ? "Rotina pulada: engine offline"
-              : "Rotina falhou",
+          title,
           description: schedule?.name,
           href: links.schedule(lastScheduleEvent.schedule_id),
-          key: `schedule:${lastScheduleEvent.schedule_id}:${status}`,
+          key,
         });
+        void sendNativeNotification(title, schedule?.name ?? "");
       })
       .catch(() => undefined);
     return () => {
@@ -192,18 +191,35 @@ export function AppShell() {
 
   useEffect(() => {
     if (!budgetAlert) return;
+    const key = `budget:${budgetAlert.level}:${budgetAlert.message}`;
+    if (!markNotificationOnce(key)) return;
+    const title =
+      budgetAlert.level === "hard"
+        ? "Orçamento bloqueado"
+        : "Orçamento próximo do limite";
     toast({
       tone: budgetAlert.level === "hard" ? "error" : "warning",
-      title:
-        budgetAlert.level === "hard"
-          ? "Orçamento bloqueado"
-          : "Orçamento próximo do limite",
+      title,
       description: budgetAlert.message,
       href: "/router",
-      key: `budget:${budgetAlert.level}:${budgetAlert.message}`,
+      key,
       duration: budgetAlert.level === "hard" ? 0 : 6000,
     });
+    void sendNativeNotification(title, budgetAlert.message);
   }, [budgetAlert]);
+
+  useEffect(() => {
+    const clear = () => useToastStore.getState().clear();
+    const onVisibility = () => {
+      if (document.hidden) clear();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("beforeunload", clear);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("beforeunload", clear);
+    };
+  }, []);
 
   const engineOffline =
     daemon !== null &&

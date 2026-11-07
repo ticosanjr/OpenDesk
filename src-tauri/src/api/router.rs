@@ -4,7 +4,8 @@ use crate::{
         budget,
         router::{self, CreateRuleInput, RouterRule, UpdateRuleInput},
     },
-    error::AppResult,
+    error::{AppError, AppResult},
+    opencode_client::rest_client::ModelRefDto,
 };
 use axum::{
     Json,
@@ -53,10 +54,21 @@ pub async fn list_rules(
     Ok(Json(router::list(&state.db, &workspace_id).await?))
 }
 
+fn validate_model(value: &str) -> AppResult<()> {
+    let value = value.trim();
+    if !value.is_empty() && ModelRefDto::parse(value).is_none() {
+        return Err(AppError::BadRequest(format!(
+            "modelo inválido '{value}'; use provider/modelo ou provider/modelo#variant"
+        )));
+    }
+    Ok(())
+}
+
 pub async fn create_rule(
     State(state): State<Arc<AppState>>,
     Json(input): Json<CreateRuleInput>,
 ) -> AppResult<Json<RouterRule>> {
+    validate_model(&input.target_model)?;
     Ok(Json(router::create(&state.db, input).await?))
 }
 
@@ -65,6 +77,9 @@ pub async fn update_rule(
     Path(id): Path<String>,
     Json(input): Json<UpdateRuleInput>,
 ) -> AppResult<Json<RouterRule>> {
+    if let Some(model) = input.target_model.as_deref() {
+        validate_model(model)?;
+    }
     Ok(Json(router::update(&state.db, &id, input).await?))
 }
 

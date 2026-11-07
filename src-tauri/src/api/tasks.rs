@@ -11,6 +11,7 @@ use crate::{
     dsh_router::{self, PackContext, RouterInput},
     error::{AppError, AppResult},
     events::OpenDeskWsEvent,
+    opencode_client::rest_client::ModelRefDto,
 };
 use axum::{
     Json,
@@ -49,11 +50,23 @@ pub async fn list_tasks(
     Ok(Json(tasks::list(&state.db, &workspace_id).await?))
 }
 
+fn validate_model_ref(value: Option<&str>) -> AppResult<()> {
+    if let Some(value) = value.map(str::trim).filter(|value| !value.is_empty())
+        && ModelRefDto::parse(value).is_none()
+    {
+        return Err(AppError::BadRequest(format!(
+            "modelo inválido '{value}'; use provider/modelo ou provider/modelo#variant"
+        )));
+    }
+    Ok(())
+}
+
 pub async fn create_task(
     State(state): State<Arc<AppState>>,
     Query(query): Query<TaskQuery>,
     Json(input): Json<CreateTaskInput>,
 ) -> AppResult<Json<tasks::Task>> {
+    validate_model_ref(input.preferred_model.as_deref())?;
     let workspace_id = resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
     let task = tasks::create(&state.db, &workspace_id, input).await?;
     Ok(Json(task))
@@ -71,6 +84,7 @@ pub async fn update_task(
     Path(id): Path<String>,
     Json(input): Json<UpdateTaskInput>,
 ) -> AppResult<Json<tasks::Task>> {
+    validate_model_ref(input.preferred_model.as_deref())?;
     let task = tasks::update(&state.db, &id, input).await?;
     state.events.publish(OpenDeskWsEvent::TaskUpdated {
         task_id: task.id.clone(),
@@ -109,6 +123,7 @@ pub async fn dispatch_task(
     Path(id): Path<String>,
     Json(body): Json<DispatchBody>,
 ) -> AppResult<Json<serde_json::Value>> {
+    validate_model_ref(body.manual_model.as_deref())?;
     crate::api::engine::require_engine(&state).await?;
     let task = tasks::get(&state.db, &id).await?;
     let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
@@ -125,6 +140,7 @@ pub async fn approve_plan(
     Path(id): Path<String>,
     Json(body): Json<DispatchBody>,
 ) -> AppResult<Json<serde_json::Value>> {
+    validate_model_ref(body.manual_model.as_deref())?;
     crate::api::engine::require_engine(&state).await?;
     let task = tasks::get(&state.db, &id).await?;
     let plan = task
@@ -303,6 +319,7 @@ pub async fn post_task_message(
     Path(id): Path<String>,
     Json(input): Json<CreateTaskMessageInput>,
 ) -> AppResult<Json<serde_json::Value>> {
+    validate_model_ref(input.model.as_deref())?;
     let task = tasks::get(&state.db, &id).await?;
     let message = task_messages::create(
         &state.db,

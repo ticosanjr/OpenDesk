@@ -148,9 +148,11 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                // Closing the window must stop the background process. The tray
+                // is only a shortcut while the app is open; it is not a reason
+                // to keep notifying after the user closed the app.
+                window.app_handle().exit(0);
             }
         })
         .invoke_handler(tauri::generate_handler![

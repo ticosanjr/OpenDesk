@@ -663,19 +663,7 @@ fn parse_messages(value: &Value) -> (RunUsage, Option<String>, Vec<FileWrite>) {
 }
 
 fn parse_model_ref(model: &str) -> Option<ModelRefDto> {
-    let (base, variant) = match model.split_once('#') {
-        Some((base, variant)) => (base, Some(variant.to_string())),
-        None => (model, None),
-    };
-    let (provider, id) = base.split_once('/')?;
-    if provider.is_empty() || id.is_empty() {
-        return None;
-    }
-    Some(ModelRefDto {
-        provider_id: provider.to_string(),
-        id: id.to_string(),
-        variant,
-    })
+    ModelRefDto::parse(model)
 }
 
 #[cfg(test)]

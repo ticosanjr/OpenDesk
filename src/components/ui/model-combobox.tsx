@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ModelHealth, ModelInfo } from "@/lib/types";
 import { loadModelHealth, loadModels } from "@/lib/studio-cache";
+import { isValidModelRef, normalizeModelRef } from "@/lib/model-ref";
 import { cn } from "@/lib/utils";
 
 export function ModelCombobox({
@@ -74,7 +75,11 @@ export function ModelCombobox({
           setQuery(value);
           setOpen(true);
         }}
-        onBlur={() => window.setTimeout(() => setOpen(false), 140)}
+        onBlur={() => {
+          window.setTimeout(() => setOpen(false), 140);
+          const normalized = normalizeModelRef(value);
+          if (normalized && normalized !== value) onChange(normalized);
+        }}
         onKeyDown={(event) => {
           if (event.key === "Escape") setOpen(false);
           if (event.key === "Enter" && filtered[0]) {
@@ -135,7 +140,7 @@ export function ModelCombobox({
               className="block w-full rounded px-2 py-1.5 text-left font-mono text-[10px] text-blue-300 hover:bg-zinc-800"
               onMouseDown={(event) => {
                 event.preventDefault();
-                onChange(query.trim());
+                onChange(normalizeModelRef(query) ?? query.trim());
                 setOpen(false);
               }}
             >
@@ -148,6 +153,11 @@ export function ModelCombobox({
             </p>
           ) : null}
         </div>
+      ) : null}
+      {value && !isValidModelRef(value) ? (
+        <p className="mt-1 text-[10px] text-red-300">
+          Modelo inválido. Use provider/modelo ou provider/modelo#variant.
+        </p>
       ) : null}
       {value && failed(value) ? (
         <p className="mt-1 text-[9px] text-amber-300">

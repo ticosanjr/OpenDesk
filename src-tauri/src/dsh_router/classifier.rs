@@ -419,7 +419,18 @@ fn model_exists(available: &[ModelDto], candidate: &str) -> bool {
 }
 
 fn with_variant(available: &[ModelDto], model: &str, effort: &str) -> String {
-    if model.contains('#') {
+    let model = model.trim();
+    if let Some((base, variant)) = model.split_once('#') {
+        let base = base.trim();
+        let variant = variant.trim();
+        return if variant.is_empty() {
+            base.to_string()
+        } else {
+            format!("{base}#{variant}")
+        };
+    }
+    let effort = effort.trim();
+    if effort.is_empty() {
         return model.to_string();
     }
     let (provider, id) = split_model(model);
@@ -632,5 +643,17 @@ mod tests {
         let path = output_directory(Path::new("/tmp/root"), "Relatório de Vendas");
         assert!(path.to_string_lossy().contains("/output/"));
         assert!(path.to_string_lossy().ends_with("relatorio-de-vendas"));
+    }
+    #[test]
+    fn never_builds_an_empty_variant_suffix() {
+        assert_eq!(
+            with_variant(&[], "provider/model#", "high"),
+            "provider/model"
+        );
+        assert_eq!(with_variant(&[], "provider/model", ""), "provider/model");
+        assert_eq!(
+            with_variant(&[], "provider/model# high ", "low"),
+            "provider/model#high"
+        );
     }
 }

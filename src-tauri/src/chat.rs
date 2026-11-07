@@ -136,19 +136,7 @@ pub async fn send_message(
 }
 
 fn parse_model_ref(model: &str) -> Option<ModelRefDto> {
-    let (base, variant) = match model.split_once('#') {
-        Some((base, variant)) => (base, Some(variant.to_string())),
-        None => (model, None),
-    };
-    let (provider, id) = base.split_once('/')?;
-    if provider.is_empty() || id.is_empty() {
-        return None;
-    }
-    Some(ModelRefDto {
-        provider_id: provider.to_string(),
-        id: id.to_string(),
-        variant,
-    })
+    ModelRefDto::parse(model)
 }
 
 fn parse_assistant(value: &Value) -> (Option<String>, ChatUsage) {
@@ -197,6 +185,18 @@ mod tests {
         assert_eq!(model.provider_id, "opencode-go");
         assert_eq!(model.id, "glm-5.3");
         assert_eq!(model.variant.as_deref(), Some("high"));
+        assert_eq!(
+            parse_model_ref("opencode-go/glm-5.3")
+                .expect("plain")
+                .variant,
+            None
+        );
+        assert_eq!(
+            parse_model_ref("opencode-go/glm-5.3# ")
+                .expect("empty")
+                .variant,
+            None
+        );
         assert!(parse_model_ref("no-provider").is_none());
     }
 

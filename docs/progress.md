@@ -920,3 +920,19 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Tabelas e blocos de diagnóstico com scroll nos dois eixos.
 - Auditoria Playwright de scroll em todas as rotas, 1100×700 e 1440×900.
 - `cargo test` — 111 passed; Playwright — 16 passed.
+
+## 2026-11-07 — 0.15.2: model refs e notificações
+
+- Corrigido `variant: null` em `create_session`: modelos sem variante agora
+  funcionam em tarefas, chat, rotinas e fallbacks.
+- Parser único `ModelRefDto::parse`/`to_payload`; `create_session` omite `model`
+  quando ausente e `variant` quando vazio.
+- Validação de modelo em tarefas, chat, dispatch, mensagens, agentes, comandos e
+  regras do roteador.
+- Fechar a janela agora encerra o app em vez de esconder na bandeja.
+- Notificações de tarefa apenas em `DONE`/`BLOCKED`/`CANCELLED`; runs de rotina
+  uma vez por run.
+- Artefatos agrupados por run; falhas de rotina só quando `last_run_at` muda.
+- Dedupe central `markNotificationOnce`, native só com janela oculta, permissão
+  solicitada uma vez e toasts limpos ao esconder/descarregar.
+- `cargo test` — 114 passed; `vitest` — 52 passed.
