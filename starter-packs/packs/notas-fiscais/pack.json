@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "id": "notas-fiscais",
+  "version": "1.0.0",
+  "name": "Notas Fiscais",
+  "category": "escritorio",
+  "description": "Conferência de notas, organização fiscal e resumo mensal.",
+  "icon": "receipt",
+  "color": "#eab308",
+  "recommended": false,
+  "requires": {
+    "tools": [
+      "tesseract"
+    ],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "analista-fiscal.md",
+      "conferente-notas.md"
+    ],
+    "skills": [
+      "leitura-nota-fiscal",
+      "conferencia-triplice",
+      "organizacao-fiscal",
+      "calendario-obrigacoes"
+    ],
+    "commands": [
+      "conferir-notas.md",
+      "organizar-notas.md",
+      "resumo-fiscal.md"
+    ],
+    "recipes": [
+      "conferencia-notas.yaml",
+      "resumo-fiscal-mensal.yaml"
+    ],
+    "routines": [
+      "resumo-fiscal-rotina.json"
+    ],
+    "folders": [
+      "fiscal/notas",
+      "fiscal/relatorios"
+    ]
+  },
+  "examples": []
+}

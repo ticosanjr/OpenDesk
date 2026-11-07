@@ -1,0 +1,13 @@
+id: renovacao
+name: Renovação
+description: Proposta de valor da renovação.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Preparar renovação
+  mode: build
+  agent: gerente-sucesso
+  effort: medium
+  prompt: Monte o caso de renovação com resultados, riscos e próximos passos. Salve em {{run.output_dir}}/renovacao.md.

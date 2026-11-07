@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "id": "imobiliario",
+  "version": "1.0.0",
+  "name": "Imobiliário",
+  "category": "negocios",
+  "description": "Avaliação, visita, documentação e proposta imobiliária.",
+  "icon": "building-2",
+  "color": "#84cc16",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "consultor-imobiliario.md",
+      "analista-contratos.md"
+    ],
+    "skills": [
+      "avaliacao-imovel",
+      "roteiro-visita",
+      "documentacao-imovel",
+      "proposta-imobiliaria"
+    ],
+    "commands": [
+      "avaliar-imovel.md",
+      "proposta-imovel.md"
+    ],
+    "recipes": [
+      "avaliacao-imovel.yaml",
+      "proposta-imobiliaria.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "imobiliario/imoveis",
+      "imobiliario/propostas"
+    ]
+  },
+  "examples": []
+}

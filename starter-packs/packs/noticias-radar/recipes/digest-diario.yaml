@@ -1,0 +1,37 @@
+id: digest-diario
+name: Digest diário
+description: Top notícias com contexto.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Coletar e deduplicar
+  mode: build
+  agent: curador-noticias
+  effort: medium
+  prompt: Leia as fontes em input/. Selecione as 10 notícias mais relevantes, deduplique e registre fonte.
+    Salve em {{run.output_dir}}/01-noticias.md.
+- type: step
+  id: passo-2
+  name: Analisar tendências
+  mode: build
+  agent: analista-tendencias
+  effort: medium
+  prompt: Agrupe os sinais em 3 tendências e diga o que monitorar. Salve em {{run.output_dir}}/02-tendencias.md.
+- type: step
+  id: passo-3
+  name: Fechar digest
+  mode: build
+  agent: curador-noticias
+  effort: medium
+  prompt: Una tudo em um digest curto com links e impacto. Salve em {{run.output_dir}}/digest.md.
+- type: hitl
+  id: checkpoint-3
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Aprovar o digest antes de enviar?

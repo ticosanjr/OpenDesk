@@ -13,6 +13,10 @@ pub struct Schedule {
     pub timezone: String,
     pub agent_name: Option<String>,
     pub command_or_prompt: String,
+    pub trigger_type: String,
+    pub trigger_config_json: String,
+    pub target_kind: String,
+    pub recipe_id: Option<String>,
     pub router_policy: String,
     pub output_folder_template: String,
     pub notify_email_recipients: Option<String>,
@@ -39,12 +43,21 @@ pub struct CreateScheduleInput {
     pub name: String,
     #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
     pub cron_expression: String,
     #[serde(default = "default_timezone")]
     pub timezone: String,
     #[serde(default)]
     pub agent_name: Option<String>,
     pub command_or_prompt: String,
+    #[serde(default = "default_trigger")]
+    pub trigger_type: String,
+    #[serde(default)]
+    pub trigger_config_json: Option<String>,
+    #[serde(default = "default_target")]
+    pub target_kind: String,
+    #[serde(default)]
+    pub recipe_id: Option<String>,
     #[serde(default = "default_policy")]
     pub router_policy: String,
     #[serde(default = "default_output_template")]
@@ -81,6 +94,10 @@ pub struct UpdateScheduleInput {
     pub timezone: Option<String>,
     pub agent_name: Option<String>,
     pub command_or_prompt: Option<String>,
+    pub trigger_type: Option<String>,
+    pub trigger_config_json: Option<String>,
+    pub target_kind: Option<String>,
+    pub recipe_id: Option<String>,
     pub router_policy: Option<String>,
     pub output_folder_template: Option<String>,
     pub notify_email_recipients: Option<String>,
@@ -104,6 +121,26 @@ fn default_policy() -> String {
     "COST_BENEFIT".into()
 }
 
+fn default_trigger() -> String {
+    "CRON".into()
+}
+
+fn default_target() -> String {
+    "PROMPT".into()
+}
+
+pub const TRIGGER_TYPES: [&str; 7] = [
+    "CRON",
+    "FOLDER_WATCH",
+    "RSYNC_FOLDER",
+    "IMAP_IDLE",
+    "SIGNAL_MSG",
+    "WEBHOOK",
+    "SQL_POLL",
+];
+
+pub const TARGET_KINDS: [&str; 2] = ["PROMPT", "RECIPE"];
+
 fn default_output_template() -> String {
     "output/{YYYY}-{MM}/{schedule_slug}".into()
 }
@@ -117,7 +154,8 @@ fn default_misfire_policy() -> String {
 }
 
 const COLUMNS: &str = "id, workspace_id, name, description, cron_expression, timezone, \
-    agent_name, command_or_prompt, router_policy, output_folder_template, \
+    agent_name, command_or_prompt, trigger_type, trigger_config_json, target_kind, recipe_id, \
+    router_policy, output_folder_template, \
     notify_email_recipients, notify_signal, notify_signal_recipients, notify_only_on_change, \
     recurrence_json, one_time, last_output_hash, misfire_policy, safe_readonly_mode, \
     sync_to_google_docs, sync_to_google_calendar, is_active, last_run_at, last_run_status, \
@@ -128,6 +166,23 @@ pub async fn list(pool: &SqlitePool, workspace_id: &str) -> AppResult<Vec<Schedu
         format!("SELECT {COLUMNS} FROM schedules WHERE workspace_id = ? ORDER BY created_at DESC");
     Ok(sqlx::query_as::<_, Schedule>(&query)
         .bind(workspace_id)
+        .fetch_all(pool)
+        .await?)
+}
+
+pub async fn list_by_trigger(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    trigger_type: &str,
+) -> AppResult<Vec<Schedule>> {
+    let query = format!(
+        "SELECT {COLUMNS} FROM schedules
+         WHERE workspace_id = ? AND trigger_type = ? AND is_active = 1
+         ORDER BY created_at"
+    );
+    Ok(sqlx::query_as::<_, Schedule>(&query)
+        .bind(workspace_id)
+        .bind(trigger_type.trim().to_uppercase())
         .fetch_all(pool)
         .await?)
 }
@@ -153,8 +208,39 @@ pub async fn create(pool: &SqlitePool, input: CreateScheduleInput) -> AppResult<
     if input.name.trim().is_empty() {
         return Err(AppError::BadRequest("schedule name is required".into()));
     }
-    if input.command_or_prompt.trim().is_empty() {
+    let trigger_type = input.trigger_type.trim().to_uppercase();
+    if !TRIGGER_TYPES.contains(&trigger_type.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "invalid trigger_type '{}'",
+            input.trigger_type
+        )));
+    }
+    let target_kind = input.target_kind.trim().to_uppercase();
+    if !TARGET_KINDS.contains(&target_kind.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "invalid target_kind '{}'",
+            input.target_kind
+        )));
+    }
+    if target_kind == "RECIPE" {
+        if input
+            .recipe_id
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .is_empty()
+        {
+            return Err(AppError::BadRequest(
+                "recipe_id is required when target_kind is RECIPE".into(),
+            ));
+        }
+    } else if input.command_or_prompt.trim().is_empty() {
         return Err(AppError::BadRequest("command_or_prompt is required".into()));
+    }
+    if trigger_type == "CRON" && input.cron_expression.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "cron_expression is required for CRON routines".into(),
+        ));
     }
     let misfire_policy = input.misfire_policy.trim().to_uppercase();
     if !matches!(misfire_policy.as_str(), "RUN_IMMEDIATELY" | "SKIP_TO_NEXT") {
@@ -178,11 +264,12 @@ pub async fn create(pool: &SqlitePool, input: CreateScheduleInput) -> AppResult<
     sqlx::query(
         "INSERT INTO schedules (
             id, workspace_id, name, description, cron_expression, timezone,
-            agent_name, command_or_prompt, router_policy, output_folder_template,
+            agent_name, command_or_prompt, trigger_type, trigger_config_json, target_kind, recipe_id,
+            router_policy, output_folder_template,
             notify_email_recipients, notify_signal, notify_signal_recipients, notify_only_on_change,
             recurrence_json, one_time, misfire_policy, safe_readonly_mode,
             sync_to_google_docs, sync_to_google_calendar, is_active
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&input.workspace_id)
@@ -192,6 +279,15 @@ pub async fn create(pool: &SqlitePool, input: CreateScheduleInput) -> AppResult<
     .bind(input.timezone.trim())
     .bind(input.agent_name.as_deref())
     .bind(input.command_or_prompt.trim())
+    .bind(&trigger_type)
+    .bind(
+        input
+            .trigger_config_json
+            .as_deref()
+            .unwrap_or("{}"),
+    )
+    .bind(&target_kind)
+    .bind(input.recipe_id.as_deref())
     .bind(&policy)
     .bind(input.output_folder_template.trim())
     .bind(input.notify_email_recipients.as_deref())
@@ -233,7 +329,8 @@ pub async fn update(
     sqlx::query(
         "UPDATE schedules SET
             name = ?, description = ?, cron_expression = ?, timezone = ?, agent_name = ?,
-            command_or_prompt = ?, router_policy = ?, output_folder_template = ?,
+            command_or_prompt = ?, trigger_type = ?, trigger_config_json = ?, target_kind = ?,
+            recipe_id = ?, router_policy = ?, output_folder_template = ?,
             notify_email_recipients = ?, notify_signal = ?, notify_signal_recipients = ?,
             notify_only_on_change = ?, recurrence_json = ?, one_time = ?,
             misfire_policy = ?, safe_readonly_mode = ?,
@@ -246,6 +343,24 @@ pub async fn update(
     .bind(input.timezone.unwrap_or(current.timezone))
     .bind(input.agent_name.or(current.agent_name))
     .bind(input.command_or_prompt.unwrap_or(current.command_or_prompt))
+    .bind(
+        input
+            .trigger_type
+            .map(|value| value.trim().to_uppercase())
+            .unwrap_or(current.trigger_type),
+    )
+    .bind(
+        input
+            .trigger_config_json
+            .unwrap_or(current.trigger_config_json),
+    )
+    .bind(
+        input
+            .target_kind
+            .map(|value| value.trim().to_uppercase())
+            .unwrap_or(current.target_kind),
+    )
+    .bind(input.recipe_id.or(current.recipe_id))
     .bind(&policy)
     .bind(
         input
@@ -383,6 +498,10 @@ mod tests {
             timezone: "America/Sao_Paulo".into(),
             agent_name: Some("build".into()),
             command_or_prompt: "Produza o resumo".into(),
+            trigger_type: "CRON".into(),
+            trigger_config_json: None,
+            target_kind: "PROMPT".into(),
+            recipe_id: None,
             router_policy: "cost_benefit".into(),
             output_folder_template: "output/{YYYY}-{MM}/{schedule_slug}".into(),
             notify_email_recipients: Some("ops@example.com".into()),

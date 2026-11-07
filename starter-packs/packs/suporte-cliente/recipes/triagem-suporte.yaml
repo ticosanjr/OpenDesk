@@ -1,0 +1,13 @@
+id: triagem-suporte
+name: Triagem de suporte
+description: Classificação e prioridades.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Triar
+  mode: build
+  agent: agente-suporte
+  effort: medium
+  prompt: Classifique tickets por categoria, urgência e dono. Salve em {{run.output_dir}}/triagem.md.

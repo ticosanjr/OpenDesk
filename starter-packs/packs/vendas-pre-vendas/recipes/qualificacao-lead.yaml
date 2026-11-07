@@ -1,0 +1,13 @@
+id: qualificacao-lead
+name: Qualificação de lead
+description: Score e próximas perguntas.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Qualificar
+  mode: build
+  agent: sdr-pre-vendas
+  effort: medium
+  prompt: Qualifique o lead, dê score, liste perguntas de discovery e próximo passo. Salve em {{run.output_dir}}/qualificacao.md.

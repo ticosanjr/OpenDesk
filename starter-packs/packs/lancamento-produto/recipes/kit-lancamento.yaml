@@ -1,0 +1,13 @@
+id: kit-lancamento
+name: Kit de lançamento
+description: Mensagens e FAQ.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Criar kit
+  mode: build
+  agent: copy-lancamento
+  effort: medium
+  prompt: Crie mensagem principal, 5 variações, FAQ e objeções. Salve em {{run.output_dir}}/kit.md.

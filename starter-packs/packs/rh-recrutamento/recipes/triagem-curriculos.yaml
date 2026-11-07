@@ -1,0 +1,30 @@
+id: triagem-curriculos
+name: Triagem de currículos
+description: Triagem com evidência e revisão.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Triar
+  mode: build
+  agent: recrutador
+  effort: medium
+  prompt: Aplique a matriz de avaliação aos currículos em input/. Registre evidência e incerteza. Salve
+    em {{run.output_dir}}/triagem.md.
+- type: step
+  id: passo-2
+  name: Revisar decisão
+  mode: build
+  agent: avaliador-tecnico
+  effort: medium
+  prompt: Revise a triagem, aponte viés ou lacuna e gere a lista final para entrevista. Salve em {{run.output_dir}}/triagem-final.md.
+- type: hitl
+  id: checkpoint-2
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revisar a triagem antes de qualquer contato?

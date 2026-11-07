@@ -1,0 +1,13 @@
+id: plano-bem-estar
+name: Plano de bem-estar
+description: Hábitos e rotina.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Planejar
+  mode: build
+  agent: coach-bem-estar
+  effort: medium
+  prompt: Crie plano com um hábito, gatilho, métrica e revisão. Inclua disclaimer. Salve em {{run.output_dir}}/plano.md.

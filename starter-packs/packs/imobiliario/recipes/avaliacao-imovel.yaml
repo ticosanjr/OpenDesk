@@ -1,0 +1,13 @@
+id: avaliacao-imovel
+name: Avaliação de imóvel
+description: Comparativo e riscos.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Avaliar
+  mode: build
+  agent: consultor-imobiliario
+  effort: medium
+  prompt: Compare os imóveis, calcule custo total e liste riscos. Salve em {{run.output_dir}}/avaliacao.md.

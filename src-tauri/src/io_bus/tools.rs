@@ -97,6 +97,8 @@ pub struct ToolInfo {
     pub path: Option<String>,
     pub detected_version: Option<String>,
     pub download_url: Option<String>,
+    pub checksum: Option<String>,
+    pub platform_supported: bool,
     pub manual_hint: String,
 }
 
@@ -140,7 +142,14 @@ pub fn info(spec: ToolSpec) -> ToolInfo {
         managed,
         path: path.map(|path| path.to_string_lossy().to_string()),
         detected_version,
-        download_url: spec.download_url.map(str::to_string),
+        download_url: tool_url(spec),
+        checksum: std::env::var(format!(
+            "OPENDESK_TOOL_{}_SHA256",
+            spec.name.to_uppercase().replace('-', "_")
+        ))
+        .ok()
+        .filter(|value| !value.trim().is_empty()),
+        platform_supported: true,
         manual_hint: spec.manual_hint.to_string(),
     }
 }
@@ -295,6 +304,11 @@ fn find_file(root: &Path, name: &str) -> Option<PathBuf> {
 }
 
 fn detect_path(name: &str) -> Option<PathBuf> {
+    if let Some(path) = manual_path(name)
+        && path.is_file()
+    {
+        return Some(path);
+    }
     if let Ok(value) = std::env::var(format!(
         "OPENDESK_TOOL_{}",
         name.to_uppercase().replace('-', "_")
@@ -315,6 +329,54 @@ fn detect_path(name: &str) -> Option<PathBuf> {
         .trim()
         .to_string();
     (!path.is_empty()).then(|| PathBuf::from(path))
+}
+
+fn manual_paths_file() -> PathBuf {
+    tools_dir().join("manual.json")
+}
+
+fn manual_paths() -> serde_json::Map<String, serde_json::Value> {
+    std::fs::read(manual_paths_file())
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default()
+}
+
+fn manual_path(name: &str) -> Option<PathBuf> {
+    manual_paths()
+        .get(name)
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(PathBuf::from)
+}
+
+/// Point a tool at a user-selected binary. Persisted next to managed tools so
+/// it survives app updates and does not depend on environment variables.
+pub fn set_manual_path(name: &str, path: Option<&str>) -> AppResult<()> {
+    if !TOOLS.iter().any(|tool| tool.name == name) {
+        return Err(AppError::NotFound(format!("ferramenta {name}")));
+    }
+    let mut paths = manual_paths();
+    match path.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(path) => {
+            if !Path::new(path).is_file() {
+                return Err(AppError::BadRequest(
+                    "o caminho informado não é um arquivo".into(),
+                ));
+            }
+            paths.insert(name.to_string(), serde_json::json!(path));
+        }
+        None => {
+            paths.remove(name);
+        }
+    }
+    std::fs::create_dir_all(tools_dir())?;
+    std::fs::write(
+        manual_paths_file(),
+        serde_json::to_vec_pretty(&serde_json::Value::Object(paths))?,
+    )?;
+    Ok(())
 }
 
 fn version_of(path: &Path) -> Option<String> {

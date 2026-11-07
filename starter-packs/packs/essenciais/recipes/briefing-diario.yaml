@@ -1,0 +1,31 @@
+id: briefing-diario
+name: Briefing diário
+description: Organiza entradas do dia em um briefing curto.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Levantar entradas
+  mode: build
+  agent: pesquisador
+  effort: medium
+  prompt: Leia os arquivos relevantes em {{run.output_dir}} e em input/. Liste o que chegou, o que está
+    pendente e o que é urgente. Salve um rascunho em {{run.output_dir}}/briefing.md.
+- type: step
+  id: passo-2
+  name: Revisar
+  mode: build
+  agent: revisor
+  effort: medium
+  prompt: Revise o rascunho em {{run.output_dir}}/briefing.md. Corrija clareza e remova o que não for
+    acionável. Salve a versão final.
+- type: hitl
+  id: checkpoint-2
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Aprovar o briefing antes de considerar concluído?

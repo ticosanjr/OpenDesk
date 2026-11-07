@@ -1,0 +1,13 @@
+id: auditoria-livro
+name: Auditoria do livro
+description: Revisão macro de arco e continuidade.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Auditar
+  mode: build
+  agent: editor-literario
+  effort: medium
+  prompt: 'Audite o manuscrito: arco, ritmo, repetição e continuidade. Salve em {{run.output_dir}}/auditoria.md.'

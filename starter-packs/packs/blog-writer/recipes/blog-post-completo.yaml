@@ -1,0 +1,36 @@
+id: blog-post-completo
+name: Post de blog completo
+description: Pauta, outline, draft e edição.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Pauta e outline
+  mode: build
+  agent: redator-blog
+  effort: medium
+  prompt: Crie pauta com tese, público, seções e CTA. Salve em {{run.output_dir}}/01-pauta.md.
+- type: hitl
+  id: checkpoint-1
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Aprovar a pauta antes de escrever o draft?
+- type: step
+  id: passo-2
+  name: Escrever draft
+  mode: build
+  agent: redator-blog
+  effort: medium
+  prompt: Escreva o artigo completo a partir da pauta. Salve em {{run.output_dir}}/02-draft.md.
+- type: step
+  id: passo-3
+  name: Editar e SEO
+  mode: build
+  agent: editor-blog
+  effort: medium
+  prompt: Edite o draft e aplique SEO on-page. Salve em {{run.output_dir}}/post-final.md.

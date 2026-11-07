@@ -1,0 +1,13 @@
+id: pacote-video
+name: Pacote de vídeo
+description: Títulos, thumb e descrição.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Montar pacote
+  mode: build
+  agent: diretor-thumb
+  effort: medium
+  prompt: A partir do roteiro, gere títulos, briefs de thumb, descrição e capítulos. Salve em {{run.output_dir}}/pacote.md.

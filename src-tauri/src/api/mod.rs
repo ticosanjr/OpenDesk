@@ -22,6 +22,7 @@ pub mod runs;
 pub mod schedules;
 pub mod search;
 pub mod signal;
+pub mod starter_packs;
 pub mod studio;
 pub mod studio_ops;
 pub mod tasks;
@@ -111,6 +112,28 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/agents", get(agents))
         .route("/api/dashboard", get(dashboard))
         .route("/api/attention", get(attention::attention))
+        .route("/api/attention/dismiss", post(attention::dismiss))
+        .route("/api/starter-packs", get(starter_packs::list_packs))
+        .route(
+            "/api/starter-packs/templates",
+            get(starter_packs::list_templates),
+        )
+        .route(
+            "/api/starter-packs/templates/create",
+            post(starter_packs::create_template),
+        )
+        .route(
+            "/api/starter-packs/{id}",
+            get(starter_packs::get_pack).delete(starter_packs::uninstall_pack),
+        )
+        .route(
+            "/api/starter-packs/{id}/preview",
+            post(starter_packs::preview_pack),
+        )
+        .route(
+            "/api/starter-packs/{id}/install",
+            post(starter_packs::install_pack),
+        )
         .route("/api/capture", post(capture::capture))
         .route("/api/blueprints", get(blueprints::list_blueprints))
         .route(
@@ -256,6 +279,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/runs/{id}/fork", post(tasks::fork_from_run))
         .route("/api/search", get(search::search))
         .route("/api/files/tree", get(files::tree))
+        .route("/api/files/search", get(files::search))
         .route("/api/files/content", get(files::content))
         .route("/api/files/raw", get(files::raw))
         .route("/api/files/media", get(files::media))
@@ -293,6 +317,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/recipes/{id}/run", post(recipes::run))
         .route("/api/io/tools", get(io_bus::tools))
         .route("/api/io/tools/{name}/install", post(io_bus::install_tool))
+        .route("/api/io/tools/{name}/path", put(io_bus::set_tool_path))
         .route(
             "/api/tasks/{id}/sinks",
             get(io_bus::task_sinks).post(io_bus::set_task_sinks),
@@ -321,6 +346,8 @@ fn router(state: Arc<AppState>) -> Router {
             get(artifacts::artifact_content),
         )
         .route("/api/router/config", get(router::get_config))
+        .route("/api/router/model", put(router::set_router_model))
+        .route("/api/router/analyze", post(router::analyze))
         .route(
             "/api/router/rules",
             get(router::list_rules).post(router::create_rule),

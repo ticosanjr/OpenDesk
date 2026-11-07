@@ -1,0 +1,13 @@
+id: resumo-juridico
+name: Resumo jurídico
+description: Resumo para decisão.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Resumir
+  mode: build
+  agent: analista-juridico
+  effort: medium
+  prompt: Resuma o documento com obrigações, riscos e decisão necessária. Salve em {{run.output_dir}}/resumo.md.

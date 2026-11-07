@@ -1,0 +1,13 @@
+id: revisao-espacada
+name: Revisão espaçada
+description: Perguntas e rubrica da semana.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Gerar revisão
+  mode: build
+  agent: examinador
+  effort: medium
+  prompt: Gere 10 perguntas de recuperação e rubrica para o conteúdo estudado. Salve em {{run.output_dir}}/revisao.md.

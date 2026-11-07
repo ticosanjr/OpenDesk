@@ -100,7 +100,7 @@ pub async fn sync_workspace(
             match crate::recipes::parser::parse(&text) {
                 Ok(recipe) => {
                     let id = recipe.id.clone();
-                    let trigger = recipe.trigger.trigger_type.clone();
+                    let trigger = recipe.primary_trigger_type();
                     let hash = sha256(&text);
                     sqlx::query(
                         "INSERT INTO recipes_index (

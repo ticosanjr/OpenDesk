@@ -9,6 +9,7 @@ import {
   Gauge,
   KanbanSquare,
   MessageSquare,
+  Package,
   PanelLeftClose,
   PanelLeftOpen,
   Plug,
@@ -50,6 +51,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { to: "/artifacts", label: "Artefatos", icon: Archive },
       { to: "/files", label: "Arquivos", icon: FolderTree },
+      { to: "/packs", label: "Pacotes", icon: Package },
       { to: "/studio", label: "OpenCode Studio", icon: Wand2 },
     ],
   },
@@ -75,7 +77,7 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "flex h-full shrink-0 flex-col border-r border-zinc-800/70 bg-[#0b0b0d] transition-[width] duration-200",
+        "flex h-full shrink-0 flex-col border-r workspace-divider bg-[#0b0b0d] transition-[width] duration-200",
         collapsed ? "w-[64px]" : "w-[236px]",
       )}
     >
@@ -108,7 +110,7 @@ export function Sidebar() {
                     cn(
                       "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
                       isActive
-                        ? "bg-zinc-800/70 text-zinc-100"
+                        ? "workspace-nav-active text-zinc-100"
                         : "text-zinc-500 hover:bg-zinc-900/70 hover:text-zinc-200",
                       collapsed && "justify-center px-0",
                     )

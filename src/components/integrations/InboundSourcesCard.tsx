@@ -293,7 +293,7 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
                 onChange={(event) => setForm({ ...form, target_column: event.target.value })}
                 className={inputClass}
               >
-                {["BACKLOG", "TODO", "IN_PROGRESS", "IN_REVIEW", "BLOCKED"].map((value) => (
+                {["TODO", "IN_PROGRESS", "IN_REVIEW", "BLOCKED"].map((value) => (
                   <option key={value} value={value}>
                     {value}
                   </option>

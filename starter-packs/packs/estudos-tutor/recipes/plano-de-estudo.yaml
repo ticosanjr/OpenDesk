@@ -1,0 +1,14 @@
+id: plano-de-estudo
+name: Plano de estudo
+description: Plano de 4 semanas com prática.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Diagnosticar e planejar
+  mode: build
+  agent: tutor
+  effort: medium
+  prompt: A partir do objetivo no contexto, crie um plano de 4 semanas com objetivo observável, prática
+    e revisão. Salve em {{run.output_dir}}/plano.md.

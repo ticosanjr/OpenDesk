@@ -4,20 +4,32 @@ use crate::{
     error::{AppError, AppResult},
     io_bus::{IoContext, RunArtifact, RunOutput, outbound},
     recipes::{
-        parser::{self, Recipe, RecipeSink},
+        parser::{self, FlowSink},
         store::RecipeRun,
     },
 };
 use std::sync::Arc;
 
-pub async fn execute(
+/// Executes one sink from the unified recipe flow at its configured position.
+pub async fn execute_one(
     state: &Arc<AppState>,
-    recipe: &Recipe,
+    sink: &FlowSink,
     run: &RecipeRun,
     trigger: &serde_json::Value,
     outputs: &serde_json::Value,
 ) -> AppResult<Vec<String>> {
-    if recipe.sinks.is_empty() {
+    execute_one_at(state, sink, run, trigger, outputs, 0).await
+}
+
+async fn execute_one_at(
+    state: &Arc<AppState>,
+    sink: &FlowSink,
+    run: &RecipeRun,
+    trigger: &serde_json::Value,
+    outputs: &serde_json::Value,
+    index: usize,
+) -> AppResult<Vec<String>> {
+    if sink.sink_type.trim().is_empty() {
         return Ok(Vec::new());
     }
     let task = run
@@ -32,6 +44,10 @@ pub async fn execute(
         .await
         .ok()
         .and_then(|runs| runs.first().cloned());
+    let title = crate::recipes::store::get(&state.db, &run.recipe_id)
+        .await
+        .map(|index| index.name)
+        .unwrap_or_else(|_| "Receita".into());
     let output = RunOutput {
         workspace_id: run.workspace_id.clone(),
         workspace_root: db::workspaces::get(&state.db, &run.workspace_id)
@@ -43,7 +59,7 @@ pub async fn execute(
             .as_ref()
             .map(|value| value.id.clone())
             .unwrap_or_else(|| run.id.clone()),
-        title: recipe.name.clone(),
+        title,
         summary: latest_run
             .and_then(|value| value.summary_response)
             .unwrap_or_default(),
@@ -65,33 +81,31 @@ pub async fn execute(
         "output_dir": run.output_dir_path,
         "date": chrono::Utc::now().format("%Y-%m-%d").to_string(),
     });
-    let mut results = Vec::new();
-    for (index, sink) in recipe.sinks.iter().enumerate() {
-        let sink = render_sink(sink, trigger, &run_vars, outputs)?;
-        let transient = db::io_bus::OutboundSink {
-            id: format!("recipe:{}:{}", run.id, index),
-            workspace_id: run.workspace_id.clone(),
-            name: format!("recipe sink {index}"),
-            sink_type: sink.sink_type.clone(),
-            config_json: sink.config.to_string(),
-            is_enabled: true,
-            last_run_at: None,
-            last_status: None,
-            last_error: None,
-            created_at: chrono::Utc::now().to_rfc3339(),
-        };
-        let paths = outbound::execute(&ctx, &transient, &output).await?;
-        results.extend(paths);
-    }
-    Ok(results)
+    let sink = render_sink(sink, trigger, &run_vars, outputs)?;
+    let transient = db::io_bus::OutboundSink {
+        id: format!("recipe:{}:{}", run.id, index),
+        workspace_id: run.workspace_id.clone(),
+        name: sink
+            .name
+            .clone()
+            .unwrap_or_else(|| format!("recipe sink {index}")),
+        sink_type: sink.sink_type.clone(),
+        config_json: sink.config.to_string(),
+        is_enabled: true,
+        last_run_at: None,
+        last_status: None,
+        last_error: None,
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+    outbound::execute(&ctx, &transient, &output).await
 }
 
 fn render_sink(
-    sink: &RecipeSink,
+    sink: &FlowSink,
     trigger: &serde_json::Value,
     run: &serde_json::Value,
     outputs: &serde_json::Value,
-) -> AppResult<RecipeSink> {
+) -> AppResult<FlowSink> {
     let mut sink = sink.clone();
     sink.sink_type = match sink.sink_type.as_str() {
         "EMAIL_SMTP" => "SMTP_EMAIL".into(),
@@ -138,8 +152,10 @@ mod tests {
 
     #[test]
     fn maps_recipe_sink_types_and_renders_config() {
-        let sink = RecipeSink {
+        let sink = FlowSink {
             sink_type: "RSYNC_FS".into(),
+            name: None,
+            description: None,
             config: serde_json::json!({
                 "destination": "user@host:{{run.output_dir}}",
                 "delete": false

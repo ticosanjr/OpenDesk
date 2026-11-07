@@ -1,0 +1,13 @@
+id: resumo-fiscal-mensal
+name: Resumo fiscal mensal
+description: Resumo do mês.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Resumir
+  mode: build
+  agent: analista-fiscal
+  effort: medium
+  prompt: Produza o resumo fiscal do mês com totais e pendências. Salve em {{run.output_dir}}/resumo.md.

@@ -81,41 +81,48 @@ async fn scan_folder_triggers(
         let Ok(recipe) = parser::parse(&yaml) else {
             continue;
         };
-        if recipe.trigger.trigger_type != "FOLDER_WATCH"
-            && recipe.trigger.trigger_type != "RSYNC_FOLDER"
-        {
+        let folder_triggers = recipe
+            .triggers()
+            .into_iter()
+            .filter(|trigger| {
+                trigger.trigger_type == "FOLDER_WATCH" || trigger.trigger_type == "RSYNC_FOLDER"
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        if folder_triggers.is_empty() {
             continue;
         }
-        let Some(path) = recipe
-            .trigger
-            .config
-            .get("path")
-            .and_then(|value| value.as_str())
-        else {
-            continue;
-        };
-        let workspace = db::workspaces::get(&state.db, &index.workspace_id).await?;
-        let dir = PathBuf::from(&workspace.root_path).join(path);
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let file = entry.path();
-            if !file.is_file() {
+        for folder_trigger in folder_triggers {
+            let Some(path) = folder_trigger
+                .config
+                .get("path")
+                .and_then(|value| value.as_str())
+            else {
                 continue;
-            }
-            let mut seen = runtime.seen.lock().await;
-            let set = seen.entry(recipe.id.clone()).or_default();
-            if !set.insert(file.clone()) {
+            };
+            let workspace = db::workspaces::get(&state.db, &index.workspace_id).await?;
+            let dir = PathBuf::from(&workspace.root_path).join(path);
+            let Ok(entries) = std::fs::read_dir(&dir) else {
                 continue;
+            };
+            for entry in entries.flatten() {
+                let file = entry.path();
+                if !file.is_file() {
+                    continue;
+                }
+                let mut seen = runtime.seen.lock().await;
+                let set = seen.entry(format!("{}:{path}", recipe.id)).or_default();
+                if !set.insert(file.clone()) {
+                    continue;
+                }
+                drop(seen);
+                let trigger = serde_json::json!({
+                    "file_path": file.to_string_lossy(),
+                    "file_name": file.file_name().and_then(|value| value.to_str()).unwrap_or("arquivo"),
+                    "recipe_id": recipe.id,
+                });
+                let _ = engine::start(state.clone(), recipe.clone(), trigger, false).await;
             }
-            drop(seen);
-            let trigger = serde_json::json!({
-                "file_path": file.to_string_lossy(),
-                "file_name": file.file_name().and_then(|value| value.to_str()).unwrap_or("arquivo"),
-                "recipe_id": recipe.id,
-            });
-            let _ = engine::start(state.clone(), recipe.clone(), trigger, false).await;
         }
     }
     Ok(())
@@ -133,21 +140,23 @@ async fn scan_cron_triggers(state: &Arc<AppState>) -> AppResult<()> {
         let Ok(recipe) = parser::parse(&yaml) else {
             continue;
         };
-        if recipe.trigger.trigger_type != "CRON" {
+        let Some(cron_trigger) = recipe
+            .triggers()
+            .into_iter()
+            .find(|trigger| trigger.trigger_type == "CRON")
+        else {
             continue;
-        }
-        let expression = recipe
-            .trigger
+        };
+        let expression = cron_trigger
             .config
             .get("cron")
-            .or_else(|| recipe.trigger.config.get("cron_expression"))
-            .or_else(|| recipe.trigger.config.get("schedule"))
+            .or_else(|| cron_trigger.config.get("cron_expression"))
+            .or_else(|| cron_trigger.config.get("schedule"))
             .and_then(|value| value.as_str());
         let Some(expression) = expression else {
             continue;
         };
-        let timezone = recipe
-            .trigger
+        let timezone = cron_trigger
             .config
             .get("timezone")
             .and_then(|value| value.as_str())

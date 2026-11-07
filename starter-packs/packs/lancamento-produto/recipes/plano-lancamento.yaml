@@ -1,0 +1,13 @@
+id: plano-lancamento
+name: Plano de lançamento
+description: GTM completo.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Montar plano
+  mode: build
+  agent: gerente-lancamento
+  effort: medium
+  prompt: Monte plano GTM com público, promessa, canais, cronograma, riscos e métricas. Salve em {{run.output_dir}}/plano.md.

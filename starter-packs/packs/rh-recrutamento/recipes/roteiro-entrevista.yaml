@@ -1,0 +1,13 @@
+id: roteiro-entrevista
+name: Roteiro de entrevista
+description: Perguntas e rubrica.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Montar roteiro
+  mode: build
+  agent: avaliador-tecnico
+  effort: medium
+  prompt: Crie roteiro estruturado e rubrica para a vaga. Salve em {{run.output_dir}}/entrevista.md.

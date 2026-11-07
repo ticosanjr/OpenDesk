@@ -1,0 +1,36 @@
+id: conferencia-notas
+name: Conferência de notas
+description: Extração, conferência e revisão.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Extrair notas
+  mode: build
+  agent: analista-fiscal
+  effort: medium
+  prompt: Leia as notas em input/, extraia campos e marque ilegíveis. Salve em {{run.output_dir}}/01-notas.md.
+- type: step
+  id: passo-2
+  name: Conferir
+  mode: build
+  agent: conferente-notas
+  effort: medium
+  prompt: Confira totais, duplicatas e competência. Salve divergências em {{run.output_dir}}/02-divergencias.md.
+- type: step
+  id: passo-3
+  name: Revisar
+  mode: build
+  agent: analista-fiscal
+  effort: medium
+  prompt: Gere o relatório final com pendências e aviso de revisão contábil. Salve em {{run.output_dir}}/relatorio.md.
+- type: hitl
+  id: checkpoint-3
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revisar as divergências antes de fechar o mês?

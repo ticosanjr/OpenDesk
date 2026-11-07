@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "email-zero",
+  "version": "1.0.0",
+  "name": "Email Zero",
+  "category": "produtividade",
+  "description": "Triagem, classificação e rascunhos de resposta; envio sempre com aprovação.",
+  "icon": "mail",
+  "color": "#6366f1",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": [
+      "SMTP",
+      "IMAP"
+    ]
+  },
+  "contents": {
+    "agents": [
+      "triador-email.md",
+      "redator-email.md"
+    ],
+    "skills": [
+      "classificacao-email",
+      "tom-resposta",
+      "privacidade-email"
+    ],
+    "commands": [
+      "triar-emails.md",
+      "responder-email.md"
+    ],
+    "recipes": [
+      "email-triagem.yaml",
+      "email-followup.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "email/entrada",
+      "email/rascunhos"
+    ]
+  },
+  "examples": []
+}

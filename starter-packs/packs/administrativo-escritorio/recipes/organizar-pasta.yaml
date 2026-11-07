@@ -1,0 +1,30 @@
+id: organizar-pasta
+name: Organizar pasta
+description: Plano de organização com revisão.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Inventariar
+  mode: build
+  agent: organizador-documentos
+  effort: medium
+  prompt: Inventarie a pasta indicada, proponha taxonomia e renomeação. Não mova nada ainda. Salve em
+    {{run.output_dir}}/plano.md.
+- type: step
+  id: passo-2
+  name: Aprovar mudanças
+  mode: build
+  agent: organizador-documentos
+  effort: medium
+  prompt: Execute o plano aprovado, gere relatório do que mudou e preserve originais. Salve em {{run.output_dir}}/relatorio.md.
+- type: hitl
+  id: checkpoint-2
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Aprovar o plano de renomeação e movimento?

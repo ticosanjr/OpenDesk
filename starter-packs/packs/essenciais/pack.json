@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "id": "essenciais",
+  "version": "1.0.0",
+  "name": "Essenciais",
+  "category": "base",
+  "description": "Assistente geral, pesquisa, redação e revisão para qualquer workspace.",
+  "icon": "sparkles",
+  "color": "#3b82f6",
+  "recommended": true,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "assistente.md",
+      "pesquisador.md",
+      "redator.md",
+      "revisor.md"
+    ],
+    "skills": [
+      "pesquisa-web",
+      "sintese",
+      "escrita-clara",
+      "checklist-qualidade"
+    ],
+    "commands": [
+      "pesquisar.md",
+      "resumir.md",
+      "revisar.md"
+    ],
+    "recipes": [
+      "briefing-diario.yaml",
+      "pesquisa-rapida.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "input",
+      "output",
+      "knowledge"
+    ]
+  },
+  "examples": [
+    {
+      "title": "Resumir um documento",
+      "command": "/resumir"
+    },
+    {
+      "title": "Pesquisar um tema",
+      "command": "/pesquisar"
+    }
+  ]
+}

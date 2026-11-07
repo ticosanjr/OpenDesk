@@ -1,0 +1,37 @@
+id: proposta-comercial
+name: Proposta comercial
+description: Proposta com escopo e revisão.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Organizar contexto
+  mode: build
+  agent: sdr-pre-vendas
+  effort: medium
+  prompt: Resuma o lead, a dor, o impacto e o que falta validar. Salve em {{run.output_dir}}/01-contexto.md.
+- type: step
+  id: passo-2
+  name: Montar proposta
+  mode: build
+  agent: proposta-comercial
+  effort: medium
+  prompt: Monte a proposta com contexto, objetivo, escopo, exclusões, cronograma, investimento e premissas.
+    Marque campos pendentes. Salve em {{run.output_dir}}/02-proposta.md.
+- type: step
+  id: passo-3
+  name: Revisar proposta
+  mode: build
+  agent: executivo-vendas
+  effort: medium
+  prompt: Revise a proposta, aponte riscos e gere a versão final. Salve em {{run.output_dir}}/proposta-final.md.
+- type: hitl
+  id: checkpoint-3
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Aprovar preço, escopo e validade antes de enviar?

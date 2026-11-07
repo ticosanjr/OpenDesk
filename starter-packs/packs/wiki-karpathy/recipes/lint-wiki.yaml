@@ -1,0 +1,14 @@
+id: lint-wiki
+name: Lint da wiki
+description: Relatório de saúde do conhecimento.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Auditar wiki
+  mode: build
+  agent: bibliotecario
+  effort: medium
+  prompt: Audite wiki/. Liste órfãs, duplicatas, links quebrados e lacunas. Salve o relatório em {{run.output_dir}}/lint.md
+    e não apague nada sem aprovação.

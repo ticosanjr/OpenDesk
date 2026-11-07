@@ -1,0 +1,13 @@
+id: checklist-viagem
+name: Checklist de viagem
+description: Documentos e bagagem.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Checklist
+  mode: build
+  agent: planejador-viagem
+  effort: medium
+  prompt: Crie checklist de documentos, bagagem e reservas. Salve em {{run.output_dir}}/checklist.md.

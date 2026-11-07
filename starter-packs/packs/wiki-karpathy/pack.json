@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "id": "wiki-karpathy",
+  "version": "1.0.0",
+  "name": "Wiki Karpathy",
+  "category": "conhecimento",
+  "description": "Notas atômicas, links e índice para manter um segundo cérebro vivo.",
+  "icon": "network",
+  "color": "#f59e0b",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "curador-wiki.md",
+      "bibliotecario.md"
+    ],
+    "skills": [
+      "notas-atomicas",
+      "evergreen-notes",
+      "backlinks",
+      "indice-wiki",
+      "lint-conhecimento"
+    ],
+    "commands": [
+      "ingerir.md",
+      "lint-wiki.md"
+    ],
+    "recipes": [
+      "ingerir-fonte.yaml",
+      "lint-wiki.yaml"
+    ],
+    "routines": [
+      "lint-wiki-semanal.json"
+    ],
+    "folders": [
+      "wiki/inbox",
+      "wiki/notes",
+      "wiki/sources"
+    ]
+  },
+  "examples": []
+}

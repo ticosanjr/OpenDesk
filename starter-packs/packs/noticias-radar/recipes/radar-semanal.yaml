@@ -1,0 +1,13 @@
+id: radar-semanal
+name: Radar semanal
+description: Tendências da semana.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Radar
+  mode: build
+  agent: analista-tendencias
+  effort: medium
+  prompt: Produza o radar semanal com 5 sinais, evidência e o que monitorar. Salve em {{run.output_dir}}/radar.md.

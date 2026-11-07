@@ -1,0 +1,38 @@
+id: email-triagem
+name: Triagem de e-mail
+description: Classifica e prepara rascunhos.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Classificar
+  mode: build
+  agent: triador-email
+  effort: medium
+  prompt: Classifique as mensagens de input/ por urgência, tipo e ação. Salve em {{run.output_dir}}/triagem.md.
+- type: step
+  id: passo-2
+  name: Rascunhar respostas
+  mode: build
+  agent: redator-email
+  effort: medium
+  prompt: Para cada mensagem que exige resposta, crie um rascunho em {{run.output_dir}}/rascunhos/. Não
+    envie nada.
+- type: step
+  id: passo-3
+  name: Aprovar envio
+  mode: build
+  agent: redator-email
+  effort: medium
+  prompt: Revise os rascunhos, aponte o que precisa de confirmação e gere a lista final de envios manuais.
+    Salve em {{run.output_dir}}/aprovacao.md.
+- type: hitl
+  id: checkpoint-3
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revisar os rascunhos antes de qualquer envio manual?

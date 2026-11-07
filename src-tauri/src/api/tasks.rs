@@ -111,7 +111,24 @@ pub async fn delete_task(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> AppResult<StatusCode> {
+    let task = tasks::get(&state.db, &id).await?;
+    // A queue job keeps its own prompt payload, so deleting the task alone
+    // would leave an orphan run. Cancel active jobs first.
+    let jobs = queue::list(&state.db, Some(&task.workspace_id)).await?;
+    for job in jobs
+        .into_iter()
+        .filter(|job| job.task_id.as_deref() == Some(task.id.as_str()))
+        .filter(|job| matches!(job.status.as_str(), "RUNNING" | "QUEUED" | "PAUSED"))
+    {
+        let _ = state.queue.cancel(&job.id).await;
+    }
     tasks::delete(&state.db, &id).await?;
+    state.events.publish(OpenDeskWsEvent::TaskUpdated {
+        task_id: task.id.clone(),
+        workspace_id: task.workspace_id.clone(),
+        stage: "DELETED".into(),
+        phase_status: None,
+    });
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "categories": [
+    {
+      "id": "base",
+      "name": "Base",
+      "description": "Fundamentos para qualquer workspace."
+    },
+    {
+      "id": "pesquisa",
+      "name": "Pesquisa e conhecimento",
+      "description": "Investigar, estudar e organizar conhecimento."
+    },
+    {
+      "id": "negocios",
+      "name": "Negócios",
+      "description": "Vendas, lançamento, imóveis e operação."
+    },
+    {
+      "id": "casa",
+      "name": "Casa e vida",
+      "description": "Finanças, saúde, viagens e rotina."
+    },
+    {
+      "id": "conteudo",
+      "name": "Conteúdo",
+      "description": "Blog, livros, YouTube e notícias."
+    },
+    {
+      "id": "produtividade",
+      "name": "Produtividade",
+      "description": "E-mail, reuniões e rotina."
+    },
+    {
+      "id": "escritorio",
+      "name": "Escritório",
+      "description": "RH, administrativo, pós-vendas, fiscal, jurídico e suporte."
+    }
+  ],
+  "packs": [
+    "essenciais",
+    "deep-research",
+    "wiki-karpathy",
+    "estudos-tutor",
+    "contabilidade-pj",
+    "casa-financas",
+    "email-zero",
+    "reunioes",
+    "blog-writer",
+    "book-writer",
+    "youtube-scripts",
+    "noticias-radar",
+    "titulos-thumbs",
+    "vendas-pre-vendas",
+    "rh-recrutamento",
+    "administrativo-escritorio",
+    "pos-vendas",
+    "notas-fiscais",
+    "juridico",
+    "saude-bem-estar",
+    "viagens",
+    "suporte-cliente",
+    "lancamento-produto",
+    "imobiliario"
+  ],
+  "templates": [
+    "pessoal-casa",
+    "conteudo",
+    "empresa",
+    "pesquisa-wiki",
+    "comercial",
+    "escritorio"
+  ]
+}

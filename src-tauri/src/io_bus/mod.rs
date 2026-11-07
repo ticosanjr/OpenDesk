@@ -55,7 +55,15 @@ pub async fn ingest(
     state: &Arc<AppState>,
     source: &InboundSource,
     event: NormalizedTaskEvent,
-) -> AppResult<tasks::Task> {
+) -> AppResult<Option<tasks::Task>> {
+    // A routine can subscribe to this source. The routine decides whether it
+    // runs a prompt or a recipe, so ingest does not create a task in that case.
+    if let Ok(config) = serde_json::from_str::<serde_json::Value>(&source.config_json)
+        && let Some(schedule_id) = config.get("schedule_id").and_then(|value| value.as_str())
+        && let Ok(schedule) = crate::db::schedules::get(&state.db, schedule_id).await
+    {
+        return crate::api::schedules::execute_schedule_from_source(state, &schedule, &event).await;
+    }
     // Sources can route their signal to a declarative recipe instead of creating
     // a standalone task. This is how IMAP/Signal/SQL/webhook triggers reuse the
     // recipe engine without duplicating adapters.
@@ -74,7 +82,7 @@ pub async fn ingest(
         });
         let run = crate::recipes::engine::start(state.clone(), recipe, trigger, false).await?;
         if let Some(task_id) = run.task_id {
-            return tasks::get(&state.db, &task_id).await;
+            return Ok(Some(tasks::get(&state.db, &task_id).await?));
         }
         return Err(AppError::Internal(
             "recipe acionada por I/O não criou task".into(),
@@ -91,7 +99,7 @@ pub async fn ingest(
     );
     let id = Uuid::new_v5(&Uuid::NAMESPACE_URL, seed.as_bytes()).to_string();
     if let Ok(existing) = tasks::get(&state.db, &id).await {
-        return Ok(existing);
+        return Ok(Some(existing));
     }
 
     let mut body = event.body_markdown.trim().to_string();
@@ -139,7 +147,7 @@ pub async fn ingest(
     }
     if !source.auto_execute {
         let column = if source.target_column.is_empty() {
-            "BACKLOG"
+            "TODO"
         } else {
             &source.target_column
         };
@@ -177,12 +185,12 @@ pub async fn ingest(
                 &source.target_column
             };
             let _ = tasks::move_to(&state.db, &task.id, column, None).await;
-            return tasks::get(&state.db, &task.id).await;
+            return Ok(Some(tasks::get(&state.db, &task.id).await?));
         }
     } else {
         let _ = db::io_bus::mark_inbound(&state.db, &source.id, "TASK_CREATED", None).await;
     }
-    tasks::get(&state.db, &task.id).await
+    Ok(Some(tasks::get(&state.db, &task.id).await?))
 }
 
 #[derive(Debug, Clone, Default)]
@@ -378,8 +386,14 @@ mod tests {
             attachments: vec![],
             metadata: serde_json::json!({}),
         };
-        let first = ingest(&state, &source, event.clone()).await.expect("first");
-        let second = ingest(&state, &source, event).await.expect("second");
+        let first = ingest(&state, &source, event.clone())
+            .await
+            .expect("first")
+            .expect("task");
+        let second = ingest(&state, &source, event)
+            .await
+            .expect("second")
+            .expect("task");
         assert_eq!(first.id, second.id);
         assert_eq!(first.status, "TODO");
     }

@@ -131,8 +131,12 @@ fn sink_type(value: &str) -> AppResult<String> {
 
 fn target_column(value: Option<&str>) -> AppResult<String> {
     let value = value.unwrap_or("TODO").trim().to_uppercase();
-    const STATUSES: [&str; 7] = [
-        "BACKLOG",
+    let value = if value == "BACKLOG" {
+        "TODO".to_string()
+    } else {
+        value
+    };
+    const STATUSES: [&str; 6] = [
         "TODO",
         "IN_PROGRESS",
         "IN_REVIEW",

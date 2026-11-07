@@ -431,6 +431,10 @@ export interface Schedule {
   timezone: string;
   agent_name?: string | null;
   command_or_prompt: string;
+  trigger_type: string;
+  trigger_config_json: string;
+  target_kind: string;
+  recipe_id?: string | null;
   router_policy: string;
   output_folder_template: string;
   notify_email_recipients?: string | null;

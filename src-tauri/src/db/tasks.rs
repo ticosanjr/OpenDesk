@@ -101,8 +101,7 @@ const COLUMNS: &str = "id, workspace_id, title, description, status, phase, phas
     position_index, last_run_id, last_run_status, last_run_at, blocked_reason, cancelled_at, \
     forked_from_task_id, created_at, updated_at";
 
-pub const STATUSES: [&str; 7] = [
-    "BACKLOG",
+pub const STATUSES: [&str; 6] = [
     "TODO",
     "IN_PROGRESS",
     "IN_REVIEW",
@@ -115,6 +114,13 @@ const EFFORTS: [&str; 3] = ["low", "medium", "high"];
 
 fn validate_status(status: &str) -> AppResult<String> {
     let status = status.trim().to_uppercase();
+    // Legacy clients and old queue jobs may still send BACKLOG. It no longer
+    // exists as a workflow stage, so it is normalized to TODO.
+    let status = if status == "BACKLOG" {
+        "TODO".to_string()
+    } else {
+        status
+    };
     if STATUSES.contains(&status.as_str()) {
         Ok(status)
     } else {
@@ -161,7 +167,7 @@ pub async fn list(pool: &SqlitePool, workspace_id: &str) -> AppResult<Vec<Task>>
     let query = format!(
         "SELECT {COLUMNS} FROM tasks WHERE workspace_id = ?
          ORDER BY CASE status
-            WHEN 'BACKLOG' THEN 0 WHEN 'TODO' THEN 1 WHEN 'IN_PROGRESS' THEN 2
+            WHEN 'TODO' THEN 1 WHEN 'IN_PROGRESS' THEN 2
             WHEN 'IN_REVIEW' THEN 3 WHEN 'BLOCKED' THEN 4 WHEN 'DONE' THEN 5
             WHEN 'CANCELLED' THEN 6 ELSE 7 END,
             position_index ASC, created_at ASC"
@@ -210,7 +216,7 @@ pub async fn create_with_id(
 
     let position: i64 = sqlx::query_scalar(
         "SELECT COALESCE(MAX(position_index), -1) + 1 FROM tasks
-         WHERE workspace_id = ? AND status = 'BACKLOG'",
+         WHERE workspace_id = ? AND status = 'TODO'",
     )
     .bind(workspace_id)
     .fetch_one(pool)
@@ -224,7 +230,7 @@ pub async fn create_with_id(
             id, workspace_id, title, description, status, priority,
             execution_mode, assigned_agent, preferred_model, agent_override, model_override,
             effort_level, notify_email, export_to_gdocs, tags_json, position_index
-         ) VALUES (?, ?, ?, ?, 'BACKLOG', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         ) VALUES (?, ?, ?, ?, 'TODO', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(workspace_id)
@@ -398,7 +404,7 @@ pub async fn fork_with_model(pool: &SqlitePool, id: &str, model: Option<&str>) -
             execution_mode, assigned_agent, preferred_model, agent_override, model_override,
             effort_level, plan_markdown, notify_email, export_to_gdocs, tags_json,
             position_index, forked_from_task_id
-         ) VALUES (?, ?, ?, ?, 'BACKLOG', NULL, 'forked', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         ) VALUES (?, ?, ?, ?, 'TODO', NULL, 'forked', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&new_id)
     .bind(&source.workspace_id)
@@ -635,7 +641,7 @@ mod tests {
     async fn task_lifecycle() {
         let (_temp, pool) = setup().await;
         let task = create(&pool, "ws-1", input()).await.expect("create");
-        assert_eq!(task.status, "BACKLOG");
+        assert_eq!(task.status, "TODO");
         assert_eq!(task.priority, 4);
         assert_eq!(task.execution_mode, "PLAN_THEN_BUILD");
         assert_eq!(task.tags(), vec!["financeiro", "mensal"]);

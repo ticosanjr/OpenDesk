@@ -14,6 +14,8 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CountPill } from "@/components/ui/count-pill";
+import { IconLabel } from "@/components/ui/icon-label";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EntityLink } from "@/components/ui/entity-link";
 import { links } from "@/lib/links";
@@ -121,23 +123,23 @@ export function QueueController({
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {[
-            ["rodando", running, "agora"],
-            ["aguardando", waiting, "na fila"],
-            ["falhas", failed, "para revisar"],
-            ["total", queue.length, "no workspace"],
-          ].map(([label, value, hint]) => (
-            <div
-              key={label}
-              className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
-            >
-              <p className="text-[9px] uppercase tracking-wide text-zinc-600">{label}</p>
-              <p className="mt-0.5 font-mono text-[16px] text-zinc-200">{value}</p>
-              <p className="text-[9px] text-zinc-600">{hint}</p>
-            </div>
-          ))}
+      <CardContent className="space-y-2">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[10px] text-zinc-500">
+          <span className="inline-flex items-center gap-1.5">
+            rodando <CountPill value={running} tone="blue" />
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            aguardando <CountPill value={waiting} tone="yellow" />
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            falhas <CountPill value={failed} tone={failed > 0 ? "red" : "default"} />
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            total <CountPill value={queue.length} />
+          </span>
+          <span className="ml-auto hidden font-mono text-[9px] text-zinc-600 md:inline">
+            lease 60s · heartbeat 5s
+          </span>
         </div>
 
         {status?.pause_reason ? (
@@ -153,13 +155,13 @@ export function QueueController({
             description="Execute uma tarefa para enfileirar um job. A fila persiste no SQLite e recupera jobs interrompidos após reinício."
           />
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {sorted.map((job) => (
               <div
                 key={job.id}
-                className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5"
+                className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-2.5 py-2"
               >
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <Badge
                     variant={
                       job.status === "RUNNING"
@@ -178,16 +180,13 @@ export function QueueController({
                   {job.job_kind && job.job_kind !== "task" ? (
                     <Badge variant="purple">{job.job_kind}</Badge>
                   ) : null}
-                  {job.concurrency_group ? (
-                    <Badge variant="default">{job.concurrency_group}</Badge>
-                  ) : null}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[11px] text-zinc-200">
                       {job.title ?? job.id}
                     </p>
-                    <p className="truncate font-mono text-[9px] text-zinc-600">
-                      {job.resolved_mode} · {job.resolved_agent} · {job.resolved_model} ·{" "}
-                      {job.resolved_effort}
+                    <p className="truncate font-mono text-[9px] text-zinc-500">
+                      {job.resolved_agent} · {job.resolved_model}
+                      {job.concurrency_group ? ` · ${job.concurrency_group}` : ""}
                       {(job.retry_count ?? 0) > 0
                         ? ` · retry ${job.retry_count}/${job.max_retries ?? "?"}`
                         : ""}
@@ -205,6 +204,16 @@ export function QueueController({
                       lease {leaseLabel(job.lease_expires_at)}
                     </span>
                   ) : null}
+                </div>
+
+                {job.error_message ? (
+                  <p className="mt-1 flex items-start gap-1 text-[9px] text-red-300/80">
+                    <AlertTriangle size={10} className="mt-0.5 shrink-0" />
+                    <span className="min-w-0 break-words">{job.error_message}</span>
+                  </p>
+                ) : null}
+
+                <div className="mt-1.5 flex flex-wrap items-center gap-1">
                   {job.task_id ? (
                     <EntityLink to={links.task(job.task_id)} chip>
                       tarefa
@@ -218,64 +227,53 @@ export function QueueController({
                       title={job.output_dir}
                       onClick={() => void openPath(job.output_dir ?? "")}
                     >
-                      <FolderOpen size={10} />
-                      pasta
+                      <IconLabel icon={<FolderOpen size={10} />}>pasta</IconLabel>
                     </Button>
                   ) : null}
-                </div>
-
-                {job.error_message ? (
-                  <p className="mt-1 flex items-start gap-1 text-[9px] text-red-300/80">
-                    <AlertTriangle size={10} className="mt-0.5 shrink-0" />
-                    <span className="min-w-0 break-words">{job.error_message}</span>
-                  </p>
-                ) : null}
-
-                <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-zinc-800/60 pt-2">
-                  {job.status === "QUEUED" || job.status === "PAUSED" ? (
-                    <>
+                  <span className="ml-auto flex items-center gap-1">
+                    {job.status === "QUEUED" || job.status === "PAUSED" ? (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-1.5"
+                          onClick={() => onPriority(job.id, Math.min(4, job.priority + 1))}
+                          title="Aumentar prioridade"
+                        >
+                          <ArrowUp size={10} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-1.5"
+                          onClick={() => onPriority(job.id, Math.max(1, job.priority - 1))}
+                          title="Diminuir prioridade"
+                        >
+                          <ArrowDown size={10} />
+                        </Button>
+                      </>
+                    ) : null}
+                    {job.status === "RUNNING" || job.status === "QUEUED" ? (
                       <Button
-                        variant="ghost"
+                        variant="destructive"
                         size="sm"
                         className="h-6 px-1.5 text-[9px]"
-                        onClick={() => onPriority(job.id, Math.min(4, job.priority + 1))}
-                        title="Aumentar prioridade"
+                        onClick={() => onJobAction(job.id, "cancel")}
                       >
-                        <ArrowUp size={10} />
+                        <IconLabel icon={<Square size={10} />}>Cancelar</IconLabel>
                       </Button>
+                    ) : null}
+                    {job.status === "FAILED" || job.status === "CANCELLED" ? (
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
                         className="h-6 px-1.5 text-[9px]"
-                        onClick={() => onPriority(job.id, Math.max(1, job.priority - 1))}
-                        title="Diminuir prioridade"
+                        onClick={() => onJobAction(job.id, "retry")}
                       >
-                        <ArrowDown size={10} />
+                        <IconLabel icon={<RotateCw size={10} />}>Retry</IconLabel>
                       </Button>
-                    </>
-                  ) : null}
-                  {job.status === "RUNNING" || job.status === "QUEUED" ? (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="h-6 px-1.5 text-[9px]"
-                      onClick={() => onJobAction(job.id, "cancel")}
-                    >
-                      <Square size={10} />
-                      Cancelar
-                    </Button>
-                  ) : null}
-                  {job.status === "FAILED" || job.status === "CANCELLED" ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-6 px-1.5 text-[9px]"
-                      onClick={() => onJobAction(job.id, "retry")}
-                    >
-                      <RotateCw size={10} />
-                      Retry
-                    </Button>
-                  ) : null}
+                    ) : null}
+                  </span>
                 </div>
               </div>
             ))}

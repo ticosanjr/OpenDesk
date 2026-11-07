@@ -1,0 +1,14 @@
+id: calendario-obrigacoes
+name: Calendário de obrigações
+description: Lista prazos e pendências.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Montar calendário
+  mode: build
+  agent: contador-pj
+  effort: medium
+  prompt: Monte o calendário de obrigações aplicáveis ao negócio descrito. Cite fonte oficial e marque
+    o que precisa de confirmação. Salve em {{run.output_dir}}/calendario.md.

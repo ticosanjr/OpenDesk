@@ -1,0 +1,37 @@
+id: fechamento-mensal
+name: Fechamento mensal
+description: Fechamento com checklist e revisão.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Organizar documentos
+  mode: build
+  agent: contador-pj
+  effort: medium
+  prompt: Liste os documentos em input/, classifique por competência e aponte o que falta. Salve em {{run.output_dir}}/01-documentos.md.
+- type: step
+  id: passo-2
+  name: Conciliar
+  mode: build
+  agent: auditor-fiscal
+  effort: medium
+  prompt: Concilie extratos e lançamentos. Explique divergências e priorize riscos. Salve em {{run.output_dir}}/02-conciliacao.md.
+- type: step
+  id: passo-3
+  name: Revisar fechamento
+  mode: build
+  agent: contador-pj
+  effort: medium
+  prompt: Gere o resumo do fechamento com totais, divergências, pendências e aviso de revisão profissional.
+    Salve em {{run.output_dir}}/fechamento.md.
+- type: hitl
+  id: checkpoint-3
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revisar o fechamento antes de gerar o resumo final?

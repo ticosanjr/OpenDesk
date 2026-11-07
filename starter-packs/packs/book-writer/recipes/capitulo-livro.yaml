@@ -1,0 +1,36 @@
+id: capitulo-livro
+name: Capítulo de livro
+description: Capítulo com checagem de continuidade.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Planejar capítulo
+  mode: build
+  agent: escritor-livro
+  effort: medium
+  prompt: Leia a bíblia e o manuscrito. Defina objetivo, conflito e virada. Salve em {{run.output_dir}}/01-plano-capitulo.md.
+- type: hitl
+  id: checkpoint-1
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Aprovar o objetivo e a virada do capítulo?
+- type: step
+  id: passo-2
+  name: Escrever
+  mode: build
+  agent: escritor-livro
+  effort: medium
+  prompt: Escreva o capítulo completo. Salve em {{run.output_dir}}/02-capitulo.md.
+- type: step
+  id: passo-3
+  name: Checar continuidade
+  mode: build
+  agent: continuista
+  effort: medium
+  prompt: Compare o capítulo com a bíblia, liste contradições e atualize a bíblia. Salve em {{run.output_dir}}/03-continuidade.md.

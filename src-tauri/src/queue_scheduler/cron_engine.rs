@@ -20,7 +20,7 @@ use serde::Serialize;
 use sqlx::SqlitePool;
 use std::{
     path::{Component, Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, OnceLock, Weak},
     time::Duration,
 };
 use tokio_util::sync::CancellationToken;
@@ -33,6 +33,9 @@ pub struct CronEngine {
     queue: Arc<QueueManager>,
     daemon: Arc<DaemonManager>,
     shutdown: CancellationToken,
+    /// Set after AppState is wrapped in an Arc. Weak avoids an ownership cycle
+    /// while still letting a CRON routine start the recipe engine.
+    app: OnceLock<Weak<crate::app_state::AppState>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -56,6 +59,7 @@ impl CronEngine {
             queue,
             daemon,
             shutdown: CancellationToken::new(),
+            app: OnceLock::new(),
         })
     }
 
@@ -78,6 +82,10 @@ impl CronEngine {
         self.shutdown.cancel();
     }
 
+    pub fn attach_state(&self, state: &Arc<crate::app_state::AppState>) {
+        let _ = self.app.set(Arc::downgrade(state));
+    }
+
     pub async fn tick_once(&self) -> AppResult<CronTickResult> {
         let schedules = schedules::active(&self.pool).await?;
         let now = Utc::now();
@@ -86,6 +94,81 @@ impl CronEngine {
         let engine_online = self.daemon.status().await.online;
 
         for schedule in &schedules {
+            // Non-cron routines are driven by the IO bus / Signal bridge, not
+            // by the cron tick.
+            if schedule.trigger_type != "CRON" {
+                continue;
+            }
+            if schedule.target_kind == "RECIPE" {
+                if schedule.next_run_at.is_none() {
+                    if let Ok(next) =
+                        next_occurrence(&schedule.cron_expression, &schedule.timezone, now)
+                    {
+                        let _ = schedules::set_next_run(
+                            &self.pool,
+                            &schedule.id,
+                            Some(&next.to_rfc3339()),
+                        )
+                        .await;
+                    }
+                    continue;
+                }
+                let due = schedule
+                    .next_run_at
+                    .as_deref()
+                    .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+                    .map(|value| value.with_timezone(&Utc) <= now)
+                    .unwrap_or(false);
+                if due {
+                    if !engine_online {
+                        let _ = schedules::mark_run(
+                            &self.pool,
+                            &schedule.id,
+                            "SKIPPED_OFFLINE",
+                            &now.to_rfc3339(),
+                        )
+                        .await;
+                    } else {
+                        match self.run_recipe_schedule(schedule, now).await {
+                            Ok(_) => {
+                                enqueued += 1;
+                                let _ = schedules::mark_run(
+                                    &self.pool,
+                                    &schedule.id,
+                                    "QUEUED",
+                                    &now.to_rfc3339(),
+                                )
+                                .await;
+                            }
+                            Err(error) => {
+                                tracing::warn!(schedule = %schedule.id, error = %error, "recipe routine failed");
+                                let _ = schedules::mark_run(
+                                    &self.pool,
+                                    &schedule.id,
+                                    "FAILED",
+                                    &now.to_rfc3339(),
+                                )
+                                .await;
+                            }
+                        }
+                    }
+                    if let Ok(next) =
+                        next_occurrence(&schedule.cron_expression, &schedule.timezone, now)
+                    {
+                        let _ = schedules::set_next_run(
+                            &self.pool,
+                            &schedule.id,
+                            Some(&next.to_rfc3339()),
+                        )
+                        .await;
+                    }
+                    self.events.publish(OpenDeskWsEvent::ScheduleUpdated {
+                        schedule_id: schedule.id.clone(),
+                        workspace_id: schedule.workspace_id.clone(),
+                    });
+                }
+                continue;
+            }
             if let Some(recurrence) = crate::queue_scheduler::recurrence::parse_recurrence(
                 schedule.recurrence_json.as_deref(),
             ) && recurrence.is_expired(now, &schedule.timezone)
@@ -223,15 +306,23 @@ impl CronEngine {
         })
     }
 
-    pub async fn run_now(&self, schedule_id: &str) -> AppResult<QueueJob> {
+    pub async fn run_now(&self, schedule_id: &str) -> AppResult<serde_json::Value> {
         let schedule = schedules::get(&self.pool, schedule_id).await?;
         let now = Utc::now();
-        let job = self
-            .enqueue_schedule(&schedule, &now.to_rfc3339(), now)
-            .await?
-            .ok_or_else(|| AppError::Conflict("this schedule slot is already queued".into()))?;
+        let result = if schedule.target_kind == "RECIPE" {
+            let value = self.run_recipe_schedule(&schedule, now).await?;
+            serde_json::json!({ "kind": "recipe", "run": value })
+        } else {
+            let job = self
+                .enqueue_schedule(&schedule, &now.to_rfc3339(), now)
+                .await?
+                .ok_or_else(|| AppError::Conflict("this schedule slot is already queued".into()))?;
+            serde_json::json!({ "kind": "queue", "job": job })
+        };
         let _ = schedules::mark_run(&self.pool, &schedule.id, "QUEUED", &now.to_rfc3339()).await;
-        if let Ok(next) = next_occurrence(&schedule.cron_expression, &schedule.timezone, now) {
+        if schedule.trigger_type == "CRON"
+            && let Ok(next) = next_occurrence(&schedule.cron_expression, &schedule.timezone, now)
+        {
             let _ =
                 schedules::set_next_run(&self.pool, &schedule.id, Some(&next.to_rfc3339())).await;
         }
@@ -239,7 +330,40 @@ impl CronEngine {
             schedule_id: schedule.id,
             workspace_id: schedule.workspace_id,
         });
-        Ok(job)
+        Ok(result)
+    }
+
+    async fn run_recipe_schedule(
+        &self,
+        schedule: &Schedule,
+        now: DateTime<Utc>,
+    ) -> AppResult<serde_json::Value> {
+        let recipe_id = schedule
+            .recipe_id
+            .as_deref()
+            .ok_or_else(|| AppError::BadRequest("rotina sem receita vinculada".into()))?;
+        let state =
+            self.app.get().and_then(Weak::upgrade).ok_or_else(|| {
+                AppError::Internal("app state indisponível para a receita".into())
+            })?;
+        let yaml = crate::recipes::store::yaml_for(&state.db, recipe_id).await?;
+        let recipe = crate::recipes::parser::parse(&yaml)?;
+        let trigger = serde_json::json!({
+            "routine_id": schedule.id,
+            "routine_name": schedule.name,
+            "scheduled_for": now.to_rfc3339(),
+        });
+        let run = crate::recipes::engine::start(state, recipe, trigger, false).await?;
+        Ok(serde_json::json!({
+            "run_id": run.id,
+            "recipe_id": recipe_id,
+        }))
+    }
+
+    /// Enqueue a prompt routine immediately without touching its next run.
+    pub async fn enqueue_now(&self, schedule: &Schedule) -> AppResult<Option<QueueJob>> {
+        self.enqueue_schedule(schedule, &Utc::now().to_rfc3339(), Utc::now())
+            .await
     }
 
     async fn enqueue_schedule(
@@ -419,6 +543,10 @@ mod tests {
             timezone: "America/Sao_Paulo".into(),
             agent_name: None,
             command_or_prompt: "/relatorio".into(),
+            trigger_type: "CRON".into(),
+            trigger_config_json: "{}".into(),
+            target_kind: "PROMPT".into(),
+            recipe_id: None,
             router_policy: "COST_BENEFIT".into(),
             output_folder_template: "output/{YYYY}-{MM}/{schedule_slug}".into(),
             notify_email_recipients: None,

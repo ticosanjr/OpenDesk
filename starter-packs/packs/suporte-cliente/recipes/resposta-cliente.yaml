@@ -1,0 +1,30 @@
+id: resposta-cliente
+name: Resposta ao cliente
+description: Rascunho com revisão.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Diagnosticar
+  mode: build
+  agent: analista-reclamacoes
+  effort: medium
+  prompt: Identifique causa provável e impacto do ticket. Salve em {{run.output_dir}}/diagnostico.md.
+- type: step
+  id: passo-2
+  name: Rascunhar
+  mode: build
+  agent: agente-suporte
+  effort: medium
+  prompt: Escreva resposta empática com passos e próximo passo. Salve em {{run.output_dir}}/resposta.md.
+    Não envie.
+- type: hitl
+  id: checkpoint-2
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Aprovar a resposta antes de enviar?

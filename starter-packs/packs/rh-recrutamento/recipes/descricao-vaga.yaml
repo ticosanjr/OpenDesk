@@ -1,0 +1,13 @@
+id: descricao-vaga
+name: Descrição de vaga
+description: Vaga com matriz de avaliação.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Criar vaga
+  mode: build
+  agent: recrutador
+  effort: medium
+  prompt: Crie descrição da vaga, competências e matriz de avaliação. Salve em {{run.output_dir}}/vaga.md.

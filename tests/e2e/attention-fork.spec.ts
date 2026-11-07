@@ -49,7 +49,7 @@ test("attention card, task fork and workspace memory", async ({ page, request })
 
   await page.goto("/#/");
   await expect(page.getByText("Precisa da sua atenção")).toBeVisible();
-  await expect(page.getByText("plano aguardando aprovação")).toBeVisible();
+  await expect(page.getByText("plano pronto para revisão")).toBeVisible();
 
   const forked = await request.post(`${auth.baseURL}/api/tasks/${task.id}/fork`, {
     headers: auth.headers,

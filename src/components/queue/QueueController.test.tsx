@@ -61,8 +61,8 @@ describe("QueueController", () => {
     );
     expect(screen.getByText("Rodando")).toBeInTheDocument();
     expect(screen.getByText("Aguardando")).toBeInTheDocument();
-    expect(screen.getByText(/lease/)).toBeInTheDocument();
-    expect(screen.getByText("local_llm_heavy")).toBeInTheDocument();
+    expect(screen.getAllByText(/lease/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/local_llm_heavy/)).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: "Cancelar" })[0]);
     expect(onJobAction).toHaveBeenCalledWith("job-1", "cancel");

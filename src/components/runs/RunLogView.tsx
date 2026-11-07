@@ -34,6 +34,8 @@ import { SlashTextarea } from "@/components/ui/slash-textarea";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EntityLink } from "@/components/ui/entity-link";
+import { CountPill } from "@/components/ui/count-pill";
+import { IconLabel } from "@/components/ui/icon-label";
 import { EmptyState } from "@/components/ui/empty-state";
 import { links } from "@/lib/links";
 import {
@@ -307,8 +309,8 @@ export function RunLogView({
             ) : null}
             {timeline?.artifacts.length ? (
               <EntityLink to={`/artifacts?run=${encodeURIComponent(runId)}`} chip>
-                <FileText size={10} />
-                artefatos ({timeline.artifacts.length})
+                <IconLabel icon={<FileText size={10} />}>artefatos</IconLabel>
+                <CountPill value={timeline.artifacts.length} tone="blue" />
               </EntityLink>
             ) : null}
             {timeline?.output_directory ? (
@@ -320,8 +322,7 @@ export function RunLogView({
                   onClick={() => void openOutputFolder()}
                   title={timeline.output_directory}
                 >
-                  <FolderOpen size={12} />
-                  pasta
+                  <IconLabel icon={<FolderOpen size={12} />}>pasta</IconLabel>
                 </Button>
                 {timeline.output_directory_relative ? (
                   <EntityLink to={links.file(timeline.output_directory_relative)} chip>

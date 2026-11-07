@@ -1,0 +1,20 @@
+id: pacote-titulos-thumbs
+name: Pacote de títulos e thumbs
+description: Opções e briefs para teste.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Gerar títulos
+  mode: build
+  agent: copy-titulos
+  effort: medium
+  prompt: Gere 20 títulos, agrupe por ângulo e recomende 5. Salve em {{run.output_dir}}/titulos.md.
+- type: step
+  id: passo-2
+  name: Gerar thumbs
+  mode: build
+  agent: thumb-designer
+  effort: medium
+  prompt: Crie 8 briefs de thumbnail com composição, cores e texto. Salve em {{run.output_dir}}/thumbs.md.

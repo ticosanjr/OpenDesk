@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "contabilidade-pj",
+  "version": "1.0.0",
+  "name": "Contabilidade PJ",
+  "category": "negocios",
+  "description": "Fechamento mensal, conciliação e calendário de obrigações com revisão humana.",
+  "icon": "calculator",
+  "color": "#10b981",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "contador-pj.md",
+      "auditor-fiscal.md"
+    ],
+    "skills": [
+      "fechamento-contabil",
+      "conciliacao-bancaria",
+      "calendario-tributario-br",
+      "disclaimer-contabil"
+    ],
+    "commands": [
+      "fechamento-mensal.md",
+      "conciliacao.md"
+    ],
+    "recipes": [
+      "fechamento-mensal.yaml",
+      "calendario-obrigacoes.yaml"
+    ],
+    "routines": [
+      "fechamento-mensal-rotina.json"
+    ],
+    "folders": [
+      "empresa/contabilidade/input",
+      "empresa/contabilidade/output"
+    ]
+  },
+  "examples": []
+}

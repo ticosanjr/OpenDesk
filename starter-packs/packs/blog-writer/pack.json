@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "blog-writer",
+  "version": "1.0.0",
+  "name": "Blog Writer",
+  "category": "conteudo",
+  "description": "Pauta, outline, draft, edição e SEO para posts de blog.",
+  "icon": "pen-line",
+  "color": "#ec4899",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "redator-blog.md",
+      "editor-blog.md",
+      "seo-blog.md"
+    ],
+    "skills": [
+      "estrutura-artigo",
+      "seo-onpage",
+      "voz-editorial",
+      "fact-check"
+    ],
+    "commands": [
+      "pauta.md",
+      "artigo.md",
+      "revisar-artigo.md"
+    ],
+    "recipes": [
+      "blog-post-completo.yaml",
+      "atualizar-post.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "content/blog/input",
+      "content/blog/output"
+    ]
+  },
+  "examples": []
+}

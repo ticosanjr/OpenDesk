@@ -23,6 +23,89 @@ pub struct FileQuery {
     pub workspace_id: Option<String>,
     pub path: Option<String>,
     pub range: Option<String>,
+    pub q: Option<String>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FileSearchResult {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    pub size: u64,
+    pub modified: Option<String>,
+}
+
+const SEARCH_SKIP: [&str; 8] = [
+    ".git",
+    "node_modules",
+    "target",
+    "dist",
+    ".vite",
+    ".cache",
+    "releases",
+    "coverage",
+];
+
+/// Recursive name search across the whole workspace. Heavy build folders are
+/// skipped so typing in the search box never walks a Rust/Node tree.
+pub async fn search(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<FileQuery>,
+) -> AppResult<Json<Vec<FileSearchResult>>> {
+    let root = workspace_root(&state, query.workspace_id.as_deref()).await?;
+    let needle = query.q.as_deref().unwrap_or("").trim().to_lowercase();
+    if needle.len() < 2 {
+        return Ok(Json(Vec::new()));
+    }
+    let limit = query.limit.unwrap_or(60).clamp(1, 200);
+    Ok(Json(search_root(&root, &needle, limit)))
+}
+
+fn search_root(root: &Path, needle: &str, limit: usize) -> Vec<FileSearchResult> {
+    let mut results = Vec::new();
+    for entry in walkdir::WalkDir::new(root)
+        .max_depth(12)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|entry| {
+            let name = entry.file_name().to_string_lossy();
+            !SEARCH_SKIP.iter().any(|skip| *skip == name)
+        })
+        .flatten()
+    {
+        if entry.path() == root {
+            continue;
+        }
+        let metadata = match entry.metadata() {
+            Ok(metadata) if !metadata.file_type().is_symlink() => metadata,
+            _ => continue,
+        };
+        let path = relative_to(root, entry.path());
+        if !path.to_lowercase().contains(needle) {
+            continue;
+        }
+        results.push(FileSearchResult {
+            name: entry.file_name().to_string_lossy().to_string(),
+            path,
+            is_dir: metadata.is_dir(),
+            size: metadata.len(),
+            modified: metadata
+                .modified()
+                .ok()
+                .map(|value| chrono::DateTime::<chrono::Utc>::from(value).to_rfc3339()),
+        });
+        if results.len() >= limit {
+            break;
+        }
+    }
+    results.sort_by(|left, right| {
+        right
+            .is_dir
+            .cmp(&left.is_dir)
+            .then_with(|| left.path.len().cmp(&right.path.len()))
+    });
+    results
 }
 
 #[derive(Debug, Serialize)]
@@ -370,6 +453,19 @@ mod tests {
         assert!(resolve_path(&root, Some("../etc/passwd")).is_err());
         assert!(resolve_path(&root, Some("/etc/passwd")).is_err());
         assert!(resolve_path(&root, Some("input\\brief.md")).is_err());
+    }
+
+    #[test]
+    fn searches_recursively_and_ignores_node_modules() {
+        let temp = workspace();
+        std::fs::create_dir_all(temp.path().join("output/2026-11/os")).expect("output");
+        std::fs::write(temp.path().join("output/2026-11/os/relatorio.docx"), b"x").expect("report");
+        std::fs::create_dir_all(temp.path().join("node_modules/pkg")).expect("nm");
+        std::fs::write(temp.path().join("node_modules/pkg/relatorio.js"), b"x").expect("nm file");
+        let root = std::fs::canonicalize(temp.path()).expect("root");
+        let results = search_root(&root, "relatorio", 50);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].path, "output/2026-11/os/relatorio.docx");
     }
 
     #[test]

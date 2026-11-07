@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "id": "juridico",
+  "version": "1.0.0",
+  "name": "Jurídico",
+  "category": "escritorio",
+  "description": "Análise de contratos, riscos e resumos com revisão humana.",
+  "icon": "scale",
+  "color": "#7c3aed",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "analista-juridico.md",
+      "revisor-contratos.md"
+    ],
+    "skills": [
+      "leitura-contratos",
+      "riscos-juridicos",
+      "resumo-juridico",
+      "disclaimer-juridico"
+    ],
+    "commands": [
+      "analisar-contrato.md",
+      "resumir-juridico.md"
+    ],
+    "recipes": [
+      "analise-contrato.yaml",
+      "resumo-juridico.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "juridico/contratos",
+      "juridico/pareceres"
+    ]
+  },
+  "examples": []
+}

@@ -21,6 +21,9 @@ import { useAppStore } from "@/store/app-store";
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
 import type { BudgetSettings, BudgetStatus, RouterRule } from "@/lib/types";
 import { ROUTER_POLICY_LABELS } from "@/lib/types";
+import { ModelCombobox } from "@/components/ui/model-combobox";
+import { IconLabel } from "@/components/ui/icon-label";
+import { LoadingState } from "@/components/ui/loading-state";
 import { formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { confirmAction } from "@/store/confirm-store";
@@ -28,8 +31,26 @@ import { confirmAction } from "@/store/confirm-store";
 interface RouterConfig {
   workspace_id: string;
   policy: string;
+  router_model?: string | null;
   rules: RouterRule[];
   budget: BudgetStatus;
+}
+
+interface ModelCost {
+  model: string;
+  provider: string;
+  name: string;
+  input_cost: number;
+  output_cost: number;
+  blended_cost: number;
+}
+
+interface RouterAnalysis {
+  workspace_id: string;
+  router_model?: string | null;
+  models: ModelCost[];
+  cheapest?: string | null;
+  generated_at: string;
 }
 
 export function RouterPage() {
@@ -44,6 +65,10 @@ export function RouterPage() {
   const [savingBudget, setSavingBudget] = useState(false);
   const [ruleOpen, setRuleOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [routerModel, setRouterModel] = useState("");
+  const [savingModel, setSavingModel] = useState(false);
+  const [analysis, setAnalysis] = useState<RouterAnalysis | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
   const query = useMemo(
     () => (activeWorkspaceId ? `?workspace_id=${encodeURIComponent(activeWorkspaceId)}` : ""),
@@ -63,6 +88,7 @@ export function RouterPage() {
         apiGet<BudgetSettings>("/api/budget"),
       ]);
       setConfig(routerConfig);
+      setRouterModel(routerConfig.router_model ?? "");
       setSettings(budgetSettings);
       setError(null);
     } catch (cause) {
@@ -111,6 +137,35 @@ export function RouterPage() {
     }
   }
 
+  async function saveRouterModel() {
+    setSavingModel(true);
+    setError(null);
+    try {
+      await apiPut("/api/router/model", { model: routerModel || null });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSavingModel(false);
+    }
+  }
+
+  async function analyze() {
+    if (!activeWorkspaceId) return;
+    setAnalyzing(true);
+    setError(null);
+    try {
+      const result = await apiPost<RouterAnalysis>("/api/router/analyze", {
+        workspace_id: activeWorkspaceId,
+      });
+      setAnalysis(result);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
   async function removeRule(id: string) {
     if (!(await confirmAction({ title: "Excluir regra do roteador?", description: "A regra deixa de ser avaliada imediatamente.", confirmLabel: "Excluir regra", tone: "destructive" }))) return;
     try {
@@ -155,6 +210,130 @@ export function RouterPage() {
           {error}
         </p>
       ) : null}
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Route size={15} className="text-zinc-500" />
+              Modelo roteador e comparação
+            </CardTitle>
+            <p className="mt-1 text-xs text-zinc-500">
+              Escolha o modelo usado como referência e execute a comparação de
+              custo quando quiser.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void analyze()}
+            disabled={analyzing}
+          >
+            <IconLabel
+              icon={
+                <Gauge
+                  size={13}
+                  className={analyzing ? "animate-pulse" : undefined}
+                />
+              }
+            >
+              {analyzing ? "Comparando…" : "Executar comparação"}
+            </IconLabel>
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="min-w-[240px] flex-1">
+              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+                Modelo roteador
+              </span>
+              <ModelCombobox
+                value={routerModel}
+                onChange={setRouterModel}
+                placeholder="automático (determinístico)"
+              />
+            </label>
+            <Button
+              size="sm"
+              className="h-9"
+              onClick={() => void saveRouterModel()}
+              disabled={savingModel}
+            >
+              <IconLabel
+                icon={
+                  savingModel ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Save size={13} />
+                  )
+                }
+              >
+                Salvar modelo
+              </IconLabel>
+            </Button>
+          </div>
+          {analysis ? (
+            <div className="space-y-2">
+              <p className="text-[10px] text-zinc-500">
+                {analysis.models.length} modelo(s) comparado(s). Mais barato:{" "}
+                <span className="font-mono text-emerald-300">
+                  {analysis.cheapest ?? "—"}
+                </span>
+              </p>
+              {analysis.models.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-zinc-700 px-3 py-4 text-center text-[10px] text-zinc-500">
+                  Nenhum modelo com preço disponível. Verifique se o OpenCode
+                  está online.
+                </p>
+              ) : (
+                <div className="scroll-area max-h-72 rounded-lg border border-zinc-800/70">
+                  <table className="w-full text-left text-[10px]">
+                    <thead className="sticky top-0 bg-zinc-950/95 text-[9px] uppercase tracking-wide text-zinc-500">
+                      <tr>
+                        <th className="px-2.5 py-1.5">Modelo</th>
+                        <th className="px-2.5 py-1.5 text-right">Entrada /1M</th>
+                        <th className="px-2.5 py-1.5 text-right">Saída /1M</th>
+                        <th className="px-2.5 py-1.5 text-right">Combinado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analysis.models.map((row) => (
+                        <tr
+                          key={row.model}
+                          className={cn(
+                            "border-t border-zinc-800/60",
+                            row.model === analysis.cheapest && "bg-emerald-500/[0.05]",
+                          )}
+                        >
+                          <td className="px-2.5 py-1.5">
+                            <span className="block truncate font-mono text-zinc-200">
+                              {row.model}
+                            </span>
+                            <span className="block truncate text-[9px] text-zinc-600">
+                              {row.name}
+                            </span>
+                          </td>
+                          <td className="px-2.5 py-1.5 text-right font-mono text-zinc-400">
+                            ${row.input_cost.toFixed(3)}
+                          </td>
+                          <td className="px-2.5 py-1.5 text-right font-mono text-zinc-400">
+                            ${row.output_cost.toFixed(3)}
+                          </td>
+                          <td className="px-2.5 py-1.5 text-right font-mono text-zinc-200">
+                            ${row.blended_cost.toFixed(3)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : analyzing ? (
+            <LoadingState compact rows={3} label="Comparando custos dos modelos…" />
+          ) : null}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         {Object.entries(ROUTER_POLICY_LABELS).map(([id, label]) => {

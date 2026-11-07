@@ -323,6 +323,16 @@ async fn handle_incoming(
             .await?
             .ok_or_else(|| AppError::BadRequest("no active workspace for Signal".into()))?,
     };
+    if crate::api::schedules::execute_signal_routines(
+        state,
+        &workspace_id,
+        &incoming.source,
+        &incoming.text,
+    )
+    .await?
+    {
+        return Ok(());
+    }
     let thread =
         match chat_db::find_external(&state.db, &workspace_id, "signal", &incoming.source).await? {
             Some(thread) => thread,

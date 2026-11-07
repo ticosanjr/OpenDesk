@@ -1,0 +1,13 @@
+id: plano-retencao
+name: Plano de retenção
+description: Risco e recuperação.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Analisar risco
+  mode: build
+  agent: analista-retencao
+  effort: medium
+  prompt: Avalie risco, motive e monte plano de recuperação com métrica. Salve em {{run.output_dir}}/retencao.md.

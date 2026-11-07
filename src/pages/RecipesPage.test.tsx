@@ -7,9 +7,6 @@ vi.mock("@/lib/api", () => ({
   apiPost: vi.fn(),
   apiPut: vi.fn(),
 }));
-vi.mock("@monaco-editor/react", () => ({
-  Editor: () => null,
-}));
 vi.mock("@/store/toast-store", () => ({
   toast: vi.fn(),
 }));
@@ -69,7 +66,7 @@ describe("RecipesPage", () => {
       </MemoryRouter>,
     );
     await waitFor(() => expect(screen.getByText("Receita E2E")).toBeInTheDocument());
-    expect(screen.getByText("Visual Stepper")).toBeInTheDocument();
+    expect(screen.getByText("Fluxo visual")).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByDisplayValue("Passo 1")).toBeInTheDocument(),
     );

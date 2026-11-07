@@ -1,0 +1,13 @@
+id: email-followup
+name: Follow-up de e-mail
+description: Cobra respostas pendentes.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Listar pendências
+  mode: build
+  agent: triador-email
+  effort: medium
+  prompt: Liste threads sem resposta e proponha follow-ups curtos. Salve em {{run.output_dir}}/followups.md.

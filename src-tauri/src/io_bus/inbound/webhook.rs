@@ -103,7 +103,10 @@ pub async fn handle(
     };
     let task = crate::io_bus::ingest(state, &source, event).await?;
     let _ = io_bus::mark_inbound(&state.db, &source.id, "TRIGGERED", None).await;
-    Ok(serde_json::json!({ "ok": true, "task_id": task.id }))
+    Ok(serde_json::json!({
+        "ok": true,
+        "task_id": task.as_ref().map(|task| task.id.clone()),
+    }))
 }
 
 fn path_value(value: &serde_json::Value, path: &str) -> Option<serde_json::Value> {

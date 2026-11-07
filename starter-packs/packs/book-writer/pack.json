@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "id": "book-writer",
+  "version": "1.0.0",
+  "name": "Book Writer",
+  "category": "conteudo",
+  "description": "Capítulos, bíblia da história e continuidade para livros.",
+  "icon": "book-open",
+  "color": "#a855f7",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "escritor-livro.md",
+      "editor-literario.md",
+      "continuista.md"
+    ],
+    "skills": [
+      "estrutura-livro",
+      "biblia-da-historia",
+      "continuidade",
+      "estilo-literario"
+    ],
+    "commands": [
+      "capitulo.md",
+      "biblia.md",
+      "revisar-capitulo.md"
+    ],
+    "recipes": [
+      "capitulo-livro.yaml",
+      "auditoria-livro.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "book/manuscrito",
+      "book/biblia",
+      "book/pesquisa"
+    ]
+  },
+  "examples": []
+}

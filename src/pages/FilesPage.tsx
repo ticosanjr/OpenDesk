@@ -26,6 +26,7 @@ import { formatNumber, relativeTime, shortPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "@/store/toast-store";
 import { LazyFileViewer } from "@/components/viewer/LazyFileViewer";
+import { LoadingState } from "@/components/ui/loading-state";
 
 export function FilesPage() {
   const workspaces = useAppStore((state) => state.workspaces);
@@ -40,6 +41,9 @@ export function FilesPage() {
   const [selected, setSelected] = useState<FileEntry | null>(null);
   const [content, setContent] = useState<FileContent | null>(null);
   const [filter, setFilter] = useState("");
+  const [scope, setScope] = useState<"folder" | "workspace">("folder");
+  const [searchResults, setSearchResults] = useState<FileEntry[]>([]);
+  const [searching, setSearching] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingFile, setLoadingFile] = useState(false);
   const [media, setMedia] = useState<{
@@ -199,10 +203,60 @@ export function FilesPage() {
   }, [directory]);
 
   const filtered = useMemo(() => {
+    if (scope === "workspace") return searchResults;
     const needle = filter.trim().toLowerCase();
     if (!needle) return entries;
     return entries.filter((entry) => entry.name.toLowerCase().includes(needle));
-  }, [entries, filter]);
+  }, [entries, filter, scope, searchResults]);
+
+  useEffect(() => {
+    if (scope !== "workspace" || !activeWorkspaceId) {
+      setSearchResults([]);
+      return;
+    }
+    const needle = filter.trim();
+    if (needle.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    let cancelled = false;
+    const handle = window.setTimeout(() => {
+      setSearching(true);
+      void apiGet<FileEntry[]>(
+        `/api/files/search?workspace_id=${encodeURIComponent(activeWorkspaceId)}&q=${encodeURIComponent(needle)}`,
+      )
+        .then((value) => {
+          if (!cancelled) setSearchResults(value);
+        })
+        .catch((cause) => {
+          if (!cancelled) {
+            setSearchResults([]);
+            setError(cause instanceof Error ? cause.message : String(cause));
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setSearching(false);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [activeWorkspaceId, filter, scope]);
+
+  async function openSearchResult(entry: FileEntry) {
+    if (entry.is_dir) {
+      await loadTree(entry.path);
+      setDirectory(entry.path);
+      return;
+    }
+    const parent = entry.path.includes("/")
+      ? entry.path.slice(0, entry.path.lastIndexOf("/"))
+      : "";
+    await loadTree(parent);
+    setDirectory(parent);
+    await openEntry(entry);
+  }
 
   if (!activeWorkspaceId || !workspace) {
     return (
@@ -278,23 +332,61 @@ export function FilesPage() {
               ))}
             </div>
             <div className="flex h-8 w-full items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-              <Search size={13} className="text-zinc-600" />
+              <Search size={13} className="shrink-0 text-zinc-600" />
               <input
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
-                placeholder="Filtrar nesta pasta"
-                className="h-full flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
+                placeholder={
+                  scope === "folder"
+                    ? "Filtrar nesta pasta"
+                    : "Procurar em todo o workspace"
+                }
+                className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
               />
+            </div>
+            <div className="flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5 text-[10px]">
+              <button
+                type="button"
+                onClick={() => setScope("folder")}
+                className={cn(
+                  "rounded-md px-2 py-1",
+                  scope === "folder"
+                    ? "workspace-tab-active"
+                    : "text-zinc-500 hover:text-zinc-200",
+                )}
+              >
+                Nesta pasta
+              </button>
+              <button
+                type="button"
+                onClick={() => setScope("workspace")}
+                className={cn(
+                  "rounded-md px-2 py-1",
+                  scope === "workspace"
+                    ? "workspace-tab-active"
+                    : "text-zinc-500 hover:text-zinc-200",
+                )}
+              >
+                Todo o workspace
+              </button>
             </div>
           </CardHeader>
           <CardContent className="min-h-0 flex-1 overflow-y-auto p-1.5">
-            {loading ? (
-              <p className="p-3 text-[10px] text-zinc-600">Carregando…</p>
+            {loading || searching ? (
+              <LoadingState
+                compact
+                label={searching ? "Procurando no workspace…" : "Carregando pasta…"}
+                rows={3}
+              />
             ) : filtered.length === 0 ? (
               <EmptyState
                 icon={FolderOpen}
-                title="Pasta vazia"
-                description="Nenhum arquivo visível nesta pasta."
+                title={scope === "workspace" ? "Nada encontrado" : "Pasta vazia"}
+                description={
+                  scope === "workspace"
+                    ? "Digite ao menos 2 caracteres do nome ou caminho."
+                    : "Nenhum arquivo visível nesta pasta."
+                }
                 className="border-0 bg-transparent py-8"
               />
             ) : (
@@ -302,7 +394,11 @@ export function FilesPage() {
                 <button
                   key={entry.path}
                   type="button"
-                  onClick={() => void openEntry(entry)}
+                  onClick={() =>
+                    void (scope === "workspace"
+                      ? openSearchResult(entry)
+                      : openEntry(entry))
+                  }
                   className={cn(
                     "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-zinc-900",
                     selected?.path === entry.path && "bg-zinc-800/80",

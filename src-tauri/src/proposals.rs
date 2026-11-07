@@ -97,6 +97,7 @@ pub async fn apply(state: &Arc<AppState>, proposal: &proposals::ConfigProposal) 
                 .map(str::to_string);
             if proposal.action == "DELETE" {
                 if let Some(id) = id {
+                    let _ = crate::api::schedules::remove_trigger_sources(state, &id).await;
                     schedules::delete(&state.db, &id).await?;
                 }
                 return Ok(());
@@ -104,7 +105,17 @@ pub async fn apply(state: &Arc<AppState>, proposal: &proposals::ConfigProposal) 
             let mut input: schedules::CreateScheduleInput = serde_json::from_value(payload.clone())
                 .map_err(|error| AppError::BadRequest(format!("rotina inválida: {error}")))?;
             input.workspace_id = proposal.workspace_id.clone();
-            schedules::create(&state.db, input).await?;
+            let schedule = schedules::create(&state.db, input).await?;
+            crate::api::schedules::sync_trigger_source(state, &schedule).await?;
+            if schedule.trigger_type == "CRON"
+                && let Ok(next) = crate::queue_scheduler::cron_engine::next_occurrence(
+                    &schedule.cron_expression,
+                    &schedule.timezone,
+                    chrono::Utc::now(),
+                )
+            {
+                schedules::set_next_run(&state.db, &schedule.id, Some(&next.to_rfc3339())).await?;
+            }
         }
         "MCP" => {
             let name = payload

@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "id": "rh-recrutamento",
+  "version": "1.0.0",
+  "name": "RH & Recrutamento",
+  "category": "escritorio",
+  "description": "Vagas, triagem de currículos e entrevistas estruturadas.",
+  "icon": "user-search",
+  "color": "#06b6d4",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "recrutador.md",
+      "avaliador-tecnico.md"
+    ],
+    "skills": [
+      "descricao-vaga",
+      "triagem-curriculos",
+      "entrevista-estruturada",
+      "avaliacao-competencias"
+    ],
+    "commands": [
+      "vaga.md",
+      "triagem.md",
+      "entrevista.md"
+    ],
+    "recipes": [
+      "descricao-vaga.yaml",
+      "triagem-curriculos.yaml",
+      "roteiro-entrevista.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "rh/vagas",
+      "rh/curriculos",
+      "rh/entrevistas"
+    ]
+  },
+  "examples": []
+}

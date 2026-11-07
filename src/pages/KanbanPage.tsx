@@ -11,7 +11,6 @@ import {
   FileText,
   GripVertical,
   GitBranch,
-  Inbox,
   LayoutList,
   ListChecks,
   Loader2,
@@ -21,6 +20,7 @@ import {
   Plus,
   RotateCw,
   Search,
+  SlidersHorizontal,
   Square,
   Star,
   XCircle,
@@ -29,6 +29,8 @@ import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { CountPill } from "@/components/ui/count-pill";
+import { IconLabel } from "@/components/ui/icon-label";
 import { Modal } from "@/components/ui/modal";
 import { AgentCombobox } from "@/components/ui/agent-combobox";
 import { ModelCombobox } from "@/components/ui/model-combobox";
@@ -56,9 +58,16 @@ import { formatNumber, formatUsd, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { WorkingIndicator } from "@/components/ui/working-indicator";
 import { Tooltip } from "@/components/ui/tooltip";
+import {
+  applyRetention,
+  DEFAULT_VISIBILITY,
+  loadVisibility,
+  RETENTION_OPTIONS,
+  saveVisibility,
+  type TaskVisibility,
+} from "@/lib/task-visibility";
 
 const COLUMNS = [
-  { id: "BACKLOG", label: "Backlog", tone: "default" as const, icon: Inbox },
   { id: "TODO", label: "To do", tone: "blue" as const, icon: Circle },
   { id: "IN_PROGRESS", label: "In progress", tone: "purple" as const, icon: Loader2 },
   { id: "IN_REVIEW", label: "In review", tone: "yellow" as const, icon: Eye },
@@ -122,6 +131,8 @@ export function KanbanPage() {
   const [priorityFilter, setPriorityFilter] = useState("");
   const [view, setView] = useState<"board" | "list" | "queue">("board");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [visibility, setVisibility] = useState<TaskVisibility>(DEFAULT_VISIBILITY);
+  const [visibilityOpen, setVisibilityOpen] = useState(false);
   const draggedRef = useRef<string | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
@@ -135,7 +146,7 @@ export function KanbanPage() {
 
   const filteredTasks = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return tasks.filter((task) => {
+    const filtered = tasks.filter((task) => {
       if (needle) {
         const haystack = `${task.title} ${task.description} ${task.tags_json} ${task.assigned_agent ?? ""}`.toLowerCase();
         if (!haystack.includes(needle)) return false;
@@ -144,7 +155,8 @@ export function KanbanPage() {
       if (priorityFilter && String(task.priority) !== priorityFilter) return false;
       return true;
     });
-  }, [agentFilter, priorityFilter, query, tasks]);
+    return applyRetention(filtered, visibility);
+  }, [agentFilter, priorityFilter, query, tasks, visibility]);
 
   const boardAgents = useMemo(
     () =>
@@ -190,6 +202,15 @@ export function KanbanPage() {
   useEffect(() => {
     void load();
   }, [load, lastTaskEvent?.task_id, lastRunEvent?.run_id, lastRunEvent?.status]);
+
+  useEffect(() => {
+    setVisibility(loadVisibility(activeWorkspaceId));
+  }, [activeWorkspaceId]);
+
+  function updateVisibility(next: TaskVisibility) {
+    setVisibility(next);
+    saveVisibility(activeWorkspaceId, next);
+  }
 
   useEffect(() => {
     if (taskDialogOpen) {
@@ -406,17 +427,7 @@ export function KanbanPage() {
         </div>
       ) : null}
 
-      {view !== "queue" ? (
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/20 px-3 py-2">
-        <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-          <Search size={13} className="text-zinc-600" />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por título, descrição, tag ou agente…"
-            className="h-full flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
-          />
-        </div>
         <div className="flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5">
           {([
             ["board", Columns3, "Board"],
@@ -428,76 +439,180 @@ export function KanbanPage() {
               type="button"
               onClick={() => setView(value)}
               className={cn(
-                "flex items-center gap-1 rounded-md px-2 py-1 text-[10px]",
+                "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] transition-colors",
                 view === value
-                  ? "bg-zinc-800 text-zinc-100"
+                  ? "workspace-tab-active"
                   : "text-zinc-500 hover:text-zinc-200",
               )}
               title={label}
+              aria-pressed={view === value}
             >
               <Icon size={12} />
               {label}
             </button>
           ))}
         </div>
-        <select
-          value={agentFilter}
-          onChange={(event) => setAgentFilter(event.target.value)}
-          className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300"
-          aria-label="Filtrar por agente"
-        >
-          <option value="">todos os agentes</option>
-          {boardAgents.map((agent) => (
-            <option key={agent} value={agent}>
-              @{agent}
-            </option>
-          ))}
-        </select>
-        <select
-          value={priorityFilter}
-          onChange={(event) => setPriorityFilter(event.target.value)}
-          className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300"
-          aria-label="Filtrar por prioridade"
-        >
-          <option value="">todas as prioridades</option>
-          {[4, 3, 2, 1].map((priority) => (
-            <option key={priority} value={priority}>
-              {priority} — {PRIORITY_LABEL[priority]}
-            </option>
-          ))}
-        </select>
-        <Badge variant="default">{filteredTasks.length} de {tasks.length}</Badge>
-        {(query || agentFilter || priorityFilter) ? (
-          <button
-            type="button"
-            onClick={() => {
-              setQuery("");
-              setAgentFilter("");
-              setPriorityFilter("");
-            }}
-            className="text-[10px] text-zinc-500 hover:text-zinc-200"
-          >
-            limpar filtros
-          </button>
-        ) : null}
-        <label className="ml-auto flex items-center gap-2 text-[10px] text-zinc-500">
-          concorrência
-          <select
-            value={queueStatus?.concurrency ?? 1}
-            onChange={(event) => void setConcurrency(Number(event.target.value))}
-            className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300"
-            aria-label="Concorrência da fila"
-          >
-            {[1, 2, 3, 4].map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
+        {view !== "queue" ? (
+          <>
+            <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
+              <Search size={13} className="shrink-0 text-zinc-600" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Buscar por título, descrição, tag ou agente…"
+                className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
+              />
+            </div>
+            <select
+              value={agentFilter}
+              onChange={(event) => setAgentFilter(event.target.value)}
+              className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300"
+              aria-label="Filtrar por agente"
+            >
+              <option value="">todos os agentes</option>
+              {boardAgents.map((agent) => (
+                <option key={agent} value={agent}>
+                  @{agent}
+                </option>
+              ))}
+            </select>
+            <select
+              value={priorityFilter}
+              onChange={(event) => setPriorityFilter(event.target.value)}
+              className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300"
+              aria-label="Filtrar por prioridade"
+            >
+              <option value="">todas as prioridades</option>
+              {[4, 3, 2, 1].map((priority) => (
+                <option key={priority} value={priority}>
+                  {priority} — {PRIORITY_LABEL[priority]}
+                </option>
+              ))}
+            </select>
+            <Badge variant="default">
+              {filteredTasks.length} de {tasks.length}
+            </Badge>
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={() => setVisibilityOpen((current) => !current)}
+                title="Escolher quanto tempo tarefas concluídas permanecem visíveis"
+                aria-expanded={visibilityOpen}
+              >
+                <IconLabel icon={<SlidersHorizontal size={12} />}>
+                  Visibilidade
+                </IconLabel>
+              </Button>
+              {visibilityOpen ? (
+                <div className="absolute right-0 top-9 z-40 w-72 space-y-3 rounded-xl border border-zinc-700 bg-zinc-950 p-3 shadow-2xl">
+                  <div>
+                    <p className="text-[11px] font-semibold text-zinc-200">
+                      Concluídas e canceladas
+                    </p>
+                    <p className="text-[10px] leading-snug text-zinc-500">
+                      Apenas visual. Nada é apagado do workspace.
+                    </p>
+                  </div>
+                  <label className="block space-y-1">
+                    <span className="text-[10px] text-zinc-400">Período</span>
+                    <select
+                      value={visibility.retention}
+                      onChange={(event) =>
+                        updateVisibility({
+                          ...visibility,
+                          retention: event.target.value as TaskVisibility["retention"],
+                        })
+                      }
+                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[11px] text-zinc-200"
+                    >
+                      {RETENTION_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label} — {option.hint}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-[10px] text-zinc-400">
+                      Máximo de cards (0 = sem limite)
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={200}
+                      value={visibility.maxItems}
+                      onChange={(event) =>
+                        updateVisibility({
+                          ...visibility,
+                          maxItems: Math.max(
+                            0,
+                            Math.min(200, Number(event.target.value) || 0),
+                          ),
+                        })
+                      }
+                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[11px] text-zinc-200"
+                    />
+                  </label>
+                  <div className="flex items-center justify-between gap-2 border-t border-zinc-800/70 pt-2">
+                    <button
+                      type="button"
+                      className="text-[10px] text-zinc-500 hover:text-zinc-200"
+                      onClick={() =>
+                        updateVisibility({ retention: "all", maxItems: 0 })
+                      }
+                    >
+                      mostrar tudo
+                    </button>
+                    <button
+                      type="button"
+                      className="text-[10px] text-zinc-500 hover:text-zinc-200"
+                      onClick={() => setVisibilityOpen(false)}
+                    >
+                      fechar
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            {query || agentFilter || priorityFilter ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  setAgentFilter("");
+                  setPriorityFilter("");
+                }}
+                className="text-[10px] text-zinc-500 hover:text-zinc-200"
+              >
+                limpar filtros
+              </button>
+            ) : null}
+            <label className="ml-auto flex items-center gap-2 text-[10px] text-zinc-500">
+              concorrência
+              <select
+                value={queueStatus?.concurrency ?? 1}
+                onChange={(event) => void setConcurrency(Number(event.target.value))}
+                className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300"
+                aria-label="Concorrência da fila"
+              >
+                {[1, 2, 3, 4].map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        ) : (
+          <span className="ml-auto text-[10px] text-zinc-500">
+            {queue.length > 0
+              ? `${queue.length} job(s) na fila`
+              : "fila vazia"}
+          </span>
+        )}
       </div>
-
-      ) : null}
 
       {selected.size > 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-500/25 bg-blue-500/[0.06] px-3 py-2">
@@ -572,14 +687,14 @@ export function KanbanPage() {
                 if (task) void transitionTask(task, column.id);
               }}
             >
-              <CardHeader className="px-3.5 py-3">
+              <CardHeader className="px-3 py-2.5">
                 <CardTitle className="flex items-center gap-2 text-[12px]">
                   <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
                   {column.label}
                 </CardTitle>
-                <Badge variant={column.tone}>{columnTasks.length}</Badge>
+                <CountPill value={columnTasks.length} tone={column.tone} />
               </CardHeader>
-              <CardContent className="flex-1 space-y-2 p-2.5">
+              <CardContent className="flex-1 space-y-1.5 p-2">
                 {columnTasks.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-zinc-800/80 bg-zinc-950/30 px-3 py-8 text-center">
                     <GripVertical size={15} className="mx-auto text-zinc-700" />
@@ -611,7 +726,7 @@ export function KanbanPage() {
                         }}
                         aria-label={`Abrir tarefa ${task.title}`}
                         className={cn(
-                          "rounded-lg border bg-zinc-950/50 p-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60",
+                          "rounded-lg border bg-zinc-950/50 p-2 text-left outline-none transition-colors hover:border-zinc-700 focus-visible:ring-2 focus-visible:ring-blue-500/60",
                           task.status === "BLOCKED"
                             ? "border-red-500/40"
                             : task.status === "IN_PROGRESS"
@@ -635,21 +750,21 @@ export function KanbanPage() {
                             >
                               <GripVertical size={12} />
                             </span>
-                            <p className="text-[13px] font-semibold leading-snug text-zinc-100">
+                            <p className="line-clamp-2 text-[12px] font-semibold leading-snug text-zinc-100">
                               {task.title}
                             </p>
                           </div>
                           <Tooltip content={`Status: ${meta.label} (${task.status})`}>
                             <Badge variant={meta.tone}>
-                              <StatusIcon size={10} />
+                              <StatusIcon size={9} />
                               {meta.label}
                             </Badge>
                           </Tooltip>
                         </div>
-                        <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-zinc-500">
+                        <p className="mt-0.5 line-clamp-1 text-[10px] leading-snug text-zinc-500">
                           {task.description}
                         </p>
-                        <div className="mt-2 flex flex-wrap items-center gap-1">
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
                           {task.assigned_agent ? (
                             <EntityLink
                               to={links.agent(
@@ -695,7 +810,7 @@ export function KanbanPage() {
                             </Badge>
                           ) : null}
                         </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-zinc-800/60 pt-2">
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 border-t border-zinc-800/60 pt-1.5">
                           {running ? <WorkingIndicator /> : null}
                           {task.last_run_status ? (
                             <span

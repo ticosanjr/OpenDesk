@@ -1,0 +1,14 @@
+id: source-audit
+name: Auditoria de fontes
+description: Revisa a base probatória de um documento.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Auditar
+  mode: build
+  agent: analista-fontes
+  effort: medium
+  prompt: Audite cada fonte do documento indicado no contexto. Marque o que não abre, o que é opinião
+    e o que precisa de fonte primária. Salve em {{run.output_dir}}/auditoria.md.

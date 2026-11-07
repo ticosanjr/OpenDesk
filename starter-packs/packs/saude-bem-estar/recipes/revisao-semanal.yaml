@@ -1,0 +1,13 @@
+id: revisao-semanal
+name: Revisão semanal
+description: Ajuste de rotina.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Revisar
+  mode: build
+  agent: organizador-rotina
+  effort: medium
+  prompt: Revise a semana, o que funcionou e o ajuste da próxima. Salve em {{run.output_dir}}/revisao.md.

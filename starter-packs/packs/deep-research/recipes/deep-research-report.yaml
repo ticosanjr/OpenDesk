@@ -1,0 +1,47 @@
+id: deep-research-report
+name: Relatório de deep research
+description: Pesquisa completa com revisão humana.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Planejar investigação
+  mode: build
+  agent: pesquisador-senior
+  effort: medium
+  prompt: Leia a pergunta no contexto. Produza um plano com hipóteses, fontes prioritárias e critério
+    de conclusão. Salve em {{run.output_dir}}/01-plano.md.
+- type: step
+  id: passo-2
+  name: Coletar e auditar fontes
+  mode: build
+  agent: analista-fontes
+  effort: medium
+  prompt: Execute o plano. Monte uma tabela de fontes com autor, data, link e trecho. Sinalize baixa confiança
+    e conflitos. Salve em {{run.output_dir}}/02-fontes.md.
+- type: step
+  id: passo-3
+  name: Sintetizar
+  mode: build
+  agent: sintetizador
+  effort: medium
+  prompt: Com base em 01-plano.md e 02-fontes.md, escreva a síntese com fatos, inferências e lacunas.
+    Salve em {{run.output_dir}}/03-sintese.md.
+- type: hitl
+  id: checkpoint-3
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Aprovar a síntese e o recorte antes do relatório final?
+- type: step
+  id: passo-4
+  name: Escrever relatório
+  mode: build
+  agent: sintetizador
+  effort: medium
+  prompt: Produza o relatório final com resumo executivo, achados, contra-argumentos, limitações e referências.
+    Salve em {{run.output_dir}}/relatorio.md.

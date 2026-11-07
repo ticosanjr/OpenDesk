@@ -1,0 +1,31 @@
+id: ingerir-fonte
+name: Ingerir fonte
+description: Fonte para notas atômicas e índice.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Extrair ideias
+  mode: build
+  agent: curador-wiki
+  effort: medium
+  prompt: Leia a fonte indicada no contexto. Extraia de 3 a 7 ideias atômicas com título declarativo.
+    Salve cada uma em {{run.output_dir}}/notes/.
+- type: step
+  id: passo-2
+  name: Conectar
+  mode: build
+  agent: curador-wiki
+  effort: medium
+  prompt: Conecte as notas às existentes, adicione backlinks e atualize wiki/index.md. Preserve o conteúdo
+    original das notas existentes.
+- type: hitl
+  id: checkpoint-2
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revisar as notas e os links antes de atualizar a wiki?

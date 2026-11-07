@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "id": "empresa",
+  "name": "Empresa",
+  "description": "Contabilidade, notas fiscais, jurídico, e-mail e reuniões.",
+  "color": "#3b82f6",
+  "router_policy": "COST_BENEFIT",
+  "packs": [
+    "essenciais",
+    "contabilidade-pj",
+    "notas-fiscais",
+    "email-zero",
+    "reunioes",
+    "juridico"
+  ],
+  "folders": [
+    "empresa/contabilidade/input",
+    "fiscal/notas",
+    "juridico/contratos",
+    "reunioes/input"
+  ],
+  "readme": "# Empresa\n\nContabilidade, notas fiscais, jurídico, e-mail e reuniões.\n\nPacotes: essenciais, contabilidade-pj, notas-fiscais, email-zero, reunioes, juridico.\n",
+  "memory": "# MEMORY — Empresa\n\n- Workspace criado a partir do template Empresa.\n- Rotinas de pacotes começam inativas.\n"
+}

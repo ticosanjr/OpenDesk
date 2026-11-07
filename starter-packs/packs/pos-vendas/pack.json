@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "id": "pos-vendas",
+  "version": "1.0.0",
+  "name": "Pós-vendas",
+  "category": "escritorio",
+  "description": "Onboarding, health score, renovação e recuperação de churn.",
+  "icon": "heart-handshake",
+  "color": "#0d9488",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "gerente-sucesso.md",
+      "analista-retencao.md"
+    ],
+    "skills": [
+      "onboarding-cliente",
+      "health-score",
+      "renovacao",
+      "recuperacao-churn"
+    ],
+    "commands": [
+      "onboarding.md",
+      "health-check.md",
+      "renovacao.md"
+    ],
+    "recipes": [
+      "onboarding-cliente.yaml",
+      "plano-retencao.yaml",
+      "renovacao.yaml"
+    ],
+    "routines": [
+      "health-score-semanal.json"
+    ],
+    "folders": [
+      "pos-vendas/clientes",
+      "pos-vendas/planos"
+    ]
+  },
+  "examples": []
+}

@@ -1,0 +1,22 @@
+id: proposta-imobiliaria
+name: Proposta imobiliária
+description: Proposta com revisão.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Montar proposta
+  mode: build
+  agent: analista-contratos
+  effort: medium
+  prompt: Monte proposta com valor, condições, prazos, contingências e pendências. Salve em {{run.output_dir}}/proposta.md.
+- type: hitl
+  id: checkpoint-1
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revisar condições e documentação antes de enviar?

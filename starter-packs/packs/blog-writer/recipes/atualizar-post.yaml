@@ -1,0 +1,14 @@
+id: atualizar-post
+name: Atualizar post
+description: Revisa e atualiza um artigo existente.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Atualizar
+  mode: build
+  agent: editor-blog
+  effort: medium
+  prompt: 'Atualize o artigo indicado: corrija fatos, melhore estrutura e registre o que mudou. Salve
+    em {{run.output_dir}}/post-atualizado.md.'

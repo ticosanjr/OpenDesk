@@ -1,0 +1,14 @@
+id: pesquisa-rapida
+name: Pesquisa rápida
+description: Resposta curta com fontes e nível de confiança.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Pesquisar e responder
+  mode: build
+  agent: pesquisador
+  effort: medium
+  prompt: Responda à pergunta registrada no contexto. Use fontes verificáveis, marque incerteza e salve
+    a resposta em {{run.output_dir}}/resposta.md.

@@ -1,0 +1,30 @@
+id: ata-de-reuniao
+name: Ata de reunião
+description: Transcrição para ata e ações.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Resumir reunião
+  mode: build
+  agent: escriba-reuniao
+  effort: medium
+  prompt: Leia a transcrição em input/. Gere ata com contexto, decisões, riscos e action items. Salve
+    em {{run.output_dir}}/ata.md.
+- type: step
+  id: passo-2
+  name: Validar ações
+  mode: build
+  agent: extrator-acoes
+  effort: medium
+  prompt: Revise a ata, complete donos e prazos e gere a lista final de ações. Salve em {{run.output_dir}}/acoes.md.
+- type: hitl
+  id: checkpoint-2
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revisar donos e prazos antes de considerar a ata final?

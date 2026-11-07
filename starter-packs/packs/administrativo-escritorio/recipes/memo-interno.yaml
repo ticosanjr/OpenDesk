@@ -1,0 +1,13 @@
+id: memo-interno
+name: Memo interno
+description: Comunicado curto e acionável.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Escrever memo
+  mode: build
+  agent: assistente-administrativo
+  effort: medium
+  prompt: Escreva o memo com contexto, decisão, ação e prazo. Salve em {{run.output_dir}}/memo.md.

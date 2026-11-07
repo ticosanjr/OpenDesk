@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "id": "deep-research",
+  "version": "1.0.0",
+  "name": "Deep Research",
+  "category": "pesquisa",
+  "description": "Pesquisa profunda com plano, fontes, contra-argumento e relatório revisado.",
+  "icon": "telescope",
+  "color": "#0ea5e9",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "pesquisador-senior.md",
+      "analista-fontes.md",
+      "sintetizador.md"
+    ],
+    "skills": [
+      "metodo-cientifico",
+      "avaliacao-fontes",
+      "citacoes",
+      "relatorio-longo"
+    ],
+    "commands": [
+      "deep-research.md",
+      "fontes.md"
+    ],
+    "recipes": [
+      "deep-research-report.yaml",
+      "source-audit.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "research/input",
+      "research/output",
+      "research/fontes"
+    ]
+  },
+  "examples": [
+    {
+      "title": "Pesquisar um mercado",
+      "recipe": "deep-research-report"
+    }
+  ]
+}

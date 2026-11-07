@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "reunioes",
+  "version": "1.0.0",
+  "name": "Reuniões",
+  "category": "produtividade",
+  "description": "Ata, decisões e action items a partir de transcrição ou áudio.",
+  "icon": "users",
+  "color": "#f97316",
+  "recommended": false,
+  "requires": {
+    "tools": [
+      "whisper-cli"
+    ],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "escriba-reuniao.md",
+      "extrator-acoes.md"
+    ],
+    "skills": [
+      "ata-reuniao",
+      "action-items",
+      "decisoes"
+    ],
+    "commands": [
+      "ata.md",
+      "acoes.md"
+    ],
+    "recipes": [
+      "ata-de-reuniao.yaml"
+    ],
+    "routines": [
+      "atas-automaticas.json"
+    ],
+    "folders": [
+      "reunioes/input",
+      "reunioes/output"
+    ]
+  },
+  "examples": []
+}

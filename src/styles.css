@@ -18,6 +18,16 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* The active workspace sets these at runtime; defaults keep the UI usable
+   before the first boot and when no workspace is selected. */
+:root {
+  --workspace-accent: #3b82f6;
+  --workspace-border: #27272a;
+  --workspace-border-soft: #27272a;
+  --workspace-glow: transparent;
+  --workspace-surface: #18181b;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -39,7 +49,7 @@ body {
 }
 
 ::selection {
-  background: rgba(96, 165, 250, 0.25);
+  background: color-mix(in srgb, var(--workspace-accent) 28%, transparent);
 }
 
 ::-webkit-scrollbar {
@@ -52,13 +62,13 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #27272a;
+  background: color-mix(in srgb, var(--workspace-accent) 18%, #27272a);
   border: 3px solid #09090b;
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
+  background: color-mix(in srgb, var(--workspace-accent) 34%, #3f3f46);
 }
 
 * {
@@ -71,6 +81,57 @@ body {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+}
+
+/* Workspace tint. Everything here is intentionally low-intensity: the accent
+   marks structure (dividers, active nav, focus, tabs) without coloring text. */
+.workspace-divider {
+  border-color: var(--workspace-border);
+}
+
+.workspace-divider-soft {
+  border-color: var(--workspace-border-soft);
+}
+
+.workspace-nav-active {
+  background: var(--workspace-surface);
+  box-shadow: inset 2px 0 0 var(--workspace-accent);
+}
+
+.workspace-tab-active {
+  background: var(--workspace-surface);
+  color: #fafafa;
+  box-shadow: inset 0 -2px 0 var(--workspace-accent);
+}
+
+.workspace-card {
+  border-color: var(--workspace-border-soft);
+}
+
+.workspace-card:hover {
+  border-color: var(--workspace-border);
+}
+
+.workspace-eyebrow {
+  color: color-mix(in srgb, var(--workspace-accent) 68%, #71717a);
+}
+
+.workspace-scope input:focus,
+.workspace-scope select:focus,
+.workspace-scope textarea:focus {
+  border-color: color-mix(in srgb, var(--workspace-accent) 55%, #3f3f46);
+}
+
+.workspace-scope :focus-visible {
+  outline-color: color-mix(in srgb, var(--workspace-accent) 70%, transparent);
+}
+
+.workspace-topline {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--workspace-accent) 55%, transparent),
+    transparent 40%
+  );
 }
 
 .scroll-area {

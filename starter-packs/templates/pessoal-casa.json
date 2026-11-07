@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "id": "pessoal-casa",
+  "name": "Pessoal & Casa",
+  "description": "Finanças da casa, e-mail, reuniões e bem-estar.",
+  "color": "#14b8a6",
+  "router_policy": "COST_BENEFIT",
+  "packs": [
+    "essenciais",
+    "casa-financas",
+    "email-zero",
+    "reunioes",
+    "saude-bem-estar"
+  ],
+  "folders": [
+    "input",
+    "output",
+    "casa/financas/input",
+    "casa/financas/output",
+    "bem-estar/input"
+  ],
+  "readme": "# Pessoal & Casa\n\nFinanças da casa, e-mail, reuniões e bem-estar.\n\nPacotes: essenciais, casa-financas, email-zero, reunioes, saude-bem-estar.\n",
+  "memory": "# MEMORY — Pessoal & Casa\n\n- Workspace criado a partir do template Pessoal & Casa.\n- Rotinas de pacotes começam inativas.\n"
+}

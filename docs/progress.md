@@ -1072,3 +1072,40 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Workspaces padrão em `OpenDesk Workareas`; `/tmp` só com
   `OPENDESK_ALLOW_TEMP_WORKSPACES=1` para testes/automação Rogue.
 - Testes: 162 Rust, 55 Vitest, 24 Playwright.
+
+## 2026-11-08 — UX por workspace, fluxo de receitas e rotinas por evento
+
+- Tema sutil do workspace ativo em divisórias, foco, tabs, navegação e scroll.
+- Attention Card reorganizado em seções, com aprovar/remover/dispensar e uma
+  única chamada para permissões, HITL e propostas.
+- Kanban sem Backlog; tarefas nascem em TODO, cards compactos e filtro de
+  retenção para Done/Cancelled por período e quantidade, persistido por
+  workspace.
+- Controlador da fila compactado com contadores em pílula.
+- Receitas: fluxo único step/checkpoint/saída reordenável, zero ou múltiplos
+  gatilhos, nomes humanos, tooltips, comboboxes, seletor de pasta e editor YAML
+  local (sem carregamento infinito).
+- Rotinas: gatilhos CRON, pasta, Rsync, IMAP, Signal, webhook e SQL; execução
+  de prompt ou receita; formulário em accordion.
+- Arquivos: busca global no workspace; Roteador: modelo roteador e comparação
+  de custos sob demanda; ferramentas externas com detecção, download e caminho
+  manual.
+- Pin de artefatos corrigido (`pinned` na lista de colunas).
+- Testes: 167 Rust, 58 Vitest, 24 Playwright.
+
+## 2026-11-08 — 0.24.0: pacotes iniciais e confiabilidade de rotinas
+
+- 24 pacotes opcionais (24) e 6 templates de workspace embutidos no binário.
+- Página Pacotes com catálogo, prévia, conflitos, instalação e remoção segura.
+- Instalação grava agentes, skills, comandos, receitas, rotinas inativas e
+  pastas; remoção preserva arquivos modificados e rotinas já executadas.
+- Rotinas de prompt e de receita agora atualizam `last_run_status`
+  (SUCCESS/FAILED/REJECTED/TIMED_OUT/CANCELLED) e o histórico de receita é
+  vinculado ao `schedule_id`.
+- Propostas MCP de rotina criam a fonte de I/O correspondente; delete remove.
+- Boot sincroniza fontes de rotina antes de iniciar o I/O bus.
+- Remover tarefa cancela jobs ativos; dismiss do Attention é versionado por
+  `updated_at` e limpo após 90 dias.
+- Editor YAML sincroniza números de linha com o scroll.
+- Migração `0022`; ADR 0032; `docs/starter-packs.md`.
+- Testes: 174 Rust; Vitest e Playwright executados no gate.

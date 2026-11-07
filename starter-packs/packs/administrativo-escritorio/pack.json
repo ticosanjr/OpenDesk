@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "id": "administrativo-escritorio",
+  "version": "1.0.0",
+  "name": "Administrativo",
+  "category": "escritorio",
+  "description": "Memorandos, comunicados, organização de arquivos e planilhas.",
+  "icon": "clipboard-list",
+  "color": "#64748b",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "assistente-administrativo.md",
+      "organizador-documentos.md"
+    ],
+    "skills": [
+      "ata-e-memo",
+      "organizacao-arquivos",
+      "planilhas",
+      "comunicados"
+    ],
+    "commands": [
+      "memo.md",
+      "organizar.md",
+      "planilha.md"
+    ],
+    "recipes": [
+      "memo-interno.yaml",
+      "organizar-pasta.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "admin/documentos",
+      "admin/comunicados"
+    ]
+  },
+  "examples": []
+}

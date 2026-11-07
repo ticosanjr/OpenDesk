@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   CalendarClock,
+  ChevronDown,
+  ChevronRight,
   Clock3,
   Loader2,
   Mail,
@@ -40,6 +42,15 @@ import { toast } from "@/store/toast-store";
 import { useFocusParam } from "@/lib/use-focus-param";
 import { links } from "@/lib/links";
 import { EntityLink } from "@/components/ui/entity-link";
+import { FieldHint } from "@/components/ui/field-hint";
+import { IconLabel } from "@/components/ui/icon-label";
+import { PathInput } from "@/components/ui/path-input";
+import { TRIGGER_TYPES, triggerDescription, triggerLabel } from "@/lib/trigger-types";
+
+interface RecipeOption {
+  id: string;
+  name: string;
+}
 
 export function RoutinesPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -318,7 +329,7 @@ export function RoutinesPage() {
             <EmptyState
               icon={CalendarClock}
               title="Nenhuma rotina configurada"
-              description="Crie uma rotina com expressão cron, comando/prompt e destinatários. O motor roda a cada 15 s e usa o slot agendado como chave de idempotência."
+              description="Crie rotinas por horário, pasta, e-mail, Signal, webhook ou SQL. A rotina pode executar um prompt ou uma receita."
               action={
                 <Button
                   size="sm"
@@ -352,13 +363,26 @@ export function RoutinesPage() {
                         <Badge variant={schedule.is_active ? "green" : "default"}>
                           {schedule.is_active ? "ativa" : "pausada"}
                         </Badge>
-                        <Badge variant="blue">{schedule.cron_expression}</Badge>
-                        <Badge variant="default">{schedule.timezone}</Badge>
-                        <Badge variant="default">
-                          {describeRecurrence(
-                            parseRecurrence(schedule.recurrence_json),
-                            schedule.cron_expression,
-                          )}
+                        <Badge variant="blue">
+                          {triggerLabel(schedule.trigger_type ?? "CRON")}
+                        </Badge>
+                        {schedule.trigger_type === "CRON" ? (
+                          <>
+                            <Badge variant="default">{schedule.timezone}</Badge>
+                            <Badge variant="default">
+                              {describeRecurrence(
+                                parseRecurrence(schedule.recurrence_json),
+                                schedule.cron_expression,
+                              )}
+                            </Badge>
+                          </>
+                        ) : null}
+                        <Badge
+                          variant={schedule.target_kind === "RECIPE" ? "purple" : "default"}
+                        >
+                          {schedule.target_kind === "RECIPE"
+                            ? `receita: ${schedule.recipe_id ?? "—"}`
+                            : "prompt"}
                         </Badge>
                         {schedule.one_time ? (
                           <Badge variant="purple">uma vez</Badge>
@@ -386,7 +410,9 @@ export function RoutinesPage() {
                         </Badge>
                       </div>
                       <p className="mt-1 truncate font-mono text-[10px] text-zinc-500">
-                        {schedule.command_or_prompt}
+                        {schedule.target_kind === "RECIPE"
+                          ? `Executa a receita ${schedule.recipe_id ?? "(não definida)"}`
+                          : schedule.command_or_prompt}
                       </p>
                       <p className="mt-1 font-mono text-[9px] text-zinc-600">
                         {schedule.output_folder_template}
@@ -587,6 +613,14 @@ function CreateScheduleModal({
   const workspace = workspaces.find((item) => item.id === workspaceId);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [triggerType, setTriggerType] = useState("CRON");
+  const [triggerConfig, setTriggerConfig] = useState<Record<string, unknown>>({});
+  const [targetKind, setTargetKind] = useState<"PROMPT" | "RECIPE">("PROMPT");
+  const [recipeId, setRecipeId] = useState("");
+  const [recipes, setRecipes] = useState<RecipeOption[]>([]);
+  const [recipeQuery, setRecipeQuery] = useState("");
+  const [recipeOpen, setRecipeOpen] = useState(false);
+  const [whenOpen, setWhenOpen] = useState(true);
   const [prompt, setPrompt] = useState("");
   const [agent, setAgent] = useState("");
   const [agentOpen, setAgentOpen] = useState(false);
@@ -627,6 +661,22 @@ function CreateScheduleModal({
     setError(null);
     setName(schedule?.name ?? "");
     setDescription(schedule?.description ?? "");
+    setTriggerType(schedule?.trigger_type ?? "CRON");
+    try {
+      setTriggerConfig(
+        schedule?.trigger_config_json
+          ? (JSON.parse(schedule.trigger_config_json) as Record<string, unknown>)
+          : {},
+      );
+    } catch {
+      setTriggerConfig({});
+    }
+    setTargetKind(
+      schedule?.target_kind === "RECIPE" ? "RECIPE" : "PROMPT",
+    );
+    setRecipeId(schedule?.recipe_id ?? "");
+    setRecipeQuery("");
+    setWhenOpen(true);
     setPrompt(schedule?.command_or_prompt ?? "");
     setAgent(schedule?.agent_name ?? "");
     setPolicy(schedule?.router_policy ?? workspace?.default_router_policy ?? "COST_BENEFIT");
@@ -676,12 +726,15 @@ function CreateScheduleModal({
       apiGet<{ sinks: OutboundSink[] }>(
         `/api/io/outbound?workspace_id=${encodeURIComponent(workspaceId)}`,
       ).catch(() => ({ sinks: [] })),
+      apiGet<{ recipes: RecipeOption[] }>(
+        `/api/recipes?workspace_id=${encodeURIComponent(workspaceId)}`,
+      ).catch(() => ({ recipes: [] })),
       schedule
         ? apiGet<{ bindings: Array<{ sink_id: string }> }>(
             `/api/schedules/${schedule.id}/sinks`,
           ).catch(() => ({ bindings: [] }))
         : Promise.resolve({ bindings: [] }),
-    ]).then(([workspaceAgents, globalAgents, runtimeResponse, sinkList, bindings]) => {
+    ]).then(([workspaceAgents, globalAgents, runtimeResponse, sinkList, recipeList, bindings]) => {
       const seen = new Set<string>();
       setAgents(
         [...workspaceAgents, ...globalAgents].filter((item) => {
@@ -693,6 +746,7 @@ function CreateScheduleModal({
       setRuntime(runtimeResponse);
       setSinks(sinkList.sinks);
       setSelectedSinks(new Set(bindings.bindings.map((binding) => binding.sink_id)));
+      setRecipes(recipeList.recipes);
     });
   }, [open, schedule, workspaceId, workspace?.default_router_policy, workspace?.default_email_recipient]);
 
@@ -762,12 +816,20 @@ function CreateScheduleModal({
   }, [slash, runtime]);
 
   async function submit() {
-    if (!name.trim() || !prompt.trim()) {
-      setError("Informe nome e comando/prompt.");
+    if (!name.trim()) {
+      setError("Informe o nome da rotina.");
       return;
     }
-    if (!preview) {
+    if (triggerType === "CRON" && !preview) {
       setError("A recorrência ainda não foi validada.");
+      return;
+    }
+    if (targetKind === "RECIPE" && !recipeId) {
+      setError("Escolha a receita que a rotina deve executar.");
+      return;
+    }
+    if (targetKind === "PROMPT" && !prompt.trim()) {
+      setError("Informe o comando ou prompt da rotina.");
       return;
     }
     setSaving(true);
@@ -777,18 +839,24 @@ function CreateScheduleModal({
         workspace_id: workspaceId,
         name: name.trim(),
         description: description.trim() || null,
-        cron_expression: preview.cron_expression,
+        cron_expression:
+          triggerType === "CRON" ? (preview?.cron_expression ?? "") : "",
         timezone: timezone.trim(),
         agent_name: agent.trim() || null,
-        command_or_prompt: prompt.trim(),
+        command_or_prompt: targetKind === "PROMPT" ? prompt.trim() : "",
+        trigger_type: triggerType,
+        trigger_config_json: JSON.stringify(triggerConfig),
+        target_kind: targetKind,
+        recipe_id: targetKind === "RECIPE" ? recipeId : null,
         router_policy: policy,
         output_folder_template: template.trim(),
         notify_email_recipients: recipients.trim() || null,
         notify_signal: signalEnabled,
         notify_signal_recipients: signalEnabled ? signalRecipients.trim() || null : null,
         notify_only_on_change: onlyOnChange,
-        recurrence_json: JSON.stringify(recurrence),
-        one_time: recurrence.frequency === "once",
+        recurrence_json:
+          triggerType === "CRON" ? JSON.stringify(recurrence) : null,
+        one_time: triggerType === "CRON" && recurrence.frequency === "once",
         misfire_policy: misfirePolicy,
         safe_readonly_mode: safeReadonly,
         sync_to_google_docs: schedule?.sync_to_google_docs ?? false,
@@ -818,6 +886,10 @@ function CreateScheduleModal({
   const filteredAgents = agents.filter((item) =>
     `${item.id} ${item.name ?? ""}`.toLowerCase().includes(agent.toLowerCase()),
   );
+  const selectedRecipe = recipes.find((item) => item.id === recipeId);
+  const filteredRecipes = recipes.filter((item) =>
+    `${item.id} ${item.name}`.toLowerCase().includes(recipeQuery.toLowerCase()),
+  );
 
   return (
     <Modal
@@ -839,120 +911,408 @@ function CreateScheduleModal({
           </label>
         </div>
 
-        <RecurrenceEditor value={recurrence} preview={preview} onChange={setRecurrence} />
-
-        <div className="grid gap-2 md:grid-cols-2">
-          <label>
-            <span className={labelClass}>Timezone</span>
-            <input value={timezone} onChange={(event) => setTimezone(event.target.value)} className={cn(inputClass, "font-mono")} />
-          </label>
-          <label className="relative">
-            <span className={labelClass}>Agente (opcional)</span>
-            <input
-              value={agent}
-              onChange={(event) => {
-                setAgent(event.target.value);
-                setAgentOpen(true);
-              }}
-              onFocus={() => setAgentOpen(true)}
-              onBlur={() => window.setTimeout(() => setAgentOpen(false), 150)}
-              placeholder="automático (router)"
-              className={inputClass}
-            />
-            {agentOpen ? (
-              <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
-                <button
-                  type="button"
-                  className="block w-full rounded px-2 py-1 text-left text-[10px] text-zinc-400 hover:bg-zinc-800"
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    chooseAgent(null);
+        <div className="rounded-xl border border-zinc-800/70 bg-zinc-950/30">
+          <button
+            type="button"
+            className="flex w-full flex-wrap items-center gap-2 px-3 py-2.5 text-left"
+            onClick={() => setWhenOpen((current) => !current)}
+            aria-expanded={whenOpen}
+          >
+            <CalendarClock size={14} className="shrink-0 text-blue-300" />
+            <span className="text-[11px] font-semibold text-zinc-200">
+              Quando executar
+            </span>
+            <Badge variant="blue">{triggerLabel(triggerType)}</Badge>
+            {whenOpen ? (
+              <ChevronDown size={14} className="ml-auto text-zinc-500" />
+            ) : (
+              <ChevronRight size={14} className="ml-auto text-zinc-500" />
+            )}
+          </button>
+          {whenOpen ? (
+            <div className="space-y-2 border-t border-zinc-800/70 p-3">
+              <label>
+                <span className={labelClass}>Tipo de gatilho</span>
+                <select
+                  aria-label="Tipo de gatilho"
+                  value={triggerType}
+                  onChange={(event) => {
+                    setTriggerType(event.target.value);
+                    setTriggerConfig({});
                   }}
+                  className={inputClass}
                 >
-                  automático (router)
-                </button>
-                {filteredAgents.slice(0, 60).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className="block w-full rounded px-2 py-1 text-left text-[10px] hover:bg-zinc-800"
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      chooseAgent(item);
-                    }}
-                  >
-                    <span className="font-mono text-zinc-200">@{item.id}</span>
-                    <span className="ml-1 text-zinc-500">{item.name}</span>
-                    {item.router_policy ? (
-                      <span className="ml-1 text-zinc-600">{item.router_policy}</span>
-                    ) : null}
-                  </button>
-                ))}
-                {filteredAgents.length === 0 ? (
-                  <p className="px-2 py-1 text-[10px] text-zinc-600">Nenhum agente encontrado.</p>
-                ) : null}
-              </div>
-            ) : null}
-          </label>
-          <label>
-            <span className={labelClass}>Política do roteador</span>
-            <select
-              value={policy}
-              onChange={(event) => {
-                setPolicy(event.target.value);
-                setPolicyTouched(true);
-              }}
-              className={inputClass}
-            >
-              {Object.entries(ROUTER_POLICY_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span className={labelClass}>Template da pasta de saída</span>
-            <input value={template} onChange={(event) => setTemplate(event.target.value)} className={cn(inputClass, "font-mono text-[10px]")} />
-          </label>
-        </div>
+                  {TRIGGER_TYPES.filter((item) => item.value !== "MANUAL").map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-[10px] leading-snug text-zinc-500">
+                  {triggerDescription(triggerType)}
+                </span>
+              </label>
 
-        <label className="relative">
-          <span className={labelClass}>Comando ou prompt</span>
-          <textarea
-            ref={promptRef}
-            value={prompt}
-            onChange={(event) => updatePrompt(event.target.value, event.target.selectionStart ?? 0)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") setSlash(null);
-            }}
-            rows={5}
-            placeholder="Digite / para comandos e skills, ou descreva a tarefa"
-            className={cn(inputClass, "h-auto resize-y py-2 font-mono text-[11px]")}
-          />
-          {slash ? (
-            <div className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
-              {slashItems.length === 0 ? (
-                <p className="px-2 py-1 text-[10px] text-zinc-600">Nenhum comando/skill encontrado.</p>
-              ) : (
-                slashItems.map((item) => (
-                  <button
-                    key={`${item.label}:${item.detail}`}
-                    type="button"
-                    className="block w-full rounded px-2 py-1 text-left hover:bg-zinc-800"
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      insertSlash(item.value);
-                    }}
-                  >
-                    <span className="font-mono text-[10px] text-zinc-200">{item.label}</span>
-                    <span className="ml-2 text-[9px] text-zinc-600">{item.detail}</span>
-                  </button>
-                ))
-              )}
+              {triggerType === "CRON" ? (
+                <>
+                  <RecurrenceEditor
+                    value={recurrence}
+                    preview={preview}
+                    onChange={setRecurrence}
+                  />
+                  <label>
+                    <span className={labelClass}>Timezone</span>
+                    <input
+                      value={timezone}
+                      onChange={(event) => setTimezone(event.target.value)}
+                      className={cn(inputClass, "font-mono")}
+                    />
+                  </label>
+                </>
+              ) : null}
+
+              {(triggerType === "FOLDER_WATCH" ||
+                triggerType === "RSYNC_FOLDER") ? (
+                <label className="block">
+                  <span className={labelClass}>Pasta monitorada</span>
+                  <PathInput
+                    value={String(triggerConfig.path ?? "")}
+                    onChange={(value) =>
+                      setTriggerConfig((current) => ({ ...current, path: value }))
+                    }
+                    title="Escolher pasta monitorada"
+                    placeholder="input/dropzone ou caminho absoluto"
+                    hint="Caminhos relativos são resolvidos dentro do workspace."
+                  />
+                </label>
+              ) : null}
+
+              {triggerType === "IMAP_IDLE" ? (
+                <div className="grid gap-2 md:grid-cols-2">
+                  <label>
+                    <span className={labelClass}>Caixa de entrada</span>
+                    <input
+                      value={String(triggerConfig.mailbox ?? "INBOX")}
+                      onChange={(event) =>
+                        setTriggerConfig((current) => ({
+                          ...current,
+                          mailbox: event.target.value,
+                        }))
+                      }
+                      className={inputClass}
+                      placeholder="INBOX"
+                    />
+                  </label>
+                  <label>
+                    <span className={labelClass}>Filtrar remetente</span>
+                    <input
+                      value={String(triggerConfig.from_filter ?? "")}
+                      onChange={(event) =>
+                        setTriggerConfig((current) => ({
+                          ...current,
+                          from_filter: event.target.value,
+                        }))
+                      }
+                      className={inputClass}
+                      placeholder="cliente@exemplo.com"
+                    />
+                  </label>
+                </div>
+              ) : null}
+
+              {triggerType === "SIGNAL_MSG" ? (
+                <label>
+                  <span className={labelClass}>Filtrar número (opcional)</span>
+                  <input
+                    value={String(triggerConfig.from_filter ?? "")}
+                    onChange={(event) =>
+                      setTriggerConfig((current) => ({
+                        ...current,
+                        from_filter: event.target.value,
+                      }))
+                    }
+                    className={inputClass}
+                    placeholder="+5511999999999"
+                  />
+                </label>
+              ) : null}
+
+              {triggerType === "WEBHOOK" ? (
+                <label>
+                  <span className={labelClass}>Segredo do webhook (opcional)</span>
+                  <input
+                    value={String(triggerConfig.secret ?? "")}
+                    onChange={(event) =>
+                      setTriggerConfig((current) => ({
+                        ...current,
+                        secret: event.target.value,
+                      }))
+                    }
+                    className={inputClass}
+                    placeholder="usa o segredo global quando vazio"
+                  />
+                </label>
+              ) : null}
+
+              {triggerType === "SQL_POLL" ? (
+                <div className="grid gap-2 md:grid-cols-2">
+                  <label>
+                    <span className={labelClass}>Consulta SQL</span>
+                    <input
+                      value={String(triggerConfig.query ?? "")}
+                      onChange={(event) =>
+                        setTriggerConfig((current) => ({
+                          ...current,
+                          query: event.target.value,
+                        }))
+                      }
+                      className={cn(inputClass, "font-mono text-[11px]")}
+                      placeholder="SELECT ..."
+                    />
+                  </label>
+                  <label>
+                    <span className={labelClass}>Intervalo (segundos)</span>
+                    <input
+                      type="number"
+                      min={15}
+                      value={Number(triggerConfig.interval_seconds ?? 60)}
+                      onChange={(event) =>
+                        setTriggerConfig((current) => ({
+                          ...current,
+                          interval_seconds: Number(event.target.value),
+                        }))
+                      }
+                      className={inputClass}
+                    />
+                  </label>
+                </div>
+              ) : null}
             </div>
           ) : null}
-        </label>
+        </div>
+
+        <div className="rounded-xl border border-zinc-800/70 bg-zinc-950/30 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+              O que executar
+            </p>
+            <div className="ml-auto flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/60 p-0.5">
+              <button
+                type="button"
+                onClick={() => setTargetKind("PROMPT")}
+                className={cn(
+                  "rounded-md px-2 py-1 text-[10px]",
+                  targetKind === "PROMPT"
+                    ? "workspace-tab-active"
+                    : "text-zinc-500 hover:text-zinc-200",
+                )}
+              >
+                Prompt
+              </button>
+              <button
+                type="button"
+                onClick={() => setTargetKind("RECIPE")}
+                className={cn(
+                  "rounded-md px-2 py-1 text-[10px]",
+                  targetKind === "RECIPE"
+                    ? "workspace-tab-active"
+                    : "text-zinc-500 hover:text-zinc-200",
+                )}
+              >
+                Receita
+              </button>
+            </div>
+          </div>
+
+          {targetKind === "RECIPE" ? (
+            <div className="relative mt-2">
+              <span className={labelClass}>Receita</span>
+              <IconLabel
+                icon={<ChevronDown size={12} className="text-zinc-500" />}
+                className="pointer-events-none absolute right-2 top-[30px] text-zinc-500"
+              />
+              <input
+                value={recipeOpen ? recipeQuery : (selectedRecipe?.name ?? "")}
+                onChange={(event) => {
+                  setRecipeQuery(event.target.value);
+                  setRecipeOpen(true);
+                }}
+                onFocus={() => {
+                  setRecipeQuery("");
+                  setRecipeOpen(true);
+                }}
+                onBlur={() => window.setTimeout(() => setRecipeOpen(false), 150)}
+                placeholder="Digite para buscar a receita…"
+                className={inputClass}
+              />
+              <FieldHint
+                hint="A rotina executa o fluxo da receita, com os checkpoints e saídas definidos nela."
+                className="absolute right-7 top-[32px]"
+              />
+              {recipeOpen ? (
+                <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
+                  {filteredRecipes.length === 0 ? (
+                    <p className="px-2 py-1 text-[10px] text-zinc-600">
+                      Nenhuma receita encontrada.
+                    </p>
+                  ) : (
+                    filteredRecipes.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="block w-full rounded px-2 py-1.5 text-left text-[10px] hover:bg-zinc-800"
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          setRecipeId(item.id);
+                          setRecipeQuery("");
+                          setRecipeOpen(false);
+                        }}
+                      >
+                        <span className="text-zinc-200">{item.name}</span>
+                        <span className="ml-2 font-mono text-[9px] text-zinc-600">
+                          {item.id}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <>
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                <label className="relative">
+                  <span className={labelClass}>Agente (opcional)</span>
+                  <input
+                    value={agent}
+                    onChange={(event) => {
+                      setAgent(event.target.value);
+                      setAgentOpen(true);
+                    }}
+                    onFocus={() => setAgentOpen(true)}
+                    onBlur={() => window.setTimeout(() => setAgentOpen(false), 150)}
+                    placeholder="automático (router)"
+                    className={inputClass}
+                  />
+                  {agentOpen ? (
+                    <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
+                      <button
+                        type="button"
+                        className="block w-full rounded px-2 py-1 text-left text-[10px] text-zinc-400 hover:bg-zinc-800"
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          chooseAgent(null);
+                        }}
+                      >
+                        automático (router)
+                      </button>
+                      {filteredAgents.slice(0, 60).map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className="block w-full rounded px-2 py-1 text-left text-[10px] hover:bg-zinc-800"
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            chooseAgent(item);
+                          }}
+                        >
+                          <span className="font-mono text-zinc-200">@{item.id}</span>
+                          <span className="ml-1 text-zinc-500">{item.name}</span>
+                          {item.router_policy ? (
+                            <span className="ml-1 text-zinc-600">
+                              {item.router_policy}
+                            </span>
+                          ) : null}
+                        </button>
+                      ))}
+                      {filteredAgents.length === 0 ? (
+                        <p className="px-2 py-1 text-[10px] text-zinc-600">
+                          Nenhum agente encontrado.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </label>
+                <label>
+                  <span className={labelClass}>Política do roteador</span>
+                  <select
+                    value={policy}
+                    onChange={(event) => {
+                      setPolicy(event.target.value);
+                      setPolicyTouched(true);
+                    }}
+                    className={inputClass}
+                  >
+                    {Object.entries(ROUTER_POLICY_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span className={labelClass}>Template da pasta de saída</span>
+                  <input
+                    value={template}
+                    onChange={(event) => setTemplate(event.target.value)}
+                    className={cn(inputClass, "font-mono text-[10px]")}
+                  />
+                </label>
+              </div>
+
+              <label className="relative mt-2 block">
+                <span className={labelClass}>Comando ou prompt</span>
+                <textarea
+                  ref={promptRef}
+                  value={prompt}
+                  onChange={(event) =>
+                    updatePrompt(
+                      event.target.value,
+                      event.target.selectionStart ?? 0,
+                    )
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") setSlash(null);
+                  }}
+                  rows={5}
+                  placeholder="Digite / para comandos e skills, ou descreva a tarefa"
+                  className={cn(
+                    inputClass,
+                    "h-auto resize-y py-2 font-mono text-[11px]",
+                  )}
+                />
+                {slash ? (
+                  <div className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
+                    {slashItems.length === 0 ? (
+                      <p className="px-2 py-1 text-[10px] text-zinc-600">
+                        Nenhum comando/skill encontrado.
+                      </p>
+                    ) : (
+                      slashItems.map((item) => (
+                        <button
+                          key={`${item.label}:${item.detail}`}
+                          type="button"
+                          className="block w-full rounded px-2 py-1 text-left hover:bg-zinc-800"
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            insertSlash(item.value);
+                          }}
+                        >
+                          <span className="font-mono text-[10px] text-zinc-200">
+                            {item.label}
+                          </span>
+                          <span className="ml-2 text-[9px] text-zinc-600">
+                            {item.detail}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                ) : null}
+              </label>
+            </>
+          )}
+        </div>
         <label>
           <span className={labelClass}>Descrição</span>
           <input value={description} onChange={(event) => setDescription(event.target.value)} className={inputClass} />
@@ -1016,7 +1376,7 @@ function CreateScheduleModal({
       </div>
       <div className="mt-4 flex justify-end gap-2 border-t border-zinc-800/70 pt-4">
         <Button variant="ghost" size="sm" onClick={onClose}>Cancelar</Button>
-        <Button size="sm" onClick={() => void submit()} disabled={saving || !preview}>
+        <Button size="sm" onClick={() => void submit()} disabled={saving}>
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
           {schedule ? "Salvar rotina" : "Criar rotina"}
         </Button>

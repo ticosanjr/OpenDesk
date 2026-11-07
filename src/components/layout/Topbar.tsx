@@ -54,7 +54,7 @@ export function Topbar() {
   const spentPct = Math.min(100, (spent / DAILY_LIMIT) * 100);
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-zinc-800/70 bg-[#0b0b0d]/90 px-4 backdrop-blur">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b workspace-divider bg-[#0b0b0d]/90 px-4 backdrop-blur">
       <div className="flex min-w-0 items-center gap-2">
         <div ref={workspaceRef} className="relative min-w-0 shrink-0">
           <button

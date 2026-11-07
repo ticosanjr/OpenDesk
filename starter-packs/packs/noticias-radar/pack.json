@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "id": "noticias-radar",
+  "version": "1.0.0",
+  "name": "Notícias Radar",
+  "category": "conteudo",
+  "description": "Curadoria diária de notícias com deduplicação e checagem.",
+  "icon": "newspaper",
+  "color": "#0891b2",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "curador-noticias.md",
+      "analista-tendencias.md"
+    ],
+    "skills": [
+      "curadoria-fontes",
+      "resumo-noticias",
+      "checagem"
+    ],
+    "commands": [
+      "noticias.md",
+      "radar.md"
+    ],
+    "recipes": [
+      "digest-diario.yaml",
+      "radar-semanal.yaml"
+    ],
+    "routines": [
+      "digest-diario-rotina.json"
+    ],
+    "folders": [
+      "noticias/input",
+      "noticias/output"
+    ]
+  },
+  "examples": []
+}

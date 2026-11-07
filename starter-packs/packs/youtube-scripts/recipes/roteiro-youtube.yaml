@@ -1,0 +1,43 @@
+id: roteiro-youtube
+name: Roteiro de YouTube
+description: Pesquisa, outline, roteiro e pacote.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Pesquisar ângulo
+  mode: build
+  agent: pesquisador-viral
+  effort: medium
+  prompt: Pesquise o tema, mapeie perguntas e proponha 3 ângulos com promessa e risco. Salve em {{run.output_dir}}/01-pesquisa.md.
+- type: step
+  id: passo-2
+  name: Aprovar outline
+  mode: build
+  agent: roteirista-youtube
+  effort: medium
+  prompt: Escolha o melhor ângulo e monte outline com gancho, blocos e payoff. Salve em {{run.output_dir}}/02-outline.md.
+- type: hitl
+  id: checkpoint-2
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Aprovar o ângulo e o outline antes de escrever?
+- type: step
+  id: passo-3
+  name: Escrever roteiro
+  mode: build
+  agent: roteirista-youtube
+  effort: medium
+  prompt: Escreva o roteiro completo com marcações de b-roll. Salve em {{run.output_dir}}/03-roteiro.md.
+- type: step
+  id: passo-4
+  name: Títulos e thumbs
+  mode: build
+  agent: diretor-thumb
+  effort: medium
+  prompt: Gere 20 títulos, 5 escolhidos e 8 briefs de thumbnail. Salve em {{run.output_dir}}/04-pacote.md.

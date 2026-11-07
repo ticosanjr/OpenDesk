@@ -5,7 +5,7 @@ use crate::{
     events::OpenDeskWsEvent,
     recipes::{
         hitl::{self, HitlOutcome, HitlResolution},
-        parser::{self, Recipe, Step},
+        parser::{self, FlowItem, Recipe, Step},
         sinks, store,
     },
 };
@@ -54,7 +54,7 @@ pub async fn start(
         let recipe_clone = recipe.clone();
         let run_clone = run.clone();
         tokio::spawn(async move {
-            for step in &recipe_clone.steps {
+            for step in recipe_clone.steps() {
                 let _ = store::update_run(
                     &state_clone.db,
                     &run_clone.id,
@@ -151,6 +151,7 @@ pub async fn start(
                 )
                 .await;
             }
+            mark_routine(&state_clone, &trigger, "FAILED").await;
             state_clone
                 .events
                 .publish(OpenDeskWsEvent::RecipeRunUpdated {
@@ -181,91 +182,47 @@ async fn execute(
     });
     let mut outputs = serde_json::json!({});
     let mut session_id: Option<String> = None;
+    let routine_id = trigger
+        .get("routine_id")
+        .or_else(|| trigger.get("schedule_id"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
+    let mut feedback_by_step: std::collections::HashMap<String, String> = Default::default();
+    let mut review_rounds = 0usize;
+    let flow = recipe.flow.clone();
+    let mut index = 0usize;
 
-    for step in &recipe.steps {
-        let mut feedback: Option<String> = None;
-        let mut attempts = 0;
-        loop {
-            store::update_run(
-                &state.db,
-                &run.id,
-                "RUNNING_STEP",
-                Some(&step.id),
-                Some(&outputs),
-                None,
-                false,
-            )
-            .await?;
-            let prompt = parser::render(&step.prompt, trigger, &run_vars, &outputs)?;
-            let prompt = match &feedback {
-                Some(feedback) => format!(
-                    "{prompt}\n\n## Correção do usuário\n\n{feedback}\n\nRefaça o step considerando a correção."
-                ),
-                None => prompt,
-            };
-            tasks::update(
-                &state.db,
-                &task_id,
-                tasks::UpdateTaskInput {
-                    description: Some(prompt.clone()),
-                    ..Default::default()
-                },
-            )
-            .await?;
-            let started = Utc::now().to_rfc3339();
-            let body = crate::api::tasks::DispatchBody {
-                policy: None,
-                manual_agent: step
-                    .agent
-                    .clone()
-                    .map(|value| value.trim_start_matches('@').to_string()),
-                manual_model: step.model.clone(),
-                manual_effort: step.effort.clone(),
-                execution_mode: Some(mode_for_step(step)),
-            };
-            crate::api::tasks::dispatch_task_with_session(
-                state,
-                &task_id,
-                body,
-                None,
-                session_id.as_deref(),
-            )
-            .await?;
-            let run_result = wait_for_run(state, &run.workspace_id, &task_id, &started).await?;
-            session_id = run_result.session_id.clone();
-            let summary = run_result.summary_response.clone().unwrap_or_default();
-            let artifacts = db::artifacts::list_by_run(&state.db, &run_result.id, 200)
-                .await
-                .unwrap_or_default()
-                .into_iter()
-                .map(|artifact| artifact.file_path)
-                .collect::<Vec<_>>();
-            outputs[&step.id] = json!({
-                "run_id": run_result.id,
-                "summary": summary,
-                "artifacts": artifacts,
-            });
-            store::update_run(
-                &state.db,
-                &run.id,
-                "RUNNING_STEP",
-                Some(&step.id),
-                Some(&outputs),
-                None,
-                false,
-            )
-            .await?;
-
-            if let Some(checkpoint) = recipe
-                .hitl_checkpoints
-                .iter()
-                .find(|checkpoint| checkpoint.after_step == step.id)
-            {
+    while index < flow.len() {
+        match &flow[index] {
+            FlowItem::Step(step) => {
+                let feedback = feedback_by_step.remove(&step.id);
+                execute_step(
+                    state,
+                    run,
+                    &task_id,
+                    step,
+                    trigger,
+                    &run_vars,
+                    &mut outputs,
+                    &mut session_id,
+                    feedback,
+                    routine_id.as_deref(),
+                )
+                .await?;
+                index += 1;
+            }
+            FlowItem::Hitl(checkpoint) => {
+                let mut checkpoint = checkpoint.clone();
+                checkpoint.id = parser::checkpoint_id(&checkpoint);
+                let current_step = flow[..index].iter().rev().find_map(|item| match item {
+                    FlowItem::Step(step) => Some(step.id.clone()),
+                    _ => None,
+                });
                 store::update_run(
                     &state.db,
                     &run.id,
                     "WAITING_HITL",
-                    Some(&step.id),
+                    current_step.as_deref(),
                     Some(&outputs),
                     None,
                     false,
@@ -286,9 +243,15 @@ async fn execute(
                     .iter()
                     .map(|path| parser::render(path, trigger, &run_vars, &outputs))
                     .collect::<AppResult<Vec<_>>>()?;
-                let token =
-                    hitl::request(state, run, checkpoint, &recipe.name, &message, &attachments)
-                        .await?;
+                let token = hitl::request(
+                    state,
+                    run,
+                    &checkpoint,
+                    &recipe.name,
+                    &message,
+                    &attachments,
+                )
+                .await?;
                 state.events.publish(OpenDeskWsEvent::HitlRequested {
                     token: token.clone(),
                     run_id: run.id.clone(),
@@ -303,7 +266,7 @@ async fn execute(
                             token,
                             status: "APPROVED".into(),
                         });
-                        break;
+                        index += 1;
                     }
                     HitlOutcome::Resolved(HitlResolution::Rejected { reason }) => {
                         finish(
@@ -311,6 +274,7 @@ async fn execute(
                             run,
                             "REJECTED",
                             reason.as_deref().unwrap_or("rejeitado pelo usuário"),
+                            routine_id.as_deref(),
                         )
                         .await?;
                         return Ok(());
@@ -321,50 +285,107 @@ async fn execute(
                     }) => {
                         if let Some(path) = attached_files.first() {
                             replace_attachment(path, &attachments)?;
-                            break;
+                            index += 1;
+                            continue;
                         }
-                        attempts += 1;
-                        if attempts > 2 {
-                            finish(state, run, "REJECTED", "limite de revisões atingido").await?;
+                        review_rounds += 1;
+                        if review_rounds > 5 {
+                            finish(
+                                state,
+                                run,
+                                "REJECTED",
+                                "limite de revisões atingido",
+                                routine_id.as_deref(),
+                            )
+                            .await?;
                             return Ok(());
                         }
-                        feedback = Some(feedback_text);
-                        continue;
+                        let Some((previous_index, previous_step)) = previous_step(&flow, index)
+                        else {
+                            finish(
+                                state,
+                                run,
+                                "REJECTED",
+                                "checkpoint sem step anterior para refazer",
+                                routine_id.as_deref(),
+                            )
+                            .await?;
+                            return Ok(());
+                        };
+                        feedback_by_step.insert(previous_step.id.clone(), feedback_text);
+                        index = previous_index;
                     }
                     HitlOutcome::Resolved(HitlResolution::ChoiceSelected {
                         option_value, ..
                     }) => {
-                        feedback = Some(format!("Opção escolhida: {option_value}"));
-                        continue;
+                        review_rounds += 1;
+                        if review_rounds > 5 {
+                            finish(
+                                state,
+                                run,
+                                "REJECTED",
+                                "limite de revisões atingido",
+                                routine_id.as_deref(),
+                            )
+                            .await?;
+                            return Ok(());
+                        }
+                        let Some((previous_index, previous_step)) = previous_step(&flow, index)
+                        else {
+                            finish(
+                                state,
+                                run,
+                                "REJECTED",
+                                "checkpoint sem step anterior para refazer",
+                                routine_id.as_deref(),
+                            )
+                            .await?;
+                            return Ok(());
+                        };
+                        feedback_by_step.insert(
+                            previous_step.id.clone(),
+                            format!("Opção escolhida: {option_value}"),
+                        );
+                        index = previous_index;
                     }
                     HitlOutcome::Resolved(HitlResolution::ArtifactEdited { path }) => {
                         replace_attachment(&path, &attachments)?;
-                        break;
+                        index += 1;
                     }
                     HitlOutcome::Expired => {
                         if checkpoint.on_timeout == "AUTO_APPROVE" {
-                            break;
+                            index += 1;
+                        } else {
+                            finish(
+                                state,
+                                run,
+                                "TIMED_OUT",
+                                "timeout do checkpoint HITL",
+                                routine_id.as_deref(),
+                            )
+                            .await?;
+                            return Ok(());
                         }
-                        finish(state, run, "TIMED_OUT", "timeout do checkpoint HITL").await?;
-                        return Ok(());
                     }
                 }
             }
-            break;
+            FlowItem::Sink(sink) => {
+                store::update_run(
+                    &state.db,
+                    &run.id,
+                    "RUNNING_SINKS",
+                    None,
+                    Some(&outputs),
+                    None,
+                    false,
+                )
+                .await?;
+                sinks::execute_one(state, sink, run, trigger, &outputs).await?;
+                index += 1;
+            }
         }
     }
 
-    store::update_run(
-        &state.db,
-        &run.id,
-        "RUNNING_SINKS",
-        None,
-        Some(&outputs),
-        None,
-        false,
-    )
-    .await?;
-    sinks::execute(state, recipe, run, trigger, &outputs).await?;
     let _ = tasks::move_to(&state.db, &task_id, "DONE", None).await;
     let _ = tasks::set_phase_status(&state.db, &task_id, Some("done"), Some("DONE")).await;
     store::update_run(
@@ -377,12 +398,112 @@ async fn execute(
         true,
     )
     .await?;
+    mark_routine(state, trigger, "SUCCESS").await;
     state.events.publish(OpenDeskWsEvent::RecipeRunUpdated {
         run_id: run.id.clone(),
         recipe_id: recipe.id.clone(),
         workspace_id: run.workspace_id.clone(),
         status: "COMPLETED".into(),
     });
+    Ok(())
+}
+
+fn previous_step(flow: &[FlowItem], index: usize) -> Option<(usize, &Step)> {
+    flow[..index]
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(position, item)| match item {
+            FlowItem::Step(step) => Some((position, step)),
+            _ => None,
+        })
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn execute_step(
+    state: &Arc<AppState>,
+    run: &store::RecipeRun,
+    task_id: &str,
+    step: &Step,
+    trigger: &serde_json::Value,
+    run_vars: &serde_json::Value,
+    outputs: &mut serde_json::Value,
+    session_id: &mut Option<String>,
+    feedback: Option<String>,
+    routine_id: Option<&str>,
+) -> AppResult<()> {
+    store::update_run(
+        &state.db,
+        &run.id,
+        "RUNNING_STEP",
+        Some(&step.id),
+        Some(outputs),
+        None,
+        false,
+    )
+    .await?;
+    let prompt = parser::render(&step.prompt, trigger, run_vars, outputs)?;
+    let prompt = match &feedback {
+        Some(feedback) => format!(
+            "{prompt}\n\n## Correção do usuário\n\n{feedback}\n\nRefaça o step considerando a correção."
+        ),
+        None => prompt,
+    };
+    tasks::update(
+        &state.db,
+        task_id,
+        tasks::UpdateTaskInput {
+            description: Some(prompt.clone()),
+            ..Default::default()
+        },
+    )
+    .await?;
+    let started = Utc::now().to_rfc3339();
+    let body = crate::api::tasks::DispatchBody {
+        policy: None,
+        manual_agent: step
+            .agent
+            .clone()
+            .map(|value| value.trim_start_matches('@').to_string()),
+        manual_model: step.model.clone(),
+        manual_effort: step.effort.clone(),
+        execution_mode: Some(mode_for_step(step)),
+    };
+    crate::api::tasks::dispatch_task_with_session(
+        state,
+        task_id,
+        body,
+        None,
+        session_id.as_deref(),
+    )
+    .await?;
+    let run_result = wait_for_run(state, &run.workspace_id, task_id, &started).await?;
+    if let Some(routine_id) = routine_id {
+        let _ = db::runs::set_schedule_id(&state.db, &run_result.id, routine_id).await;
+    }
+    *session_id = run_result.session_id.clone();
+    let summary = run_result.summary_response.clone().unwrap_or_default();
+    let artifacts = db::artifacts::list_by_run(&state.db, &run_result.id, 200)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|artifact| artifact.file_path)
+        .collect::<Vec<_>>();
+    outputs[&step.id] = json!({
+        "run_id": run_result.id,
+        "summary": summary,
+        "artifacts": artifacts,
+    });
+    store::update_run(
+        &state.db,
+        &run.id,
+        "RUNNING_STEP",
+        Some(&step.id),
+        Some(outputs),
+        None,
+        false,
+    )
+    .await?;
     Ok(())
 }
 
@@ -428,11 +549,15 @@ async fn finish(
     run: &store::RecipeRun,
     status: &str,
     message: &str,
+    routine_id: Option<&str>,
 ) -> AppResult<()> {
     store::update_run(&state.db, &run.id, status, None, None, Some(message), true).await?;
     if let Some(task_id) = &run.task_id {
         let _ = tasks::set_phase_status(&state.db, task_id, Some("failed"), Some("BLOCKED")).await;
         let _ = tasks::set_blocked_reason(&state.db, task_id, Some(message)).await;
+    }
+    if let Some(routine_id) = routine_id {
+        mark_routine_by_id(state, routine_id, status).await;
     }
     state.events.publish(OpenDeskWsEvent::RecipeRunUpdated {
         run_id: run.id.clone(),
@@ -441,6 +566,32 @@ async fn finish(
         status: status.to_string(),
     });
     Ok(())
+}
+
+async fn mark_routine(state: &Arc<AppState>, trigger: &serde_json::Value, status: &str) {
+    if let Some(routine_id) = trigger
+        .get("routine_id")
+        .or_else(|| trigger.get("schedule_id"))
+        .and_then(serde_json::Value::as_str)
+    {
+        mark_routine_by_id(state, routine_id, status).await;
+    }
+}
+
+async fn mark_routine_by_id(state: &Arc<AppState>, routine_id: &str, status: &str) {
+    if let Ok(schedule) = crate::db::schedules::get(&state.db, routine_id).await {
+        let _ = crate::db::schedules::mark_run(
+            &state.db,
+            &schedule.id,
+            status,
+            &Utc::now().to_rfc3339(),
+        )
+        .await;
+        state.events.publish(OpenDeskWsEvent::ScheduleUpdated {
+            schedule_id: schedule.id,
+            workspace_id: schedule.workspace_id,
+        });
+    }
 }
 
 fn mode_for_step(step: &Step) -> String {
@@ -465,6 +616,7 @@ mod tests {
                 agent: None,
                 model: None,
                 effort: None,
+                description: None,
                 prompt: "x".into(),
             }),
             "PLAN_ONLY"

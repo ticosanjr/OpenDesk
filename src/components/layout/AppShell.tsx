@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type CSSProperties } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, RefreshCw, Settings, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -27,6 +27,8 @@ export function AppShell() {
   const boot = useAppStore((state) => state.boot);
   const loading = useAppStore((state) => state.loading);
   const error = useAppStore((state) => state.error);
+  const workspaces = useAppStore((state) => state.workspaces);
+  const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const daemon = useAppStore((state) => state.daemon);
   const restartDaemon = useAppStore((state) => state.restartDaemon);
   const refresh = useAppStore((state) => state.refresh);
@@ -169,7 +171,12 @@ export function AppShell() {
         );
         const status = schedule?.last_run_status ?? "";
         const stamp = schedule?.last_run_at ?? "";
-        if (!stamp || !["FAILED", "SKIPPED_OFFLINE", "INVALID_CRON"].includes(status)) {
+        if (
+          !stamp ||
+          !["FAILED", "REJECTED", "TIMED_OUT", "SKIPPED_OFFLINE", "INVALID_CRON"].includes(
+            status,
+          )
+        ) {
           return;
         }
         const key = `schedule:${lastScheduleEvent.schedule_id}:${stamp}:${status}`;
@@ -177,7 +184,11 @@ export function AppShell() {
         const title =
           status === "SKIPPED_OFFLINE"
             ? "Rotina pulada: engine offline"
-            : "Rotina falhou";
+            : status === "REJECTED"
+              ? "Rotina rejeitada no checkpoint"
+              : status === "TIMED_OUT"
+                ? "Rotina expirou no checkpoint"
+                : "Rotina falhou";
         toast({
           tone: status === "SKIPPED_OFFLINE" ? "warning" : "error",
           title,
@@ -275,8 +286,23 @@ export function AppShell() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [navigate, refresh, setCommandOpen, setTaskDialogOpen]);
 
+  const activeWorkspace = workspaces.find(
+    (workspace) => workspace.id === activeWorkspaceId,
+  );
+  const accent = safeHexColor(activeWorkspace?.color_hex);
+  const workspaceStyle = {
+    "--workspace-accent": accent,
+    "--workspace-border": `color-mix(in srgb, ${accent} 26%, #27272a)`,
+    "--workspace-border-soft": `color-mix(in srgb, ${accent} 14%, #27272a)`,
+    "--workspace-glow": `color-mix(in srgb, ${accent} 10%, transparent)`,
+    "--workspace-surface": `color-mix(in srgb, ${accent} 7%, #18181b)`,
+  } as CSSProperties;
+
   return (
-    <div className="flex h-dvh w-screen overflow-hidden bg-[#09090b] text-zinc-100">
+    <div
+      className="workspace-scope flex h-dvh w-screen overflow-hidden bg-[#09090b] text-zinc-100"
+      style={workspaceStyle}
+    >
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
@@ -419,4 +445,14 @@ export function AppShell() {
       <Toaster />
     </div>
   );
+}
+
+const FALLBACK_ACCENT = "#3b82f6";
+
+/** Accept only #rgb/#rrggbb so a bad workspace value cannot break CSS vars. */
+export function safeHexColor(value?: string | null): string {
+  if (typeof value !== "string") return FALLBACK_ACCENT;
+  const trimmed = value.trim();
+  if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) return trimmed;
+  return FALLBACK_ACCENT;
 }

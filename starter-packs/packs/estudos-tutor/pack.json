@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "id": "estudos-tutor",
+  "version": "1.0.0",
+  "name": "Estudos & Tutor",
+  "category": "pesquisa",
+  "description": "Plano de estudo, explicação progressiva e revisão espaçada.",
+  "icon": "graduation-cap",
+  "color": "#8b5cf6",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "tutor.md",
+      "examinador.md"
+    ],
+    "skills": [
+      "aprendizagem-ativa",
+      "flashcards",
+      "explicacao-progressiva"
+    ],
+    "commands": [
+      "plano-estudo.md",
+      "revisao-espacada.md"
+    ],
+    "recipes": [
+      "plano-de-estudo.yaml",
+      "revisao-espacada.yaml"
+    ],
+    "routines": [
+      "revisao-diaria.json"
+    ],
+    "folders": [
+      "estudos/input",
+      "estudos/output"
+    ]
+  },
+  "examples": []
+}

@@ -46,7 +46,7 @@ pub struct CreateArtifactInput {
 
 const COLUMNS: &str = "id, workspace_id, task_id, run_id, file_path, absolute_path, file_type, \
     file_size_bytes, content_sha256, previous_sha256, action_type, created_by_agent, \
-    creation_reason, diff_patch, google_doc_url, google_drive_url, emailed_to, created_at";
+    creation_reason, diff_patch, google_doc_url, google_drive_url, emailed_to, created_at, pinned";
 
 pub async fn create(
     pool: &SqlitePool,
@@ -321,6 +321,34 @@ mod tests {
         );
         assert_eq!(count_for_task(&pool, "task-1").await.expect("count"), 1);
         assert!(get(&pool, "missing").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn pin_roundtrip_is_visible_on_get_and_list() {
+        let (_temp, pool) = setup().await;
+        let artifact = create(&pool, input("CREATED")).await.expect("create");
+        assert!(!artifact.pinned);
+        let pinned = set_pinned(&pool, &artifact.id, true).await.expect("pin");
+        assert!(pinned.pinned);
+        assert!(get(&pool, &artifact.id).await.expect("get").pinned);
+        let listed = list(&pool, "ws-1", None, None, None, 10)
+            .await
+            .expect("list");
+        assert!(
+            listed
+                .iter()
+                .any(|item| item.id == artifact.id && item.pinned)
+        );
+        let pinned_list = list_pinned(&pool, "ws-1", 10).await.expect("pinned list");
+        assert_eq!(pinned_list.len(), 1);
+        let unpinned = set_pinned(&pool, &artifact.id, false).await.expect("unpin");
+        assert!(!unpinned.pinned);
+        assert!(
+            list_pinned(&pool, "ws-1", 10)
+                .await
+                .expect("pinned list")
+                .is_empty()
+        );
     }
 
     #[tokio::test]

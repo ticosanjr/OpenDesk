@@ -1,7 +1,7 @@
 use crate::{
     app_state::AppState,
     db::io_bus::{self, InboundInput, OutboundInput},
-    error::AppResult,
+    error::{AppError, AppResult},
 };
 use axum::{
     Json,
@@ -172,6 +172,24 @@ pub async fn install_tool(
     Path(name): Path<String>,
 ) -> AppResult<Json<crate::io_bus::tools::ToolInfo>> {
     Ok(Json(crate::io_bus::tools::install(&name).await?))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ToolPathBody {
+    pub path: Option<String>,
+}
+
+pub async fn set_tool_path(
+    Path(name): Path<String>,
+    Json(body): Json<ToolPathBody>,
+) -> AppResult<Json<crate::io_bus::tools::ToolInfo>> {
+    crate::io_bus::tools::set_manual_path(&name, body.path.as_deref())?;
+    Ok(Json(
+        crate::io_bus::tools::list()
+            .into_iter()
+            .find(|tool| tool.name == name)
+            .ok_or_else(|| AppError::NotFound(format!("ferramenta {name}")))?,
+    ))
 }
 
 pub async fn webhook(

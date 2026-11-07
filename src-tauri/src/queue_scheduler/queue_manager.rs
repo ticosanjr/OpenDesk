@@ -1,7 +1,7 @@
 use crate::{
     db::{
         artifacts::{self, CreateArtifactInput},
-        budget, model_health, queue, runs, tasks, workspaces,
+        budget, model_health, queue, runs, schedules, tasks, workspaces,
     },
     error::{AppError, AppResult},
     events::{ArtifactProvenanceDto, EventBus, OpenDeskWsEvent, QueueJobDto},
@@ -335,6 +335,7 @@ impl QueueManager {
             Err(error) => {
                 let _ =
                     queue::finish(&self.pool, &job.id, "FAILED", Some(&error.to_string())).await;
+                self.mark_schedule(&job, "FAILED").await;
                 self.publish_queue(&job.workspace_id).await;
                 return;
             }
@@ -439,6 +440,7 @@ impl QueueManager {
             Err(error) => {
                 let _ =
                     queue::finish(&self.pool, &job.id, "FAILED", Some(&error.to_string())).await;
+                self.mark_schedule(&job, "FAILED").await;
                 self.publish_queue(&job.workspace_id).await;
                 return;
             }
@@ -470,6 +472,7 @@ impl QueueManager {
                 Some("OpenCode daemon is offline"),
             )
             .await;
+            self.mark_schedule(&job, "SKIPPED_OFFLINE").await;
             if let Some(task) = &task {
                 let _ =
                     tasks::set_phase_status(&self.pool, &task.id, Some("failed"), Some("BLOCKED"))
@@ -679,6 +682,15 @@ impl QueueManager {
             RunStatus::Cancelled => "CANCELLED",
         };
         let _ = queue::finish(&self.pool, &job.id, queue_status, outcome.error.as_deref()).await;
+        self.mark_schedule(
+            &job,
+            match outcome.status {
+                RunStatus::Success => "SUCCESS",
+                RunStatus::Failed => "FAILED",
+                RunStatus::Cancelled => "CANCELLED",
+            },
+        )
+        .await;
 
         if let Some(task) = &task
             && !fallback_enqueued
@@ -920,6 +932,25 @@ impl QueueManager {
             }),
             Err(error) => tracing::warn!(error = %error, "could not record artifact"),
         }
+    }
+
+    /// Keep routine history and notifications accurate for prompt routines.
+    /// Recipe routines update the same status from the recipe engine.
+    async fn mark_schedule(&self, job: &queue::QueueJob, status: &str) {
+        let Some(schedule_id) = job.schedule_id.as_deref() else {
+            return;
+        };
+        let _ = schedules::mark_run(
+            &self.pool,
+            schedule_id,
+            status,
+            &chrono::Utc::now().to_rfc3339(),
+        )
+        .await;
+        self.events.publish(OpenDeskWsEvent::ScheduleUpdated {
+            schedule_id: schedule_id.to_string(),
+            workspace_id: job.workspace_id.clone(),
+        });
     }
 
     async fn publish_queue(&self, workspace_id: &str) {

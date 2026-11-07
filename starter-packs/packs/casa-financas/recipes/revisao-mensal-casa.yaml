@@ -1,0 +1,36 @@
+id: revisao-mensal-casa
+name: Revisão mensal da casa
+description: Orçamento, assinaturas e metas.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Organizar gastos
+  mode: build
+  agent: planejador-domestico
+  effort: medium
+  prompt: Organize receitas e despesas de input/. Calcule sobra e categorize. Salve em {{run.output_dir}}/01-orcamento.md.
+- type: step
+  id: passo-2
+  name: Revisar assinaturas
+  mode: build
+  agent: analista-assinaturas
+  effort: medium
+  prompt: Liste assinaturas recorrentes, custo anual e recomendação. Salve em {{run.output_dir}}/02-assinaturas.md.
+- type: step
+  id: passo-3
+  name: Plano do mês
+  mode: build
+  agent: planejador-domestico
+  effort: medium
+  prompt: Com base nos arquivos, proponha metas e ajustes realistas. Salve em {{run.output_dir}}/plano.md.
+- type: hitl
+  id: checkpoint-3
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Aprovar o plano do próximo mês?

@@ -31,6 +31,12 @@ pub async fn maintenance_once(pool: &SqlitePool, paths: &AppPaths) -> AppResult<
         .execute(pool)
         .await;
     let _ = sqlx::query("PRAGMA optimize").execute(pool).await;
+    let _ = sqlx::query(
+        "DELETE FROM alert_dismissals
+         WHERE dismissed_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 days')",
+    )
+    .execute(pool)
+    .await;
 
     std::fs::create_dir_all(&paths.backups_dir)?;
     let backup = paths.backups_dir.join(format!(

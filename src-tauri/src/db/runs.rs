@@ -237,6 +237,16 @@ pub async fn set_error(
     Ok(())
 }
 
+#[allow(dead_code)]
+pub async fn set_schedule_id(pool: &SqlitePool, id: &str, schedule_id: &str) -> AppResult<()> {
+    sqlx::query("UPDATE task_runs SET schedule_id = ? WHERE id = ?")
+        .bind(schedule_id)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 pub async fn set_session(pool: &SqlitePool, id: &str, session_id: Option<&str>) -> AppResult<()> {
     sqlx::query("UPDATE task_runs SET session_id = ? WHERE id = ?")
         .bind(session_id)

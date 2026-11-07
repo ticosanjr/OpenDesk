@@ -1,0 +1,36 @@
+id: analise-contrato
+name: Análise de contrato
+description: Mapa, riscos e revisão.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Mapear contrato
+  mode: build
+  agent: analista-juridico
+  effort: medium
+  prompt: Mapeie partes, objeto, prazo, preço e obrigações. Salve em {{run.output_dir}}/01-mapa.md.
+- type: step
+  id: passo-2
+  name: Riscos
+  mode: build
+  agent: revisor-contratos
+  effort: medium
+  prompt: Liste riscos por cláusula com trecho de apoio. Salve em {{run.output_dir}}/02-riscos.md.
+- type: step
+  id: passo-3
+  name: Revisar parecer
+  mode: build
+  agent: analista-juridico
+  effort: medium
+  prompt: Gere parecer final com resumo, riscos, perguntas e disclaimer. Salve em {{run.output_dir}}/parecer.md.
+- type: hitl
+  id: checkpoint-3
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revisar o parecer antes de entregar?

@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "id": "viagens",
+  "version": "1.0.0",
+  "name": "Viagens",
+  "category": "casa",
+  "description": "Roteiro, orçamento e checklist de viagem.",
+  "icon": "plane",
+  "color": "#38bdf8",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "planejador-viagem.md",
+      "pesquisador-voos.md"
+    ],
+    "skills": [
+      "roteiro-viagem",
+      "orcamento-viagem",
+      "documentacao-viagem"
+    ],
+    "commands": [
+      "roteiro-viagem.md",
+      "orcamento-viagem.md"
+    ],
+    "recipes": [
+      "roteiro-viagem.yaml",
+      "checklist-viagem.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "viagens/input",
+      "viagens/roteiros"
+    ]
+  },
+  "examples": []
+}

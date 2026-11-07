@@ -1,0 +1,13 @@
+id: onboarding-cliente
+name: Onboarding de cliente
+description: Plano dos primeiros 60 dias.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Montar onboarding
+  mode: build
+  agent: gerente-sucesso
+  effort: medium
+  prompt: Crie plano de onboarding com objetivo, marcos, responsáveis e check-ins. Salve em {{run.output_dir}}/onboarding.md.

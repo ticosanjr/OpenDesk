@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "casa-financas",
+  "version": "1.0.0",
+  "name": "Finanças da Casa",
+  "category": "casa",
+  "description": "Orçamento doméstico, recibos, assinaturas e metas.",
+  "icon": "wallet",
+  "color": "#14b8a6",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "planejador-domestico.md",
+      "analista-assinaturas.md"
+    ],
+    "skills": [
+      "orcamento-domestico",
+      "ocr-recibos",
+      "comparador-assinaturas",
+      "metas-financeiras"
+    ],
+    "commands": [
+      "orcamento.md",
+      "assinaturas.md"
+    ],
+    "recipes": [
+      "revisao-mensal-casa.yaml",
+      "detecta-assinaturas.yaml"
+    ],
+    "routines": [
+      "revisao-mensal-casa-rotina.json"
+    ],
+    "folders": [
+      "casa/financas/input",
+      "casa/financas/output"
+    ]
+  },
+  "examples": []
+}

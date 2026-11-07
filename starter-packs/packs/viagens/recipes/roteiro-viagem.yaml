@@ -1,0 +1,29 @@
+id: roteiro-viagem
+name: Roteiro de viagem
+description: Roteiro e orçamento.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Pesquisar opções
+  mode: build
+  agent: pesquisador-voos
+  effort: medium
+  prompt: Liste opções de transporte e documentação para o destino. Salve em {{run.output_dir}}/01-opcoes.md.
+- type: step
+  id: passo-2
+  name: Montar roteiro
+  mode: build
+  agent: planejador-viagem
+  effort: medium
+  prompt: Monte roteiro dia a dia com orçamento e plano B. Salve em {{run.output_dir}}/roteiro.md.
+- type: hitl
+  id: checkpoint-2
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Aprovar o ritmo e o orçamento antes de fechar?

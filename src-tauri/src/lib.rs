@@ -18,6 +18,7 @@ mod queue_scheduler;
 mod recipes;
 mod run_timeline;
 mod secrets;
+mod starter_packs;
 mod tray;
 mod updates;
 
@@ -178,6 +179,7 @@ pub fn run() {
             let state = Arc::new(state);
 
             app.manage(state.clone());
+            state.cron.attach_state(&state);
             use tauri_plugin_global_shortcut::GlobalShortcutExt;
             if let Err(error) = app
                 .global_shortcut()
@@ -199,6 +201,9 @@ pub fn run() {
                 state.paths.clone(),
             ));
             tauri::async_runtime::block_on(async {
+                if let Err(error) = crate::api::schedules::sync_all_trigger_sources(&state).await {
+                    tracing::warn!(error = %error, "routine trigger source sync failed");
+                }
                 state.io_bus.start(state.clone()).await?;
                 recipes::runtime::start(state.clone());
                 if let Err(error) = proposals::ensure_all(&state).await {

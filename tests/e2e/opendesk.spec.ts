@@ -57,7 +57,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     headers: auth.headers,
   });
   expect(about.ok()).toBeTruthy();
-  expect((await about.json()).app.version).toBe("0.23.1");
+  expect((await about.json()).app.version).toBe("0.24.0");
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });
@@ -195,7 +195,7 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   }>;
   const task = taskList.find((item) => item.title === "Tarefa E2E do Kanban");
   expect(task).toBeTruthy();
-  expect(task?.status).toBe("BACKLOG");
+  expect(task?.status).toBe("TODO");
 
   const diagnostics = await request.get(
     `${auth.baseURL}/api/tasks/${task!.id}/diagnostics`,
@@ -343,7 +343,7 @@ test("creates and edits a recurrence routine with calendar, agent search and not
   await dialog.getByRole("button", { name: /@global-agent/ }).click();
   await expect(agentInput).toHaveValue("global-agent");
 
-  await dialog.getByLabel("E-mail").fill("e2e@example.com");
+  await dialog.getByLabel("E-mail", { exact: true }).fill("e2e@example.com");
   await dialog.getByLabel("notificar por Signal").check();
   await dialog
     .getByLabel("notificar somente se houver novidade")
@@ -752,9 +752,12 @@ test("kanban move control persists an adjacent column", async ({ page, request }
     },
   );
   expect(created.ok()).toBeTruthy();
-  const taskId = (await created.json()).id as string;
+  const createdTask = (await created.json()) as { id: string; status: string };
+  expect(createdTask.status).toBe("TODO");
+  const taskId = createdTask.id;
 
   await page.goto("/#/kanban");
+  await expect(page.getByText("Backlog", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Abrir tarefa Drag E2E" })).toBeVisible();
   await page
     .getByRole("button", { name: "Abrir tarefa Drag E2E" })
@@ -1060,6 +1063,9 @@ test("notification preferences and kanban list view are available", async ({
   await expect(page.getByText("Tarefa Lista E2E")).toBeVisible();
   await page.getByTitle("Fila").click();
   await expect(page.getByText("Controlador da fila")).toBeVisible();
+  // The view switch must stay visible inside the queue view.
+  await page.getByTitle("Board").click();
+  await expect(page.getByPlaceholder(/Buscar por título/)).toBeVisible();
 
   const saved = await request.put(`${auth.baseURL}/api/settings/close_to_tray`, {
     headers: auth.headers,

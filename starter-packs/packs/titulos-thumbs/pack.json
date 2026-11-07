@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "id": "titulos-thumbs",
+  "version": "1.0.0",
+  "name": "Títulos & Thumbs",
+  "category": "conteudo",
+  "description": "Gera opções de título, briefs de thumbnail e teste A/B.",
+  "icon": "mouse-pointer-click",
+  "color": "#f43f5e",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "copy-titulos.md",
+      "thumb-designer.md"
+    ],
+    "skills": [
+      "formulas-titulo",
+      "brief-thumb-titulos",
+      "teste-ab"
+    ],
+    "commands": [
+      "titulos-copy.md",
+      "thumbs-brief.md"
+    ],
+    "recipes": [
+      "pacote-titulos-thumbs.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "content/titulos/input",
+      "content/titulos/output"
+    ]
+  },
+  "examples": []
+}
