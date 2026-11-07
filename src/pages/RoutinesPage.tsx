@@ -162,6 +162,31 @@ export function RoutinesPage() {
     }
   }
 
+  async function dryRun(schedule: Schedule) {
+    try {
+      const result = await apiPost<{
+        ok: boolean;
+        checks: Array<{ name: string; ok: boolean; detail: string }>;
+      }>(`/api/schedules/${schedule.id}/dry-run`, {});
+      const failed = result.checks.filter((check) => !check.ok);
+      toast({
+        tone: failed.length === 0 ? "success" : "warning",
+        title: failed.length === 0 ? "Dry-run validado" : "Dry-run com avisos",
+        description:
+          failed.length === 0
+            ? "Prompt, pasta, engine, SMTP e Google verificados."
+            : failed.map((check) => `${check.name}: ${check.detail}`).join(" · "),
+        href: links.schedule(schedule.id),
+      });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Dry-run falhou",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  }
+
   async function openHistory(schedule: Schedule) {
     setHistorySchedule(schedule);
     setHistoryRuns([]);
@@ -403,6 +428,15 @@ export function RoutinesPage() {
                       >
                         Duplicar
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7"
+                        onClick={() => void dryRun(schedule)}
+                        title="Validar prompt, pasta, engine, SMTP e Google sem executar"
+                      >
+                        Dry-run
+                      </Button>
                       {schedule.notify_email_recipients || schedule.notify_signal ? (
                         <Button
                           variant="outline"
@@ -566,6 +600,8 @@ function CreateScheduleModal({
   const [timezone, setTimezone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
   );
+  const [misfirePolicy, setMisfirePolicy] = useState("SKIP_TO_NEXT");
+  const [safeReadonly, setSafeReadonly] = useState(true);
   const [recurrence, setRecurrence] = useState<Recurrence>(() => ({
     frequency: "daily",
     interval: 1,
@@ -598,6 +634,8 @@ function CreateScheduleModal({
     setSignalRecipients(schedule?.notify_signal_recipients ?? "");
     setOnlyOnChange(schedule?.notify_only_on_change ?? false);
     setTimezone(schedule?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC");
+    setMisfirePolicy(schedule?.misfire_policy ?? "SKIP_TO_NEXT");
+    setSafeReadonly(schedule?.safe_readonly_mode ?? true);
     if (schedule?.recurrence_json) {
       try {
         setRecurrence(JSON.parse(schedule.recurrence_json) as Recurrence);
@@ -738,6 +776,8 @@ function CreateScheduleModal({
         notify_only_on_change: onlyOnChange,
         recurrence_json: JSON.stringify(recurrence),
         one_time: recurrence.frequency === "once",
+        misfire_policy: misfirePolicy,
+        safe_readonly_mode: safeReadonly,
         sync_to_google_docs: schedule?.sync_to_google_docs ?? false,
         sync_to_google_calendar: schedule?.sync_to_google_calendar ?? false,
         is_active: schedule?.is_active ?? true,

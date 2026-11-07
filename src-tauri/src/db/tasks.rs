@@ -29,6 +29,7 @@ pub struct Task {
     pub position_index: i64,
     pub last_run_id: Option<String>,
     pub last_run_status: Option<String>,
+    pub forked_from_task_id: Option<String>,
     pub last_run_at: Option<String>,
     pub blocked_reason: Option<String>,
     pub cancelled_at: Option<String>,
@@ -98,7 +99,7 @@ const COLUMNS: &str = "id, workspace_id, title, description, status, phase, phas
     priority, execution_mode, assigned_agent, preferred_model, agent_override, model_override, \
     effort_level, plan_markdown, output_dir_path, notify_email, export_to_gdocs, tags_json, \
     position_index, last_run_id, last_run_status, last_run_at, blocked_reason, cancelled_at, \
-    created_at, updated_at";
+    forked_from_task_id, created_at, updated_at";
 
 pub const STATUSES: [&str; 7] = [
     "BACKLOG",
@@ -357,6 +358,39 @@ pub async fn move_to(
     }
 
     get(pool, id).await
+}
+
+pub async fn fork(pool: &SqlitePool, id: &str) -> AppResult<Task> {
+    let source = get(pool, id).await?;
+    let new_id = Uuid::now_v7().to_string();
+    sqlx::query(
+        "INSERT INTO tasks (
+            id, workspace_id, title, description, status, phase, phase_status, priority,
+            execution_mode, assigned_agent, preferred_model, agent_override, model_override,
+            effort_level, plan_markdown, notify_email, export_to_gdocs, tags_json,
+            position_index, forked_from_task_id
+         ) VALUES (?, ?, ?, ?, 'BACKLOG', NULL, 'forked', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&new_id)
+    .bind(&source.workspace_id)
+    .bind(format!("{} (fork)", source.title))
+    .bind(&source.description)
+    .bind(source.priority)
+    .bind(&source.execution_mode)
+    .bind(&source.assigned_agent)
+    .bind(&source.preferred_model)
+    .bind(source.agent_override)
+    .bind(source.model_override)
+    .bind(&source.effort_level)
+    .bind(&source.plan_markdown)
+    .bind(&source.notify_email)
+    .bind(source.export_to_gdocs)
+    .bind(&source.tags_json)
+    .bind(source.position_index)
+    .bind(&source.id)
+    .execute(pool)
+    .await?;
+    get(pool, &new_id).await
 }
 
 pub async fn set_plan(pool: &SqlitePool, id: &str, plan_markdown: &str) -> AppResult<Task> {

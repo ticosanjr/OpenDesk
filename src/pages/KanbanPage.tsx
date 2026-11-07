@@ -10,6 +10,7 @@ import {
   Eye,
   FileText,
   GripVertical,
+  GitBranch,
   Inbox,
   LayoutList,
   ListChecks,
@@ -248,6 +249,22 @@ export function KanbanPage() {
 
   async function setWaiting(task: Task) {
     await transitionTask(task, "TODO");
+  }
+
+  async function forkTask(task: Task) {
+    try {
+      const forked = await apiPost<Task>(`/api/tasks/${task.id}/fork`, {});
+      setSelectedTask(null);
+      await load();
+      toast({
+        tone: "success",
+        title: "Fork criado",
+        description: forked.title,
+        href: links.task(forked.id),
+      });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
   }
 
   async function toggleQueue(pause: boolean) {
@@ -955,6 +972,7 @@ export function KanbanPage() {
         onDispatch={(task) => void dispatch(task)}
         onStatus={(task, status) => void transitionTask(task, status)}
         onWait={(task) => void setWaiting(task)}
+        onFork={(task) => void forkTask(task)}
         onLogs={(task) => {
           setLogTask(task);
           setInitialRunId(null);
@@ -1344,6 +1362,7 @@ function TaskDetailsModal({
   onDispatch,
   onStatus,
   onWait,
+  onFork,
   onLogs,
 }: {
   task: Task | null;
@@ -1353,6 +1372,7 @@ function TaskDetailsModal({
   onDispatch: (task: Task) => void;
   onStatus: (task: Task, status: string) => void;
   onWait: (task: Task) => void;
+  onFork: (task: Task) => void;
   onLogs: (task: Task) => void;
 }) {
   const [diagnostics, setDiagnostics] = useState<TaskDiagnostics | null>(null);
@@ -1565,6 +1585,15 @@ function TaskDetailsModal({
           <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-800/70 pt-4">
             <Button variant="ghost" size="sm" onClick={onClose}>
               Fechar
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onFork(task)}
+              title="Criar uma cópia independente desta tarefa e do estado atual"
+            >
+              <GitBranch size={13} />
+              Fork
             </Button>
             <Button variant="outline" size="sm" onClick={() => onEdit(task)}>
               <Pencil size={13} />

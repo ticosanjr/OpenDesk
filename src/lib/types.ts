@@ -280,6 +280,7 @@ export interface Task {
   position_index: number;
   last_run_id?: string | null;
   last_run_status?: string | null;
+  forked_from_task_id?: string | null;
   last_run_at?: string | null;
   blocked_reason?: string | null;
   cancelled_at?: string | null;
@@ -369,6 +370,7 @@ export interface Artifact {
   google_doc_url?: string | null;
   google_drive_url?: string | null;
   emailed_to?: string | null;
+  pinned?: boolean;
   created_at: string;
 }
 
@@ -435,6 +437,8 @@ export interface Schedule {
   recurrence_json?: string | null;
   one_time: boolean;
   last_output_hash?: string | null;
+  misfire_policy: string;
+  safe_readonly_mode: boolean;
   sync_to_google_docs: boolean;
   sync_to_google_calendar: boolean;
   is_active: boolean;

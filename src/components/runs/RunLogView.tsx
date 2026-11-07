@@ -174,6 +174,22 @@ export function RunLogView({
     }
   }
 
+  async function pinMemory() {
+    const taskId = timeline?.run?.task_id;
+    const text = timeline?.result.text?.trim() || summary || "";
+    if (!taskId || !text) return;
+    try {
+      await apiPost(`/api/tasks/${taskId}/memory`, { content: text });
+      toast({ tone: "success", title: "Fixado na memória do workspace" });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível fixar",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  }
+
   async function copy(text: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -243,6 +259,17 @@ export function RunLogView({
                 abrir tarefa
               </EntityLink>
             ) : null}
+            {timeline?.run?.task_id ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7"
+                onClick={() => void pinMemory()}
+                title="Adicionar o resultado à MEMORY.md do workspace"
+              >
+                memória
+              </Button>
+            ) : null}
             <Button
               variant="ghost"
               size="sm"
@@ -300,6 +327,21 @@ export function RunLogView({
             fim {formatClock(timeline?.completed_at ?? run?.completed_at)}
           </span>
           {run?.started_at ? <span>{relativeTime(run.started_at)}</span> : null}
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="font-mono text-[10px] text-zinc-500">contexto</span>
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-800">
+            <div
+              className={cn(
+                "h-full rounded-full",
+                totalTokens > 102_400 ? "bg-red-400" : totalTokens > 81_920 ? "bg-amber-400" : "bg-blue-400",
+              )}
+              style={{ width: `${Math.min(100, (totalTokens / 128_000) * 100)}%` }}
+            />
+          </div>
+          <span className="font-mono text-[10px] text-zinc-500">
+            {formatNumber(totalTokens)} / 128k
+          </span>
         </div>
       </div>
 

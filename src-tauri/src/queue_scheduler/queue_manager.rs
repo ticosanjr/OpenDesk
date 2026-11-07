@@ -51,6 +51,19 @@ pub struct QueueManager {
     notify: Notify,
     shutdown: CancellationToken,
     running_jobs: Mutex<HashMap<String, CancellationToken>>,
+    lease_expired: Mutex<HashSet<String>>,
+}
+
+struct HeartbeatGuard {
+    stop: CancellationToken,
+    handle: tauri::async_runtime::JoinHandle<()>,
+}
+
+impl Drop for HeartbeatGuard {
+    fn drop(&mut self) {
+        self.stop.cancel();
+        self.handle.abort();
+    }
 }
 
 impl QueueManager {
@@ -75,6 +88,7 @@ impl QueueManager {
             notify: Notify::new(),
             shutdown: CancellationToken::new(),
             running_jobs: Mutex::new(HashMap::new()),
+            lease_expired: Mutex::new(HashSet::new()),
         })
     }
 
@@ -205,6 +219,8 @@ impl QueueManager {
                 _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {}
             }
 
+            self.expire_leases().await;
+
             if self.shutdown.is_cancelled() || self.is_paused() {
                 continue;
             }
@@ -266,6 +282,27 @@ impl QueueManager {
         }
     }
 
+    async fn expire_leases(&self) {
+        let Ok(jobs) = queue::expired_leases(&self.pool).await else {
+            return;
+        };
+        for job in jobs {
+            self.lease_expired
+                .lock()
+                .expect("lease set mutex")
+                .insert(job.id.clone());
+            if let Some(token) = self
+                .running_jobs
+                .lock()
+                .expect("running jobs mutex")
+                .get(&job.id)
+            {
+                token.cancel();
+            }
+            tracing::warn!(job = %job.id, "queue lease expired; interrupting job");
+        }
+    }
+
     async fn recover(&self) -> AppResult<()> {
         let runs = runs::recover_running(&self.pool).await?;
         let jobs = queue::recover_running(&self.pool).await?;
@@ -306,6 +343,27 @@ impl QueueManager {
         let task = match &job.task_id {
             Some(task_id) => tasks::get(&self.pool, task_id).await.ok(),
             None => None,
+        };
+
+        let heartbeat_stop = CancellationToken::new();
+        let heartbeat = {
+            let pool = self.pool.clone();
+            let job_id = job.id.clone();
+            let stop = heartbeat_stop.clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    tokio::select! {
+                        _ = stop.cancelled() => break,
+                        _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {
+                            let _ = queue::heartbeat(&pool, &job_id).await;
+                        }
+                    }
+                }
+            })
+        };
+        let _heartbeat_guard = HeartbeatGuard {
+            stop: heartbeat_stop,
+            handle: heartbeat,
         };
 
         let run_id = Uuid::now_v7().to_string();
@@ -456,7 +514,18 @@ impl QueueManager {
             cancel,
         };
 
-        let outcome = session_runner::execute_run(rest.clone(), request, &self.events).await;
+        let mut outcome = session_runner::execute_run(rest.clone(), request, &self.events).await;
+        if self
+            .lease_expired
+            .lock()
+            .expect("lease set mutex")
+            .remove(&job.id)
+        {
+            outcome.status = session_runner::RunStatus::Failed;
+            outcome.error = Some(
+                "lease expirou: o agente ficou 60s sem heartbeat; execução interrompida".into(),
+            );
+        }
         if !outcome.session_id.is_empty() {
             let _ = runs::set_session(&self.pool, &run_id, Some(&outcome.session_id)).await;
         }

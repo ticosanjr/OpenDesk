@@ -28,6 +28,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusDot, statusTone } from "@/components/ui/status-dot";
+import { AttentionCard } from "@/components/dashboard/AttentionCard";
+import { CostMixCard } from "@/components/dashboard/CostMixCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiGet } from "@/lib/api";
@@ -246,6 +248,8 @@ export function DashboardPage() {
         }
       />
 
+      <AttentionCard />
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           icon={CircleDollarSign}
@@ -281,6 +285,8 @@ export function DashboardPage() {
           } artefatos`}
         />
       </div>
+
+      <CostMixCard />
 
       <div className="grid gap-3 lg:grid-cols-3">
         <Card className="lg:col-span-2">

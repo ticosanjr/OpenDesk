@@ -9,6 +9,7 @@ import {
   Mail,
   RefreshCw,
   Search,
+  Star,
   X,
 } from "lucide-react";
 import { openPath } from "@tauri-apps/plugin-opener";
@@ -19,13 +20,14 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 import type { Artifact } from "@/lib/types";
 import { formatNumber, relativeTime, shortPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { links } from "@/lib/links";
 import { EntityLink } from "@/components/ui/entity-link";
 import { LazyFileViewer } from "@/components/viewer/LazyFileViewer";
+import { toast } from "@/store/toast-store";
 
 interface ArtifactContent {
   path: string;
@@ -124,6 +126,30 @@ export function ArtifactsPage() {
       cancelled = true;
     };
   }, [selected]);
+
+  async function togglePin(artifact: Artifact) {
+    try {
+      const updated = await apiPost<Artifact>(
+        `/api/artifacts/${artifact.id}/pin`,
+        { pinned: !artifact.pinned },
+      );
+      setArtifacts((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      setSelected((current) => (current?.id === updated.id ? updated : current));
+      toast({
+        tone: "success",
+        title: updated.pinned ? "Artefato fixado" : "Artefato desafixado",
+        href: links.artifact(updated.id),
+      });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível fixar",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  }
 
   async function reveal(path: string) {
     try {
@@ -234,6 +260,17 @@ export function ArtifactsPage() {
                     >
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            title={artifact.pinned ? "Desafixar entregável" : "Fixar como entregável"}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void togglePin(artifact);
+                            }}
+                            className={artifact.pinned ? "text-amber-300" : "text-zinc-700 hover:text-amber-300"}
+                          >
+                            <Star size={13} fill={artifact.pinned ? "currentColor" : "none"} />
+                          </button>
                           <FileText size={13} className="shrink-0 text-zinc-600" />
                           <div className="min-w-0">
                             <p className="truncate font-mono text-[10px] text-zinc-200">
@@ -333,6 +370,15 @@ export function ArtifactsPage() {
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void togglePin(selected)}
+                  title={selected.pinned ? "Desafixar entregável" : "Fixar como entregável"}
+                >
+                  <Star size={12} fill={selected.pinned ? "currentColor" : "none"} />
+                  {selected.pinned ? "Fixado" : "Fixar"}
+                </Button>
                 {selected.run_id ? (
                   <Button
                     variant="outline"

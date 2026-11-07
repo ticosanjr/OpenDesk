@@ -22,6 +22,8 @@ pub struct Schedule {
     pub recurrence_json: Option<String>,
     pub one_time: bool,
     pub last_output_hash: Option<String>,
+    pub misfire_policy: String,
+    pub safe_readonly_mode: bool,
     pub sync_to_google_docs: bool,
     pub sync_to_google_calendar: bool,
     pub is_active: bool,
@@ -59,6 +61,10 @@ pub struct CreateScheduleInput {
     pub recurrence_json: Option<String>,
     #[serde(default)]
     pub one_time: bool,
+    #[serde(default = "default_misfire_policy")]
+    pub misfire_policy: String,
+    #[serde(default = "default_true")]
+    pub safe_readonly_mode: bool,
     #[serde(default)]
     pub sync_to_google_docs: bool,
     #[serde(default)]
@@ -83,6 +89,8 @@ pub struct UpdateScheduleInput {
     pub notify_only_on_change: Option<bool>,
     pub recurrence_json: Option<String>,
     pub one_time: Option<bool>,
+    pub misfire_policy: Option<String>,
+    pub safe_readonly_mode: Option<bool>,
     pub sync_to_google_docs: Option<bool>,
     pub sync_to_google_calendar: Option<bool>,
     pub is_active: Option<bool>,
@@ -104,11 +112,16 @@ fn default_true() -> bool {
     true
 }
 
+fn default_misfire_policy() -> String {
+    "SKIP_TO_NEXT".into()
+}
+
 const COLUMNS: &str = "id, workspace_id, name, description, cron_expression, timezone, \
     agent_name, command_or_prompt, router_policy, output_folder_template, \
     notify_email_recipients, notify_signal, notify_signal_recipients, notify_only_on_change, \
-    recurrence_json, one_time, last_output_hash, sync_to_google_docs, sync_to_google_calendar, \
-    is_active, last_run_at, last_run_status, next_run_at, created_at";
+    recurrence_json, one_time, last_output_hash, misfire_policy, safe_readonly_mode, \
+    sync_to_google_docs, sync_to_google_calendar, is_active, last_run_at, last_run_status, \
+    next_run_at, created_at";
 
 pub async fn list(pool: &SqlitePool, workspace_id: &str) -> AppResult<Vec<Schedule>> {
     let query =
@@ -143,6 +156,13 @@ pub async fn create(pool: &SqlitePool, input: CreateScheduleInput) -> AppResult<
     if input.command_or_prompt.trim().is_empty() {
         return Err(AppError::BadRequest("command_or_prompt is required".into()));
     }
+    let misfire_policy = input.misfire_policy.trim().to_uppercase();
+    if !matches!(misfire_policy.as_str(), "RUN_IMMEDIATELY" | "SKIP_TO_NEXT") {
+        return Err(AppError::BadRequest(format!(
+            "invalid misfire_policy '{}'",
+            input.misfire_policy
+        )));
+    }
     let policy = input.router_policy.to_uppercase();
     if !matches!(
         policy.as_str(),
@@ -160,8 +180,9 @@ pub async fn create(pool: &SqlitePool, input: CreateScheduleInput) -> AppResult<
             id, workspace_id, name, description, cron_expression, timezone,
             agent_name, command_or_prompt, router_policy, output_folder_template,
             notify_email_recipients, notify_signal, notify_signal_recipients, notify_only_on_change,
-            recurrence_json, one_time, sync_to_google_docs, sync_to_google_calendar, is_active
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            recurrence_json, one_time, misfire_policy, safe_readonly_mode,
+            sync_to_google_docs, sync_to_google_calendar, is_active
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&input.workspace_id)
@@ -179,6 +200,8 @@ pub async fn create(pool: &SqlitePool, input: CreateScheduleInput) -> AppResult<
     .bind(input.notify_only_on_change)
     .bind(input.recurrence_json.as_deref())
     .bind(input.one_time)
+    .bind(input.misfire_policy.to_uppercase().as_str())
+    .bind(input.safe_readonly_mode)
     .bind(input.sync_to_google_docs)
     .bind(input.sync_to_google_calendar)
     .bind(input.is_active)
@@ -213,6 +236,7 @@ pub async fn update(
             command_or_prompt = ?, router_policy = ?, output_folder_template = ?,
             notify_email_recipients = ?, notify_signal = ?, notify_signal_recipients = ?,
             notify_only_on_change = ?, recurrence_json = ?, one_time = ?,
+            misfire_policy = ?, safe_readonly_mode = ?,
             sync_to_google_docs = ?, sync_to_google_calendar = ?, is_active = ?
          WHERE id = ?",
     )
@@ -246,6 +270,17 @@ pub async fn update(
     )
     .bind(input.recurrence_json.or(current.recurrence_json))
     .bind(input.one_time.unwrap_or(current.one_time))
+    .bind(
+        input
+            .misfire_policy
+            .map(|value| value.to_uppercase())
+            .unwrap_or(current.misfire_policy),
+    )
+    .bind(
+        input
+            .safe_readonly_mode
+            .unwrap_or(current.safe_readonly_mode),
+    )
     .bind(
         input
             .sync_to_google_docs
@@ -356,6 +391,8 @@ mod tests {
             notify_only_on_change: false,
             recurrence_json: None,
             one_time: false,
+            misfire_policy: "SKIP_TO_NEXT".into(),
+            safe_readonly_mode: true,
             sync_to_google_docs: true,
             sync_to_google_calendar: false,
             is_active: true,

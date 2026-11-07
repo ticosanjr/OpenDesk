@@ -23,6 +23,8 @@ pub struct ArtifactProvenance {
     pub google_drive_url: Option<String>,
     pub emailed_to: Option<String>,
     pub created_at: String,
+    #[sqlx(default)]
+    pub pinned: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -125,6 +127,19 @@ pub async fn list(
         .bind(limit.clamp(1, 1000))
         .fetch_all(pool)
         .await?)
+}
+
+pub async fn set_pinned(
+    pool: &SqlitePool,
+    id: &str,
+    pinned: bool,
+) -> AppResult<ArtifactProvenance> {
+    sqlx::query("UPDATE artifacts_provenance SET pinned = ? WHERE id = ?")
+        .bind(pinned)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    get(pool, id).await
 }
 
 pub async fn exists(pool: &SqlitePool, run_id: &str, file_path: &str) -> AppResult<bool> {

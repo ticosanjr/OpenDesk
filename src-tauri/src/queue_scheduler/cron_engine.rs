@@ -121,6 +121,31 @@ impl CronEngine {
                 .unwrap_or(false);
 
             if due {
+                let overdue = schedule
+                    .next_run_at
+                    .as_deref()
+                    .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+                    .map(|value| now.signed_duration_since(value.with_timezone(&Utc)))
+                    .unwrap_or_default();
+                if overdue.num_seconds() > 90
+                    && schedule.misfire_policy.eq_ignore_ascii_case("SKIP_TO_NEXT")
+                {
+                    let _ = schedules::mark_run(
+                        &self.pool,
+                        &schedule.id,
+                        "SKIPPED_MISFIRE",
+                        &now.to_rfc3339(),
+                    )
+                    .await;
+                    let _ =
+                        schedules::set_next_run(&self.pool, &schedule.id, Some(&next.to_rfc3339()))
+                            .await;
+                    self.events.publish(OpenDeskWsEvent::ScheduleUpdated {
+                        schedule_id: schedule.id.clone(),
+                        workspace_id: schedule.workspace_id.clone(),
+                    });
+                    continue;
+                }
                 if !engine_online {
                     let _ = schedules::mark_run(
                         &self.pool,
@@ -402,6 +427,8 @@ mod tests {
             recurrence_json: None,
             one_time: false,
             last_output_hash: None,
+            misfire_policy: "SKIP_TO_NEXT".into(),
+            safe_readonly_mode: true,
             sync_to_google_docs: false,
             sync_to_google_calendar: false,
             is_active: true,

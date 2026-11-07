@@ -109,6 +109,21 @@ pub async fn artifact_content(
     }))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct PinBody {
+    pub pinned: bool,
+}
+
+pub async fn pin_artifact(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<PinBody>,
+) -> AppResult<Json<ArtifactProvenance>> {
+    Ok(Json(
+        artifacts::set_pinned(&state.db, &id, body.pinned).await?,
+    ))
+}
+
 pub async fn artifact_raw(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,

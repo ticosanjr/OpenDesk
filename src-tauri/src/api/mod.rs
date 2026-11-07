@@ -1,8 +1,10 @@
 pub mod about;
 pub mod artifacts;
+pub mod attention;
 pub mod budget;
 pub mod chat;
 pub mod commands;
+pub mod cost;
 pub mod engine;
 pub mod files;
 pub mod google;
@@ -102,6 +104,8 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/models", get(models))
         .route("/api/agents", get(agents))
         .route("/api/dashboard", get(dashboard))
+        .route("/api/attention", get(attention::attention))
+        .route("/api/cost/mix", get(cost::model_mix))
         .route(
             "/api/workspaces",
             get(list_workspaces).post(create_workspace),
@@ -192,6 +196,11 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/tasks/{id}/move", post(tasks::move_task))
         .route("/api/tasks/{id}/transition", post(tasks::transition_task))
         .route("/api/tasks/{id}/diagnostics", get(tasks::task_diagnostics))
+        .route("/api/tasks/{id}/fork", post(tasks::fork_task))
+        .route(
+            "/api/tasks/{id}/memory",
+            get(tasks::get_task_memory).post(tasks::post_task_memory),
+        )
         .route(
             "/api/tasks/{id}/messages",
             get(tasks::list_task_messages).post(tasks::post_task_message),
@@ -226,6 +235,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/artifacts", get(artifacts::list_artifacts))
         .route("/api/artifacts/{id}", get(artifacts::get_artifact))
         .route("/api/artifacts/{id}/raw", get(artifacts::artifact_raw))
+        .route("/api/artifacts/{id}/pin", post(artifacts::pin_artifact))
         .route(
             "/api/artifacts/{id}/content",
             get(artifacts::artifact_content),
@@ -251,6 +261,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/schedules/tick", post(schedules::tick_scheduler))
         .route("/api/schedules/preview", post(schedules::preview_schedule))
         .route("/api/schedules/{id}/runs", get(schedules::schedule_runs))
+        .route("/api/schedules/{id}/dry-run", post(schedules::dry_run))
         .route(
             "/api/schedules/{id}/notify-test",
             post(schedules::test_notification),

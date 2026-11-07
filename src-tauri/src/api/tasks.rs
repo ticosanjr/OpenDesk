@@ -307,6 +307,65 @@ pub async fn resolve_workspace_id(state: &AppState, requested: Option<&str>) -> 
         .ok_or_else(|| AppError::BadRequest("no active workspace".into()))
 }
 
+pub async fn fork_task(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<tasks::Task>> {
+    let task = tasks::fork(&state.db, &id).await?;
+    state.events.publish(OpenDeskWsEvent::TaskUpdated {
+        task_id: task.id.clone(),
+        workspace_id: task.workspace_id.clone(),
+        stage: task.status.clone(),
+        phase_status: task.phase_status.clone(),
+    });
+    Ok(Json(task))
+}
+
+pub async fn get_task_memory(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<serde_json::Value>> {
+    let task = tasks::get(&state.db, &id).await?;
+    let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
+    let path = std::path::Path::new(&workspace.root_path)
+        .join(".opencode")
+        .join("MEMORY.md");
+    let content = std::fs::read_to_string(&path).unwrap_or_default();
+    Ok(Json(serde_json::json!({ "content": content })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MemoryBody {
+    pub content: String,
+}
+
+pub async fn post_task_memory(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<MemoryBody>,
+) -> AppResult<Json<serde_json::Value>> {
+    let content = body.content.trim();
+    if content.is_empty() {
+        return Err(AppError::BadRequest("memory content is required".into()));
+    }
+    let task = tasks::get(&state.db, &id).await?;
+    let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
+    let dir = std::path::Path::new(&workspace.root_path).join(".opencode");
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join("MEMORY.md");
+    let mut existing = std::fs::read_to_string(&path).unwrap_or_default();
+    if !existing.ends_with('\n') && !existing.is_empty() {
+        existing.push('\n');
+    }
+    existing.push_str(&format!(
+        "- [{}] {}\n",
+        chrono::Utc::now().format("%Y-%m-%d"),
+        content.replace('\n', " ")
+    ));
+    std::fs::write(&path, existing)?;
+    Ok(Json(serde_json::json!({ "ok": true, "path": path })))
+}
+
 pub async fn list_task_messages(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,

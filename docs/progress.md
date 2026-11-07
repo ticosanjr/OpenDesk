@@ -949,3 +949,17 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `LazyFileViewer` para carregar o visualizador sob demanda.
 - Ajuda de atalhos com `?`.
 - `cargo test` — 114 passed; `vitest` — 52 passed.
+
+## 2026-11-07 — 0.17.0: resiliência de fila, atenção, cron e entregáveis
+
+- Lease/heartbeat de jobs (`lease_expires_at`, `last_heartbeat_at`), heartbeat
+  de 5s e interrupção de lease expirado.
+- Attention Card no Dashboard com aprovação de plano, tarefas bloqueadas e
+  falhas das últimas 24h.
+- Cron com `misfire_policy`, `safe_readonly_mode`, catch-up e dry-run.
+- Rotinas com dry-run, histórico, duplicação e teste de notificação.
+- Artefatos fixáveis (`pinned`) com estrela no explorador e no detalhe.
+- `MEMORY.md` por workspace com botão “memória” na execução.
+- Fork de tarefa (`forked_from_task_id`).
+- Model mix/economia dos últimos 7 dias no Dashboard.
+- `cargo test` — 115 passed; Playwright — 19 passed.

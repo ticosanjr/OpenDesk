@@ -27,6 +27,10 @@ pub struct QueueJob {
     pub started_at: Option<String>,
     pub finished_at: Option<String>,
     #[sqlx(default)]
+    pub lease_expires_at: Option<String>,
+    #[sqlx(default)]
+    pub last_heartbeat_at: Option<String>,
+    #[sqlx(default)]
     pub task_title: Option<String>,
 }
 
@@ -155,6 +159,30 @@ pub async fn claim(pool: &SqlitePool, id: &str) -> AppResult<bool> {
     .execute(pool)
     .await?;
     Ok(result.rows_affected() == 1)
+}
+
+pub async fn heartbeat(pool: &SqlitePool, id: &str) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE execution_queue SET last_heartbeat_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            lease_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+60 seconds')
+         WHERE id = ? AND status = 'RUNNING'",
+    )
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn expired_leases(pool: &SqlitePool) -> AppResult<Vec<QueueJob>> {
+    let query = format!(
+        "SELECT {COLUMNS} FROM execution_queue q
+         LEFT JOIN tasks t ON t.id = q.task_id
+         WHERE q.status = 'RUNNING' AND q.lease_expires_at IS NOT NULL
+           AND q.lease_expires_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
+    );
+    Ok(sqlx::query_as::<_, QueueJob>(&query)
+        .fetch_all(pool)
+        .await?)
 }
 
 pub async fn finish(
@@ -336,6 +364,25 @@ mod tests {
         assert!(claim(&pool, &job.id).await.expect("claim 2"));
         assert_eq!(recover_running(&pool).await.expect("recover"), 1);
         assert_eq!(get(&pool, &job.id).await.expect("get 2").status, "FAILED");
+    }
+
+    #[tokio::test]
+    async fn heartbeat_and_expired_leases() {
+        let (_temp, pool) = setup().await;
+        let job = enqueue(&pool, input()).await.expect("enqueue");
+        assert!(claim(&pool, &job.id).await.expect("claim"));
+        heartbeat(&pool, &job.id).await.expect("heartbeat");
+        assert!(expired_leases(&pool).await.expect("leases").is_empty());
+        sqlx::query(
+            "UPDATE execution_queue SET lease_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 second') WHERE id = ?",
+        )
+        .bind(&job.id)
+        .execute(&pool)
+        .await
+        .expect("expire");
+        let expired = expired_leases(&pool).await.expect("expired");
+        assert_eq!(expired.len(), 1);
+        assert_eq!(expired[0].id, job.id);
     }
 
     #[tokio::test]

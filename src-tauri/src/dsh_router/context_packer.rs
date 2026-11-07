@@ -43,6 +43,17 @@ pub fn pack(context: &PackContext<'_>) -> String {
         "Nunca espalhe arquivos finais na raiz do projeto. Arquivos de configuração nativos do OpenCode (opencode.jsonc, .opencode/) não contam como entregáveis.\n\n",
     );
 
+    if let Ok(memory) =
+        std::fs::read_to_string(context.workspace_root.join(".opencode").join("MEMORY.md"))
+    {
+        let memory = memory.trim();
+        if !memory.is_empty() {
+            prompt.push_str("## Memória do workspace (regras aprendidas)\n\n");
+            prompt.push_str(&memory.chars().take(8_000).collect::<String>());
+            prompt.push_str("\n\n");
+        }
+    }
+
     if !input_files.is_empty() {
         prompt.push_str("## Arquivos de entrada disponíveis\n\n");
         prompt.push_str(
