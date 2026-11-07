@@ -255,6 +255,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/files/tree", get(files::tree))
         .route("/api/files/content", get(files::content))
         .route("/api/files/raw", get(files::raw))
+        .route("/api/files/media", get(files::media))
         .route("/api/artifacts", get(artifacts::list_artifacts))
         .route("/api/artifacts/pinned", get(artifacts::pinned_artifacts))
         .route("/api/artifacts/{id}", get(artifacts::get_artifact))

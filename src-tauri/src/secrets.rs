@@ -12,9 +12,11 @@ use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 
 /// Local secret store for integrations. Values are encrypted with AES-256-GCM
-/// using a machine-derived key and written with mode 0600. This is the fallback
-/// for Linux systems without a Secret Service; the API is intentionally small so
-/// a keyring backend can replace it later without changing callers.
+/// using a machine-derived key and written with mode 0600. Callers may also
+/// provide an environment variable named `OPENDESK_<NAMESPACE>_<KEY>` (for
+/// example `OPENDESK_SMTP_WS_1`), which is read only when no encrypted file
+/// exists and is never persisted or logged. The API is intentionally small so a
+/// keyring backend can replace it without changing callers.
 #[derive(Clone)]
 pub struct SecretStore {
     dir: PathBuf,
@@ -61,7 +63,14 @@ impl SecretStore {
         let path = self.path(namespace, key);
         let encoded = match std::fs::read_to_string(&path) {
             Ok(value) => value,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                let name = format!(
+                    "OPENDESK_{}_{}",
+                    sanitize(namespace).to_uppercase(),
+                    sanitize(key).to_uppercase()
+                );
+                return Ok(std::env::var(name).ok().filter(|value| !value.is_empty()));
+            }
             Err(error) => return Err(AppError::Io(error)),
         };
 

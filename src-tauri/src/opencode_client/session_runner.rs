@@ -507,6 +507,29 @@ async fn handle_event(
                     resources: resources.clone(),
                 });
 
+                if let Ok(config) = crate::integrations::signal::load(pool).await
+                    && config.enabled
+                    && !config.account.trim().is_empty()
+                {
+                    let text = format!(
+                        "OpenDesk aguardando decisão\nAção: {action}\nRecursos: {}\nResponda: APROVAR {} ou NEGAR {}",
+                        resources.join(", "),
+                        &request_id[..request_id.len().min(12)],
+                        &request_id[..request_id.len().min(12)],
+                    );
+                    for recipient in config.allowlist.clone() {
+                        let cli = config.cli_path.clone();
+                        let account = config.account.clone();
+                        let text = text.clone();
+                        tokio::spawn(async move {
+                            let _ = crate::integrations::signal::send_text(
+                                &cli, &account, &recipient, &text,
+                            )
+                            .await;
+                        });
+                    }
+                }
+
                 let decision = permissions::wait_for_decision(
                     pool,
                     &request_id,

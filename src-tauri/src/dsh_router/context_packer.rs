@@ -17,6 +17,28 @@ pub fn pack(context: &PackContext<'_>) -> String {
     let input_files = list_input_files(context.workspace_root, 30);
     let mut prompt = String::new();
 
+    // Keep the invariant prefix identical across tasks in the same workspace.
+    // Providers cache on the longest stable prefix, so task data comes later.
+    prompt.push_str("# OpenDesk — instruções permanentes\n\n");
+    prompt.push_str(
+        "Você executa tarefas governadas pelo OpenDesk. Salve todos os arquivos finais, relatórios e entregáveis no diretório de saída informado abaixo. Nunca espalhe arquivos finais na raiz do projeto. Arquivos de configuração nativos do OpenCode (opencode.jsonc, .opencode/) não contam como entregáveis.\n\n",
+    );
+    prompt.push_str("## Critérios de conclusão\n\n");
+    prompt.push_str("- O resultado está salvo no diretório de saída.\n");
+    prompt.push_str("- O resumo final cita os caminhos reais dos arquivos.\n");
+    prompt.push_str("- Nenhum arquivo final foi deixado na raiz do projeto.\n\n");
+
+    if let Ok(memory) =
+        std::fs::read_to_string(context.workspace_root.join(".opencode").join("MEMORY.md"))
+    {
+        let memory = memory.trim();
+        if !memory.is_empty() {
+            prompt.push_str("## Memória do workspace (regras aprendidas)\n\n");
+            prompt.push_str(&memory.chars().take(8_000).collect::<String>());
+            prompt.push_str("\n\n");
+        }
+    }
+
     prompt.push_str("# Tarefa OpenDesk\n\n");
     prompt.push_str(&format!("**Título:** {}\n", context.task_title));
     prompt.push_str(&format!("**Prioridade:** {}\n", context.priority));
@@ -39,20 +61,6 @@ pub fn pack(context: &PackContext<'_>) -> String {
         "Todos os arquivos finais, relatórios e entregáveis desta tarefa DEVEM ser salvos dentro de:\n\n`{}`\n\n",
         context.output_directory
     ));
-    prompt.push_str(
-        "Nunca espalhe arquivos finais na raiz do projeto. Arquivos de configuração nativos do OpenCode (opencode.jsonc, .opencode/) não contam como entregáveis.\n\n",
-    );
-
-    if let Ok(memory) =
-        std::fs::read_to_string(context.workspace_root.join(".opencode").join("MEMORY.md"))
-    {
-        let memory = memory.trim();
-        if !memory.is_empty() {
-            prompt.push_str("## Memória do workspace (regras aprendidas)\n\n");
-            prompt.push_str(&memory.chars().take(8_000).collect::<String>());
-            prompt.push_str("\n\n");
-        }
-    }
 
     if !input_files.is_empty() {
         prompt.push_str("## Arquivos de entrada disponíveis\n\n");
@@ -94,11 +102,6 @@ pub fn pack(context: &PackContext<'_>) -> String {
         prompt.push_str("- Não remova dados do usuário. Se precisar de uma decisão destrutiva, pare e explique.\n");
         prompt.push_str("- Ao terminar, responda com um resumo curto, a lista de arquivos criados/modificados e como verificar o resultado.\n");
     }
-
-    prompt.push_str("\n## Critérios de conclusão\n\n");
-    prompt.push_str("- O resultado está salvo no diretório de saída.\n");
-    prompt.push_str("- O resumo final cita os caminhos reais dos arquivos.\n");
-    prompt.push_str("- Nenhum arquivo final foi deixado na raiz do projeto.\n");
 
     prompt
 }

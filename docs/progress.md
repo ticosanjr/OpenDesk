@@ -984,3 +984,13 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Quick Capture aceita agente/subagente opcional e envia com override explícito.
 - Swarm A/B mostra os entregáveis de cada modelo em duas colunas assim que os
   runs terminam.
+
+## 2026-11-07 — 0.19.0: cache, mídia, aprovação remota e chat com anexos
+
+- Prefixo estável no context packer para maximizar prompt caching do OpenCode Go.
+- Cache hit (`tokens_cache_read` / input) exposto em `/api/cost/mix` e no card.
+- Metadados de vídeo/áudio via ffprobe em `/api/files/media` e no explorador.
+- Aprovação de permissão remota pelo Signal (`APROVAR`/`NEGAR` + prefixo).
+- SecretStore aceita variáveis `OPENDESK_<NAMESPACE>_<KEY>` como fallback.
+- Chat aceita imagens e arquivos por colagem/arraste, salvos em input/chat/.
+- `cargo test` — 125 passed.

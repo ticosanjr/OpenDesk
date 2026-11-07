@@ -99,6 +99,30 @@ pub async fn decide(
     get_by_request(pool, request_id).await
 }
 
+/// Resolve a pending request by a short prefix, used by chat/Signal replies.
+pub async fn decide_prefix(
+    pool: &SqlitePool,
+    prefix: &str,
+    decision: &str,
+) -> AppResult<Option<PermissionRequest>> {
+    let prefix = prefix.trim();
+    if prefix.len() < 4 {
+        return Ok(None);
+    }
+    let request_id = sqlx::query_scalar::<_, String>(
+        "SELECT request_id FROM permission_requests
+         WHERE status = 'PENDING' AND request_id LIKE ?
+         ORDER BY created_at ASC LIMIT 1",
+    )
+    .bind(format!("{prefix}%"))
+    .fetch_optional(pool)
+    .await?;
+    match request_id {
+        Some(request_id) => decide(pool, &request_id, decision).await.map(Some),
+        None => Ok(None),
+    }
+}
+
 /// Block the run until a human replies, the run is cancelled, or the request
 /// expires. Returns the decision (`once`, `always`, `reject`) or `None`.
 pub async fn wait_for_decision(
@@ -183,6 +207,34 @@ mod tests {
         decide(&pool, "req-1", "always").await.expect("decide");
         assert_eq!(waiter.await.expect("join"), Some("always".into()));
         assert!(pending(&pool, "ws-1").await.expect("pending").is_empty());
+    }
+
+    #[tokio::test]
+    async fn short_prefix_resolves_pending_request() {
+        let (_temp, pool) = setup().await;
+        create(
+            &pool,
+            None,
+            None,
+            "ws-1",
+            "ses-1",
+            "req_abcdef123456",
+            "bash",
+            &[],
+        )
+        .await
+        .expect("create");
+        let decided = decide_prefix(&pool, "req_abc", "once")
+            .await
+            .expect("decide")
+            .expect("found");
+        assert_eq!(decided.decision.as_deref(), Some("once"));
+        assert!(
+            decide_prefix(&pool, "req_abc", "once")
+                .await
+                .expect("second")
+                .is_none()
+        );
     }
 
     #[tokio::test]

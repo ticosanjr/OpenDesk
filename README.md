@@ -93,6 +93,8 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Permissões interativas com Attention Card e estados de agente.
 - Compactação de contexto, A/B swarm, fork por run e rollback de artefato.
 - Quick Capture global e blueprints de equipe.
+- Prompt caching com métrica de cache hit, metadados de mídia via ffprobe.
+- Aprovação remota de permissões pelo Signal e chat com anexos.
 - Backup rotativo do SQLite antes de migrações.
 - Limpeza automática de artefatos de build após cada release.
 - Auto-atualização do OpenDesk por release privada com SHA256 e backup.
@@ -243,6 +245,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0023 — Sessão, notificações e Kanban em lista](docs/decisions/0023-session-continuity-notifications-and-kanban-list.md)
 - [ADR 0024 — Fila, atenção, cron e entregáveis](docs/decisions/0024-queue-attention-cron-and-assets.md)
 - [ADR 0025 — Permissões, swarm, captura e blueprints](docs/decisions/0025-permissions-swarm-capture-blueprints.md)
+- [ADR 0026 — Cache, mídia, aprovações, segredos e chat](docs/decisions/0026-cache-media-approvals-chat-secrets.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
 - [Especificação original](OpenDesk%20Requisitos.txt)

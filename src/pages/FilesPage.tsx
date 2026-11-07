@@ -42,6 +42,19 @@ export function FilesPage() {
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingFile, setLoadingFile] = useState(false);
+  const [media, setMedia] = useState<{
+    format?: string | null;
+    duration_secs?: number | null;
+    bit_rate?: number | null;
+    streams: Array<{
+      type?: string | null;
+      codec?: string | null;
+      width?: number | null;
+      height?: number | null;
+      channels?: number | null;
+      sample_rate?: string | null;
+    }>;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [params, setParams] = useSearchParams();
   const deepPath = params.get("path");
@@ -102,9 +115,28 @@ export function FilesPage() {
       })
       .finally(() => {
         setLoadingFile(false);
+        void loadMedia(deepPath);
         setParams({}, { replace: true });
       });
   }, [activeWorkspaceId, deepPath, loadTree, setParams]);
+
+  const MEDIA_EXTENSIONS = /\.(mp4|mkv|webm|mov|avi|mp3|wav|flac|ogg|m4a|aac)$/i;
+
+  async function loadMedia(path: string) {
+    if (!MEDIA_EXTENSIONS.test(path)) {
+      setMedia(null);
+      return;
+    }
+    try {
+      setMedia(
+        await apiGet(
+          `/api/files/media?workspace_id=${encodeURIComponent(activeWorkspaceId ?? "")}&path=${encodeURIComponent(path)}`,
+        ),
+      );
+    } catch {
+      setMedia(null);
+    }
+  }
 
   async function openEntry(entry: FileEntry) {
     if (entry.is_dir) {
@@ -117,6 +149,7 @@ export function FilesPage() {
     setSelected(entry);
     setLoadingFile(true);
     setContent(null);
+    void loadMedia(entry.path);
     try {
       const value = await apiGet<FileContent>(
         `/api/files/content?workspace_id=${encodeURIComponent(activeWorkspaceId ?? "")}&path=${encodeURIComponent(entry.path)}`,
@@ -309,6 +342,37 @@ export function FilesPage() {
               <p className="mt-0.5 truncate font-mono text-[9px] text-zinc-600">
                 {content?.path ?? selected?.path ?? "selecione um arquivo"}
               </p>
+              {media ? (
+                <p className="mt-1 flex flex-wrap items-center gap-1 text-[9px] text-zinc-500">
+                  {media.duration_secs ? (
+                    <Badge variant="default">
+                      {Math.floor(media.duration_secs / 60)}:
+                      {String(Math.floor(media.duration_secs % 60)).padStart(2, "0")}
+                    </Badge>
+                  ) : null}
+                  {media.format ? <Badge variant="blue">{media.format}</Badge> : null}
+                  {media.streams
+                    .filter((stream) => stream.type === "video")
+                    .slice(0, 2)
+                    .map((stream, index) => (
+                      <Badge key={index} variant="purple">
+                        {stream.codec}
+                        {stream.width && stream.height
+                          ? ` ${stream.width}x${stream.height}`
+                          : ""}
+                      </Badge>
+                    ))}
+                  {media.streams
+                    .filter((stream) => stream.type === "audio")
+                    .slice(0, 1)
+                    .map((stream, index) => (
+                      <Badge key={index} variant="green">
+                        {stream.codec ?? "audio"}
+                        {stream.channels ? ` ${stream.channels}ch` : ""}
+                      </Badge>
+                    ))}
+                </p>
+              ) : null}
             </div>
             {content ? (
               <div className="flex shrink-0 items-center gap-1">

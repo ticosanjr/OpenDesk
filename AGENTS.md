@@ -3,8 +3,9 @@
 ## Identidade do projeto
 
 OpenDesk é um desktop app Tauri v2 (Rust) + React que governa o OpenCode V2.
-O documento mestre é `OpenDesk Requisitos.txt`, mas ele foi escrito para o
-OpenCode V1. **A implementação é V2-only** (ver `docs/decisions/0001-opencode-v2-only.md`).
+O documento mestre atual é `Especificacao Complementar OpenDesk.md`. A base
+original foi escrita para o OpenCode V1; **a implementação é V2-only** (ver
+`docs/decisions/0001-opencode-v2-only.md`).
 
 ## Regras invioláveis
 

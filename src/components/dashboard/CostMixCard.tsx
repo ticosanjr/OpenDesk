@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { apiGet } from "@/lib/api";
 import { useAppStore } from "@/store/app-store";
-import { formatUsd } from "@/lib/format";
+import { formatNumber, formatUsd } from "@/lib/format";
 
 interface CostMix {
   days: number;
@@ -19,6 +19,8 @@ interface CostMix {
   total_cost_usd: number;
   baseline_cost_usd: number;
   savings_usd: number;
+  cache_read: number;
+  cache_ratio: number;
 }
 
 export function CostMixCard() {
@@ -70,7 +72,8 @@ export function CostMixCard() {
         </div>
         <p className="text-[10px] text-zinc-600">
           Gasto real {formatUsd(data.total_cost_usd)} · baseline no modelo mais caro{" "}
-          {formatUsd(data.baseline_cost_usd)}
+          {formatUsd(data.baseline_cost_usd)} · cache hit{" "}
+          {(data.cache_ratio * 100).toFixed(1)}% ({formatNumber(data.cache_read)} tokens)
         </p>
       </CardContent>
     </Card>

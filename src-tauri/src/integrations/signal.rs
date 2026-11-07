@@ -283,6 +283,35 @@ async fn handle_incoming(
     config: &SignalConfig,
     incoming: IncomingSignal,
 ) -> AppResult<()> {
+    let trimmed = incoming.text.trim();
+    let lower = trimmed.to_lowercase();
+    if let Some(rest) = lower
+        .strip_prefix("aprovar ")
+        .or_else(|| lower.strip_prefix("negar "))
+    {
+        let approve = lower.starts_with("aprovar ");
+        let prefix = rest.split_whitespace().next().unwrap_or_default();
+        let decision = crate::db::permissions::decide_prefix(
+            &state.db,
+            prefix,
+            if approve { "once" } else { "reject" },
+        )
+        .await?;
+        let message = match decision {
+            Some(_) if approve => format!("Permissão {prefix} aprovada."),
+            Some(_) => format!("Permissão {prefix} negada."),
+            None => format!("Nenhum pedido pendente com o prefixo {prefix}."),
+        };
+        send_text(
+            &config.cli_path,
+            &config.account,
+            &incoming.source,
+            &message,
+        )
+        .await?;
+        return Ok(());
+    }
+
     let workspace_id = match &config.workspace_id {
         Some(id) => id.clone(),
         None => settings::active_workspace_id(&state.db)
