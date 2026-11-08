@@ -594,4 +594,38 @@ mod tests {
         bad.output_folder_template = "../escape".into();
         assert!(render_output_folder(&bad, Path::new("/tmp/ws"), now).is_err());
     }
+
+    #[test]
+    fn output_folder_renders_tokens_and_rejects_escapes() {
+        use chrono::TimeZone;
+        let mut value = schedule();
+        value.output_folder_template = "output/{YYYY}-{MM}/{DD}/{schedule_slug}".into();
+        value.name = "Relatório Diário".into();
+        let now = chrono::Utc
+            .with_ymd_and_hms(2026, 11, 8, 15, 30, 0)
+            .unwrap();
+        let root = Path::new("/tmp/ws");
+        let rendered = render_output_folder(&value, root, now).expect("folder");
+        assert_eq!(
+            rendered,
+            Path::new("/tmp/ws/output/2026-11/08/relatorio-diario")
+        );
+
+        value.output_folder_template = "../escape".into();
+        assert!(render_output_folder(&value, root, now).is_err());
+        value.output_folder_template = "/tmp/outside".into();
+        assert!(render_output_folder(&value, root, now).is_err());
+        value.output_folder_template = "/tmp/ws/inside".into();
+        assert_eq!(
+            render_output_folder(&value, root, now).expect("inside"),
+            Path::new("/tmp/ws/inside")
+        );
+    }
+
+    #[test]
+    fn invalid_cron_and_timezone_are_rejected() {
+        let now = chrono::Utc::now();
+        assert!(next_occurrence("not-a-cron", "UTC", now).is_err());
+        assert!(next_occurrence("0 8 * * *", "Marte/Olympus", now).is_err());
+    }
 }

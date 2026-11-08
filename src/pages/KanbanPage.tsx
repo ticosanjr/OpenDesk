@@ -33,6 +33,7 @@ import { CountPill } from "@/components/ui/count-pill";
 import { IconLabel } from "@/components/ui/icon-label";
 import { Modal } from "@/components/ui/modal";
 import { AgentCombobox } from "@/components/ui/agent-combobox";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { ModelCombobox } from "@/components/ui/model-combobox";
 import { SlashTextarea } from "@/components/ui/slash-textarea";
 import { toast } from "@/store/toast-store";
@@ -1164,7 +1165,7 @@ function TaskFormModal({
   const [priority, setPriority] = useState(2);
   const [tags, setTags] = useState("");
   const [agent, setAgent] = useState("");
-  const [model, setModel] = useState("");
+  const [model, setModel] = useState<string | null>(null);
   const [effort, setEffort] = useState("medium");
   const [email, setEmail] = useState("");
   const [exportToGdocs, setExportToGdocs] = useState(false);
@@ -1180,7 +1181,7 @@ function TaskFormModal({
       setExecutionMode(task.execution_mode);
       setPriority(task.priority);
       setAgent(task.assigned_agent ?? "");
-      setModel(task.preferred_model ?? "");
+      setModel(task.preferred_model ?? null);
       setEffort(task.effort_level);
       setEmail(task.notify_email ?? "");
       setExportToGdocs(task.export_to_gdocs);
@@ -1195,7 +1196,7 @@ function TaskFormModal({
       setExecutionMode("AUTO_DSH");
       setPriority(2);
       setAgent("");
-      setModel("");
+      setModel(null);
       setEffort("medium");
       setEmail("");
       setExportToGdocs(false);
@@ -1225,7 +1226,7 @@ function TaskFormModal({
         execution_mode: executionMode,
         priority,
         assigned_agent: agent.trim() || null,
-        preferred_model: model.trim() || null,
+        preferred_model: model,
         effort_level: effort,
         notify_email: email.trim() || null,
         export_to_gdocs: exportToGdocs,
@@ -1250,9 +1251,9 @@ function TaskFormModal({
         const saved = await apiPatch<Task>(`/api/tasks/${task.id}`, {
           ...payload,
           agent_override: Boolean(agent.trim()),
-          model_override: Boolean(model.trim()),
+          model_override: Boolean(model),
           clear_agent: !agent.trim(),
-          clear_model: !model.trim(),
+          clear_model: !model,
         });
         toast({
           tone: "success",
@@ -1269,6 +1270,17 @@ function TaskFormModal({
     }
   }
 
+  const advancedSummary = [
+    model ? `modelo: ${model}` : "roteador automático",
+    `prioridade ${priority}`,
+    agent ? `@${agent}` : null,
+    tags.trim() ? "tags" : null,
+    email.trim() ? "e-mail" : null,
+    exportToGdocs ? "Google Docs" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <Modal
       open={open}
@@ -1276,11 +1288,12 @@ function TaskFormModal({
       title={mode === "create" ? "Nova tarefa" : "Editar tarefa"}
       description={
         mode === "create"
-          ? "O roteador DSH decide Plan/Build, agente, modelo e effort. Você pode sobrescrever manualmente."
+          ? "Comece pelo título e prompt. Abra “Mais opções” para modo, agente, modelo, effort e notificações. O roteador decide o resto."
           : "Corrija agente, modelo, prompt e prioridade sem recriar o card."
       }
       className="max-w-2xl"
     >
+      <div className="space-y-3">
       <div className="grid gap-3 md:grid-cols-2">
         <label className="md:col-span-2">
           <span className={labelClass}>Título</span>
@@ -1302,6 +1315,9 @@ function TaskFormModal({
             placeholder="Descreva o objetivo, as entradas e os critérios de aceite… Digite / para comandos e skills."
           />
         </div>
+      </div>
+        <CollapsibleSection title="Mais opções" summary={advancedSummary}>
+          <div className="grid gap-3 md:grid-cols-2">
         <label>
           <span className={labelClass}>Modo</span>
           <select
@@ -1385,6 +1401,8 @@ function TaskFormModal({
           />
           exportar para Google Docs
         </label>
+          </div>
+        </CollapsibleSection>
       </div>
       {running ? (
         <p className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-200">
@@ -2201,13 +2219,15 @@ function SwarmModal({
             </span>
             <ModelCombobox
               value={model}
-              onChange={(value) =>
+              allowRouter={false}
+              onChange={(value) => {
+                if (!value) return;
                 setModels((current) =>
                   current.map((item, itemIndex) =>
                     itemIndex === index ? value : item,
                   ),
-                )
-              }
+                );
+              }}
             />
           </label>
         ))}

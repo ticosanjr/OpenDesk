@@ -46,6 +46,12 @@ export const TRIGGER_TYPES: TriggerTypeInfo[] = [
     description: "Dispara por uma chamada HTTP externa autenticada.",
   },
   {
+    value: "CALENDAR_EVENT",
+    label: "Evento de calendário (CALENDAR_EVENT)",
+    description:
+      "Dispara quando um evento começa e combina com o calendário e o título. Use {{trigger.calendar_event.title}} no prompt.",
+  },
+  {
     value: "SQL_POLL",
     label: "Consulta SQL periódica (SQL_POLL)",
     description: "Consultas SQL em intervalos e cria uma execução por novidade.",

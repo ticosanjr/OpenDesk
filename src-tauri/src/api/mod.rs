@@ -3,6 +3,7 @@ pub mod artifacts;
 pub mod attention;
 pub mod blueprints;
 pub mod budget;
+pub mod calendar;
 pub mod capture;
 pub mod chat;
 pub mod commands;
@@ -268,6 +269,32 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/queue/{id}/retry", post(queue::retry_job))
         .route("/api/queue/{id}/priority", patch(queue::update_priority))
         .route("/api/queue/concurrency", put(queue::set_concurrency))
+        .route(
+            "/api/calendar/events",
+            get(calendar::list_events).post(calendar::create_event),
+        )
+        .route(
+            "/api/calendar/events/{id}",
+            get(calendar::get_event)
+                .patch(calendar::update_event)
+                .delete(calendar::delete_event),
+        )
+        .route("/api/calendar/sources", get(calendar::list_sources))
+        .route(
+            "/api/calendar/sources/{id}",
+            axum::routing::patch(calendar::update_source).delete(calendar::delete_source),
+        )
+        .route(
+            "/api/calendar/sources/{id}/sync",
+            post(calendar::sync_source),
+        )
+        .route(
+            "/api/calendar/google/calendars",
+            get(calendar::google_calendars),
+        )
+        .route("/api/calendar/google/import", post(calendar::import_google))
+        .route("/api/calendar/sync", post(calendar::sync_calendars))
+        .route("/api/calendar/agenda", get(calendar::agenda))
         .route("/api/runs", get(runs::list_runs))
         .route("/api/runs/{id}", get(runs::get_run))
         .route("/api/runs/{id}/log", get(runs::run_log))
@@ -314,6 +341,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             post(recipes::resolve_hitl),
         )
         .route("/api/recipes/{id}", get(recipes::get).put(recipes::save))
+        .route("/api/recipes/{id}/enabled", post(recipes::set_enabled))
         .route("/api/recipes/{id}/run", post(recipes::run))
         .route("/api/io/tools", get(io_bus::tools))
         .route("/api/io/tools/{name}/install", post(io_bus::install_tool))

@@ -7,7 +7,6 @@ import {
   Clock3,
   Loader2,
   Mail,
-  Pause,
   Play,
   Plus,
   RefreshCw,
@@ -20,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { Switch } from "@/components/ui/switch";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
@@ -442,7 +442,21 @@ export function RoutinesPage() {
                         ) : null}
                       </div>
                     </div>
-                    <div className="flex shrink-0 flex-wrap gap-2">
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <Switch
+                          checked={schedule.is_active}
+                          onCheckedChange={() => void toggle(schedule)}
+                          label={
+                            schedule.is_active
+                              ? `Desativar rotina ${schedule.name}`
+                              : `Ativar rotina ${schedule.name}`
+                          }
+                        />
+                        <span className="text-[9px] text-zinc-500">
+                          {schedule.is_active ? "ligada" : "desligada"}
+                        </span>
+                      </div>
                       <Button
                         variant="outline"
                         size="sm"
@@ -497,15 +511,6 @@ export function RoutinesPage() {
                       >
                         <Play size={12} />
                         Executar agora
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7"
-                        onClick={() => void toggle(schedule)}
-                      >
-                        {schedule.is_active ? <Pause size={12} /> : <Play size={12} />}
-                        {schedule.is_active ? "Pausar" : "Retomar"}
                       </Button>
                       <Button
                         variant="destructive"

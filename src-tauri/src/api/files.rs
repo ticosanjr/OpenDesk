@@ -517,4 +517,28 @@ mod tests {
         assert!(should_skip("target"));
         assert!(!should_skip("input"));
     }
+
+    #[test]
+    fn read_raw_honors_ranges_and_rejects_bad_ones() {
+        let dir = tempfile::TempDir::new().expect("temp");
+        let path = dir.path().join("data.txt");
+        std::fs::write(&path, b"0123456789").expect("file");
+        let (all, total, range) = read_raw(&path, None).expect("all");
+        assert_eq!(all, b"0123456789");
+        assert_eq!(total, 10);
+        assert!(range.is_none());
+        let (chunk, total, range) = read_raw(&path, Some("bytes=2-5")).expect("range");
+        assert_eq!(chunk, b"2345");
+        assert_eq!(total, 10);
+        assert_eq!(range, Some((2, 5)));
+        let (tail, _, range) = read_raw(&path, Some("bytes=7-")).expect("tail");
+        assert_eq!(tail, b"789");
+        assert_eq!(range, Some((7, 9)));
+        let (whole, _, range) = read_raw(&path, Some("items=0-1")).expect("invalid range");
+        assert_eq!(whole, b"0123456789");
+        assert!(range.is_none());
+        let (whole, _, range) = read_raw(&path, Some("bytes=20-30")).expect("past end");
+        assert_eq!(whole, b"0123456789");
+        assert!(range.is_none());
+    }
 }

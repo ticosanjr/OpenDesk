@@ -11,6 +11,9 @@ const KanbanPage = lazy(() =>
 const SearchPage = lazy(() =>
   import("@/pages/SearchPage").then((module) => ({ default: module.SearchPage })),
 );
+const CalendarPage = lazy(() =>
+  import("@/pages/CalendarPage").then((module) => ({ default: module.CalendarPage })),
+);
 const RunsPage = lazy(() =>
   import("@/pages/RunsPage").then((module) => ({ default: module.RunsPage })),
 );
@@ -61,6 +64,7 @@ export default function App() {
           <Route index element={<DashboardPage />} />
           <Route path="search" element={<SearchPage />} />
           <Route path="kanban" element={<KanbanPage />} />
+          <Route path="calendar" element={<CalendarPage />} />
           <Route path="runs" element={<RunsPage />} />
           <Route path="runs/:runId" element={<RunDetailPage />} />
           <Route path="chat" element={<ChatPage />} />

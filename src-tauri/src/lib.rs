@@ -191,6 +191,7 @@ pub fn run() {
             }
             state.daemon.spawn_supervisor();
             tauri::async_runtime::spawn(integrations::delivery::retry_loop(state.clone()));
+            tauri::async_runtime::spawn(integrations::google_calendar::sync_loop(state.clone()));
             if let Err(error) =
                 tauri::async_runtime::block_on(state.signal.start_if_enabled(state.clone()))
             {
@@ -312,6 +313,7 @@ pub fn run_headless() {
         } else {
             state.daemon.spawn_supervisor();
             tauri::async_runtime::spawn(integrations::delivery::retry_loop(state.clone()));
+            tauri::async_runtime::spawn(integrations::google_calendar::sync_loop(state.clone()));
         }
 
         state.refresh_watcher().await.expect("config watcher");
@@ -324,6 +326,7 @@ pub fn run_headless() {
             state.paths.clone(),
         ));
         tauri::async_runtime::spawn(integrations::delivery::retry_loop(state.clone()));
+        tauri::async_runtime::spawn(integrations::google_calendar::sync_loop(state.clone()));
         state.cron.spawn();
         state.io_bus.start(state.clone()).await.expect("io bus");
         let _ = recipes::runtime::start(state.clone());

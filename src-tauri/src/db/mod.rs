@@ -7,6 +7,7 @@ use std::{path::Path, str::FromStr, time::Duration};
 
 pub mod artifacts;
 pub mod budget;
+pub mod calendar;
 pub mod chat;
 pub mod deliveries;
 pub mod integrations;
@@ -179,7 +180,14 @@ mod migration_tests {
                 .fetch_all(&pool)
                 .await
                 .unwrap();
-        assert_eq!(rows.last().unwrap().0, 22, "rows: {rows:?}");
+        assert_eq!(rows.last().unwrap().0, 23, "rows: {rows:?}");
+        let calendar_table: Option<(String,)> = sqlx::query_as(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'calendar_events'",
+        )
+        .fetch_optional(&pool)
+        .await
+        .unwrap();
+        assert!(calendar_table.is_some(), "calendar_events table");
         let cols: Vec<(String,)> =
             sqlx::query_as("SELECT name FROM pragma_table_info('execution_queue')")
                 .fetch_all(&pool)

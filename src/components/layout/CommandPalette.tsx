@@ -5,6 +5,7 @@ import {
   Activity,
   Archive,
   CalendarClock,
+  CalendarDays,
   FolderTree,
   Gauge,
   KanbanSquare,
@@ -17,6 +18,7 @@ import {
   Settings,
   Search,
   Wand2,
+  Workflow,
 } from "lucide-react";
 import { useUiStore } from "@/store/ui-store";
 import { useAppStore } from "@/store/app-store";
@@ -30,11 +32,13 @@ const icons = {
   "/": Gauge,
   "/search": Search,
   "/kanban": KanbanSquare,
+  "/calendar": CalendarDays,
   "/runs": Activity,
   "/chat": MessageSquare,
   "/artifacts": Archive,
   "/files": FolderTree,
   "/routines": CalendarClock,
+  "/recipes": Workflow,
   "/studio": Wand2,
   "/router": Route,
   "/integrations": Plug,

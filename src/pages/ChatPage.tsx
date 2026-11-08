@@ -48,7 +48,7 @@ export function ChatPage() {
   const [thread, setThread] = useState<ChatThread | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [agent, setAgent] = useState("build");
-  const [model, setModel] = useState("");
+  const [model, setModel] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Array<{ name: string; data: string }>>([]);
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
@@ -120,7 +120,7 @@ export function ChatPage() {
         setThread(value.thread);
         setMessages(value.messages);
         setAgent(value.thread.agent);
-        setModel(value.thread.model ?? "");
+        setModel(value.thread.model ?? null);
       })
       .catch((cause) =>
         setError(cause instanceof Error ? cause.message : String(cause)),
@@ -149,7 +149,7 @@ export function ChatPage() {
         workspace_id: activeWorkspaceId,
         title: "Nova conversa",
         agent,
-        model: model.trim() || null,
+        model,
         source: "desktop",
       });
       await loadThreads();

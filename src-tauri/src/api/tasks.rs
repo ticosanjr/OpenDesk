@@ -253,10 +253,11 @@ async fn plan_decision(
     } else {
         filtered
     };
+    // A model chosen by the user is never replaced by the router, even when it
+    // is cooling down: failing with the provider error is clearer than silently
+    // running on a different model.
     let task_model = if task.model_override {
-        task.preferred_model
-            .as_deref()
-            .filter(|model| !cooling.iter().any(|blocked| blocked == &base_model(model)))
+        task.preferred_model.as_deref()
     } else {
         None
     };

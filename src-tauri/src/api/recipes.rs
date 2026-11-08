@@ -58,6 +58,22 @@ pub async fn save(
     Ok(Json(saved))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct EnabledBody {
+    pub enabled: bool,
+}
+
+pub async fn set_enabled(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<EnabledBody>,
+) -> AppResult<Json<store::RecipeIndex>> {
+    let index = store::get(&state.db, &id).await?;
+    Ok(Json(
+        store::set_enabled(&state.db, &index.workspace_id, &id, body.enabled).await?,
+    ))
+}
+
 #[derive(Debug, Deserialize, Default)]
 pub struct RunBody {
     #[serde(default)]

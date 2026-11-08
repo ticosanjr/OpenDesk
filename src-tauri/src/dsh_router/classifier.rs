@@ -192,8 +192,26 @@ pub fn classify(input: &RouterInput<'_>) -> RouterDecision {
 
     // If the selected model is not exposed by this OpenCode instance, fall back
     // to the closest available chat model instead of failing the run.
-    let (resolved_model, model_note) =
-        resolve_model(input.available_models, &selected_model, &effort);
+    let manual_model = input
+        .manual_model
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let (resolved_model, model_note) = if let Some(model) = manual_model {
+        // Explicit choice wins over every policy. If the model is not exposed
+        // right now, keep it anyway and let the provider surface the real error
+        // instead of silently switching models.
+        let note =
+            if input.available_models.is_empty() || model_exists(input.available_models, model) {
+                None
+            } else {
+                Some(format!(
+                    "modelo '{model}' indisponível; mantendo a escolha do usuário"
+                ))
+            };
+        (model.to_string(), note)
+    } else {
+        resolve_model(input.available_models, &selected_model, &effort)
+    };
     if let Some(note) = model_note {
         rationale.push_str(&format!(" · {note}"));
     }
@@ -655,5 +673,24 @@ mod tests {
             with_variant(&[], "provider/model# high ", "low"),
             "provider/model#high"
         );
+    }
+
+    #[test]
+    fn manual_model_wins_over_cheapest_policy() {
+        let models = available();
+        let mut router_input = input(&models, &[], "CHEAPEST", "BUILD_DIRECT", &[]);
+        router_input.manual_model = Some("opencode-go/glm-5.3");
+        let decision = classify(&router_input);
+        assert_eq!(decision.selected_model, "opencode-go/glm-5.3");
+    }
+
+    #[test]
+    fn unavailable_manual_model_is_kept_instead_of_falling_back() {
+        let models = available();
+        let mut router_input = input(&models, &[], "COST_BENEFIT", "BUILD_DIRECT", &[]);
+        router_input.manual_model = Some("vendor/private-model");
+        let decision = classify(&router_input);
+        assert_eq!(decision.selected_model, "vendor/private-model");
+        assert!(decision.rationale.contains("mantendo a escolha"));
     }
 }

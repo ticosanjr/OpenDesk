@@ -177,6 +177,53 @@ pub async fn yaml_for(pool: &SqlitePool, id: &str) -> AppResult<String> {
     Ok(std::fs::read_to_string(index.file_path)?)
 }
 
+/// Toggle the top-level `enabled` flag without reformatting the rest of the
+/// YAML. Comments on the flag line are preserved so the file remains the
+/// source of truth and stays friendly to manual editing.
+pub fn set_yaml_enabled(yaml: &str, enabled: bool) -> String {
+    let mut output = String::new();
+    let mut replaced = false;
+    for line in yaml.lines() {
+        let top_level = !line.starts_with(' ') && !line.starts_with('\t');
+        if !replaced && top_level && line.trim_start().starts_with("enabled:") {
+            let comment = line.find(" #").map(|index| &line[index..]).unwrap_or("");
+            output.push_str(&format!(
+                "enabled: {}{comment}\n",
+                if enabled { "true" } else { "false" }
+            ));
+            replaced = true;
+        } else {
+            output.push_str(line);
+            output.push('\n');
+        }
+    }
+    if !replaced {
+        output.insert_str(
+            0,
+            if enabled {
+                "enabled: true\n"
+            } else {
+                "enabled: false\n"
+            },
+        );
+    }
+    if !yaml.ends_with('\n') && output.ends_with('\n') {
+        output.pop();
+    }
+    output
+}
+
+pub async fn set_enabled(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    id: &str,
+    enabled: bool,
+) -> AppResult<RecipeIndex> {
+    let yaml = yaml_for(pool, id).await?;
+    let updated = set_yaml_enabled(&yaml, enabled);
+    save_yaml(pool, workspace_id, id, &updated).await
+}
+
 pub async fn save_yaml(
     pool: &SqlitePool,
     workspace_id: &str,
@@ -463,5 +510,22 @@ mod tests {
                 .expect("second")
                 .is_none()
         );
+    }
+
+    #[test]
+    fn toggles_enabled_preserving_comment_and_final_newline() {
+        let yaml = "id: qa\nenabled: true # liga/desliga\nflow: []\n";
+        let output = set_yaml_enabled(yaml, false);
+        assert!(output.contains("enabled: false # liga/desliga"));
+        assert!(output.ends_with('\n'));
+        assert!(output.contains("flow: []"));
+    }
+
+    #[test]
+    fn adds_enabled_when_missing_and_keeps_missing_final_newline() {
+        let yaml = "id: qa\nflow: []";
+        let output = set_yaml_enabled(yaml, true);
+        assert!(output.starts_with("enabled: true\n"));
+        assert!(!output.ends_with('\n'));
     }
 }

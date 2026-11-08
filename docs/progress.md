@@ -1246,3 +1246,87 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   SQLite em 15s e `model-ref.spec.ts` determinístico incluídos no release.
 - `scripts/release.sh` usa notas de `docs/releases/<versão>.md` no GitHub e no
   `latest.json`; `SHA256SUMS` não inclui a si próprio.
+
+## 2026-11-08 — pós-0.24.2: Fase 1 (toggles, modelo explícito e opções avançadas)
+
+- Novo `Switch` acessível usado nas rotinas e receitas. Rotinas alternam pelo
+  card; receitas ganharam `POST /api/recipes/{id}/enabled`, que altera apenas a
+  linha `enabled:` do YAML preservando comentários e reindexa a receita.
+- `ModelCombobox` agora tem dois estados explícitos: **Roteador automático**
+  (`null`) ou **Modelo específico**. Valor vazio não existe mais; o padrão é o
+  roteador.
+- Roteador nunca troca um modelo escolhido pelo usuário: o classificador mantém
+  o modelo manual mesmo se ele estiver indisponível ou em cooldown; o erro real
+  do provider aparece em vez de um fallback silencioso.
+- Tarefa: título e prompt ficam visíveis; modo, prioridade, agente, modelo,
+  effort, tags, e-mail e Google Docs ficam em **Mais opções**, com resumo do que
+  está configurado.
+- `model-selection.ts` centraliza a regra “vazio ⇒ roteador”.
+- Testes: 217 Rust, 84 Vitest e 39 Playwright; E2E da fase cobre toggles,
+  persistência, modelo fixo e opções avançadas.
+
+## 2026-11-08 — pós-0.24.2: Fase 3 (calendário local e agenda unificada)
+
+- Migration `0023_calendar`: `calendar_sources`, `calendar_events` e
+  `calendar_trigger_fires`.
+- Cada workspace ganha um calendário local (“Meu calendário”) sob demanda.
+- CRUD de eventos em `/api/calendar/events` com validação de título, intervalo,
+  fuso e cor; `GET /api/calendar/events/{id}` para deep links.
+- Nova agenda unificada `/api/calendar/agenda` reúne eventos, ocorrências
+  futuras de rotinas CRON, receitas CRON, execuções (`task_runs` e
+  `recipe_runs`) e jobs futuros da fila, com status `PAST/ACTIVE/FUTURE`.
+- Página `/calendar` com grade mensal de 6 semanas, agenda do dia, filtros por
+  rotinas/receitas/execuções/eventos e CRUD de eventos locais.
+- Navegação, command palette, deep links (`/calendar?date=`,
+  `/calendar?event=`) e suporte a `/recipes?recipe=` adicionados.
+- Testes: 222 Rust, 89 Vitest e 40 Playwright; E2E cobre criar, editar,
+  filtrar e excluir evento e visualizar uma rotina no calendário.
+
+## 2026-11-08 — pós-0.24.2: Fase 4 (Google Calendar)
+
+- Escopo OAuth ganhou `calendar.readonly`; contas já conectadas precisam
+  reconectar para listar calendários.
+- `GoogleApi` agora lista calendários (`calendarList`), pagina eventos com
+  `syncToken`/`showDeleted`, cria em calendário específico, aplica `patch` e
+  exclui eventos. Eventos de dia inteiro usam `date` no Google e são
+  normalizados para datas UTC no cache local.
+- Fontes Google podem ser importadas, ativadas/desativadas para exibição e
+  sincronização, sincronizadas sob demanda e desconectadas. O calendário local
+  não pode ser removido.
+- Sync incremental a cada 5 minutos; token expirado (`410`) cai para full sync
+  de −30/+180 dias. Eventos cancelados viram `CANCELLED` e somem da agenda.
+- Criar, editar e excluir evento de fonte Google faz write-through e só então
+  atualiza o cache local; falha do Google não altera o cache.
+- Página do calendário ganhou botão Google/importação, sincronização manual e
+  seletor de calendário ao criar evento. Fontes invisíveis não aparecem na
+  agenda.
+- Testes: 229 Rust, 89 Vitest e 40 Playwright; parser de evento Google, upsert
+  idempotente, corrida do calendário local, fontes, importação sem OAuth e
+  visibilidade cobertos.
+
+## 2026-11-08 — pós-0.24.2: Fase 5 (eventos de calendário como trigger)
+
+- Novo gatilho `CALENDAR_EVENT` para receitas, com configuração de calendário,
+  filtro por título, antecedência (`lead_minutes`) e tolerância
+  (`lookahead_minutes`).
+- Runtime varre eventos do cache a cada 10s; Google usa o cache sincronizado a
+  cada 5min, e a tolerância padrão de 10min cobre esse atraso.
+- `calendar_trigger_fires` garante uma execução por receita/evento/ocorrência,
+  inclusive após restart. Eventos cancelados não disparam.
+- Contexto disponível no prompt como `{{trigger.calendar_event.title}}`,
+  `start`, `end`, `description`, `location` e `id`.
+- Editor de receitas ganhou campos do gatilho e carrega os calendários do
+  workspace.
+- Testes: 231 Rust, 89 Vitest e 40 Playwright; varredura idempotente e claim
+  cobertos.
+
+## 2026-11-08 — 0.25.0: calendário completo, gatilhos e cobertura
+
+- Fase 1: switches de rotina/receita, modelo explícito (roteador x específico)
+  e opções avançadas recolhidas na tarefa.
+- Fase 3: calendário local, agenda unificada e CRUD de eventos.
+- Fase 4: importação/sync do Google Calendar, gestão de fontes e write-through.
+- Fase 5: `CALENDAR_EVENT` como gatilho idempotente de receitas.
+- Fase 6: cobertura Rust elevada de 55,96% para **59,31% global** e de 61,40%
+  para **65,20% core**. Ratchet do gate em 59% global e 64% core.
+- Testes: 252 Rust, 89 Vitest e 40 Playwright.

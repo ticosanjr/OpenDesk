@@ -78,7 +78,7 @@ export function RunLogView({
   const [messages, setMessages] = useState<TaskMessage[]>([]);
   const [composer, setComposer] = useState("");
   const [composerAgent, setComposerAgent] = useState("");
-  const [composerModel, setComposerModel] = useState("");
+  const [composerModel, setComposerModel] = useState<string | null>(null);
   const [continueExecution, setContinueExecution] = useState(true);
   const [sending, setSending] = useState(false);
   const [follow, setFollow] = useState(false);
@@ -152,7 +152,7 @@ export function RunLogView({
         content: composer.trim(),
         continue_execution: continueExecution,
         agent: composerAgent.trim() || null,
-        model: composerModel.trim() || null,
+        model: composerModel,
       });
       setComposer("");
       toast({

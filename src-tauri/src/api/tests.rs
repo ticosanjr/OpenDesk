@@ -1,5 +1,5 @@
 use super::*;
-use crate::db::{artifacts, deliveries, queue as queue_db, runs};
+use crate::db::{artifacts, calendar as calendar_db, deliveries, queue as queue_db, runs};
 use crate::test_support::{self, TestContext};
 use axum::{
     body::{Body, to_bytes},
@@ -1713,4 +1713,1120 @@ flow:
     .await;
     assert_eq!(status, StatusCode::OK);
     assert!(hitl["requests"].is_array());
+}
+
+#[tokio::test]
+async fn calendar_events_crud_and_agenda_round_trip() {
+    let ctx = test_support::context().await;
+    let query = format!("workspace_id={}", ctx.workspace_id);
+    let (status, event) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/calendar/events?{query}"),
+        Some(json!({
+            "title": "Planejamento",
+            "description": "Semana de QA",
+            "location": "Sala 1",
+            "start_at": "2026-11-10T12:00:00Z",
+            "end_at": "2026-11-10T13:00:00Z",
+            "all_day": false,
+            "timezone": "UTC"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let id = event["id"].as_str().expect("event id").to_string();
+    assert_eq!(event["title"], "Planejamento");
+
+    let (status, events) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/calendar/events?{query}&from=2026-11-09&to=2026-11-11"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(events.as_array().expect("events").len(), 1);
+
+    let (status, sources) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/calendar/sources?{query}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        sources
+            .as_array()
+            .is_some_and(|items| items.iter().any(|item| item["provider"] == "LOCAL"))
+    );
+
+    let (status, agenda) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/calendar/agenda?{query}&from=2026-11-09&to=2026-11-11"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        agenda["items"]
+            .as_array()
+            .is_some_and(|items| items.iter().any(|item| item["kind"] == "event"))
+    );
+
+    let (status, updated) = call(
+        &ctx,
+        Method::PATCH,
+        &format!("/api/calendar/events/{id}"),
+        Some(json!({
+            "title": "Planejamento v2",
+            "end_at": "2026-11-10T14:00:00Z"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(updated["title"], "Planejamento v2");
+    assert_eq!(updated["end_at"], "2026-11-10T14:00:00Z");
+
+    let (status, _) = call(
+        &ctx,
+        Method::DELETE,
+        &format!("/api/calendar/events/{id}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (status, after) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/calendar/events?{query}&from=2026-11-09&to=2026-11-11"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        after
+            .as_array()
+            .is_some_and(|items| items.iter().all(|item| item["id"] != id))
+    );
+}
+
+#[tokio::test]
+async fn calendar_event_validation_rejects_bad_input() {
+    let ctx = test_support::context().await;
+    let uri = format!("/api/calendar/events?workspace_id={}", ctx.workspace_id);
+    for body in [
+        json!({
+            "title": "",
+            "start_at": "2026-11-10T12:00:00Z",
+            "end_at": "2026-11-10T13:00:00Z"
+        }),
+        json!({
+            "title": "Invertido",
+            "start_at": "2026-11-10T14:00:00Z",
+            "end_at": "2026-11-10T13:00:00Z"
+        }),
+        json!({
+            "title": "Fuso",
+            "start_at": "2026-11-10T12:00:00Z",
+            "end_at": "2026-11-10T13:00:00Z",
+            "timezone": "Marte/Olympus"
+        }),
+        json!({
+            "title": "Cor",
+            "start_at": "2026-11-10T12:00:00Z",
+            "end_at": "2026-11-10T13:00:00Z",
+            "color_hex": "azul"
+        }),
+    ] {
+        let (status, _) = call(&ctx, Method::POST, &uri, Some(body)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+    let (status, _) = call(
+        &ctx,
+        Method::PATCH,
+        "/api/calendar/events/missing",
+        Some(json!({ "title": "Nada" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn calendar_agenda_unifies_routines_recipes_and_runs() {
+    let ctx = test_support::context().await;
+    let query = format!("workspace_id={}", ctx.workspace_id);
+
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        "/api/schedules",
+        Some(json!({
+            "workspace_id": ctx.workspace_id,
+            "name": "Rotina Calendário",
+            "command_or_prompt": "executar",
+            "cron_expression": "0 9 * * *",
+            "timezone": "UTC",
+            "trigger_type": "CRON"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let recipes_dir = ctx.workspace_root.join(".opencode/recipes");
+    std::fs::create_dir_all(&recipes_dir).expect("recipes dir");
+    std::fs::write(
+        recipes_dir.join("receita-calendario.yaml"),
+        r#"id: receita-calendario
+name: Receita Calendário
+enabled: true
+triggers:
+  - type: CRON
+    config:
+      cron: "0 10 * * *"
+      timezone: UTC
+flow:
+  - type: step
+    id: passo-1
+    name: Passo
+    mode: build
+    agent: build
+    prompt: "Resuma"
+"#,
+    )
+    .expect("recipe");
+    let (status, _) = call(&ctx, Method::POST, "/api/recipes/sync", None).await;
+    assert_eq!(status, StatusCode::OK);
+
+    runs::create(
+        &ctx.state.db,
+        runs::CreateRunInput {
+            id: "run-calendar".into(),
+            queue_job_id: None,
+            workspace_id: ctx.workspace_id.clone(),
+            task_id: None,
+            schedule_id: None,
+            parent_run_id: None,
+            phase: Some("build".into()),
+            agent_name: "build".into(),
+            execution_mode: "BUILD_DIRECT".into(),
+            provider_id: Some("opencode-go".into()),
+            model_id: "glm-5.3".into(),
+            effort_level: "low".into(),
+            pricing_snapshot_json: None,
+            log_path: None,
+        },
+    )
+    .await
+    .expect("run");
+
+    let (status, agenda) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/calendar/agenda?{query}&from=2026-11-01&to=2026-12-01"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let items = agenda["items"].as_array().expect("items");
+    let kinds = items
+        .iter()
+        .filter_map(|item| item["kind"].as_str())
+        .collect::<Vec<_>>();
+    assert!(kinds.contains(&"routine"), "{kinds:?}");
+    assert!(kinds.contains(&"recipe"), "{kinds:?}");
+    assert!(kinds.contains(&"run"), "{kinds:?}");
+    assert!(
+        items
+            .iter()
+            .filter(|item| item["kind"] == "routine")
+            .all(|item| item["href"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("/routines"))
+    );
+}
+
+#[tokio::test]
+async fn calendar_sources_can_be_configured_and_removed() {
+    let ctx = test_support::context().await;
+    let query = format!("workspace_id={}", ctx.workspace_id);
+    let google = calendar_db::upsert_google_source(
+        &ctx.state.db,
+        &ctx.workspace_id,
+        "team@example.com",
+        "Time",
+        Some("#ff0000"),
+        "America/Sao_Paulo",
+    )
+    .await
+    .expect("google source");
+
+    let (status, sources) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/calendar/sources?{query}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        sources
+            .as_array()
+            .is_some_and(|items| items.iter().any(|item| item["provider"] == "GOOGLE"))
+    );
+
+    calendar_db::upsert_external_event(
+        &ctx.state.db,
+        &ctx.workspace_id,
+        &google.id,
+        &calendar_db::ExternalEventInput {
+            external_id: "google-event-1".into(),
+            title: "Evento Google Oculto".into(),
+            description: None,
+            location: None,
+            start_at: "2026-11-10T12:00:00Z".into(),
+            end_at: "2026-11-10T13:00:00Z".into(),
+            all_day: false,
+            timezone: "UTC".into(),
+            status: "CONFIRMED".into(),
+            color_hex: Some("#ff0000".into()),
+        },
+    )
+    .await
+    .expect("google event");
+    let agenda_uri = format!("/api/calendar/agenda?{query}&from=2026-11-09&to=2026-11-11");
+    let (_, visible_agenda) = call(&ctx, Method::GET, &agenda_uri, None).await;
+    assert!(visible_agenda["items"].as_array().is_some_and(|items| {
+        items
+            .iter()
+            .any(|item| item["title"] == "Evento Google Oculto")
+    }));
+
+    let (status, updated) = call(
+        &ctx,
+        Method::PATCH,
+        &format!("/api/calendar/sources/{}", google.id),
+        Some(json!({ "is_visible": false, "sync_enabled": false })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(updated["is_visible"], false);
+    assert_eq!(updated["sync_enabled"], false);
+    let (_, hidden_agenda) = call(&ctx, Method::GET, &agenda_uri, None).await;
+    assert!(hidden_agenda["items"].as_array().is_some_and(|items| {
+        items
+            .iter()
+            .all(|item| item["title"] != "Evento Google Oculto")
+    }));
+
+    let (status, _) = call(
+        &ctx,
+        Method::DELETE,
+        &format!("/api/calendar/sources/{}", google.id),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let local = calendar_db::ensure_local_source(&ctx.state.db, &ctx.workspace_id)
+        .await
+        .expect("local");
+    let (status, _) = call(
+        &ctx,
+        Method::DELETE,
+        &format!("/api/calendar/sources/{}", local.id),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn calendar_google_import_without_oauth_reports_an_actionable_error() {
+    let ctx = test_support::context().await;
+    let query = format!("workspace_id={}", ctx.workspace_id);
+
+    let (status, _) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/calendar/google/calendars?{query}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, imported) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/calendar/google/import?{query}"),
+        Some(json!({
+            "calendars": [{
+                "external_id": "team@example.com",
+                "name": "Time",
+                "color_hex": "#ff0000",
+                "timezone": "America/Sao_Paulo"
+            }]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(imported["sources"].as_array().expect("sources").len(), 1);
+    assert!(
+        imported["reports"][0]["error"]
+            .as_str()
+            .is_some_and(|error| !error.is_empty())
+    );
+
+    let (status, synced) = call(&ctx, Method::POST, "/api/calendar/sync", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(synced["reports"].as_array().is_some());
+}
+
+#[tokio::test]
+async fn capture_creates_tasks_from_text_and_images() {
+    let ctx = test_support::context().await;
+    let (status, task) = call(
+        &ctx,
+        Method::POST,
+        "/api/capture",
+        Some(json!({
+            "workspace_id": ctx.workspace_id,
+            "content": "Comprar café\npara o escritório",
+            "assigned_agent": "build"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(task["title"], "Comprar café");
+    assert_eq!(task["agent_override"], true);
+    assert!(
+        task["tags_json"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("quick-capture")
+    );
+
+    let (status, image_task) = call(
+        &ctx,
+        Method::POST,
+        "/api/capture",
+        Some(json!({
+            "workspace_id": ctx.workspace_id,
+            "content": "",
+            "filename": "print.png",
+            "image_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z0ZkAAAAASUVORK5CYII="
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        image_task["description"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("input/captures")
+    );
+
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        "/api/capture",
+        Some(json!({ "workspace_id": ctx.workspace_id, "content": "   " })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        "/api/capture",
+        Some(json!({
+            "workspace_id": ctx.workspace_id,
+            "content": "x",
+            "image_base64": "not-base64"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn runs_api_serves_logs_timeline_and_forks_from_run() {
+    let ctx = test_support::context().await;
+    let (_, task) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/tasks?workspace_id={}", ctx.workspace_id),
+        Some(json!({ "title": "Run API", "description": "teste" })),
+    )
+    .await;
+    let task_id = task["id"].as_str().expect("task").to_string();
+    let log_path = ctx.workspace_root.join("run.log");
+    std::fs::write(&log_path, "linha de log\n").expect("log");
+    runs::create(
+        &ctx.state.db,
+        runs::CreateRunInput {
+            id: "run-api".into(),
+            queue_job_id: None,
+            workspace_id: ctx.workspace_id.clone(),
+            task_id: Some(task_id.clone()),
+            schedule_id: None,
+            parent_run_id: None,
+            phase: Some("build".into()),
+            agent_name: "build".into(),
+            execution_mode: "BUILD_DIRECT".into(),
+            provider_id: Some("opencode-go".into()),
+            model_id: "glm-5.3".into(),
+            effort_level: "low".into(),
+            pricing_snapshot_json: None,
+            log_path: Some(log_path.to_string_lossy().to_string()),
+        },
+    )
+    .await
+    .expect("run");
+
+    let (status, list) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/runs?workspace_id={}", ctx.workspace_id),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list.as_array().expect("runs").len(), 1);
+    let (status, run) = call(&ctx, Method::GET, "/api/runs/run-api", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(run["task_title"], "Run API");
+    let (status, log) = call(&ctx, Method::GET, "/api/runs/run-api/log", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(log.as_str().unwrap_or_default().contains("linha de log"));
+    let (status, timeline) = call(&ctx, Method::GET, "/api/runs/run-api/timeline", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(timeline["run"].is_object());
+
+    let artifact_file = ctx.workspace_root.join("output/run/entrega.md");
+    std::fs::create_dir_all(artifact_file.parent().expect("parent")).expect("dir");
+    std::fs::write(&artifact_file, "# entrega").expect("artifact");
+    artifacts::create(
+        &ctx.state.db,
+        artifacts::CreateArtifactInput {
+            workspace_id: ctx.workspace_id.clone(),
+            task_id: Some(task_id.clone()),
+            run_id: "run-api".into(),
+            file_path: "output/run/entrega.md".into(),
+            absolute_path: artifact_file.to_string_lossy().to_string(),
+            file_type: "md".into(),
+            file_size_bytes: 9,
+            content_sha256: None,
+            previous_sha256: None,
+            action_type: "CREATED".into(),
+            created_by_agent: "build".into(),
+            creation_reason: "teste".into(),
+            diff_patch: None,
+        },
+    )
+    .await
+    .expect("artifact");
+    sqlx::query(
+        "UPDATE task_runs SET status = 'SUCCESS',
+            completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+1 second')
+         WHERE id = 'run-api'",
+    )
+    .execute(&ctx.state.db)
+    .await
+    .expect("finish run");
+
+    let (status, forked) = call(&ctx, Method::POST, "/api/runs/run-api/fork", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_ne!(forked["id"], task_id);
+    assert!(
+        forked["description"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("Fork a partir de run-api")
+    );
+
+    let (status, _) = call(&ctx, Method::GET, "/api/runs/missing/log", None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn studio_install_preview_and_apply_write_all_asset_kinds() {
+    let ctx = test_support::context().await;
+    let query = format!("scope=workspace&workspace_id={}", ctx.workspace_id);
+    let (status, preview) = call(
+        &ctx,
+        Method::POST,
+        "/api/studio/install/preview",
+        Some(json!({
+            "source_type": "mcp_json",
+            "value": "{\"type\":\"local\",\"command\":[\"echo\"]}",
+            "name": "qa-mcp"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(preview["items"][0]["kind"], "mcp");
+
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        "/api/studio/install/preview",
+        Some(json!({ "source_type": "mcp_json", "value": "not-json" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, applied) = call(
+        &ctx,
+        Method::POST,
+        "/api/studio/install/apply",
+        Some(json!({
+            "target_scope": "workspace",
+            "target_workspace_id": ctx.workspace_id,
+            "items": [
+                {
+                    "kind": "agent",
+                    "id": "install-agent",
+                    "body": "---\nname: Install Agent\ndescription: Instalado\nmode: subagent\n---\nVocê instala."
+                },
+                {
+                    "kind": "skill",
+                    "id": "install-skill",
+                    "body": "---\nname: Install Skill\ndescription: Skill instalada\n---\n## Processo\n1. Faça."
+                },
+                {
+                    "kind": "command",
+                    "id": "install-command",
+                    "body": "---\ndescription: Comando instalado\n---\nExecute $ARGUMENTS"
+                },
+                {
+                    "kind": "mcp",
+                    "id": "qa-mcp",
+                    "body": "",
+                    "server": { "type": "local", "command": ["echo"] }
+                }
+            ]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{applied}");
+    assert_eq!(applied["items"].as_array().expect("items").len(), 4);
+
+    let (status, agents) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/studio/agents?{query}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        agents
+            .as_array()
+            .is_some_and(|items| items.iter().any(|item| item["id"] == "install-agent"))
+    );
+
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        "/api/studio/install/apply",
+        Some(json!({ "items": [{ "kind": "unknown", "id": "x", "body": "" }] })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn task_fork_and_delete_with_queued_job() {
+    let ctx = test_support::context().await;
+    let (_, task) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/tasks?workspace_id={}", ctx.workspace_id),
+        Some(json!({ "title": "Fork", "description": "teste" })),
+    )
+    .await;
+    let task_id = task["id"].as_str().expect("task").to_string();
+    let (status, forked) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/tasks/{task_id}/fork"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_ne!(forked["id"], task_id);
+
+    let job = ctx
+        .state
+        .queue
+        .enqueue(queue_db::EnqueueInput {
+            workspace_id: ctx.workspace_id.clone(),
+            task_id: Some(task_id.clone()),
+            schedule_id: None,
+            session_id: None,
+            concurrency_group: None,
+            prompt_payload: "teste".into(),
+            resolved_mode: "build".into(),
+            resolved_agent: "build".into(),
+            resolved_model: "opencode-go/glm-5.3".into(),
+            resolved_effort: "low".into(),
+            job_kind: "task".into(),
+            scheduled_for: None,
+            output_dir: None,
+            priority: 2,
+            max_retries: 1,
+        })
+        .await
+        .expect("job");
+    let (status, _) = call(&ctx, Method::DELETE, &format!("/api/tasks/{task_id}"), None).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let stored = queue_db::get(&ctx.state.db, &job.id)
+        .await
+        .expect("job row");
+    assert_eq!(stored.status, "CANCELLED");
+}
+
+#[tokio::test]
+async fn schedule_dry_run_notifications_and_engine_guards() {
+    let ctx = test_support::context().await;
+    let (_, schedule) = call(
+        &ctx,
+        Method::POST,
+        "/api/schedules",
+        Some(json!({
+            "workspace_id": ctx.workspace_id,
+            "name": "Dry Run",
+            "command_or_prompt": "executar",
+            "cron_expression": "0 9 * * *",
+            "timezone": "UTC"
+        })),
+    )
+    .await;
+    let id = schedule["id"].as_str().expect("schedule");
+
+    let (status, result) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/schedules/{id}/dry-run"),
+        Some(json!({})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(result["ok"], false);
+    assert!(result["checks"].as_array().is_some_and(|checks| {
+        checks
+            .iter()
+            .any(|check| check["name"] == "Prompt" && check["ok"] == true)
+    }));
+
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/schedules/{id}/notify-test"),
+        Some(json!({ "channel": "email" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/schedules/{id}/notify-test"),
+        Some(json!({ "channel": "signal" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/schedules/{id}/run"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
+async fn io_bus_bindings_secrets_and_schedule_sinks_round_trip() {
+    let ctx = test_support::context().await;
+    let query = format!("?workspace_id={}", ctx.workspace_id);
+    let (_, task) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/tasks?workspace_id={}", ctx.workspace_id),
+        Some(json!({ "title": "Sinks", "description": "teste" })),
+    )
+    .await;
+    let task_id = task["id"].as_str().expect("task");
+    let (_, schedule) = call(
+        &ctx,
+        Method::POST,
+        "/api/schedules",
+        Some(json!({
+            "workspace_id": ctx.workspace_id,
+            "name": "Sinks",
+            "command_or_prompt": "executar",
+            "cron_expression": "0 9 * * *",
+            "timezone": "UTC"
+        })),
+    )
+    .await;
+    let schedule_id = schedule["id"].as_str().expect("schedule");
+    let (status, sink) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/io/outbound{query}"),
+        Some(json!({
+            "name": "Sink QA",
+            "sink_type": "ATOMIC_FS",
+            "config": { "path": "output" },
+            "is_enabled": false
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let sink_id = sink["id"].as_str().expect("sink").to_string();
+
+    for uri in [
+        format!("/api/tasks/{task_id}/sinks"),
+        format!("/api/schedules/{schedule_id}/sinks"),
+    ] {
+        let (status, _) = call(
+            &ctx,
+            Method::POST,
+            &uri,
+            Some(json!({ "sink_ids": [sink_id] })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, bindings) = call(&ctx, Method::GET, &uri, None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(bindings["bindings"].as_array().expect("bindings").len(), 1);
+    }
+
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        "/api/io/secrets",
+        Some(json!({ "key": "qa-key", "value": "secret" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = call(&ctx, Method::DELETE, "/api/io/secrets/qa-key", None).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        "/api/io/secrets",
+        Some(json!({ "key": "", "value": "x" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn schedule_trigger_sources_follow_the_trigger_type() {
+    let ctx = test_support::context().await;
+    let query = format!("?workspace_id={}", ctx.workspace_id);
+    for trigger in ["FOLDER_WATCH", "IMAP_IDLE", "WEBHOOK", "SQL_POLL"] {
+        let (status, schedule) = call(
+            &ctx,
+            Method::POST,
+            "/api/schedules",
+            Some(json!({
+                "workspace_id": ctx.workspace_id,
+                "name": format!("Rotina {trigger}"),
+                "command_or_prompt": "executar",
+                "cron_expression": "",
+                "timezone": "UTC",
+                "trigger_type": trigger,
+                "trigger_config_json": "{\"path\":\"input\"}"
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{trigger}");
+        let id = schedule["id"].as_str().expect("schedule");
+        let (_, sources) = call(&ctx, Method::GET, &format!("/api/io/inbound{query}"), None).await;
+        assert!(
+            sources["sources"]
+                .as_array()
+                .is_some_and(|items| items.iter().any(|item| item["config_json"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains(id))),
+            "{trigger} source"
+        );
+
+        let (status, _) = call(
+            &ctx,
+            Method::PATCH,
+            &format!("/api/schedules/{id}"),
+            Some(json!({ "trigger_type": "CRON", "cron_expression": "0 9 * * *" })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let (_, sources) = call(&ctx, Method::GET, &format!("/api/io/inbound{query}"), None).await;
+        assert!(
+            sources["sources"]
+                .as_array()
+                .is_some_and(|items| items.iter().all(|item| !item["config_json"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains(id))),
+            "{trigger} source removed"
+        );
+
+        let (status, _) = call(&ctx, Method::DELETE, &format!("/api/schedules/{id}"), None).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+    }
+}
+
+#[tokio::test]
+async fn meta_builder_creates_skill_agent_and_command() {
+    let ctx = test_support::context().await;
+    let query = format!("?workspace_id={}", ctx.workspace_id);
+    for (prompt, kind, id) in [
+        (
+            "crie uma skill chamada meta-skill focada em auditoria",
+            "skill",
+            "meta-skill",
+        ),
+        (
+            "crie um subagente chamado meta-agent focado em revisão",
+            "agent",
+            "meta-agent",
+        ),
+        (
+            "crie um comando /meta-cmd para auditar entregas",
+            "command",
+            "meta-cmd",
+        ),
+    ] {
+        let (status, result) = call(
+            &ctx,
+            Method::POST,
+            &format!("/api/meta/build{query}"),
+            Some(json!({ "prompt": prompt })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{prompt}: {result}");
+        assert_eq!(result["kind"], kind);
+        assert_eq!(result["id"], id);
+        assert!(result["path"].as_str().is_some_and(|path| !path.is_empty()));
+    }
+
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/meta/build{query}"),
+        Some(json!({ "prompt": "nada reconhecível" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn task_continuation_transition_and_diagnostics_cover_follow_up_path() {
+    let ctx = test_support::context().await;
+    let (_, task) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/tasks?workspace_id={}", ctx.workspace_id),
+        Some(json!({ "title": "Follow-up", "description": "teste" })),
+    )
+    .await;
+    let id = task["id"].as_str().expect("task").to_string();
+
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/tasks/{id}/messages"),
+        Some(json!({
+            "content": "continue daqui",
+            "continue_execution": true,
+            "model": "opencode-go/glm-5.3"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    let (_, messages) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/tasks/{id}/messages"),
+        None,
+    )
+    .await;
+    assert_eq!(messages.as_array().expect("messages").len(), 1);
+
+    let (status, cancelled) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/tasks/{id}/transition"),
+        Some(json!({ "status": "CANCELLED" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(cancelled["task"]["status"], "CANCELLED");
+
+    runs::create(
+        &ctx.state.db,
+        runs::CreateRunInput {
+            id: "run-diag".into(),
+            queue_job_id: None,
+            workspace_id: ctx.workspace_id.clone(),
+            task_id: Some(id.clone()),
+            schedule_id: None,
+            parent_run_id: None,
+            phase: Some("build".into()),
+            agent_name: "build".into(),
+            execution_mode: "BUILD_DIRECT".into(),
+            provider_id: Some("opencode-go".into()),
+            model_id: "glm-5.3".into(),
+            effort_level: "low".into(),
+            pricing_snapshot_json: None,
+            log_path: None,
+        },
+    )
+    .await
+    .expect("run");
+    let (status, diagnostics) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/tasks/{id}/diagnostics"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(diagnostics["runs"].as_array().expect("runs").len(), 1);
+}
+
+#[tokio::test]
+async fn studio_mcp_config_can_be_written_listed_and_deleted() {
+    let ctx = test_support::context().await;
+    let query = format!("scope=workspace&workspace_id={}", ctx.workspace_id);
+    let (status, document) = call(
+        &ctx,
+        Method::PUT,
+        &format!("/api/studio/mcp/qa-mcp?{query}"),
+        Some(json!({
+            "server": { "type": "local", "command": ["echo"], "disabled": false }
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{document}");
+
+    let (status, list) = call(&ctx, Method::GET, &format!("/api/studio/mcp?{query}"), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        list["servers"]
+            .as_array()
+            .is_some_and(|items| items.iter().any(|item| item["name"] == "qa-mcp"))
+    );
+
+    let (status, _) = call(
+        &ctx,
+        Method::DELETE,
+        &format!("/api/studio/mcp/qa-mcp?{query}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn artifact_rollback_reverts_created_and_modified_files() {
+    let ctx = test_support::context().await;
+    runs::create(
+        &ctx.state.db,
+        runs::CreateRunInput {
+            id: "run-rollback".into(),
+            queue_job_id: None,
+            workspace_id: ctx.workspace_id.clone(),
+            task_id: None,
+            schedule_id: None,
+            parent_run_id: None,
+            phase: Some("build".into()),
+            agent_name: "build".into(),
+            execution_mode: "BUILD_DIRECT".into(),
+            provider_id: Some("opencode-go".into()),
+            model_id: "glm-5.3".into(),
+            effort_level: "low".into(),
+            pricing_snapshot_json: None,
+            log_path: None,
+        },
+    )
+    .await
+    .expect("run");
+
+    let created_file = ctx.workspace_root.join("output/created.md");
+    std::fs::create_dir_all(created_file.parent().expect("parent")).expect("dir");
+    std::fs::write(&created_file, "novo").expect("file");
+    let created = artifacts::create(
+        &ctx.state.db,
+        artifacts::CreateArtifactInput {
+            workspace_id: ctx.workspace_id.clone(),
+            task_id: None,
+            run_id: "run-rollback".into(),
+            file_path: "output/created.md".into(),
+            absolute_path: created_file.to_string_lossy().to_string(),
+            file_type: "md".into(),
+            file_size_bytes: 4,
+            content_sha256: None,
+            previous_sha256: None,
+            action_type: "CREATED".into(),
+            created_by_agent: "build".into(),
+            creation_reason: "teste".into(),
+            diff_patch: None,
+        },
+    )
+    .await
+    .expect("created artifact");
+    let (status, result) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/artifacts/{}/rollback", created.id),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(result["action"], "CREATED");
+    assert!(!created_file.exists());
+
+    let modified_file = ctx.workspace_root.join("output/modified.md");
+    std::fs::write(&modified_file, "novo").expect("file");
+    let modified = artifacts::create(
+        &ctx.state.db,
+        artifacts::CreateArtifactInput {
+            workspace_id: ctx.workspace_id.clone(),
+            task_id: None,
+            run_id: "run-rollback".into(),
+            file_path: "output/modified.md".into(),
+            absolute_path: modified_file.to_string_lossy().to_string(),
+            file_type: "md".into(),
+            file_size_bytes: 4,
+            content_sha256: None,
+            previous_sha256: None,
+            action_type: "MODIFIED".into(),
+            created_by_agent: "build".into(),
+            creation_reason: "teste".into(),
+            diff_patch: Some("--- a\n+++ b\n@@\n-antigo\n+novo\n".into()),
+        },
+    )
+    .await
+    .expect("modified artifact");
+    let (status, result) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/artifacts/{}/rollback", modified.id),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(result["action"], "MODIFIED");
+    assert_eq!(
+        std::fs::read_to_string(&modified_file).expect("file"),
+        "antigo"
+    );
 }

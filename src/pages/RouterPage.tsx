@@ -271,9 +271,10 @@ export function RouterPage() {
                 Modelo roteador
               </span>
               <ModelCombobox
-                value={routerModel}
-                onChange={setRouterModel}
-                placeholder="automático (determinístico)"
+                value={routerModel || null}
+                onChange={(value) => setRouterModel(value ?? "")}
+                routerLabel="Determinístico (local)"
+                routerHint="Sem modelo de IA: o roteador compara custo e qualidade com regras locais."
               />
             </label>
             <Button

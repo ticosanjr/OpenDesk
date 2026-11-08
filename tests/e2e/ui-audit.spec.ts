@@ -5,6 +5,7 @@ const ROUTES = [
   "/",
   "/search",
   "/kanban",
+  "/calendar",
   "/runs",
   "/chat",
   "/routines",

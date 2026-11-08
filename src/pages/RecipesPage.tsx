@@ -12,6 +12,7 @@ import {
   Trash2,
   Workflow,
 } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +25,7 @@ import { FieldHint } from "@/components/ui/field-hint";
 import { IconLabel } from "@/components/ui/icon-label";
 import { LoadingState } from "@/components/ui/loading-state";
 import { PathInput } from "@/components/ui/path-input";
+import { Switch } from "@/components/ui/switch";
 import { AgentCombobox } from "@/components/ui/agent-combobox";
 import { ModelCombobox } from "@/components/ui/model-combobox";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
@@ -31,6 +33,7 @@ import { useAppStore } from "@/store/app-store";
 import { toast } from "@/store/toast-store";
 import { relativeTime } from "@/lib/format";
 import { TRIGGER_TYPES, triggerDescription } from "@/lib/trigger-types";
+import type { CalendarSource } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface RecipeIndex {
@@ -119,12 +122,15 @@ const ON_TIMEOUT = [
 
 export function RecipesPage() {
   const workspaceId = useAppStore((state) => state.activeWorkspaceId);
+  const [params] = useSearchParams();
+  const focusRecipe = params.get("recipe");
   const [recipes, setRecipes] = useState<RecipeIndex[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(focusRecipe);
   const [yaml, setYaml] = useState(DEFAULT_YAML);
   const [runs, setRuns] = useState<RecipeRun[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [toggling, setToggling] = useState<string | null>(null);
   const [editorLoading, setEditorLoading] = useState(false);
   const [runMode, setRunMode] = useState<"dry" | "run" | null>(null);
   const [runContext, setRunContext] = useState("");
@@ -177,6 +183,10 @@ export function RecipesPage() {
   }, [load]);
 
   useEffect(() => {
+    if (focusRecipe) setSelected(focusRecipe);
+  }, [focusRecipe]);
+
+  useEffect(() => {
     if (!selected) return;
     let cancelled = false;
     setEditorLoading(true);
@@ -202,6 +212,31 @@ export function RecipesPage() {
     // Visual edits are committed immediately; the debounce only protects
     // parsing while the user types raw YAML.
     setRecipe(next);
+  }
+
+  async function toggleRecipe(item: RecipeIndex) {
+    setToggling(item.id);
+    try {
+      await apiPost(`/api/recipes/${encodeURIComponent(item.id)}/enabled`, {
+        enabled: !item.is_enabled,
+      });
+      await load();
+      if (selected === item.id) {
+        const value = await apiGet<{ yaml: string }>(
+          `/api/recipes/${encodeURIComponent(item.id)}`,
+        );
+        setYaml(value.yaml);
+      }
+      toast({
+        tone: "success",
+        title: item.is_enabled ? "Receita desativada" : "Receita ativada",
+        description: item.name,
+      });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setToggling(null);
+    }
   }
 
   async function save() {
@@ -307,25 +342,44 @@ export function RecipesPage() {
               />
             ) : (
               recipes.map((item) => (
-                <button
+                <div
                   key={item.id}
-                  type="button"
-                  onClick={() => setSelected(item.id)}
                   className={cn(
-                    "w-full rounded-lg px-2.5 py-2 text-left transition-colors",
+                    "flex items-start gap-2 rounded-lg px-2.5 py-2 transition-colors",
                     selected === item.id
-                      ? "workspace-nav-active text-zinc-100"
-                      : "text-zinc-400 hover:bg-zinc-900",
+                      ? "workspace-nav-active"
+                      : "hover:bg-zinc-900",
+                    item.is_enabled ? undefined : "opacity-70",
                   )}
                 >
-                  <p className="truncate text-[11px] font-medium">{item.name}</p>
-                  <p className="truncate font-mono text-[9px] text-zinc-600">
-                    {item.trigger_type} · {item.total_runs} execuções
-                  </p>
-                  {item.last_error ? (
-                    <p className="truncate text-[9px] text-red-300">{item.last_error}</p>
-                  ) : null}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(item.id)}
+                    className={cn(
+                      "min-w-0 flex-1 text-left",
+                      selected === item.id ? "text-zinc-100" : "text-zinc-400",
+                    )}
+                  >
+                    <p className="truncate text-[11px] font-medium">{item.name}</p>
+                    <p className="truncate font-mono text-[9px] text-zinc-600">
+                      {item.trigger_type} · {item.total_runs} execuções
+                    </p>
+                    {item.last_error ? (
+                      <p className="truncate text-[9px] text-red-300">{item.last_error}</p>
+                    ) : null}
+                  </button>
+                  <Switch
+                    checked={item.is_enabled}
+                    onCheckedChange={() => void toggleRecipe(item)}
+                    disabled={toggling === item.id}
+                    label={
+                      item.is_enabled
+                        ? `Desativar receita ${item.name}`
+                        : `Ativar receita ${item.name}`
+                    }
+                    className="mt-0.5"
+                  />
+                </div>
               ))
             )}
           </CardContent>
@@ -699,6 +753,7 @@ function RecipeStepper({
                 key={index}
                 trigger={trigger}
                 index={index}
+                workspaceId={workspaceId}
                 onChange={(value) =>
                   setTriggers(
                     triggers.map((item, position) =>
@@ -823,16 +878,36 @@ function RecipeStepper({
 function TriggerEditor({
   trigger,
   index,
+  workspaceId,
   onChange,
   onRemove,
 }: {
   trigger: Dictionary;
   index: number;
+  workspaceId?: string | null;
   onChange: (value: Dictionary) => void;
   onRemove: () => void;
 }) {
   const type = String(trigger.type ?? "MANUAL");
   const config = (trigger.config ?? {}) as Dictionary;
+  const [calendars, setCalendars] = useState<CalendarSource[]>([]);
+
+  useEffect(() => {
+    if (type !== "CALENDAR_EVENT" || !workspaceId) return;
+    let cancelled = false;
+    void apiGet<CalendarSource[]>(
+      `/api/calendar/sources?workspace_id=${encodeURIComponent(workspaceId)}`,
+    )
+      .then((value) => {
+        if (!cancelled) setCalendars(Array.isArray(value) ? value : []);
+      })
+      .catch(() => {
+        if (!cancelled) setCalendars([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [type, workspaceId]);
 
   function patchConfig(value: Dictionary) {
     onChange({ ...trigger, config: { ...config, ...value } });
@@ -925,6 +1000,55 @@ function TriggerEditor({
                 onChange={(event) => patchConfig({ format: event.target.value })}
                 className={inputClass}
                 placeholder="json"
+              />
+            </LabeledField>
+          </>
+        ) : null}
+        {type === "CALENDAR_EVENT" ? (
+          <>
+            <LabeledField label="Calendário">
+              <select
+                value={String(config.calendar_id ?? "")}
+                onChange={(event) => patchConfig({ calendar_id: event.target.value })}
+                className={inputClass}
+              >
+                <option value="">Qualquer calendário</option>
+                {calendars.map((calendar) => (
+                  <option key={calendar.id} value={calendar.id}>
+                    {calendar.name}
+                    {calendar.provider === "GOOGLE" ? " (Google)" : " (local)"}
+                  </option>
+                ))}
+              </select>
+            </LabeledField>
+            <LabeledField label="Título contém">
+              <input
+                value={String(config.match ?? "")}
+                onChange={(event) => patchConfig({ match: event.target.value })}
+                className={inputClass}
+                placeholder="opcional — ex.: Planejamento"
+              />
+            </LabeledField>
+            <LabeledField label="Antecedência (min)">
+              <input
+                type="number"
+                min={0}
+                value={Number(config.lead_minutes ?? 0)}
+                onChange={(event) =>
+                  patchConfig({ lead_minutes: Number(event.target.value) })
+                }
+                className={inputClass}
+              />
+            </LabeledField>
+            <LabeledField label="Tolerância (min)">
+              <input
+                type="number"
+                min={1}
+                value={Number(config.lookahead_minutes ?? 10)}
+                onChange={(event) =>
+                  patchConfig({ lookahead_minutes: Number(event.target.value) })
+                }
+                className={inputClass}
               />
             </LabeledField>
           </>
@@ -1040,9 +1164,8 @@ function StepEditor({
         </LabeledField>
         <LabeledField label="Modelo">
           <ModelCombobox
-            value={String(step.model ?? "")}
-            onChange={(value) => onChange({ model: value || null })}
-            placeholder="automático"
+            value={typeof step.model === "string" ? step.model : null}
+            onChange={(value) => onChange({ model: value })}
           />
         </LabeledField>
       </div>

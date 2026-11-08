@@ -214,6 +214,7 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("button", { name: "Editar" }).click();
   await expect(page.getByText("Editar tarefa")).toBeVisible();
+  await page.getByRole("button", { name: "Mais opções" }).click();
   await page.getByLabel("Agente", { exact: true }).fill("explore");
   await page.getByRole("option", { name: /@explore/ }).click();
   await page.getByRole("button", { name: "Salvar", exact: true }).click();
@@ -232,6 +233,8 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   // UI edit of the model, including the type-to-filter combobox.
   await page.getByRole("button", { name: "Abrir tarefa Tarefa E2E do Kanban" }).click();
   await page.getByRole("button", { name: "Editar" }).click();
+  await page.getByRole("button", { name: "Mais opções" }).click();
+  await page.getByRole("button", { name: "Modelo específico" }).click();
   const modelInput = page.getByPlaceholder(/digite para filtrar/);
   await modelInput.fill("opencode-go/glm-5.3#high");
   await page.keyboard.press("Tab");

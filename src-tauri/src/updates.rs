@@ -628,4 +628,22 @@ mod tests {
             "OpenDesk_0.6.0_amd64.AppImage"
         );
     }
+
+    #[test]
+    fn exposes_the_build_version_and_development_installer() {
+        assert_eq!(current_version(), env!("CARGO_PKG_VERSION"));
+        assert_eq!(installer_kind(), "development");
+    }
+
+    #[test]
+    fn selects_nothing_for_unknown_installers_or_empty_manifests() {
+        let empty = manifest(Vec::new());
+        assert!(select_asset(&empty, "appimage").is_none());
+        let value = manifest(vec![("opendesk-linux-x86_64", "c")]);
+        assert_eq!(
+            select_asset(&value, "unknown").expect("fallback").name,
+            "opendesk-linux-x86_64"
+        );
+        assert!(select_asset(&value, "portable").is_some());
+    }
 }

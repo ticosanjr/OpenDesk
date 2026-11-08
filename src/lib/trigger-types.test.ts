@@ -11,5 +11,6 @@ describe("trigger types", () => {
     expect(triggerLabel("MYSTERY")).toBe("MYSTERY");
     expect(triggerDescription("MYSTERY")).toBe("Gatilho de entrada.");
     expect(TRIGGER_TYPES.some((item) => item.value === "CRON")).toBe(true);
+    expect(TRIGGER_TYPES.some((item) => item.value === "CALENDAR_EVENT")).toBe(true);
   });
 });

@@ -4,6 +4,10 @@ export const links = {
     `/kanban?task=${encodeURIComponent(taskId)}&run=${encodeURIComponent(runId)}`,
   run: (id: string) => `/runs/${encodeURIComponent(id)}`,
   runs: () => "/runs",
+  calendar: (date?: string) =>
+    date ? `/calendar?date=${encodeURIComponent(date)}` : "/calendar",
+  calendarEvent: (id: string) =>
+    `/calendar?event=${encodeURIComponent(id)}`,
   artifact: (id: string) => `/artifacts?id=${encodeURIComponent(id)}`,
   schedule: (id: string) => `/routines?schedule=${encodeURIComponent(id)}`,
   agent: (id: string, scope = "workspace", workspaceId?: string | null) => {

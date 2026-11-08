@@ -43,6 +43,9 @@ pub fn start(state: Arc<AppState>) -> Arc<RecipeRuntime> {
             if let Err(error) = scan_cron_triggers(&state).await {
                 tracing::warn!(error = %error, "recipe cron scan failed");
             }
+            if let Err(error) = scan_calendar_triggers(&state).await {
+                tracing::warn!(error = %error, "recipe calendar scan failed");
+            }
             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         }
     });
@@ -129,6 +132,137 @@ async fn scan_folder_triggers(
     Ok(())
 }
 
+async fn scan_calendar_triggers(state: &Arc<AppState>) -> AppResult<()> {
+    let now = chrono::Utc::now();
+    let events = db::calendar::list_events_starting_between(
+        &state.db,
+        &(now - chrono::Duration::days(1)).to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        &(now + chrono::Duration::days(8)).to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+    )
+    .await?;
+    if events.is_empty() {
+        return Ok(());
+    }
+
+    for index in store::list_all(&state.db).await? {
+        if !index.is_enabled {
+            continue;
+        }
+        let Ok(yaml) = store::yaml_for(&state.db, &index.id).await else {
+            continue;
+        };
+        let Ok(recipe) = parser::parse(&yaml) else {
+            continue;
+        };
+        let triggers = recipe
+            .triggers()
+            .into_iter()
+            .filter(|trigger| trigger.trigger_type == "CALENDAR_EVENT")
+            .cloned()
+            .collect::<Vec<_>>();
+        if triggers.is_empty() {
+            continue;
+        }
+        let sources = db::calendar::list_sources(&state.db, &index.workspace_id)
+            .await
+            .unwrap_or_default();
+        for trigger_config in triggers {
+            let lead = trigger_config
+                .config
+                .get("lead_minutes")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(0)
+                .clamp(0, 10_080);
+            let tolerance = trigger_config
+                .config
+                .get("lookahead_minutes")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(10)
+                .clamp(1, 1_440);
+            let calendar_id = trigger_config
+                .config
+                .get("calendar_id")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("")
+                .trim();
+            let title_filter = trigger_config
+                .config
+                .get("match")
+                .or_else(|| trigger_config.config.get("title_contains"))
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("")
+                .trim()
+                .to_lowercase();
+
+            for event in &events {
+                if event.workspace_id != index.workspace_id {
+                    continue;
+                }
+                if !calendar_id.is_empty()
+                    && event.source_id.as_deref() != Some(calendar_id)
+                    && !sources.iter().any(|source| {
+                        source.id == calendar_id
+                            && Some(source.external_id.as_deref())
+                                == Some(event.external_id.as_deref())
+                    })
+                    && !sources.iter().any(|source| {
+                        source.external_id.as_deref() == Some(calendar_id)
+                            && event.source_id.as_deref() == Some(source.id.as_str())
+                    })
+                {
+                    continue;
+                }
+                if !title_filter.is_empty() && !event.title.to_lowercase().contains(&title_filter) {
+                    continue;
+                }
+                let Ok(start) = chrono::DateTime::parse_from_rfc3339(&event.start_at) else {
+                    continue;
+                };
+                let trigger_at =
+                    start.with_timezone(&chrono::Utc) - chrono::Duration::minutes(lead);
+                let window_end = trigger_at + chrono::Duration::minutes(tolerance);
+                if now < trigger_at || now > window_end {
+                    continue;
+                }
+                // Claim before starting so a restart cannot fire the same occurrence twice.
+                if !db::calendar::claim_trigger_fire(
+                    &state.db,
+                    &recipe.id,
+                    &event.id,
+                    &event.start_at,
+                )
+                .await?
+                {
+                    continue;
+                }
+                let trigger = serde_json::json!({
+                    "calendar_event": {
+                        "id": event.id,
+                        "external_id": event.external_id,
+                        "title": event.title,
+                        "description": event.description,
+                        "location": event.location,
+                        "start": event.start_at,
+                        "end": event.end_at,
+                        "all_day": event.all_day,
+                        "source_id": event.source_id,
+                    },
+                    "event_id": event.id,
+                    "event_title": event.title,
+                    "event_start": event.start_at,
+                    "recipe_id": recipe.id,
+                });
+                if let Err(error) =
+                    engine::start(state.clone(), recipe.clone(), trigger, false).await
+                {
+                    tracing::warn!(recipe = %recipe.id, error = %error, "calendar recipe trigger failed");
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 async fn scan_cron_triggers(state: &Arc<AppState>) -> AppResult<()> {
     let now = chrono::Utc::now();
     for index in store::list_all(&state.db).await? {
@@ -182,4 +316,87 @@ async fn scan_cron_triggers(state: &Arc<AppState>) -> AppResult<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn calendar_trigger_fires_once_per_event() {
+        let ctx = crate::test_support::context().await;
+        let recipes = ctx.workspace_root.join(".opencode/recipes");
+        std::fs::create_dir_all(&recipes).expect("recipes");
+        let source = db::calendar::ensure_local_source(&ctx.state.db, &ctx.workspace_id)
+            .await
+            .expect("source");
+        std::fs::write(
+            recipes.join("receita-calendario.yaml"),
+            format!(
+                r#"id: receita-calendario
+name: Receita Calendário
+enabled: true
+triggers:
+  - type: CALENDAR_EVENT
+    config:
+      calendar_id: {source_id}
+      match: "Reunião"
+      lead_minutes: 0
+      lookahead_minutes: 10
+flow:
+  - type: step
+    id: passo-1
+    name: Passo
+    mode: build
+    agent: build
+    prompt: "Resuma {{{{trigger.calendar_event.title}}}}"
+"#,
+                source_id = source.id
+            ),
+        )
+        .expect("recipe");
+        store::sync_workspace(&ctx.state.db, &ctx.workspace_id, &ctx.workspace_root)
+            .await
+            .expect("sync");
+
+        let now = chrono::Utc::now();
+        db::calendar::create_event(
+            &ctx.state.db,
+            &ctx.workspace_id,
+            &source.id,
+            db::calendar::CreateEventInput {
+                source_id: None,
+                title: "Reunião de planejamento".into(),
+                description: None,
+                location: None,
+                start_at: now.to_rfc3339(),
+                end_at: (now + chrono::Duration::hours(1)).to_rfc3339(),
+                all_day: false,
+                timezone: Some("UTC".into()),
+                status: None,
+                color_hex: None,
+            },
+            &now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            &(now + chrono::Duration::hours(1)).to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            "UTC",
+            "CONFIRMED",
+        )
+        .await
+        .expect("event");
+
+        scan_calendar_triggers(&ctx.state)
+            .await
+            .expect("first scan");
+        scan_calendar_triggers(&ctx.state)
+            .await
+            .expect("second scan");
+
+        let runs: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM recipe_runs WHERE recipe_id = 'receita-calendario'",
+        )
+        .fetch_one(&ctx.state.db)
+        .await
+        .expect("count");
+        assert_eq!(runs, 1);
+    }
 }
