@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AgentFile } from "@/lib/types";
 import { loadAgents, loadRuntime } from "@/lib/studio-cache";
+import { shouldCloseOnBlur } from "@/lib/combobox";
 import { cn } from "@/lib/utils";
 import { fieldInputClass } from "@/lib/ui-classes";
 
@@ -115,7 +116,9 @@ export function AgentCombobox({
           setQuery("");
           setOpen(true);
         }}
-        onBlur={() => window.setTimeout(() => setOpen(false), 140)}
+        onBlur={(event) => {
+          if (shouldCloseOnBlur(event)) setOpen(false);
+        }}
         onKeyDown={(event) => {
           if (event.key === "Escape") setOpen(false);
           if (event.key === "Enter" && open) {

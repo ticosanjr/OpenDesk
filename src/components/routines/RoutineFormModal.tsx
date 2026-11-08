@@ -17,6 +17,7 @@ import { useAppStore } from "@/store/app-store";
 import { PromptAttachments } from "@/components/ui/prompt-attachments";
 import { RecurrenceEditor } from "@/components/routines/RecurrenceEditor";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
+import { shouldCloseOnBlur } from "@/lib/combobox";
 import { ROUTER_POLICY_LABELS } from "@/lib/types";
 import type {
   AgentFile,
@@ -607,10 +608,7 @@ export function CreateScheduleModal({
                   setRecipeOpen(true);
                 }}
                 onBlur={(event) => {
-                  const next = event.relatedTarget as Node | null;
-                  if (!next || !event.currentTarget.parentElement?.contains(next)) {
-                    setRecipeOpen(false);
-                  }
+                  if (shouldCloseOnBlur(event)) setRecipeOpen(false);
                 }}
                 placeholder="Digite para buscar a receita…"
                 className={inputClass}
@@ -661,10 +659,7 @@ export function CreateScheduleModal({
                     }}
                     onFocus={() => setAgentOpen(true)}
                     onBlur={(event) => {
-                      const next = event.relatedTarget as Node | null;
-                      if (!next || !event.currentTarget.parentElement?.contains(next)) {
-                        setAgentOpen(false);
-                      }
+                      if (shouldCloseOnBlur(event)) setAgentOpen(false);
                     }}
                     placeholder="automático (router)"
                     className={inputClass}

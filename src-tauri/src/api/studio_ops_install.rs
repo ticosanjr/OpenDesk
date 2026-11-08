@@ -72,82 +72,83 @@ pub async fn install_apply(
     .await?;
     let mut written = Vec::new();
     for item in body.items {
-        if item.kind == "mcp" {
-            let server = item.server.clone().ok_or_else(|| {
-                AppError::BadRequest(format!("mcp {} has no server object", item.id))
-            })?;
-            let path = target.paths.config_path(&target.scope)?;
-            jsonc_editor::upsert_mcp_server(
-                &path,
-                &item.id,
-                &server,
-                None,
-                &state.paths.backups_dir,
-            )?;
-        } else if item.kind == "agent" {
-            let (frontmatter, body) = parse_markdown(&item.body);
-            agents::write(
-                &target.paths,
-                &target.scope,
-                &item.id,
-                AgentWriteInput {
-                    name: markdown::get_string(&frontmatter, "name").or(item.name.clone()),
-                    avatar: markdown::get_string(&frontmatter, "avatar"),
-                    description: markdown::get_string(&frontmatter, "description")
-                        .or(item.description.clone()),
-                    mode: markdown::get_string(&frontmatter, "mode"),
-                    model: markdown::get_string(&frontmatter, "model"),
-                    color: markdown::get_string(&frontmatter, "color"),
-                    router_policy: markdown::get_string(&frontmatter, "router_policy"),
-                    hidden: markdown::get_bool(&frontmatter, "hidden").unwrap_or(false),
-                    steps: markdown::get_u32(&frontmatter, "steps"),
-                    disabled: markdown::get_bool(&frontmatter, "disabled").unwrap_or(false),
-                    permissions: parse_permissions(&frontmatter)?,
-                    system: body,
-                    expected_sha256: None,
-                },
-                &state.paths.backups_dir,
-            )?;
-        } else if item.kind == "skill" {
-            let (frontmatter, body) = parse_markdown(&item.body);
-            skills::write(
-                &target.paths,
-                &target.scope,
-                &item.id,
-                SkillWriteInput {
-                    name: markdown::get_string(&frontmatter, "name").or(item.name.clone()),
-                    description: markdown::get_string(&frontmatter, "description")
-                        .or(item.description.clone()),
-                    body,
-                    files: item.files.clone(),
-                    expected_sha256: None,
-                },
-                &state.paths.backups_dir,
-            )?;
-        } else if item.kind == "command" {
-            let (frontmatter, body) = parse_markdown(&item.body);
-            commands::write(
-                &target.paths,
-                &target.scope,
-                &item.id,
-                CommandWriteInput {
-                    description: markdown::get_string(&frontmatter, "description")
-                        .or(item.description.clone()),
-                    agent: markdown::get_string(&frontmatter, "agent"),
-                    model: markdown::get_string(&frontmatter, "model"),
-                    subagent: markdown::get_bool(&frontmatter, "subagent"),
-                    template: body,
-                    expected_sha256: None,
-                },
-                &state.paths.backups_dir,
-            )?;
-        } else {
-            return Err(AppError::BadRequest(format!(
-                "invalid install kind '{}'",
-                item.kind
-            )));
+        let kind = StudioKind::parse(&item.kind)?;
+        match kind {
+            StudioKind::Mcp => {
+                let server = item.server.clone().ok_or_else(|| {
+                    AppError::BadRequest(format!("mcp {} has no server object", item.id))
+                })?;
+                let path = target.paths.config_path(&target.scope)?;
+                jsonc_editor::upsert_mcp_server(
+                    &path,
+                    &item.id,
+                    &server,
+                    None,
+                    &state.paths.backups_dir,
+                )?;
+            }
+            StudioKind::Agent => {
+                let (frontmatter, body) = parse_markdown(&item.body);
+                agents::write(
+                    &target.paths,
+                    &target.scope,
+                    &item.id,
+                    AgentWriteInput {
+                        name: markdown::get_string(&frontmatter, "name").or(item.name.clone()),
+                        avatar: markdown::get_string(&frontmatter, "avatar"),
+                        description: markdown::get_string(&frontmatter, "description")
+                            .or(item.description.clone()),
+                        mode: markdown::get_string(&frontmatter, "mode"),
+                        model: markdown::get_string(&frontmatter, "model"),
+                        color: markdown::get_string(&frontmatter, "color"),
+                        router_policy: markdown::get_string(&frontmatter, "router_policy"),
+                        hidden: markdown::get_bool(&frontmatter, "hidden").unwrap_or(false),
+                        steps: markdown::get_u32(&frontmatter, "steps"),
+                        disabled: markdown::get_bool(&frontmatter, "disabled").unwrap_or(false),
+                        permissions: parse_permissions(&frontmatter)?,
+                        system: body,
+                        expected_sha256: None,
+                    },
+                    &state.paths.backups_dir,
+                )?;
+            }
+            StudioKind::Skill => {
+                let (frontmatter, body) = parse_markdown(&item.body);
+                skills::write(
+                    &target.paths,
+                    &target.scope,
+                    &item.id,
+                    SkillWriteInput {
+                        name: markdown::get_string(&frontmatter, "name").or(item.name.clone()),
+                        description: markdown::get_string(&frontmatter, "description")
+                            .or(item.description.clone()),
+                        body,
+                        files: item.files.clone(),
+                        expected_sha256: None,
+                    },
+                    &state.paths.backups_dir,
+                )?;
+            }
+            StudioKind::Command => {
+                let (frontmatter, body) = parse_markdown(&item.body);
+                commands::write(
+                    &target.paths,
+                    &target.scope,
+                    &item.id,
+                    CommandWriteInput {
+                        description: markdown::get_string(&frontmatter, "description")
+                            .or(item.description.clone()),
+                        agent: markdown::get_string(&frontmatter, "agent"),
+                        model: markdown::get_string(&frontmatter, "model"),
+                        subagent: markdown::get_bool(&frontmatter, "subagent"),
+                        template: body,
+                        expected_sha256: None,
+                    },
+                    &state.paths.backups_dir,
+                )?;
+            }
         }
-        written.push(json!({ "kind": item.kind, "id": item.id }));
+        written.push(json!({ "kind": kind.as_str(), "id": item.id }));
     }
     Ok(Json(
         json!({ "ok": true, "scope": target.scope, "items": written }),

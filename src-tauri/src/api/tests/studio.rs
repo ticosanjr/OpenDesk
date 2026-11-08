@@ -315,6 +315,104 @@ async fn studio_ops_manage_assets_duplicates_and_backups() {
 }
 
 #[tokio::test]
+async fn studio_crud_lists_gets_deletes_and_saves_config() {
+    let ctx = test_support::context().await;
+    let query = format!("scope=workspace&workspace_id={}", ctx.workspace_id);
+
+    for (kind, body) in [
+        (
+            "agent",
+            json!({ "name": "CRUD Agent", "mode": "subagent", "system": "Ok." }),
+        ),
+        (
+            "skill",
+            json!({ "name": "CRUD Skill", "body": "## Processo", "files": [] }),
+        ),
+        (
+            "command",
+            json!({ "description": "CRUD", "template": "Faça $ARGUMENTS" }),
+        ),
+    ] {
+        let singular = kind;
+        let (status, _) = call(
+            &ctx,
+            Method::PUT,
+            &format!("/api/studio/{singular}?id=crud-{kind}&{query}"),
+            Some(body),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{kind} write");
+
+        let (status, listed) = call(
+            &ctx,
+            Method::GET,
+            &format!("/api/studio/{kind}s?{query}"),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{kind} list");
+        assert!(listed.as_array().is_some_and(|items| {
+            items
+                .iter()
+                .any(|item| item["id"] == format!("crud-{kind}"))
+        }));
+
+        let (status, fetched) = call(
+            &ctx,
+            Method::GET,
+            &format!("/api/studio/{singular}?id=crud-{kind}&{query}"),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{kind} get");
+        assert_eq!(fetched["id"], format!("crud-{kind}"));
+    }
+
+    let (status, _) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/studio/agent?{query}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, _config) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/studio/config?{query}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, saved) = call(
+        &ctx,
+        Method::PUT,
+        &format!("/api/studio/config?{query}"),
+        Some(json!({ "content": "{\n  \"mcp\": {}\n}\n" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{saved}");
+    assert!(
+        saved["content"]
+            .as_str()
+            .is_some_and(|value| value.contains("mcp"))
+    );
+
+    for kind in ["agent", "skill", "command"] {
+        let (status, _) = call(
+            &ctx,
+            Method::DELETE,
+            &format!("/api/studio/{kind}?id=crud-{kind}&{query}"),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT, "{kind} delete");
+    }
+}
+
+#[tokio::test]
 async fn studio_moves_items_and_toggles_mcp_servers() {
     let ctx = test_support::context().await;
     let query = format!("scope=workspace&workspace_id={}", ctx.workspace_id);

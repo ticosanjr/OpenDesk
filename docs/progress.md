@@ -1469,3 +1469,14 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   de linhas**.
 - Testes: **264 Rust**, **91 Vitest** e **41 Playwright**.
 - Versão 0.27.0 publicada com artefatos locais, tag e GitHub Release.
+
+## 2026-11-08 — release 0.28.0
+
+- Fechamento de comboboxes centralizado em `shouldCloseOnBlur`, sem timers de
+  blur em agente, modelo e receita.
+- Instalação do Studio passou a usar `StudioKind`; testes novos cobrem CRUD,
+  config e round-trip de `opencode.jsonc`.
+- Busca global não sobrescreve mais o hash depois da navegação para um resultado.
+- Gate completo passou: **60,23% global** e **66,37% core** no Rust, **97,55%**
+  de linhas no Vitest, **265 Rust**, **93 Vitest** e **41 Playwright**.
+- Versão 0.28.0 publicada com artefatos locais, tag e GitHub Release.

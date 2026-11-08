@@ -3,6 +3,7 @@ import type { ModelHealth, ModelInfo } from "@/lib/types";
 import { loadModelHealth, loadModels } from "@/lib/studio-cache";
 import { isValidModelRef, normalizeModelRef } from "@/lib/model-ref";
 import { toModelSelection } from "@/lib/model-selection";
+import { shouldCloseOnBlur } from "@/lib/combobox";
 import { cn } from "@/lib/utils";
 
 const inputClass =
@@ -177,8 +178,8 @@ export function ModelCombobox({
               setOpen(true);
               setQuery(current ?? "");
             }}
-            onBlur={() => {
-              window.setTimeout(() => setOpen(false), 140);
+            onBlur={(event) => {
+              if (shouldCloseOnBlur(event)) setOpen(false);
               setTouched(true);
               if (!commitInput() && !query.trim() && !allowRouter) {
                 setQuery("");

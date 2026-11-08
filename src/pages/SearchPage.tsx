@@ -56,6 +56,9 @@ export function SearchPage() {
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
+      // A pending debounce must not rewrite the hash after the user opened
+      // another route from a search result.
+      if (!window.location.hash.startsWith("#/search")) return;
       const value = query.trim();
       setParams(value ? { q: value } : {}, { replace: true });
       if (!activeWorkspaceId || value.length < 2) {
