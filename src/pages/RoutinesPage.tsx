@@ -45,6 +45,7 @@ import { EntityLink } from "@/components/ui/entity-link";
 import { FieldHint } from "@/components/ui/field-hint";
 import { IconLabel } from "@/components/ui/icon-label";
 import { PathInput } from "@/components/ui/path-input";
+import { PromptAttachments } from "@/components/ui/prompt-attachments";
 import { TRIGGER_TYPES, triggerDescription, triggerLabel } from "@/lib/trigger-types";
 import {
   fieldInputClass as inputClass,
@@ -633,6 +634,7 @@ function CreateScheduleModal({
   const [recipeOpen, setRecipeOpen] = useState(false);
   const [whenOpen, setWhenOpen] = useState(true);
   const [prompt, setPrompt] = useState("");
+  const [attachments, setAttachments] = useState<string[]>([]);
   const [agent, setAgent] = useState("");
   const [agentOpen, setAgentOpen] = useState(false);
   const [agents, setAgents] = useState<AgentFile[]>([]);
@@ -689,6 +691,7 @@ function CreateScheduleModal({
     setRecipeQuery("");
     setWhenOpen(true);
     setPrompt(schedule?.command_or_prompt ?? "");
+    setAttachments([]);
     setAgent(schedule?.agent_name ?? "");
     setPolicy(schedule?.router_policy ?? workspace?.default_router_policy ?? "COST_BENEFIT");
     setPolicyTouched(false);
@@ -846,6 +849,12 @@ function CreateScheduleModal({
     setSaving(true);
     setError(null);
     try {
+      const attachmentBlock =
+        attachments.length > 0
+          ? `\n\nArquivos anexados:\n${attachments
+              .map((path) => `- ${path}`)
+              .join("\n")}`
+          : "";
       const payload = {
         workspace_id: workspaceId,
         name: name.trim(),
@@ -854,7 +863,8 @@ function CreateScheduleModal({
           triggerType === "CRON" ? (preview?.cron_expression ?? "") : "",
         timezone: timezone.trim(),
         agent_name: agent.trim() || null,
-        command_or_prompt: targetKind === "PROMPT" ? prompt.trim() : "",
+        command_or_prompt:
+          targetKind === "PROMPT" ? `${prompt.trim()}${attachmentBlock}` : "",
         trigger_type: triggerType,
         trigger_config_json: JSON.stringify(triggerConfig),
         target_kind: targetKind,
@@ -1321,6 +1331,13 @@ function CreateScheduleModal({
                   </div>
                 ) : null}
               </label>
+              {targetKind === "PROMPT" ? (
+                <PromptAttachments
+                  workspaceId={workspaceId}
+                  value={attachments}
+                  onChange={setAttachments}
+                />
+              ) : null}
             </>
           )}
         </div>

@@ -26,6 +26,7 @@ import { IconLabel } from "@/components/ui/icon-label";
 import { LoadingState } from "@/components/ui/loading-state";
 import { PathInput } from "@/components/ui/path-input";
 import { Switch } from "@/components/ui/switch";
+import { PromptAttachments } from "@/components/ui/prompt-attachments";
 import { AgentCombobox } from "@/components/ui/agent-combobox";
 import { ModelCombobox } from "@/components/ui/model-combobox";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
@@ -134,6 +135,7 @@ export function RecipesPage() {
   const [editorLoading, setEditorLoading] = useState(false);
   const [runMode, setRunMode] = useState<"dry" | "run" | null>(null);
   const [runContext, setRunContext] = useState("");
+  const [runAttachments, setRunAttachments] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -270,7 +272,13 @@ export function RecipesPage() {
     if (!selected) return;
     setRunning(true);
     try {
-      const text = context.trim();
+      const attachmentBlock =
+        runAttachments.length > 0
+          ? `Arquivos anexados:\n${runAttachments
+              .map((path) => `- ${path}`)
+              .join("\n")}`
+          : "";
+      const text = [context.trim(), attachmentBlock].filter(Boolean).join("\n\n");
       const run = await apiPost<RecipeRun>(`/api/recipes/${selected}/run`, {
         dry_run: dryRun,
         trigger_context: {
@@ -278,6 +286,7 @@ export function RecipesPage() {
           context: text,
           prompt: text,
           question: text,
+          attachments: runAttachments,
         },
       });
       toast({
@@ -287,6 +296,7 @@ export function RecipesPage() {
       });
       setRunMode(null);
       setRunContext("");
+      setRunAttachments([]);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -491,6 +501,12 @@ export function RecipesPage() {
               rows={6}
               placeholder="Ex.: analise o contrato em juridico/contratos/atual.pdf"
               className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 p-2.5 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60"
+            />
+            <PromptAttachments
+              workspaceId={workspaceId}
+              value={runAttachments}
+              onChange={setRunAttachments}
+              className="mt-2"
             />
           </label>
           <p className="text-[10px] leading-snug text-zinc-500">
@@ -1138,6 +1154,22 @@ function StepEditor({
   workspaceId?: string | null;
   onChange: (value: Dictionary) => void;
 }) {
+  const [attachments, setAttachments] = useState<string[]>([]);
+
+  function updateAttachments(paths: string[]) {
+    let prompt = String(step.prompt ?? "");
+    for (const path of paths.filter((item) => !attachments.includes(item))) {
+      prompt += `\n\nArquivos anexados:\n- ${path}`;
+    }
+    for (const path of attachments.filter((item) => !paths.includes(item))) {
+      prompt = prompt
+        .replace(`\n\nArquivos anexados:\n- ${path}`, "")
+        .replace(`\n- ${path}`, "");
+    }
+    setAttachments(paths);
+    onChange({ prompt });
+  }
+
   return (
     <div className="mt-1.5 space-y-1.5">
       <div className="grid gap-1.5 sm:grid-cols-3">
@@ -1175,6 +1207,12 @@ function StepEditor({
           onChange={(event) => onChange({ prompt: event.target.value })}
           rows={4}
           className="w-full rounded border border-zinc-800 bg-zinc-900/50 p-2 font-mono text-[10px] text-zinc-200 outline-none"
+        />
+        <PromptAttachments
+          workspaceId={workspaceId}
+          value={attachments}
+          onChange={updateAttachments}
+          className="mt-2"
         />
       </LabeledField>
     </div>

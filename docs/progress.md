@@ -1330,3 +1330,16 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Fase 6: cobertura Rust elevada de 55,96% para **59,31% global** e de 61,40%
   para **65,20% core**. Ratchet do gate em 59% global e 64% core.
 - Testes: 252 Rust, 89 Vitest e 40 Playwright.
+
+## 2026-11-08 — 0.26.0: anexos, retry de trigger e simplificação
+
+- Anexos genéricos via `POST/DELETE /api/attachments`: arquivos até 20 MB em
+  `input/attachments/`, com caminho relativo seguro e remoção validada.
+- Componente `PromptAttachments` adicionado a tarefas, rotinas, etapas de
+  receita e contexto de execução; os caminhos entram no prompt/descrição.
+- Trigger de calendário libera o claim quando `engine::start` falha, permitindo
+  retry na próxima varredura em vez de perder a ocorrência.
+- `CalendarPage` reduzido de 1.104 para 478 linhas; `EventModal` e
+  `ImportGoogleModal` extraídos para `components/calendar/`.
+- Cobertura Rust: **59,19% global** e **64,96% core**.
+- Testes: 253 Rust, 89 Vitest e 40 Playwright.

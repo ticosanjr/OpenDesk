@@ -2830,3 +2830,55 @@ async fn artifact_rollback_reverts_created_and_modified_files() {
         "antigo"
     );
 }
+
+#[tokio::test]
+async fn attachments_are_saved_and_deleted_inside_the_workspace() {
+    let ctx = test_support::context().await;
+    let query = format!("workspace_id={}", ctx.workspace_id);
+    let (status, saved) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/attachments?{query}"),
+        Some(json!({
+            "filename": "briefing final.md",
+            "base64": "data:text/markdown;base64,aGVsbG8="
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let path = saved["path"].as_str().expect("path");
+    assert!(path.starts_with("input/attachments/"));
+    assert_eq!(saved["mime"], "text/markdown");
+    assert!(ctx.workspace_root.join(path).is_file());
+
+    let (status, _) = call(
+        &ctx,
+        Method::DELETE,
+        &format!(
+            "/api/attachments?{query}&path={}",
+            urlencoding::encode(path)
+        ),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!ctx.workspace_root.join(path).exists());
+
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/attachments?{query}"),
+        Some(json!({ "filename": "x.txt", "base64": "not-base64" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, _) = call(
+        &ctx,
+        Method::DELETE,
+        &format!("/api/attachments?{query}&path=../escape"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}

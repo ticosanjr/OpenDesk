@@ -476,6 +476,24 @@ pub async fn claim_trigger_fire(
     Ok(result.rows_affected() == 1)
 }
 
+pub async fn release_trigger_fire(
+    pool: &SqlitePool,
+    recipe_id: &str,
+    event_id: &str,
+    occurrence_start: &str,
+) -> AppResult<()> {
+    sqlx::query(
+        "DELETE FROM calendar_trigger_fires
+         WHERE recipe_id = ? AND event_id = ? AND occurrence_start = ?",
+    )
+    .bind(recipe_id)
+    .bind(event_id)
+    .bind(occurrence_start)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn delete_event(pool: &SqlitePool, id: &str) -> AppResult<()> {
     let result = sqlx::query("DELETE FROM calendar_events WHERE id = ?")
         .bind(id)
@@ -597,6 +615,14 @@ mod tests {
             !claim_trigger_fire(&pool, "recipe-1", "event-1", "2026-11-10T12:00:00Z")
                 .await
                 .expect("second")
+        );
+        release_trigger_fire(&pool, "recipe-1", "event-1", "2026-11-10T12:00:00Z")
+            .await
+            .expect("release");
+        assert!(
+            claim_trigger_fire(&pool, "recipe-1", "event-1", "2026-11-10T12:00:00Z")
+                .await
+                .expect("retry")
         );
     }
 

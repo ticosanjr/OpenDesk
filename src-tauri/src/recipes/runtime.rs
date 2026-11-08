@@ -255,7 +255,15 @@ async fn scan_calendar_triggers(state: &Arc<AppState>) -> AppResult<()> {
                 if let Err(error) =
                     engine::start(state.clone(), recipe.clone(), trigger, false).await
                 {
-                    tracing::warn!(recipe = %recipe.id, error = %error, "calendar recipe trigger failed");
+                    // Release the claim so a transient failure is retried.
+                    let _ = db::calendar::release_trigger_fire(
+                        &state.db,
+                        &recipe.id,
+                        &event.id,
+                        &event.start_at,
+                    )
+                    .await;
+                    tracing::warn!(recipe = %recipe.id, error = %error, "calendar recipe trigger failed; will retry");
                 }
             }
         }

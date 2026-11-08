@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/api", () => ({
+  apiDelete: vi.fn(),
   apiGet: vi.fn(),
   apiPost: vi.fn(),
   apiPut: vi.fn(),
@@ -84,6 +85,7 @@ describe("RecipesPage", () => {
           context: "analise o briefing",
           prompt: "analise o briefing",
           question: "analise o briefing",
+          attachments: [],
         },
       }),
     );

@@ -1,5 +1,6 @@
 pub mod about;
 pub mod artifacts;
+pub mod attachments;
 pub mod attention;
 pub mod blueprints;
 pub mod budget;
@@ -134,6 +135,10 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/starter-packs/{id}/install",
             post(starter_packs::install_pack),
+        )
+        .route(
+            "/api/attachments",
+            post(attachments::save).delete(attachments::delete),
         )
         .route("/api/capture", post(capture::capture))
         .route("/api/blueprints", get(blueprints::list_blueprints))

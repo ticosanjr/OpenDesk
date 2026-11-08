@@ -34,6 +34,7 @@ import { IconLabel } from "@/components/ui/icon-label";
 import { Modal } from "@/components/ui/modal";
 import { AgentCombobox } from "@/components/ui/agent-combobox";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { PromptAttachments } from "@/components/ui/prompt-attachments";
 import { ModelCombobox } from "@/components/ui/model-combobox";
 import { SlashTextarea } from "@/components/ui/slash-textarea";
 import { toast } from "@/store/toast-store";
@@ -1166,6 +1167,7 @@ function TaskFormModal({
   const [tags, setTags] = useState("");
   const [agent, setAgent] = useState("");
   const [model, setModel] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<string[]>([]);
   const [effort, setEffort] = useState("medium");
   const [email, setEmail] = useState("");
   const [exportToGdocs, setExportToGdocs] = useState(false);
@@ -1182,6 +1184,7 @@ function TaskFormModal({
       setPriority(task.priority);
       setAgent(task.assigned_agent ?? "");
       setModel(task.preferred_model ?? null);
+      setAttachments([]);
       setEffort(task.effort_level);
       setEmail(task.notify_email ?? "");
       setExportToGdocs(task.export_to_gdocs);
@@ -1197,6 +1200,7 @@ function TaskFormModal({
       setPriority(2);
       setAgent("");
       setModel(null);
+      setAttachments([]);
       setEffort("medium");
       setEmail("");
       setExportToGdocs(false);
@@ -1220,9 +1224,15 @@ function TaskFormModal({
     setSaving(rerun ? "rerun" : "save");
     setError(null);
     try {
+      const attachmentBlock =
+        attachments.length > 0
+          ? `\n\nArquivos anexados:\n${attachments
+              .map((path) => `- ${path}`)
+              .join("\n")}`
+          : "";
       const payload = {
         title: title.trim(),
-        description: description.trim(),
+        description: `${description.trim()}${attachmentBlock}`,
         execution_mode: executionMode,
         priority,
         assigned_agent: agent.trim() || null,
@@ -1313,6 +1323,11 @@ function TaskFormModal({
             workspaceId={workspaceId}
             rows={5}
             placeholder="Descreva o objetivo, as entradas e os critérios de aceite… Digite / para comandos e skills."
+          />
+          <PromptAttachments
+            workspaceId={workspaceId}
+            value={attachments}
+            onChange={setAttachments}
           />
         </div>
       </div>
