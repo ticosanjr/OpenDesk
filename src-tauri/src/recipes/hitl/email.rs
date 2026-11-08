@@ -41,7 +41,7 @@ pub async fn dispatch(state: &Arc<AppState>, payload: &HitlRequestPayload) -> Ap
                     .and_then(|value| value.to_str())
                     .unwrap_or("anexo")
                     .to_string(),
-                mime: crate::api::files::mime_for(std::path::Path::new(path)).to_string(),
+                mime: crate::media::mime_for_path(std::path::Path::new(path)).to_string(),
                 bytes,
             })
         })

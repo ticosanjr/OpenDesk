@@ -25,6 +25,10 @@ original foi escrita para o OpenCode V1; **a implementação é V2-only** (ver
 5. **Segredos.** Senha do daemon e token da API local ficam em arquivos `0600`
    ou no keyring. Nunca logue senhas, tokens, prompts completos ou conteúdo de
    `.env`.
+6. **Verificação proporcional.** Sem release, rode `npm run check:changed`
+   (fmt/clippy/testes Rust e typecheck/Vitest quando os arquivos mudarem). O
+   gate completo (`scripts/gate.sh`, cobertura e Playwright) só roda quando o
+   usuário pedir um release.
 
 ## Comandos
 
@@ -35,6 +39,7 @@ npm run check          # TypeScript
 npm run build          # frontend
 npm run test:rust      # testes Rust
 npm run test:e2e       # Playwright Chromium (npx playwright install chromium)
+npm run check:changed  # verificação proporcional (sem release)
 cd src-tauri && cargo check
 cd src-tauri && cargo test
 scripts/release.sh     # build local + retenção de 3 releases (sem CI)

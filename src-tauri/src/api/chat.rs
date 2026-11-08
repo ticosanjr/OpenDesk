@@ -86,51 +86,14 @@ pub async fn send_message(
     let mut content = body.content;
     if !body.attachments.is_empty() {
         let workspace = crate::db::workspaces::get(&state.db, &thread.workspace_id).await?;
-        let folder = std::path::Path::new(&workspace.root_path)
-            .join("input")
-            .join("chat")
-            .join(chrono::Utc::now().format("%Y-%m").to_string());
-        std::fs::create_dir_all(&folder)?;
         for attachment in body.attachments {
-            let bytes = base64::Engine::decode(
-                &base64::engine::general_purpose::STANDARD,
-                attachment
-                    .base64
-                    .split_once(',')
-                    .map(|(_, payload)| payload)
-                    .unwrap_or(&attachment.base64),
-            )
-            .map_err(|_| AppError::BadRequest("anexo inválido".into()))?;
-            if bytes.len() > 20 * 1024 * 1024 {
-                return Err(AppError::BadRequest("anexo maior que 20 MB".into()));
-            }
-            let name = attachment
-                .filename
-                .chars()
-                .map(|character| {
-                    if character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '_') {
-                        character
-                    } else {
-                        '_'
-                    }
-                })
-                .collect::<String>();
-            let name = if name.trim_matches('_').is_empty() {
-                "anexo".to_string()
-            } else {
-                name
-            };
-            let path = folder.join(format!(
-                "{}-{name}",
-                chrono::Utc::now().format("%Y%m%d-%H%M%S%3f")
-            ));
-            std::fs::write(&path, bytes)?;
-            content.push_str(&format!(
-                "\n\nArquivo anexado: {}",
-                path.strip_prefix(&workspace.root_path)
-                    .unwrap_or(&path)
-                    .to_string_lossy()
-            ));
+            let saved = crate::api::attachments::save_base64(
+                std::path::Path::new(&workspace.root_path),
+                "input/chat",
+                &attachment.filename,
+                &attachment.base64,
+            )?;
+            content.push_str(&format!("\n\nArquivo anexado: {}", saved.path));
         }
     }
     Ok(Json(chat::send_message(&state, thread, &content).await?))

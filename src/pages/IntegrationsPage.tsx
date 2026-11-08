@@ -19,6 +19,7 @@ import {
   Package,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { InfoRow } from "@/components/ui/info-row";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -650,13 +651,3 @@ export function IntegrationsPage() {
     </PageBody>
   );
 }
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 text-[11px]">
-      <span className="text-zinc-600">{label}</span>
-      <span className="font-mono text-[10px] text-zinc-300">{value}</span>
-    </div>
-  );
-}
-

@@ -11,6 +11,7 @@ mod integrations;
 mod io_bus;
 mod mcp_bridge;
 mod mcp_config;
+mod media;
 mod opencode_client;
 mod paths;
 mod proposals;
@@ -21,6 +22,7 @@ mod secrets;
 mod starter_packs;
 #[cfg(test)]
 mod test_support;
+mod text;
 mod tray;
 mod updates;
 

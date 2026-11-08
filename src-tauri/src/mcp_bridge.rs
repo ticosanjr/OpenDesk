@@ -2,6 +2,7 @@ use crate::{
     db,
     events::EventBus,
     integrations::{google_api::GoogleApi, google_oauth::GoogleOAuth},
+    media::mime_for_path,
     paths::AppPaths,
     secrets::SecretStore,
 };
@@ -141,7 +142,7 @@ async fn call_tool(
                             .unwrap_or("attachment")
                             .to_string(),
                         bytes,
-                        mime_for(&path).to_string(),
+                        mime_for_path(&path).to_string(),
                     ));
                 }
             }
@@ -196,7 +197,7 @@ async fn call_tool(
                 .drive_upload(
                     workspace_id,
                     &name,
-                    mime_for(&path),
+                    mime_for_path(&path),
                     bytes,
                     folder_id.as_deref(),
                     false,
@@ -431,20 +432,6 @@ fn string_arg(arguments: &Value, key: &str) -> Option<String> {
 
 fn required_arg(arguments: &Value, key: &str) -> Result<String> {
     string_arg(arguments, key).with_context(|| format!("missing required argument '{key}'"))
-}
-
-fn mime_for(path: &std::path::Path) -> &'static str {
-    match path.extension().and_then(|extension| extension.to_str()) {
-        Some("md") | Some("markdown") => "text/markdown",
-        Some("json") => "application/json",
-        Some("html") | Some("htm") => "text/html",
-        Some("txt") | Some("log") => "text/plain",
-        Some("csv") => "text/csv",
-        Some("pdf") => "application/pdf",
-        Some("png") => "image/png",
-        Some("jpg") | Some("jpeg") => "image/jpeg",
-        _ => "application/octet-stream",
-    }
 }
 
 #[cfg(test)]

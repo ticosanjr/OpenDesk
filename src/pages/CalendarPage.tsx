@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
+  addDays,
   addMonths,
   format,
   isSameMonth,
   isToday,
   startOfDay,
   startOfMonth,
-  subMonths,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -26,15 +26,17 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { IconLabel } from "@/components/ui/icon-label";
 import { EventModal } from "@/components/calendar/event-modal";
 import { ImportGoogleModal } from "@/components/calendar/import-google-modal";
+import { CalendarItemChip, CalendarItemRow } from "@/components/calendar/calendar-item";
 import { apiGet, apiPost } from "@/lib/api";
 import {
   CALENDAR_CATEGORIES,
-  calendarRange,
+  CALENDAR_VIEWS,
   isVisibleItem,
-  itemTimeLabel,
   itemsForDay,
-  monthGrid,
+  viewDays,
+  viewRange,
   type CalendarCategory,
+  type CalendarView,
 } from "@/lib/calendar";
 import { useAppStore } from "@/store/app-store";
 import { toast } from "@/store/toast-store";
@@ -47,15 +49,6 @@ import type {
 import { cn } from "@/lib/utils";
 
 const WEEKDAYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
-
-const KIND_LABEL: Record<string, string> = {
-  event: "Evento",
-  routine: "Rotina",
-  recipe: "Receita",
-  run: "Execução",
-  recipe_run: "Receita",
-  queued: "Fila",
-};
 
 function capitalized(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -72,6 +65,7 @@ export function CalendarPage() {
     const value = new Date(focusDate);
     return Number.isNaN(value.getTime()) ? new Date() : value;
   })();
+  const [view, setView] = useState<CalendarView>("month");
   const [month, setMonth] = useState(() => startOfMonth(initialDate));
   const [selectedDay, setSelectedDay] = useState(() => startOfDay(initialDate));
   const [items, setItems] = useState<CalendarItem[]>([]);
@@ -89,8 +83,25 @@ export function CalendarPage() {
     events: true,
   });
 
-  const days = useMemo(() => monthGrid(month), [month]);
-  const range = useMemo(() => calendarRange(month), [month]);
+  const days = useMemo(
+    () => viewDays(view, month, selectedDay),
+    [view, month, selectedDay],
+  );
+  const range = useMemo(
+    () => viewRange(view, month, selectedDay),
+    [view, month, selectedDay],
+  );
+  const title = useMemo(
+    () =>
+      view === "month"
+        ? capitalized(format(month, "MMMM 'de' yyyy", { locale: ptBR }))
+        : `${format(days[0], "d MMM", { locale: ptBR })} – ${format(
+            days[days.length - 1],
+            "d 'de' MMM yyyy",
+            { locale: ptBR },
+          )}`,
+    [days, month, view],
+  );
   const visibleItems = useMemo(
     () => items.filter((item) => isVisibleItem(item, filters)),
     [items, filters],
@@ -154,12 +165,6 @@ export function CalendarPage() {
     };
   }, [focusEvent]);
 
-  useEffect(() => {
-    setSelectedDay(
-      isSameMonth(new Date(), month) ? startOfDay(new Date()) : startOfMonth(month),
-    );
-  }, [month]);
-
   async function syncCalendars() {
     setSyncing(true);
     try {
@@ -188,6 +193,25 @@ export function CalendarPage() {
     } finally {
       setSyncing(false);
     }
+  }
+
+  function move(direction: -1 | 1) {
+    if (view === "month") {
+      const next = addMonths(month, direction);
+      setMonth(next);
+      setSelectedDay(startOfMonth(next));
+      return;
+    }
+    const step = view === "week" || view === "seven" ? 7 : 1;
+    const next = addDays(selectedDay, direction * step);
+    setSelectedDay(startOfDay(next));
+    setMonth(startOfMonth(next));
+  }
+
+  function goToday() {
+    const today = new Date();
+    setMonth(startOfMonth(today));
+    setSelectedDay(startOfDay(today));
   }
 
   function openItem(item: CalendarItem) {
@@ -248,6 +272,25 @@ export function CalendarPage() {
       ) : null}
 
       <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5">
+          {CALENDAR_VIEWS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={view === item.id}
+              onClick={() => setView(item.id)}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-[10px] transition-colors",
+                view === item.id
+                  ? "bg-zinc-800 text-zinc-100"
+                  : "text-zinc-500 hover:text-zinc-300",
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <span className="mx-1 h-4 w-px bg-zinc-800" />
         {CALENDAR_CATEGORIES.map((category) => (
           <button
             key={category.id}
@@ -274,20 +317,25 @@ export function CalendarPage() {
         </span>
       </div>
 
-      <div className="grid min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr)_330px]">
+      <div
+        className={cn(
+          "grid min-h-0 gap-3",
+          view === "month" ? "xl:grid-cols-[minmax(0,1fr)_330px]" : "grid-cols-1",
+        )}
+      >
         <Card className="min-h-0">
           <CardHeader className="flex-row items-center justify-between py-3">
             <CardTitle className="flex items-center gap-2 text-[12px]">
               <CalendarDays size={14} className="text-zinc-500" />
-              {capitalized(format(month, "MMMM 'de' yyyy", { locale: ptBR }))}
+              {title}
             </CardTitle>
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                aria-label="Mês anterior"
-                onClick={() => setMonth((current) => subMonths(current, 1))}
+                aria-label="Anterior"
+                onClick={() => move(-1)}
               >
                 <ChevronLeft size={14} />
               </Button>
@@ -295,7 +343,7 @@ export function CalendarPage() {
                 variant="outline"
                 size="sm"
                 className="h-7"
-                onClick={() => setMonth(startOfMonth(new Date()))}
+                onClick={goToday}
               >
                 Hoje
               </Button>
@@ -303,14 +351,15 @@ export function CalendarPage() {
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                aria-label="Próximo mês"
-                onClick={() => setMonth((current) => addMonths(current, 1))}
+                aria-label="Próximo"
+                onClick={() => move(1)}
               >
                 <ChevronRight size={14} />
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="p-2">
+          <CardContent className={view === "month" ? "p-2" : "p-3"}>
+            {view === "month" ? (
             <div className="grid grid-cols-7 gap-1">
               {WEEKDAYS.map((weekday) => (
                 <div
@@ -328,6 +377,9 @@ export function CalendarPage() {
                     key={day.toISOString()}
                     role="button"
                     tabIndex={0}
+                    aria-label={capitalized(
+                      format(day, "EEEE, d 'de' MMMM", { locale: ptBR }),
+                    )}
                     onClick={() => setSelectedDay(startOfDay(day))}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
@@ -361,30 +413,11 @@ export function CalendarPage() {
                     </div>
                     <div className="mt-1 space-y-0.5">
                       {dayItems.slice(0, 3).map((item) => (
-                        <button
+                        <CalendarItemChip
                           key={item.id}
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openItem(item);
-                          }}
-                          title={`${itemTimeLabel(item)} · ${item.title}`}
-                          className={cn(
-                            "block w-full truncate rounded border-l-2 px-1 py-0.5 text-left text-[8px] leading-tight",
-                            item.status === "PAST"
-                              ? "opacity-60"
-                              : item.status === "ACTIVE"
-                                ? "ring-1 ring-blue-500/40"
-                                : undefined,
-                          )}
-                          style={{
-                            borderLeftColor: item.color ?? "#3b82f6",
-                            backgroundColor: `${item.color ?? "#3b82f6"}18`,
-                          }}
-                        >
-                          {item.all_day ? "" : `${format(new Date(item.start), "HH:mm")} `}
-                          {item.title}
-                        </button>
+                          item={item}
+                          onOpen={openItem}
+                        />
                       ))}
                       {dayItems.length > 3 ? (
                         <p className="px-1 text-[8px] text-zinc-600">
@@ -396,9 +429,25 @@ export function CalendarPage() {
                 );
               })}
             </div>
+            ) : view === "day" ? (
+              <CalendarDayView
+                items={selectedItems}
+                day={selectedDay}
+                onOpenItem={openItem}
+              />
+            ) : (
+              <CalendarColumns
+                days={days}
+                items={visibleItems}
+                selectedDay={selectedDay}
+                onSelectDay={setSelectedDay}
+                onOpenItem={openItem}
+              />
+            )}
           </CardContent>
         </Card>
 
+        {view === "month" ? (
         <Card className="min-h-0">
           <CardHeader className="py-3">
             <CardTitle className="text-[12px]">
@@ -416,37 +465,16 @@ export function CalendarPage() {
               />
             ) : (
               selectedItems.map((item) => (
-                <button
+                <CalendarItemRow
                   key={item.id}
-                  type="button"
-                  onClick={() => openItem(item)}
-                  className={cn(
-                    "flex w-full items-start gap-2 rounded-lg border border-zinc-800/70 px-2.5 py-2 text-left transition-colors hover:border-zinc-700",
-                    item.status === "PAST" ? "opacity-60" : undefined,
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className="mt-1 h-2 w-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: item.color ?? "#3b82f6" }}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1.5">
-                      <span className="truncate text-[11px] text-zinc-200">{item.title}</span>
-                      <Badge variant={item.status === "ACTIVE" ? "blue" : "default"}>
-                        {KIND_LABEL[item.kind] ?? item.kind}
-                      </Badge>
-                    </span>
-                    <span className="mt-0.5 block truncate font-mono text-[9px] text-zinc-600">
-                      {itemTimeLabel(item)}
-                      {item.subtitle ? ` · ${item.subtitle}` : ""}
-                    </span>
-                  </span>
-                </button>
+                  item={item}
+                  onOpen={openItem}
+                />
               ))
             )}
           </CardContent>
         </Card>
+        ) : null}
       </div>
 
       <ImportGoogleModal
@@ -474,5 +502,110 @@ export function CalendarPage() {
         }}
       />
     </PageBody>
+  );
+}
+
+function CalendarColumns({
+  days,
+  items,
+  selectedDay,
+  onSelectDay,
+  onOpenItem,
+}: {
+  days: Date[];
+  items: CalendarItem[];
+  selectedDay: Date;
+  onSelectDay: (day: Date) => void;
+  onOpenItem: (item: CalendarItem) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
+      {days.map((day) => {
+        const dayItems = itemsForDay(items, day);
+        const selected = day.toDateString() === selectedDay.toDateString();
+        return (
+          <div
+            key={day.toISOString()}
+            onClick={() => onSelectDay(startOfDay(day))}
+            className={cn(
+              "min-h-[320px] rounded-lg border p-2 transition-colors",
+              selected
+                ? "border-blue-500/50 bg-blue-500/5"
+                : "border-zinc-800/70 bg-zinc-950/30",
+            )}
+          >
+            <div className="flex items-center justify-between border-b border-zinc-800/70 pb-1.5">
+              <div>
+                <p className="text-[9px] uppercase tracking-[0.12em] text-zinc-600">
+                  {format(day, "EEE", { locale: ptBR })}
+                </p>
+                <p
+                  className={cn(
+                    "text-[13px] font-medium",
+                    isToday(day) ? "text-blue-300" : "text-zinc-300",
+                  )}
+                >
+                  {format(day, "d MMM", { locale: ptBR })}
+                </p>
+              </div>
+              {dayItems.length > 0 ? (
+                <span className="font-mono text-[8px] text-zinc-600">
+                  {dayItems.length}
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-1.5 space-y-1">
+              {dayItems.length === 0 ? (
+                <p className="px-1 py-2 text-[9px] text-zinc-700">—</p>
+              ) : (
+                dayItems.map((item) => (
+                  <CalendarItemChip
+                    key={item.id}
+                    item={item}
+                    onOpen={onOpenItem}
+                    detailed
+                  />
+                ))
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CalendarDayView({
+  items,
+  day,
+  onOpenItem,
+}: {
+  items: CalendarItem[];
+  day: Date;
+  onOpenItem: (item: CalendarItem) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] font-medium text-zinc-300">
+        {capitalized(format(day, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR }))}
+      </p>
+      {items.length === 0 ? (
+        <EmptyState
+          icon={CalendarDays}
+          title="Nada neste dia"
+          description="Crie um evento ou navegue para outro dia."
+          className="border-0 bg-transparent"
+        />
+      ) : (
+        items.map((item) => (
+          <CalendarItemRow
+            key={item.id}
+            item={item}
+            onOpen={onOpenItem}
+            size="md"
+          />
+        ))
+      )}
+    </div>
   );
 }

@@ -294,7 +294,7 @@ pub async fn content(
         content,
         truncated,
         binary,
-        mime: mime_for(&path).to_string(),
+        mime: crate::media::mime_for_path(&path).to_string(),
         size: metadata.len(),
     }))
 }
@@ -315,7 +315,10 @@ pub async fn raw(
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| "file".into());
     let mut builder = Response::builder()
-        .header(header::CONTENT_TYPE, mime_for(&path))
+        .header(
+            header::CONTENT_TYPE,
+            crate::media::content_type_for_path(&path),
+        )
         .header(
             header::CONTENT_DISPOSITION,
             format!("inline; filename=\"{filename}\""),
@@ -431,42 +434,6 @@ pub async fn media(
         "bit_rate": format.and_then(|value| value.get("bit_rate")).and_then(serde_json::Value::as_str).and_then(|value| value.parse::<u64>().ok()),
         "streams": streams,
     })))
-}
-
-pub fn mime_for(path: &Path) -> &'static str {
-    match path
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .unwrap_or_default()
-        .to_ascii_lowercase()
-        .as_str()
-    {
-        "html" | "htm" => "text/html; charset=utf-8",
-        "css" => "text/css; charset=utf-8",
-        "js" | "mjs" | "cjs" => "text/javascript; charset=utf-8",
-        "json" | "jsonc" => "application/json; charset=utf-8",
-        "md" | "markdown" | "mdx" => "text/markdown; charset=utf-8",
-        "txt" | "log" | "jsonl" | "csv" | "tsv" | "yaml" | "yml" | "toml" => {
-            "text/plain; charset=utf-8"
-        }
-        "svg" => "image/svg+xml",
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "gif" => "image/gif",
-        "webp" => "image/webp",
-        "avif" => "image/avif",
-        "ico" => "image/x-icon",
-        "pdf" => "application/pdf",
-        "mp4" | "m4v" => "video/mp4",
-        "webm" => "video/webm",
-        "mov" => "video/quicktime",
-        "mp3" => "audio/mpeg",
-        "wav" => "audio/wav",
-        "ogg" | "oga" => "audio/ogg",
-        "m4a" => "audio/mp4",
-        "zip" => "application/zip",
-        _ => "application/octet-stream",
-    }
 }
 
 #[cfg(test)]

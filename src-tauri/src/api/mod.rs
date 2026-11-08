@@ -38,7 +38,7 @@ use crate::{
 };
 use axum::{
     Json, Router,
-    extract::{Path, Query, Request, State},
+    extract::{DefaultBodyLimit, Path, Query, Request, State},
     http::{HeaderValue, Method, StatusCode, header::AUTHORIZATION},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -138,9 +138,14 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         )
         .route(
             "/api/attachments",
-            post(attachments::save).delete(attachments::delete),
+            post(attachments::save)
+                .delete(attachments::delete)
+                .layer(DefaultBodyLimit::max(attachments::MAX_BODY_BYTES)),
         )
-        .route("/api/capture", post(capture::capture))
+        .route(
+            "/api/capture",
+            post(capture::capture).layer(DefaultBodyLimit::max(attachments::MAX_BODY_BYTES)),
+        )
         .route("/api/blueprints", get(blueprints::list_blueprints))
         .route(
             "/api/blueprints/{id}/apply",
@@ -265,7 +270,10 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
                 .patch(chat::update_thread)
                 .delete(chat::delete_thread),
         )
-        .route("/api/chat/threads/{id}/messages", post(chat::send_message))
+        .route(
+            "/api/chat/threads/{id}/messages",
+            post(chat::send_message).layer(DefaultBodyLimit::max(attachments::MAX_BODY_BYTES)),
+        )
         .route("/api/queue", get(queue::list_queue))
         .route("/api/queue/status", get(queue::queue_status))
         .route("/api/queue/pause", post(queue::pause_queue))

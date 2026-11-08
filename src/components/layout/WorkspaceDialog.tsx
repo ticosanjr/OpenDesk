@@ -9,15 +9,10 @@ import { ROUTER_POLICY_LABELS } from "@/lib/types";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
 import { toast } from "@/store/toast-store";
 import { joinPath, pickFolder, slugifyWorkspace } from "@/lib/folder";
+import { basename } from "@/lib/path";
 import { cn } from "@/lib/utils";
 
 type Mode = "create" | "existing";
-
-function basename(path: string): string {
-  const normalized = path.replace(/[\\/]+$/, "");
-  const parts = normalized.split(/[\\/]/);
-  return parts[parts.length - 1] || "";
-}
 
 export function WorkspaceDialog() {
   const open = useUiStore((state) => state.workspaceDialogOpen);

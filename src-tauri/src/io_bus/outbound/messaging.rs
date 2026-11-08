@@ -99,7 +99,7 @@ async fn smtp(
                     .and_then(|value| value.to_str())
                     .unwrap_or("artifact")
                     .to_string(),
-                mime: crate::api::files::mime_for(path).to_string(),
+                mime: crate::media::mime_for_path(path).to_string(),
                 bytes,
             })
         })

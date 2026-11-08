@@ -1339,7 +1339,133 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   receita e contexto de execução; os caminhos entram no prompt/descrição.
 - Trigger de calendário libera o claim quando `engine::start` falha, permitindo
   retry na próxima varredura em vez de perder a ocorrência.
-- `CalendarPage` reduzido de 1.104 para 478 linhas; `EventModal` e
-  `ImportGoogleModal` extraídos para `components/calendar/`.
+- `CalendarPage` reduzido de 1.104 para 702 linhas (478 na primeira extração;
+  cresceu com as novas visões); `EventModal` e `ImportGoogleModal` extraídos
+  para `components/calendar/`.
 - Cobertura Rust: **59,19% global** e **64,96% core**.
-- Testes: 253 Rust, 89 Vitest e 40 Playwright.
+- Testes: 253 Rust, 89 Vitest e 40 Playwright naquele corte.
+
+## 2026-11-08 — verificação proporcional e calendário por dia/semana
+
+- Regra: sem release, `npm run check:changed` roda apenas fmt/Clippy/testes Rust
+  e typecheck/Vitest quando os arquivos correspondentes mudam. Cobertura e
+  Playwright ficam reservados ao gate de release.
+- Calendário ganhou visões **Mês**, **Semana**, **7 dias** e **Dia**, com
+  navegação proporcional à visão e agenda lateral apenas no mês.
+- Receitas com trigger CRON sem `config` usam o padrão diário 08:00 no
+  timezone do sistema (`iana-time-zone`, fallback UTC) no calendário e no
+  runtime, em vez de desaparecerem.
+
+## 2026-11-08 — calendário por visão, CRON vazio e limpeza
+
+- Visões de calendário: mês, semana, 7 dias e dia; navegação adapta o passo e a
+  agenda lateral fica no mês.
+- Receita CRON com `config` vazio usa 08:00 diário no timezone do sistema
+  (`Intl` no editor, `iana-time-zone` no backend) no calendário e no runtime; o
+  editor inicializa o config ao escolher CRON.
+- Trigger de calendário só consulta eventos quando existe receita habilitada
+  com `CALENDAR_EVENT`, e usa a correspondência de calendário simplificada.
+- Manutenção remove claims de trigger e eventos cancelados com mais de 90 dias.
+- Cancelar tarefa/rotina/execução de receita remove os anexos enviados naquele
+  formulário; o chat deixa explícito que “automático” usa o padrão do agente.
+- Verificação proporcional via `npm run check:changed`; testes: 254 Rust e 91 Vitest.
+
+## 2026-11-08 — cards consistentes em Kanban, rotinas e atenção
+
+- Kanban: card extraído para `TaskCard` com altura fixa de 152px, título em até
+  duas linhas, descrição em uma, metadados limitados a 3 + `+N` e rodapé fixo.
+- Rotinas: card extraído para `RoutineCard` com 188px, cabeçalho com switch,
+  metadados 4 + `+N`, prompt em duas linhas e ações secundárias no menu `⋯`.
+- Atenção: linhas com 82px, detalhe em duas linhas e coluna de ações fixa.
+- Inativas deixam de usar opacidade global; usam superfície mais escura + badge.
+- Playwright: novo `cards.spec.ts` valida altura, overflow interno e menus em
+  1440×900 e 1100×800. `ui-audit` e `opendesk` seguem verdes.
+
+## 2026-11-08 — refatoração de duplicações e arquivos grandes
+
+- MIME unificado em `media.rs`; `split_recipients` em `text.rs`; armazenamento
+  base64 de anexos centralizado em `attachments::save_base64`, com `save_bytes`
+  privado ao módulo.
+- `basename` em `lib/path.ts`; `InfoRow`/`InfoTile` compartilhados; `STATUS_LABEL`
+  movido para `lib/task-ui.ts`.
+- `api/tests.rs` dividido em `tests/{calendar,tasks,schedules,studio,core,
+  resources}.rs`, com helpers no módulo pai.
+- `KanbanPage` caiu de 2.135 para 880 linhas com `TaskCard` e `task-modals`.
+- `RecipesPage` caiu de 1.427 para 509 linhas com `recipe-editors`.
+- `RoutinesPage` caiu de 1.267 para 424 linhas com `RoutineCard` e
+  `RoutineFormModal`.
+- `delivery.rs` dividido em `delivery/{mod,google,email,render,tests}.rs`.
+- `studio_ops.rs` dividido com `studio_ops_install.rs` (709 linhas).
+- Testes e Playwright direcionados seguem verdes.
+
+## 2026-11-08 — segunda onda de refatoração
+
+- `task-modals` dividido em `task-form-modal`, `task-details-modal` e
+  `swarm-modal`; `task-modals.tsx` virou barrel de 3 linhas.
+- `types.ts` dividido em `types/{core,schedules,runs,engine,studio,calendar,chat}.ts`,
+  com `index.ts` como barrel de 7 linhas.
+- `RunLogView` dividido em `RunLogView` (680 linhas) + `run-log-parts` (437).
+- `delivery.rs` virou módulo com `mod/google/email/render/tests`.
+- `studio_ops` separou instalação em `studio_ops_install.rs`.
+- `api/tests` separado em domínios (`calendar`, `tasks`, `schedules`,
+  `studio`, `resources`, `core`).
+- MIME, destinatários, anexos base64, `basename`, `InfoRow` e `STATUS_LABEL`
+  centralizados.
+
+## 2026-11-08 — correções do code review
+
+- CRON sem timezone usa `iana-time-zone` no backend e `Intl` no editor, em vez
+  de `America/Sao_Paulo` fixo (ADR 0017); o fallback de expressão continua
+  `0 8 * * *`.
+- Linhas de atenção mantêm 82px, mas conteúdo e ações usam filhos roláveis
+  (`min-h-0 overflow-y-auto`), removendo o clipping do ADR 0021.
+- `/api/attachments`, `/api/capture` e mensagens de chat aceitam corpo de até
+  32 MB, então arquivos de 20 MB em base64 passam pelo limite real; `save_bytes`
+  ficou privado e capturas voltaram a reportar “imagem inválida/maior que 20 MB”.
+- `check:changed` usa `git diff HEAD`, cobrindo mudanças staged e unstaged.
+- `types/index.ts` virou barrel; definições foram para `core`, `schedules` e
+  `runs`. `InfoTile` local de Sobre virou `AboutMetric`, sem colisão com o
+  componente compartilhado.
+- Testes: 256 Rust, 91 Vitest e 42 casos Playwright (21 arquivos); Playwright
+  direcionado de cards e auditoria de UI verde.
+
+## 2026-11-08 — cron unificado e componentes extraídos
+
+- `recipes::cron::CronTrigger` resolve expressão, timezone do sistema e próxima
+  ocorrência em um só lugar; calendário e runtime deixam de repetir o switch de
+  `cron`/`cron_expression`/`schedule`. Testes cobrem os três nomes de chave,
+  config vazio, timezone explícito e trigger não-CRON.
+- Calendário: pill e linha de agenda saíram para
+  `components/calendar/calendar-item.tsx`; `CalendarPage` caiu de 702 para 611
+  linhas e a célula do dia ganhou `aria-label` próprio, evitando que o nome
+  acessível concatenasse todos os itens.
+- Receitas: `TriggerEditor`/`CronFields` foram para
+  `recipe-trigger-editor.tsx` e `LabeledField`/`inputClass` para
+  `recipe-fields.tsx`; `recipe-editors.tsx` caiu de 935 para 646 linhas.
+- Rotinas: o seletor de receita/agente fecha por `relatedTarget` em vez de
+  `setTimeout` no blur, removendo o fechamento durante o clique.
+- Playwright direcionado: calendário, cards, receitas, rotinas, auditoria de UI
+  e `opendesk` verdes (18 testes). Suíte atual: 260 Rust e 91 Vitest.
+
+## 2026-11-08 — interface única para itens do Studio
+
+- Novo `config_sync::studio_item` com `StudioKind`, `StudioItem` e
+  `ItemSnapshot`: `exists`, `path`, `copy_to`, `delete`, `set_enabled` e
+  `list` escondem o layout de agent, skill, command e MCP.
+- `api/studio_ops.rs` deixou de repetir switches de kind em duplicate, copy,
+  move, backup, restore, delete, toggle e effective; as operações HTTP agora
+  montam um `StudioItem` e chamam a interface.
+- `StudioItem::list` normaliza id, path, disabled e valor para os quatro kinds,
+  então o merge de config efetiva usa um único laço.
+- Testes novos: mover agente, conferir o merge efetivo e alternar MCP.
+- Verificação: 261 testes Rust, 91 Vitest, Clippy limpo e 19 Playwright
+  direcionados (`opendesk` + pacotes) verdes.
+
+## 2026-11-08 — release 0.27.0
+
+- Gate completo (typecheck, Vitest com cobertura, Clippy, testes Rust, build,
+  cobertura Rust e Playwright inteiro) passou.
+- Cobertura: **60,02% global** e **66,12% core** no Rust; Vitest com **97,54%
+  de linhas**.
+- Testes: **264 Rust**, **91 Vitest** e **41 Playwright**.
+- Versão 0.27.0 publicada com artefatos locais, tag e GitHub Release.

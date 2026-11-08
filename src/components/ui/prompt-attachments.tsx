@@ -2,11 +2,8 @@ import { useRef, useState } from "react";
 import { Loader2, Paperclip, X } from "lucide-react";
 import { apiDelete, apiPost } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { basename } from "@/lib/path";
 import { cn } from "@/lib/utils";
-
-function basename(path: string): string {
-  return path.split("/").pop() ?? path;
-}
 
 export function PromptAttachments({
   workspaceId,

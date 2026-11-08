@@ -122,29 +122,29 @@ export function AboutCard() {
         ) : mode === "simple" ? (
           <>
             <div className="grid gap-2 md:grid-cols-3">
-              <InfoTile label="OpenDesk" value={info.app.version} hint={info.app.phase} />
-              <InfoTile
+              <AboutMetric label="OpenDesk" value={info.app.version} hint={info.app.phase} />
+              <AboutMetric
                 label="OpenCode"
                 value={version}
                 hint={info.engine.daemon.online ? info.engine.daemon.mode : "offline"}
                 tone={info.engine.daemon.online ? "green" : "red"}
               />
-              <InfoTile
+              <AboutMetric
                 label="Workspaces"
                 value={String(info.database.workspaces)}
                 hint={`schema ${info.database.schema_version ?? "?"}`}
               />
-              <InfoTile
+              <AboutMetric
                 label="Instalação"
                 value={info.engine.installer}
                 hint={`porta ${info.engine.daemon.port}`}
               />
-              <InfoTile
+              <AboutMetric
                 label="Runtime"
                 value={`Tauri ${info.runtime.tauri}`}
                 hint={`${info.runtime.os}/${info.runtime.arch}`}
               />
-              <InfoTile
+              <AboutMetric
                 label="Atualizações"
                 value={info.updates.token_configured ? "token ok" : "sem token"}
                 hint={`canal ${info.updates.installer}`}
@@ -276,7 +276,7 @@ export function AboutCard() {
   );
 }
 
-function InfoTile({
+function AboutMetric({
   label,
   value,
   hint,

@@ -5,7 +5,6 @@ use crate::{
     events::OpenDeskWsEvent,
 };
 use axum::{Json, extract::State};
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -36,42 +35,27 @@ pub async fn capture(
 
     let mut description = content.to_string();
     if let Some(image) = body.image_base64.as_deref() {
-        let bytes = STANDARD
-            .decode(
-                image
-                    .split_once(',')
-                    .map(|(_, payload)| payload)
-                    .unwrap_or(image),
-            )
-            .map_err(|_| AppError::BadRequest("imagem inválida".into()))?;
-        if bytes.len() > 20 * 1024 * 1024 {
-            return Err(AppError::BadRequest("imagem maior que 20 MB".into()));
-        }
-        let folder = std::path::Path::new(&workspace.root_path)
-            .join("input")
-            .join("captures")
-            .join(chrono::Utc::now().format("%Y-%m").to_string());
-        std::fs::create_dir_all(&folder)?;
         let extension = body
             .filename
             .as_deref()
             .and_then(|name| name.rsplit('.').next())
             .filter(|value| value.len() <= 5)
             .unwrap_or("png");
-        let path = folder.join(format!(
-            "capture-{}.{extension}",
-            chrono::Utc::now().format("%Y%m%d-%H%M%S")
-        ));
-        std::fs::write(&path, &bytes)?;
+        let filename = format!(
+            "capture-{}.{}",
+            chrono::Utc::now().format("%Y%m%d-%H%M%S"),
+            extension
+        );
+        let saved = crate::api::attachments::save_image_base64(
+            std::path::Path::new(&workspace.root_path),
+            "input/captures",
+            &filename,
+            image,
+        )?;
         if !description.is_empty() {
             description.push_str("\n\n");
         }
-        description.push_str(&format!(
-            "Arquivo anexado: {}",
-            path.strip_prefix(&workspace.root_path)
-                .unwrap_or(&path)
-                .to_string_lossy()
-        ));
+        description.push_str(&format!("Arquivo anexado: {}", saved.path));
     }
 
     let title = content

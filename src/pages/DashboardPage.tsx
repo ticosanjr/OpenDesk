@@ -18,6 +18,7 @@ import {
   TerminalSquare,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { InfoRow } from "@/components/ui/info-row";
 import {
   Card,
   CardContent,
@@ -675,15 +676,6 @@ function KpiCard({
         <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-600">{hint}</p>
       </CardContent>
     </Card>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 text-[11px]">
-      <span className="text-zinc-600">{label}</span>
-      <span className="font-mono text-[10px] text-zinc-300">{value}</span>
-    </div>
   );
 }
 

@@ -1,3 +1,4 @@
+pub mod cron;
 pub mod engine;
 pub mod hitl;
 pub mod parser;

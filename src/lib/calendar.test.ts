@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   calendarRange,
   categoryOf,
+  rollingDays,
+  viewDays,
+  viewRange,
+  weekDays,
   isVisibleItem,
   itemTimeLabel,
   itemsForDay,
@@ -93,5 +97,30 @@ describe("calendar helpers", () => {
         }),
       ),
     ).toBe("09:00");
+  });
+});
+
+describe("calendar views", () => {
+  it("builds week, rolling and day windows", () => {
+    const day = new Date(2026, 10, 8);
+    expect(weekDays(day)).toHaveLength(7);
+    expect(weekDays(day)[0].getDay()).toBe(0);
+    expect(rollingDays(day)).toHaveLength(7);
+    expect(rollingDays(day)[0].getDate()).toBe(8);
+    expect(viewDays("day", day, day)).toHaveLength(1);
+    expect(viewDays("month", new Date(2026, 10, 1), day)).toHaveLength(42);
+  });
+
+  it("returns ranges that contain the selected window", () => {
+    const day = new Date(2026, 10, 8);
+    const week = viewRange("week", day, day);
+    expect(new Date(week.from).getDate()).toBe(8);
+    expect(new Date(week.to).getTime()).toBeGreaterThan(
+      new Date(week.from).getTime(),
+    );
+    const seven = viewRange("seven", day, day);
+    expect(new Date(seven.from).getDate()).toBe(8);
+    const single = viewRange("day", day, day);
+    expect(new Date(single.from).getDate()).toBe(new Date(single.to).getDate());
   });
 });

@@ -332,11 +332,11 @@ test("creates and edits a recurrence routine with calendar, agent search and not
 
   // Agent picker is optional and filters as the user types.
   const agentInput = dialog.getByPlaceholder("automático (router)");
-  await agentInput.fill("global");
+  await agentInput.fill("global-agent");
   await expect(
     dialog.getByRole("button", { name: /@global-agent/ }),
   ).toBeVisible();
-  await dialog.getByRole("button", { name: /@global-agent/ }).click();
+  await agentInput.press("Enter");
   await expect(agentInput).toHaveValue("global-agent");
 
   await dialog.getByLabel("E-mail", { exact: true }).fill("e2e@example.com");

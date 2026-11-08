@@ -27,9 +27,40 @@ test("calendar creates, edits, filters and deletes local events", async ({
   });
   expect(schedule.ok()).toBeTruthy();
 
+  const recipe = await request.put(
+    `${auth.baseURL}/api/recipes/receita-calendario?workspace_id=${workspace.id}`,
+    {
+      headers: auth.headers,
+      data: {
+        yaml: `id: receita-calendario
+name: Receita Calendário
+enabled: true
+triggers:
+  - type: CRON
+    config: {}
+flow:
+  - type: step
+    id: passo-1
+    name: Passo
+    mode: build
+    agent: build
+    prompt: "Resuma"
+`,
+      },
+    },
+  );
+  expect(recipe.ok()).toBeTruthy();
+
   await page.goto("/#/calendar");
   await expect(page.getByRole("heading", { name: "Calendário" })).toBeVisible();
   await expect(page.getByText("Rotina Calendário").first()).toBeVisible();
+  await expect(page.getByText("Receita Calendário").first()).toBeVisible();
+
+  for (const view of ["Semana", "7 dias", "Dia", "Mês"]) {
+    const button = page.getByRole("button", { name: view, exact: true });
+    await button.click();
+    await expect(button).toHaveAttribute("aria-pressed", "true");
+  }
 
   // Without OAuth the import dialog stays actionable and points to Integrações.
   await page.getByRole("main").getByRole("button", { name: "Google" }).click();

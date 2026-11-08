@@ -2,6 +2,7 @@ use crate::{
     app_state::AppState,
     db::workspaces,
     error::{AppError, AppResult},
+    media::mime_for_path,
 };
 use axum::{
     Json,
@@ -34,6 +35,10 @@ pub struct SavedAttachment {
     pub size: usize,
 }
 
+pub const MAX_UPLOAD_BYTES: usize = 20 * 1024 * 1024;
+/// Base64 inflates the payload by ~33%; leave room for JSON framing too.
+pub const MAX_BODY_BYTES: usize = 32 * 1024 * 1024;
+
 fn safe_name(value: &str) -> String {
     let name = value
         .chars()
@@ -53,21 +58,6 @@ fn safe_name(value: &str) -> String {
     }
 }
 
-fn mime_for(name: &str) -> &'static str {
-    match name.rsplit('.').next().map(str::to_lowercase).as_deref() {
-        Some("md") | Some("markdown") => "text/markdown",
-        Some("json") => "application/json",
-        Some("html") | Some("htm") => "text/html",
-        Some("txt") | Some("log") => "text/plain",
-        Some("csv") => "text/csv",
-        Some("pdf") => "application/pdf",
-        Some("png") => "image/png",
-        Some("jpg") | Some("jpeg") => "image/jpeg",
-        Some("webp") => "image/webp",
-        _ => "application/octet-stream",
-    }
-}
-
 pub async fn save(
     State(state): State<Arc<AppState>>,
     Query(query): Query<AttachmentQuery>,
@@ -76,23 +66,67 @@ pub async fn save(
     let workspace_id =
         crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
     let workspace = workspaces::get(&state.db, &workspace_id).await?;
+    Ok(Json(save_base64(
+        Path::new(&workspace.root_path),
+        "input/attachments",
+        &body.filename,
+        &body.base64,
+    )?))
+}
+
+pub fn save_base64(
+    root: &Path,
+    folder: &str,
+    filename: &str,
+    base64: &str,
+) -> AppResult<SavedAttachment> {
+    save_base64_labeled(root, folder, filename, base64, "anexo", "inválido")
+}
+
+pub fn save_image_base64(
+    root: &Path,
+    folder: &str,
+    filename: &str,
+    base64: &str,
+) -> AppResult<SavedAttachment> {
+    save_base64_labeled(root, folder, filename, base64, "imagem", "inválida")
+}
+
+fn save_base64_labeled(
+    root: &Path,
+    folder: &str,
+    filename: &str,
+    base64: &str,
+    kind: &str,
+    invalid_adjective: &str,
+) -> AppResult<SavedAttachment> {
     let bytes = STANDARD
         .decode(
-            body.base64
+            base64
                 .split_once(',')
                 .map(|(_, payload)| payload)
-                .unwrap_or(&body.base64),
+                .unwrap_or(base64),
         )
-        .map_err(|_| AppError::BadRequest("anexo inválido".into()))?;
-    if bytes.len() > 20 * 1024 * 1024 {
-        return Err(AppError::BadRequest("anexo maior que 20 MB".into()));
+        .map_err(|_| AppError::BadRequest(format!("{kind} {invalid_adjective}")))?;
+    if bytes.len() > MAX_UPLOAD_BYTES {
+        return Err(AppError::BadRequest(format!(
+            "{kind} maior que {} MB",
+            MAX_UPLOAD_BYTES / (1024 * 1024)
+        )));
     }
-    let name = safe_name(&body.filename);
-    let folder = Path::new(&workspace.root_path)
-        .join("input")
-        .join("attachments")
-        .join(chrono::Utc::now().format("%Y-%m").to_string());
-    std::fs::create_dir_all(&folder)?;
+    save_bytes(root, folder, filename, &bytes)
+}
+
+fn save_bytes(
+    root: &Path,
+    folder: &str,
+    filename: &str,
+    bytes: &[u8],
+) -> AppResult<SavedAttachment> {
+    let name = safe_name(filename);
+    let month = chrono::Utc::now().format("%Y-%m").to_string();
+    let directory = root.join(folder).join(&month);
+    std::fs::create_dir_all(&directory)?;
     let stored = format!(
         "{}-{}",
         Uuid::now_v7()
@@ -102,18 +136,30 @@ pub async fn save(
             .unwrap_or("anexo"),
         name
     );
-    let path = folder.join(&stored);
-    std::fs::write(&path, &bytes)?;
-    Ok(Json(SavedAttachment {
+    std::fs::write(directory.join(&stored), bytes)?;
+    Ok(SavedAttachment {
         name,
-        path: format!(
-            "input/attachments/{}/{}",
-            chrono::Utc::now().format("%Y-%m"),
-            stored
-        ),
-        mime: mime_for(&stored).to_string(),
+        path: format!("{folder}/{month}/{stored}"),
+        mime: mime_for_path(Path::new(&stored)).to_string(),
         size: bytes.len(),
-    }))
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn image_uploads_keep_image_specific_errors() {
+        let error = save_image_base64(
+            &std::env::temp_dir(),
+            "input/captures",
+            "capture.png",
+            "not-base64",
+        )
+        .expect_err("invalid image");
+        assert!(error.to_string().contains("imagem inválida"));
+    }
 }
 
 #[derive(Debug, Deserialize)]

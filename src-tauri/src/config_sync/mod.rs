@@ -5,4 +5,5 @@ pub mod jsonc_editor;
 pub mod markdown;
 pub mod paths;
 pub mod skills;
+pub mod studio_item;
 pub mod watcher;

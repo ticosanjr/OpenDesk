@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { InfoTile } from "@/components/ui/info-row";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import type { DownloadResult, UpdateInfo } from "@/lib/types";
@@ -163,9 +164,9 @@ export function UpdatesCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid gap-2 md:grid-cols-3">
-          <Info label="Versão atual" value={info?.current ?? "—"} />
-          <Info label="Última release" value={latest?.version ?? "—"} />
-          <Info
+          <InfoTile label="Versão atual" value={info?.current ?? "—"} />
+          <InfoTile label="Última release" value={latest?.version ?? "—"} />
+          <InfoTile
             label="Token GitHub"
             value={info?.token_configured ? "configurado" : "ausente"}
           />
@@ -306,16 +307,5 @@ export function UpdatesCard() {
         </p>
       </CardContent>
     </Card>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
-      <p className="text-[9px] uppercase tracking-wide text-zinc-600">{label}</p>
-      <p className="mt-0.5 truncate font-mono text-[11px] text-zinc-200">
-        {value}
-      </p>
-    </div>
   );
 }

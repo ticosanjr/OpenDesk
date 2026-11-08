@@ -7,7 +7,7 @@ use crate::{
     error::{AppError, AppResult},
     integrations::{google_api::GoogleApi, google_calendar},
     queue_scheduler::cron_engine,
-    recipes::{parser, store},
+    recipes::{cron::CronTrigger, parser, store},
 };
 use axum::{
     Json,
@@ -631,26 +631,12 @@ pub async fn agenda(
             continue;
         };
         for trigger in parsed.triggers() {
-            if trigger.trigger_type != "CRON" {
-                continue;
-            }
-            let expression = trigger
-                .config
-                .get("cron")
-                .or_else(|| trigger.config.get("cron_expression"))
-                .or_else(|| trigger.config.get("schedule"))
-                .and_then(|value| value.as_str());
-            let Some(expression) = expression else {
+            let Some(cron) = CronTrigger::from_trigger(trigger) else {
                 continue;
             };
-            let timezone = trigger
-                .config
-                .get("timezone")
-                .and_then(|value| value.as_str())
-                .unwrap_or("UTC");
             let mut cursor = from - Duration::seconds(1);
             for _ in 0..60 {
-                let Ok(next) = cron_engine::next_occurrence(expression, timezone, cursor) else {
+                let Ok(next) = cron.next_occurrence(cursor) else {
                     break;
                 };
                 if next > to {

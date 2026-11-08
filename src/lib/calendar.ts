@@ -1,12 +1,24 @@
 import {
+  addDays,
+  endOfDay,
   endOfMonth,
   endOfWeek,
   format,
   isSameDay,
+  startOfDay,
   startOfMonth,
   startOfWeek,
 } from "date-fns";
 import type { CalendarItem } from "@/lib/types";
+
+export type CalendarView = "month" | "week" | "seven" | "day";
+
+export const CALENDAR_VIEWS: Array<{ id: CalendarView; label: string }> = [
+  { id: "month", label: "Mês" },
+  { id: "week", label: "Semana" },
+  { id: "seven", label: "7 dias" },
+  { id: "day", label: "Dia" },
+];
 
 export type CalendarCategory =
   | "routines"
@@ -40,6 +52,40 @@ export function calendarRange(month: Date): { from: string; to: string } {
   return {
     from: startOfWeek(startOfMonth(month), { weekStartsOn: 0 }).toISOString(),
     to: endOfWeek(endOfMonth(month), { weekStartsOn: 0 }).toISOString(),
+  };
+}
+
+export function weekDays(day: Date): Date[] {
+  const start = startOfWeek(day, { weekStartsOn: 0 });
+  return Array.from({ length: 7 }, (_, index) => addDays(start, index));
+}
+
+export function rollingDays(day: Date, count = 7): Date[] {
+  const start = startOfDay(day);
+  return Array.from({ length: count }, (_, index) => addDays(start, index));
+}
+
+export function viewDays(
+  view: CalendarView,
+  month: Date,
+  selectedDay: Date,
+): Date[] {
+  if (view === "month") return monthGrid(month);
+  if (view === "week") return weekDays(selectedDay);
+  if (view === "seven") return rollingDays(selectedDay);
+  return [startOfDay(selectedDay)];
+}
+
+export function viewRange(
+  view: CalendarView,
+  month: Date,
+  selectedDay: Date,
+): { from: string; to: string } {
+  if (view === "month") return calendarRange(month);
+  const days = viewDays(view, month, selectedDay);
+  return {
+    from: startOfDay(days[0]).toISOString(),
+    to: endOfDay(days[days.length - 1]).toISOString(),
   };
 }
 

@@ -631,25 +631,26 @@ function Row({
         : "text-amber-300";
   return (
     <div
+      data-attention-row
       className={cn(
-        "grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1 rounded-lg border bg-zinc-950/40 px-2.5 py-2",
+        "grid min-h-[82px] grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1 rounded-lg border bg-zinc-950/40 px-2.5 py-2 sm:h-[82px] sm:grid-cols-[auto_minmax(0,1fr)_250px] sm:items-stretch sm:overflow-hidden",
         border,
       )}
     >
       <span className={cn("mt-0.5 shrink-0", iconTone)}>{icon}</span>
-      <div className="min-w-0">
-        <p className="truncate text-[12px] text-zinc-200">{title}</p>
+      <div className="min-h-0 min-w-0 sm:overflow-y-auto">
+        <p className="line-clamp-1 text-[12px] text-zinc-200">{title}</p>
         {meta ? (
           <p className="truncate font-mono text-[10px] text-zinc-500">{meta}</p>
         ) : null}
         {detail ? (
-          <p className="mt-0.5 line-clamp-2 break-words text-[10px] leading-snug text-red-200/70">
+          <p className="mt-0.5 line-clamp-2 min-h-[26px] break-words text-[10px] leading-snug text-red-200/70">
             {detail}
           </p>
         ) : null}
       </div>
       {actions ? (
-        <div className="col-span-3 flex flex-wrap items-center justify-end gap-1.5 sm:col-span-1 sm:max-w-[46%]">
+        <div className="col-span-3 flex min-h-0 flex-wrap items-center justify-end gap-1.5 sm:col-span-1 sm:w-[250px] sm:max-w-[250px] sm:overflow-y-auto">
           {actions}
         </div>
       ) : null}

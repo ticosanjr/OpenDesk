@@ -15,6 +15,7 @@ import {
 import { openPath } from "@tauri-apps/plugin-opener";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { InfoTile } from "@/components/ui/info-row";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiGet, apiPost } from "@/lib/api";
 import { pickFile } from "@/lib/folder";
@@ -301,9 +302,9 @@ export function EngineCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid gap-2 md:grid-cols-4">
-          <Info label="Versão" value={daemon?.version ?? "—"} />
-          <Info label="Porta" value={daemon?.port ? String(daemon.port) : "—"} />
-          <Info
+          <InfoTile label="Versão" value={daemon?.version ?? "—"} />
+          <InfoTile label="Porta" value={daemon?.port ? String(daemon.port) : "—"} />
+          <InfoTile
             label="Binário"
             value={
               daemon?.binary_path
@@ -313,7 +314,7 @@ export function EngineCard() {
                   : "não detectado"
             }
           />
-          <Info
+          <InfoTile
             label="Método"
             value={engine?.resolved?.method ?? "desconhecido"}
           />
@@ -571,17 +572,6 @@ export function EngineCard() {
         ) : null}
       </CardContent>
     </Card>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
-      <p className="text-[9px] uppercase tracking-wide text-zinc-600">{label}</p>
-      <p className="mt-0.5 truncate font-mono text-[11px] text-zinc-200">
-        {value}
-      </p>
-    </div>
   );
 }
 

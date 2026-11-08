@@ -119,7 +119,7 @@ pub async fn artifact_content(
         content,
         truncated,
         binary,
-        mime: crate::api::files::mime_for(&file).to_string(),
+        mime: crate::media::mime_for_path(&file).to_string(),
         size: bytes.len() as u64,
     }))
 }
@@ -240,7 +240,10 @@ pub async fn artifact_raw(
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| "artifact".into());
     let mut builder = Response::builder()
-        .header(header::CONTENT_TYPE, crate::api::files::mime_for(&file))
+        .header(
+            header::CONTENT_TYPE,
+            crate::media::content_type_for_path(&file),
+        )
         .header(
             header::CONTENT_DISPOSITION,
             format!("inline; filename=\"{filename}\""),

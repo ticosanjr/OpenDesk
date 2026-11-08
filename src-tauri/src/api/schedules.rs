@@ -9,6 +9,7 @@ use crate::{
     integrations::{signal, smtp_mailer},
     queue_scheduler::{cron_engine, recurrence},
     secrets::SecretStore,
+    text::split_recipients,
 };
 use axum::{
     Json,
@@ -684,15 +685,6 @@ pub async fn test_notification(
             "invalid notification channel '{other}'; expected email or signal"
         ))),
     }
-}
-
-fn split_recipients(value: &str) -> Vec<String> {
-    value
-        .split([',', ';'])
-        .map(str::trim)
-        .filter(|item| !item.is_empty())
-        .map(ToString::to_string)
-        .collect()
 }
 
 #[cfg(test)]

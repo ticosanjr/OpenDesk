@@ -1,0 +1,268 @@
+import { useState } from "react";
+import {
+  Copy,
+  FlaskConical,
+  History,
+  Mail,
+  MoreHorizontal,
+  Pencil,
+  Play,
+  Send,
+  Trash2,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EntityLink } from "@/components/ui/entity-link";
+import { Switch } from "@/components/ui/switch";
+import { Tooltip } from "@/components/ui/tooltip";
+import { links } from "@/lib/links";
+import { relativeTime } from "@/lib/format";
+import { describeRecurrence, parseRecurrence } from "@/lib/recurrence";
+import { ROUTER_POLICY_LABELS, type Schedule } from "@/lib/types";
+import { triggerLabel } from "@/lib/trigger-types";
+import { cn } from "@/lib/utils";
+
+export function RoutineCard({
+  schedule,
+  onToggle,
+  onHistory,
+  onDuplicate,
+  onDryRun,
+  onTestNotification,
+  onEdit,
+  onRun,
+  onRemove,
+}: {
+  schedule: Schedule;
+  onToggle: () => void;
+  onHistory: () => void;
+  onDuplicate: () => void;
+  onDryRun: () => void;
+  onTestNotification: () => void;
+  onEdit: () => void;
+  onRun: () => void;
+  onRemove: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const recurrences =
+    schedule.trigger_type === "CRON"
+      ? describeRecurrence(
+          parseRecurrence(schedule.recurrence_json),
+          schedule.cron_expression,
+        )
+      : null;
+  const meta = [
+    <Badge key="trigger" variant="blue">
+      {triggerLabel(schedule.trigger_type ?? "CRON")}
+    </Badge>,
+    schedule.trigger_type === "CRON" ? (
+      <Badge key="recurrence" variant="default">
+        {recurrences}
+      </Badge>
+    ) : null,
+    <Badge
+      key="target"
+      variant={schedule.target_kind === "RECIPE" ? "purple" : "default"}
+    >
+      {schedule.target_kind === "RECIPE"
+        ? `receita: ${schedule.recipe_id ?? "—"}`
+        : "prompt"}
+    </Badge>,
+    schedule.notify_only_on_change ? (
+      <Badge key="novelty" variant="green">
+        só novidades
+      </Badge>
+    ) : null,
+    schedule.notify_signal ? (
+      <Badge key="signal" variant="green">
+        Signal
+      </Badge>
+    ) : null,
+    schedule.one_time ? (
+      <Badge key="once" variant="purple">
+        uma vez
+      </Badge>
+    ) : null,
+    schedule.agent_name ? (
+      <EntityLink
+        key="agent"
+        to={links.agent(schedule.agent_name, "workspace", schedule.workspace_id)}
+        chip
+        className="max-w-[88px]"
+      >
+        @{schedule.agent_name}
+      </EntityLink>
+    ) : null,
+    <Badge key="policy" variant="default">
+      {ROUTER_POLICY_LABELS[schedule.router_policy] ?? schedule.router_policy}
+    </Badge>,
+    schedule.trigger_type === "CRON" ? (
+      <Badge key="timezone" variant="default">
+        {schedule.timezone}
+      </Badge>
+    ) : null,
+  ].filter(Boolean) as React.ReactNode[];
+
+  function action(callback: () => void) {
+    setMenuOpen(false);
+    callback();
+  }
+
+  return (
+    <div
+      data-card="routine"
+      className={cn(
+        "relative flex h-[188px] flex-col rounded-xl border px-3.5 py-3",
+        schedule.is_active
+          ? "border-zinc-800/70 bg-zinc-950/40"
+          : "border-zinc-800/50 bg-zinc-950/20",
+      )}
+    >
+      <div className="flex min-h-[24px] items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <p className="line-clamp-1 min-w-0 text-[12px] font-medium text-zinc-100">
+            {schedule.name}
+          </p>
+          <Badge variant={schedule.is_active ? "green" : "default"}>
+            {schedule.is_active ? "ativa" : "pausada"}
+          </Badge>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Switch
+            checked={schedule.is_active}
+            onCheckedChange={onToggle}
+            label={
+              schedule.is_active
+                ? `Desativar rotina ${schedule.name}`
+                : `Ativar rotina ${schedule.name}`
+            }
+          />
+          <span className="text-[9px] text-zinc-500">
+            {schedule.is_active ? "ligada" : "desligada"}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-1 flex h-5 items-center gap-1 overflow-hidden">
+        {meta.slice(0, 4)}
+        {meta.length > 4 ? (
+          <Badge variant="default" title={`${meta.length - 4} metadados ocultos`}>
+            +{meta.length - 4}
+          </Badge>
+        ) : null}
+      </div>
+
+      <p className="mt-1 line-clamp-2 min-h-[30px] text-[10px] leading-snug text-zinc-500">
+        {schedule.target_kind === "RECIPE"
+          ? `Executa a receita ${schedule.recipe_id ?? "(não definida)"}`
+          : schedule.command_or_prompt || "—"}
+      </p>
+
+      <div className="mt-1 flex min-h-[14px] flex-wrap items-center gap-3 overflow-hidden font-mono text-[9px] text-zinc-600">
+        <span className="truncate">
+          próxima:{" "}
+          {schedule.next_run_at
+            ? new Date(schedule.next_run_at).toLocaleString("pt-BR")
+            : "—"}
+        </span>
+        <span className="truncate">
+          última:{" "}
+          {schedule.last_run_at
+            ? `${relativeTime(schedule.last_run_at)} (${schedule.last_run_status ?? "—"})`
+            : "—"}
+        </span>
+        {schedule.notify_email_recipients ? (
+          <Tooltip content={schedule.notify_email_recipients}>
+            <span className="flex items-center gap-1 text-zinc-500">
+              <Mail size={10} />
+              e-mail
+            </span>
+          </Tooltip>
+        ) : null}
+      </div>
+
+      <div className="mt-auto flex h-7 items-center justify-end gap-1 border-t border-zinc-800/60 pt-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-6 px-2 text-[10px]"
+          onClick={onRun}
+        >
+          <Play size={11} />
+          Executar agora
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-6 px-2 text-[10px]"
+          onClick={onEdit}
+        >
+          <Pencil size={11} />
+          Editar
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          aria-label={`Mais ações da rotina ${schedule.name}`}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((value) => !value)}
+        >
+          <MoreHorizontal size={13} />
+        </Button>
+
+        {menuOpen ? (
+          <div className="absolute right-2 top-11 z-40 w-48 rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-2xl">
+            <MenuItem icon={<History size={12} />} onClick={() => action(onHistory)}>
+              Histórico
+            </MenuItem>
+            <MenuItem icon={<Copy size={12} />} onClick={() => action(onDuplicate)}>
+              Duplicar
+            </MenuItem>
+            <MenuItem icon={<FlaskConical size={12} />} onClick={() => action(onDryRun)}>
+              Dry-run
+            </MenuItem>
+            {schedule.notify_email_recipients || schedule.notify_signal ? (
+              <MenuItem icon={<Send size={12} />} onClick={() => action(onTestNotification)}>
+                Testar aviso
+              </MenuItem>
+            ) : null}
+            <MenuItem
+              icon={<Trash2 size={12} />}
+              destructive
+              onClick={() => action(onRemove)}
+            >
+              Excluir
+            </MenuItem>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function MenuItem({
+  icon,
+  children,
+  onClick,
+  destructive = false,
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  onClick: () => void;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[10px] hover:bg-zinc-800",
+        destructive ? "text-red-300" : "text-zinc-300",
+      )}
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}

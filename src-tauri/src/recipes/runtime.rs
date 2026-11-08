@@ -3,7 +3,7 @@ use crate::{
     db,
     error::AppResult,
     events::OpenDeskWsEvent,
-    recipes::{engine, parser, store},
+    recipes::{cron::CronTrigger, engine, parser, store},
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -134,16 +134,7 @@ async fn scan_folder_triggers(
 
 async fn scan_calendar_triggers(state: &Arc<AppState>) -> AppResult<()> {
     let now = chrono::Utc::now();
-    let events = db::calendar::list_events_starting_between(
-        &state.db,
-        &(now - chrono::Duration::days(1)).to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-        &(now + chrono::Duration::days(8)).to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-    )
-    .await?;
-    if events.is_empty() {
-        return Ok(());
-    }
-
+    let mut candidates = Vec::new();
     for index in store::list_all(&state.db).await? {
         if !index.is_enabled {
             continue;
@@ -160,9 +151,25 @@ async fn scan_calendar_triggers(state: &Arc<AppState>) -> AppResult<()> {
             .filter(|trigger| trigger.trigger_type == "CALENDAR_EVENT")
             .cloned()
             .collect::<Vec<_>>();
-        if triggers.is_empty() {
-            continue;
+        if !triggers.is_empty() {
+            candidates.push((index, recipe, triggers));
         }
+    }
+    if candidates.is_empty() {
+        return Ok(());
+    }
+
+    let events = db::calendar::list_events_starting_between(
+        &state.db,
+        &(now - chrono::Duration::days(1)).to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        &(now + chrono::Duration::days(8)).to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+    )
+    .await?;
+    if events.is_empty() {
+        return Ok(());
+    }
+
+    for (index, recipe, triggers) in candidates {
         let sources = db::calendar::list_sources(&state.db, &index.workspace_id)
             .await
             .unwrap_or_default();
@@ -198,18 +205,12 @@ async fn scan_calendar_triggers(state: &Arc<AppState>) -> AppResult<()> {
                 if event.workspace_id != index.workspace_id {
                     continue;
                 }
-                if !calendar_id.is_empty()
-                    && event.source_id.as_deref() != Some(calendar_id)
-                    && !sources.iter().any(|source| {
-                        source.id == calendar_id
-                            && Some(source.external_id.as_deref())
-                                == Some(event.external_id.as_deref())
-                    })
-                    && !sources.iter().any(|source| {
+                let belongs = event.source_id.as_deref() == Some(calendar_id)
+                    || sources.iter().any(|source| {
                         source.external_id.as_deref() == Some(calendar_id)
                             && event.source_id.as_deref() == Some(source.id.as_str())
-                    })
-                {
+                    });
+                if !calendar_id.is_empty() && !belongs {
                     continue;
                 }
                 if !title_filter.is_empty() && !event.title.to_lowercase().contains(&title_filter) {
@@ -283,36 +284,20 @@ async fn scan_cron_triggers(state: &Arc<AppState>) -> AppResult<()> {
         let Ok(recipe) = parser::parse(&yaml) else {
             continue;
         };
-        let Some(cron_trigger) = recipe
+        let Some(cron) = recipe
             .triggers()
             .into_iter()
-            .find(|trigger| trigger.trigger_type == "CRON")
+            .find_map(CronTrigger::from_trigger)
         else {
             continue;
         };
-        let expression = cron_trigger
-            .config
-            .get("cron")
-            .or_else(|| cron_trigger.config.get("cron_expression"))
-            .or_else(|| cron_trigger.config.get("schedule"))
-            .and_then(|value| value.as_str());
-        let Some(expression) = expression else {
-            continue;
-        };
-        let timezone = cron_trigger
-            .config
-            .get("timezone")
-            .and_then(|value| value.as_str())
-            .unwrap_or("UTC");
         let after = index
             .last_run_at
             .as_deref()
             .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
             .map(|value| value.with_timezone(&chrono::Utc))
             .unwrap_or_else(|| now - chrono::Duration::minutes(1));
-        let next =
-            crate::queue_scheduler::cron_engine::next_occurrence(expression, timezone, after);
-        if let Ok(next) = next
+        if let Ok(next) = cron.next_occurrence(after)
             && next <= now
         {
             let trigger = serde_json::json!({

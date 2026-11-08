@@ -37,6 +37,19 @@ pub async fn maintenance_once(pool: &SqlitePool, paths: &AppPaths) -> AppResult<
     )
     .execute(pool)
     .await;
+    let _ = sqlx::query(
+        "DELETE FROM calendar_trigger_fires
+         WHERE fired_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 days')",
+    )
+    .execute(pool)
+    .await;
+    let _ = sqlx::query(
+        "DELETE FROM calendar_events
+         WHERE status = 'CANCELLED'
+           AND updated_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 days')",
+    )
+    .execute(pool)
+    .await;
 
     std::fs::create_dir_all(&paths.backups_dir)?;
     let backup = paths.backups_dir.join(format!(
@@ -110,6 +123,45 @@ fn prune_run_logs(dir: &std::path::Path, days: u64) -> AppResult<()> {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn prunes_expired_calendar_data() {
+        let ctx = crate::test_support::context().await;
+        sqlx::query(
+            "INSERT INTO calendar_trigger_fires (
+                recipe_id, event_id, occurrence_start, fired_at
+             ) VALUES ('r1', 'e1', '2026-01-01T00:00:00Z',
+                strftime('%Y-%m-%dT%H:%M:%fZ','now','-100 days'))",
+        )
+        .execute(&ctx.state.db)
+        .await
+        .expect("trigger fire");
+        sqlx::query(
+            "INSERT INTO calendar_events (
+                id, workspace_id, title, start_at, end_at, status, updated_at
+             ) VALUES ('old-cancelled', ?, 'Cancelado',
+                '2026-01-01T00:00:00Z', '2026-01-01T01:00:00Z', 'CANCELLED',
+                strftime('%Y-%m-%dT%H:%M:%fZ','now','-100 days'))",
+        )
+        .bind(&ctx.workspace_id)
+        .execute(&ctx.state.db)
+        .await
+        .expect("event");
+        maintenance_once(&ctx.state.db, &ctx.state.paths)
+            .await
+            .expect("maintenance");
+        let fires: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM calendar_trigger_fires")
+            .fetch_one(&ctx.state.db)
+            .await
+            .expect("fires");
+        let events: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM calendar_events WHERE id = 'old-cancelled'")
+                .fetch_one(&ctx.state.db)
+                .await
+                .expect("events");
+        assert_eq!(fires, 0);
+        assert_eq!(events, 0);
+    }
 
     #[test]
     fn prunes_old_logs_and_backups() {

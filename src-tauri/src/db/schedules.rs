@@ -113,7 +113,7 @@ pub struct UpdateScheduleInput {
     pub is_active: Option<bool>,
 }
 
-fn default_timezone() -> String {
+pub fn default_timezone() -> String {
     iana_time_zone::get_timezone().unwrap_or_else(|_| "UTC".into())
 }
 

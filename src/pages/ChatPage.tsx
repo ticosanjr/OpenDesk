@@ -359,7 +359,12 @@ export function ChatPage() {
             </div>
             <div className="block">
               <span className={labelClass}>Modelo (opcional)</span>
-              <ModelCombobox value={model} onChange={setModel} />
+              <ModelCombobox
+                value={model}
+                onChange={setModel}
+                routerLabel="Automático (padrão do agente)"
+                routerHint="Sem modelo fixo, a conversa usa o modelo padrão do agente no OpenCode; o roteador DSH não interfere."
+              />
             </div>
             <Button size="sm" className="w-full" onClick={() => void createThread()} disabled={loading}>
               {loading ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}

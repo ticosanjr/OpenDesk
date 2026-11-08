@@ -71,7 +71,7 @@ pub async fn run(
             .map(|prefix| format!("{}/{}", prefix.trim_end_matches('/'), name))
             .unwrap_or_else(|| name.to_string());
         let bytes = std::fs::read(path)?;
-        let mime = crate::api::files::mime_for(Path::new(path));
+        let mime = crate::media::mime_for_path(Path::new(path));
         bucket
             .put_object_with_content_type(&key, &bytes, mime)
             .await
