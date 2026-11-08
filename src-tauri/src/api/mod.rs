@@ -394,6 +394,10 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             "/api/integrations/deliveries",
             get(integrations::list_deliveries),
         )
+        .route(
+            "/api/integrations/deliveries/{id}/retry",
+            post(integrations::retry_delivery),
+        )
         .route("/api/integrations/google/status", get(google::status))
         .route(
             "/api/integrations/google/config",

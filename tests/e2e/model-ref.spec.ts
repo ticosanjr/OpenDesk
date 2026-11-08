@@ -1,22 +1,15 @@
 import { expect, test } from "@playwright/test";
-import { api } from "./helpers";
+import { api, seedWorkspace } from "./helpers";
 
 
 test("model references are validated before reaching OpenCode", async ({
   request,
 }) => {
   const auth = api();
-  const existing = (await (
-    await request.get(`${auth.baseURL}/api/workspaces`, { headers: auth.headers })
-  ).json()) as Array<{ id: string }>;
-  let workspaceId = existing[0]?.id;
-  if (!workspaceId) {
-    const created = await request.post(`${auth.baseURL}/api/workspaces`, {
-      headers: auth.headers,
-      data: { name: "Model Workspace", root_path: "/tmp/opendesk-e2e/workspaces-model" },
-    });
-    workspaceId = ((await created.json()) as { id: string }).id;
-  }
+  // Use a workspace owned by this spec. Picking the most recently opened
+  // workspace made the test race with other specs that create or remove theirs.
+  const workspace = await seedWorkspace(request, "Model Ref");
+  const workspaceId = workspace.id;
 
   const invalid = await request.post(
     `${auth.baseURL}/api/tasks?workspace_id=${workspaceId}`,

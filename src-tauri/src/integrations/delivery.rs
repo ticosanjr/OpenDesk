@@ -1,7 +1,7 @@
 use crate::{
     app_state::AppState,
     db::{artifacts, deliveries, runs, schedules, tasks, workspaces},
-    error::AppResult,
+    error::{AppError, AppResult},
     integrations::{
         google_api::GoogleApi,
         google_oauth::GoogleOAuth,
@@ -324,9 +324,21 @@ async fn export_google(
                         .await;
                     }
                     Err(error) => {
-                        let _ = deliveries::mark_failed(pool, &delivery.id, &format!("{error:#}"))
-                            .await;
-                        tracing::warn!(run = run_id, error = %error, "Google Docs export failed");
+                        let payload = serde_json::json!({
+                            "artifact_id": artifact.id,
+                            "title": title,
+                            "folder_id": folder_id,
+                        })
+                        .to_string();
+                        let _ = deliveries::mark_failed_retryable(
+                            pool,
+                            &delivery.id,
+                            &format!("{error:#}"),
+                            &payload,
+                            5,
+                        )
+                        .await;
+                        tracing::warn!(run = run_id, error = %error, "Google Docs export failed; scheduled for retry");
                     }
                 }
             }
@@ -380,9 +392,20 @@ async fn export_google(
                     .await;
                 }
                 Err(error) => {
-                    let _ =
-                        deliveries::mark_failed(pool, &delivery.id, &format!("{error:#}")).await;
-                    tracing::warn!(run = run_id, error = %error, "Google Drive upload failed");
+                    let payload = serde_json::json!({
+                        "artifact_id": artifact.id,
+                        "folder_id": folder_id,
+                    })
+                    .to_string();
+                    let _ = deliveries::mark_failed_retryable(
+                        pool,
+                        &delivery.id,
+                        &format!("{error:#}"),
+                        &payload,
+                        5,
+                    )
+                    .await;
+                    tracing::warn!(run = run_id, error = %error, "Google Drive upload failed; scheduled for retry");
                 }
             }
         }
@@ -419,6 +442,38 @@ async fn retry_delivery(state: &AppState, delivery: &deliveries::Delivery) -> Ap
             return Ok(());
         }
     };
+    match delivery.channel.as_str() {
+        "GDOCS" => retry_gdocs(state, delivery, &payload).await,
+        "DRIVE" => retry_drive(state, delivery, &payload).await,
+        _ => retry_email(state, delivery, &payload).await,
+    }
+}
+
+/// Retry one delivery immediately, on user request. Only failed deliveries
+/// with a stored payload are eligible; successful deliveries are never replayed
+/// because that could duplicate a document or upload.
+pub async fn retry_one(state: &AppState, id: &str) -> AppResult<deliveries::Delivery> {
+    let delivery = deliveries::get(&state.db, id).await?;
+    if delivery.status != "FAILED" {
+        return Err(AppError::BadRequest(format!(
+            "somente entregas FAILED podem ser reenviadas (status atual: {})",
+            delivery.status
+        )));
+    }
+    if delivery.payload_json.is_none() {
+        return Err(AppError::BadRequest(
+            "entrega não possui payload para reenvio".into(),
+        ));
+    }
+    retry_delivery(state, &delivery).await?;
+    deliveries::get(&state.db, id).await
+}
+
+async fn retry_email(
+    state: &AppState,
+    delivery: &deliveries::Delivery,
+    payload: &serde_json::Value,
+) -> AppResult<()> {
     let recipient = payload
         .get("recipient")
         .and_then(serde_json::Value::as_str)
@@ -457,12 +512,132 @@ async fn retry_delivery(state: &AppState, delivery: &deliveries::Delivery) -> Ap
             let _ = deliveries::mark_success(&state.db, &delivery.id, None, None).await;
         }
         Err(error) => {
-            let delay = (5i64 * 2i64.pow(delivery.attempts.min(6) as u32)).min(360);
-            let _ =
-                deliveries::reschedule(&state.db, &delivery.id, &format!("{error:#}"), delay).await;
+            let _ = deliveries::reschedule(
+                &state.db,
+                &delivery.id,
+                &format!("{error:#}"),
+                retry_delay(delivery.attempts),
+            )
+            .await;
         }
     }
     Ok(())
+}
+
+async fn retry_gdocs(
+    state: &AppState,
+    delivery: &deliveries::Delivery,
+    payload: &serde_json::Value,
+) -> AppResult<()> {
+    let Some(artifact_id) = payload
+        .get("artifact_id")
+        .and_then(serde_json::Value::as_str)
+    else {
+        let _ = deliveries::mark_skipped(&state.db, &delivery.id, "missing artifact id").await;
+        return Ok(());
+    };
+    let Ok(artifact) = artifacts::get(&state.db, artifact_id).await else {
+        let _ = deliveries::mark_skipped(&state.db, &delivery.id, "artifact not found").await;
+        return Ok(());
+    };
+    let Ok(markdown) = std::fs::read_to_string(&artifact.absolute_path) else {
+        let _ = deliveries::mark_skipped(&state.db, &delivery.id, "artifact file missing").await;
+        return Ok(());
+    };
+    let title = payload
+        .get("title")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("OpenDesk run");
+    let folder_id = payload.get("folder_id").and_then(serde_json::Value::as_str);
+    let api = GoogleApi::new(state.google.clone());
+
+    match api
+        .gdocs_create_from_markdown(&delivery.workspace_id, title, &markdown, folder_id)
+        .await
+    {
+        Ok(value) => {
+            let url = value.get("webViewLink").and_then(serde_json::Value::as_str);
+            let _ = artifacts::set_destinations(&state.db, &artifact.id, url, None, None).await;
+            let _ = deliveries::mark_success(
+                &state.db,
+                &delivery.id,
+                value.get("id").and_then(serde_json::Value::as_str),
+                url,
+            )
+            .await;
+        }
+        Err(error) => {
+            let _ = deliveries::reschedule(
+                &state.db,
+                &delivery.id,
+                &format!("{error:#}"),
+                retry_delay(delivery.attempts),
+            )
+            .await;
+        }
+    }
+    Ok(())
+}
+
+async fn retry_drive(
+    state: &AppState,
+    delivery: &deliveries::Delivery,
+    payload: &serde_json::Value,
+) -> AppResult<()> {
+    let Some(artifact_id) = payload
+        .get("artifact_id")
+        .and_then(serde_json::Value::as_str)
+    else {
+        let _ = deliveries::mark_skipped(&state.db, &delivery.id, "missing artifact id").await;
+        return Ok(());
+    };
+    let Ok(artifact) = artifacts::get(&state.db, artifact_id).await else {
+        let _ = deliveries::mark_skipped(&state.db, &delivery.id, "artifact not found").await;
+        return Ok(());
+    };
+    let Ok(bytes) = std::fs::read(&artifact.absolute_path) else {
+        let _ = deliveries::mark_skipped(&state.db, &delivery.id, "artifact file missing").await;
+        return Ok(());
+    };
+    let path = Path::new(&artifact.absolute_path);
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("artifact");
+    let mime = mime_for(path);
+    let folder_id = payload.get("folder_id").and_then(serde_json::Value::as_str);
+    let api = GoogleApi::new(state.google.clone());
+
+    match api
+        .drive_upload(&delivery.workspace_id, name, mime, bytes, folder_id, false)
+        .await
+    {
+        Ok(value) => {
+            let url = value.get("webViewLink").and_then(serde_json::Value::as_str);
+            let _ = artifacts::set_destinations(&state.db, &artifact.id, None, url, None).await;
+            let _ = deliveries::mark_success(
+                &state.db,
+                &delivery.id,
+                value.get("id").and_then(serde_json::Value::as_str),
+                url,
+            )
+            .await;
+        }
+        Err(error) => {
+            let _ = deliveries::reschedule(
+                &state.db,
+                &delivery.id,
+                &format!("{error:#}"),
+                retry_delay(delivery.attempts),
+            )
+            .await;
+        }
+    }
+    Ok(())
+}
+
+fn retry_delay(attempts: i64) -> i64 {
+    (5i64 * 2i64.pow(attempts.clamp(0, 6) as u32)).min(360)
 }
 
 fn attachments_from_paths(paths: &[String]) -> Vec<EmailAttachment> {
@@ -646,5 +821,99 @@ mod tests {
         .await;
         assert!(result.is_err());
         assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    }
+
+    async fn due_delivery(
+        channel: &str,
+        key: &str,
+        payload: serde_json::Value,
+    ) -> (crate::test_support::TestContext, deliveries::Delivery) {
+        let context = crate::test_support::context().await;
+        let delivery = deliveries::create_pending(
+            &context.state.db,
+            &context.workspace_id,
+            None,
+            channel,
+            key,
+        )
+        .await
+        .expect("create")
+        .expect("created");
+        deliveries::mark_failed_retryable(
+            &context.state.db,
+            &delivery.id,
+            "transient",
+            &payload.to_string(),
+            0,
+        )
+        .await
+        .expect("schedule");
+        let due = deliveries::due_retries(&context.state.db, 10)
+            .await
+            .expect("due");
+        let row = due
+            .into_iter()
+            .find(|row| row.id == delivery.id)
+            .expect("due row");
+        (context, row)
+    }
+
+    #[tokio::test]
+    async fn gdocs_retry_skips_when_the_artifact_is_gone() {
+        let (context, delivery) = due_delivery(
+            "GDOCS",
+            "gdocs:retry:missing",
+            serde_json::json!({ "artifact_id": "missing" }),
+        )
+        .await;
+        retry_delivery(&context.state, &delivery)
+            .await
+            .expect("retry");
+        let stored = deliveries::get_by_key(&context.state.db, "gdocs:retry:missing")
+            .await
+            .expect("get")
+            .expect("row");
+        assert_eq!(stored.status, "SKIPPED");
+        assert_eq!(stored.last_error.as_deref(), Some("artifact not found"));
+    }
+
+    #[tokio::test]
+    async fn drive_retry_skips_when_the_artifact_is_gone() {
+        let (context, delivery) = due_delivery(
+            "DRIVE",
+            "drive:retry:missing",
+            serde_json::json!({ "artifact_id": "missing" }),
+        )
+        .await;
+        retry_delivery(&context.state, &delivery)
+            .await
+            .expect("retry");
+        let stored = deliveries::get_by_key(&context.state.db, "drive:retry:missing")
+            .await
+            .expect("get")
+            .expect("row");
+        assert_eq!(stored.status, "SKIPPED");
+        assert_eq!(stored.last_error.as_deref(), Some("artifact not found"));
+    }
+
+    #[tokio::test]
+    async fn retry_rejects_invalid_payloads_without_touching_google() {
+        let (context, delivery) = due_delivery(
+            "DRIVE",
+            "drive:retry:invalid",
+            serde_json::json!({ "artifact_id": "unused" }),
+        )
+        .await;
+        let mut broken = delivery.clone();
+        broken.payload_json = Some("not-json".into());
+        retry_delivery(&context.state, &broken)
+            .await
+            .expect("retry");
+        let stored = deliveries::get_by_key(&context.state.db, "drive:retry:invalid")
+            .await
+            .expect("get")
+            .expect("row");
+        assert_eq!(stored.status, "SKIPPED");
+        assert_eq!(stored.last_error.as_deref(), Some("invalid retry payload"));
     }
 }

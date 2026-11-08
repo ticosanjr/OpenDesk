@@ -6,6 +6,7 @@ cd "$ROOT"
 
 VERSION="$(node -p "require('./package.json').version")"
 DEST="$ROOT/releases/${VERSION}"
+NOTES_FILE="$ROOT/docs/releases/${VERSION}.md"
 SKIP_BUILD=0
 SKIP_GATE=0
 
@@ -48,12 +49,16 @@ done
 
 cp -f "$ROOT/src-tauri/target/release/opendesk" "$DEST/opendesk-linux-x86_64"
 
-node - "$DEST" "$VERSION" <<'NODE'
+node - "$DEST" "$VERSION" "$NOTES_FILE" <<'NODE'
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const dest = process.argv[2];
 const version = process.argv[3];
+const notesFile = process.argv[4];
+const notes = fs.existsSync(notesFile)
+  ? fs.readFileSync(notesFile, "utf8").trim()
+  : `OpenDesk v${version}`;
 const ignored = new Set(["manifest.json", "SHA256SUMS", "latest.json"]);
 const artifacts = fs
   .readdirSync(dest)
@@ -88,7 +93,7 @@ const latest = {
   repo: "ticosanjr/OpenDesk",
   platform: "linux-x86_64",
   published_at: manifest.built_at,
-  notes: `OpenDesk v${version}`,
+  notes,
   assets: artifacts.map(entry),
 };
 fs.writeFileSync(
@@ -97,7 +102,12 @@ fs.writeFileSync(
 );
 NODE
 
-( cd "$DEST" && sha256sum * > SHA256SUMS )
+(
+  cd "$DEST"
+  find . -maxdepth 1 -type f ! -name 'SHA256SUMS' -printf '%f\n' \
+    | sort \
+    | xargs sha256sum > SHA256SUMS
+)
 
 printf '%s\n' "$VERSION" > "$ROOT/releases/LATEST"
 
@@ -131,13 +141,20 @@ fi
 
 echo "==> Publishing GitHub Release v${VERSION}"
 if command -v gh >/dev/null 2>&1 && git remote get-url "$remote" 2>/dev/null | grep -q github.com; then
+  notes_args=()
+  if [[ -f "$NOTES_FILE" ]]; then
+    notes_args=(--notes-file "$NOTES_FILE")
+  else
+    notes_args=(--notes "OpenDesk v${VERSION}. Assets: AppImage, .deb, .rpm, portable binary, SHA256SUMS and latest.json.")
+  fi
   if gh release view "v${VERSION}" >/dev/null 2>&1; then
-    echo "    release v${VERSION} already exists; uploading assets with --clobber"
+    echo "    release v${VERSION} already exists; updating notes and assets with --clobber"
+    gh release edit "v${VERSION}" --title "OpenDesk v${VERSION}" "${notes_args[@]}"
     gh release upload "v${VERSION}" "$DEST"/* --clobber
   else
     gh release create "v${VERSION}" \
       --title "OpenDesk v${VERSION}" \
-      --notes "OpenDesk v${VERSION}. Assets: AppImage, .deb, .rpm, portable binary, SHA256SUMS and latest.json." \
+      "${notes_args[@]}" \
       "$DEST"/*
   fi
   echo "    https://github.com/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/releases/tag/v${VERSION}"

@@ -54,6 +54,15 @@ pub async fn create_pending(
     get_by_key(pool, idempotency_key).await
 }
 
+pub async fn get(pool: &SqlitePool, id: &str) -> AppResult<Delivery> {
+    let query = format!("SELECT {COLUMNS} FROM integration_deliveries WHERE id = ?");
+    sqlx::query_as::<_, Delivery>(&query)
+        .bind(id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| crate::error::AppError::NotFound(format!("delivery {id}")))
+}
+
 pub async fn get_by_key(pool: &SqlitePool, key: &str) -> AppResult<Option<Delivery>> {
     let query = format!("SELECT {COLUMNS} FROM integration_deliveries WHERE idempotency_key = ?");
     Ok(sqlx::query_as::<_, Delivery>(&query)

@@ -1182,7 +1182,7 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 ## 2026-11-08 — 0.24.1: cobertura 90%+ e DRY
 
-- Cobertura unitária da lógica subiu para 98,86% de linhas, 98,02% de
+- Cobertura unitária da lógica fechou em 99,54% de linhas, 98,62% de
   statements, 99,25% de funções e 91,66% de branches; thresholds do Vitest
   elevados para 90% em todas as métricas.
 - Novos testes para formatClock/formatDateTime, links de runs, notificações
@@ -1192,16 +1192,6 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   auditoria de UI cobre 14 rotas em 1440×900/1100×800 e 4 modais.
 - DRY: classes de formulário centralizadas em `src/lib/ui-classes.ts`,
   `TemplateCard` extraído e cards do Kanban/pacotes/arquivos ajustados.
-
-## 2026-11-08 — 0.24.1: cobertura unitária 90%+ e DRY
-
-- Vitest: 98,86% linhas, 98,02% statements, 99,25% funções, 91,66% branches;
-  thresholds elevados para 90% em todas as métricas.
-- 81 testes unitários (Vitest) e 37 Playwright.
-- Specs Playwright passaram a usar um único helper de API/workspace.
-- Classes de formulário centralizadas em `src/lib/ui-classes.ts`.
-- `TemplateCard` extraído; cards do Kanban, Arquivos, Pacotes, Receitas e
-  Rotinas ajustados com auditoria visual automatizada.
 
 ## 2026-11-08 — 0.24.1: Fábrica de Capacidades e ícone unificado
 
@@ -1219,3 +1209,40 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   `OPENDESK_WORKSPACES_ROOT` isolado funcione sem afrouxar a validação de
   workspaces criados pelo usuário.
 - Smoke headless e GUI (Xvfb) confirmam criação única e ausência de panic.
+
+## 2026-11-08 — pós-0.24.1: retry durável Google e estabilidade do gate
+
+- Entregas `GDOCS` e `DRIVE` agora usam `mark_failed_retryable` com payload
+  mínimo (artifact, título e pasta) e são retomadas pelo worker durável após
+  restart, com backoff exponencial igual ao do e-mail.
+- O retry recarrega o artefato do banco e do disco; se ele sumiu, a entrega vira
+  `SKIPPED` em vez de falhar para sempre. `SMTP`, `GDOCS` e `DRIVE` compartilham
+  o mesmo dispatcher por canal.
+- Histórico de entregas ganhou o botão **Reenviar** para linhas `FAILED`, com
+  `POST /api/integrations/deliveries/{id}/retry`. Só entregas `FAILED` com
+  payload são reenviadas; `SUCCESS` nunca é replicada para evitar documento ou
+  upload duplicado.
+- `busy_timeout` do SQLite subiu de 5s para 15s para absorver rajadas de escrita
+  dos workers em paralelo com a API.
+- `model-ref.spec.ts` passou a criar workspace própria com `seedWorkspace`, sem
+  disputar a workspace mais recente de outras specs.
+- `scripts/release.sh` lê `docs/releases/<versão>.md` e usa o mesmo texto no
+  GitHub Release e no `latest.json` do updater; notas da 0.24.1 retroativas
+  adicionadas. `SHA256SUMS` passou a ser gerado fora do próprio hash.
+- `docs/progress.md` sem a seção duplicada de cobertura; números finais do gate.
+- Testes: 198 Rust (3 de retry durável Google + 2 do endpoint de reenvio),
+  81 Vitest, 38 Playwright.
+
+## 2026-11-08 — 0.24.2: cobertura Rust e confiabilidade de entregas
+
+- Fase 6 iniciada com 26 testes de contrato da API cobrindo tarefas, rotinas,
+  Studio (duplicar/copiar/backup/toggle), arquivos, busca global, fila,
+  orçamento, custo, chat, roteador, propostas, artefatos, I/O bus, SMTP, Signal,
+  engine/diagnóstico e receitas (sync + dry-run).
+- Cobertura Rust subiu de 46,31% para **55,00% de linhas** e o core de 49,26%
+  para **59,72%**. Ratchet do gate elevado para 55% global e 59% core.
+- Testes Rust passaram de 198 para **213**.
+- Retry durável de Google Docs/Drive, reenvio manual no histórico, timeout de
+  SQLite em 15s e `model-ref.spec.ts` determinístico incluídos no release.
+- `scripts/release.sh` usa notas de `docs/releases/<versão>.md` no GitHub e no
+  `latest.json`; `SHA256SUMS` não inclui a si próprio.

@@ -45,7 +45,12 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     headers: auth.headers,
   });
   expect(about.ok()).toBeTruthy();
-  expect((await about.json()).app.version).toBe("0.24.1");
+  const packageVersion = (
+    JSON.parse(
+      readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+    ) as { version: string }
+  ).version;
+  expect((await about.json()).app.version).toBe(packageVersion);
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });

@@ -6,8 +6,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-MIN_LINES="${OPENDESK_MIN_LINES:-44}"
-CORE_MIN_LINES="${OPENDESK_CORE_MIN_LINES:-46}"
+MIN_LINES="${OPENDESK_MIN_LINES:-55}"
+CORE_MIN_LINES="${OPENDESK_CORE_MIN_LINES:-59}"
 
 echo "==> TypeScript"
 npm run check

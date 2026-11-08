@@ -9,7 +9,7 @@ use crate::{
 };
 use axum::{
     Json,
-    extract::{Query, State},
+    extract::{Path, Query, State},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -193,4 +193,13 @@ pub async fn list_deliveries(
     let workspace_id =
         crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
     Ok(Json(deliveries::list(&state.db, &workspace_id, 100).await?))
+}
+
+pub async fn retry_delivery(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<deliveries::Delivery>> {
+    Ok(Json(
+        crate::integrations::delivery::retry_one(&state, &id).await?,
+    ))
 }

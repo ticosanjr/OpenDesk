@@ -37,7 +37,10 @@ pub async fn init(db_path: &Path) -> Result<SqlitePool> {
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal)
         .foreign_keys(true)
-        .busy_timeout(Duration::from_secs(5));
+        // Background workers (watcher, queue, maintenance) share this pool with
+        // the API. A 5s budget was short enough to surface `database is locked`
+        // under bursts of writes, so leave room for the writer to drain.
+        .busy_timeout(Duration::from_secs(15));
 
     let pool = SqlitePoolOptions::new()
         .max_connections(5)

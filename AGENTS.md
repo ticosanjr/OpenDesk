@@ -91,12 +91,12 @@ blueprints de equipe, janela maximizada, ciclo de bandeja, abas em
 Configurações/Integrações/Kanban, timeline ao vivo, controlador de fila em aba,
 barramento universal de I/O (UEN), sinks determinísticos, ferramentas externas
 opcionais, hardening de SQLite/watcher/permissões, receitas YAML com HITL
-modular, Rsync local/remoto e auto-organização de agentes com propostas
-aprovadas via HITL.
+modular, Rsync local/remoto, auto-organização de agentes com propostas aprovadas via HITL
+e retry durável de Google Docs/Drive.
 Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
 Fábrica de Capacidades default (`meta-forge`).
-Próxima frente: retry durável de Google/Drive, assinatura de updates, cobertura
-Rust ≥80%, Windows/macOS e testes de contrato Google/OpenCode.
+Próxima frente: assinatura de updates, cobertura Rust ≥80%, Windows/macOS e
+testes de contrato Google/OpenCode.
 
 Releases são locais (`releases/`, máximo 3 versões) e nunca via CI. O remoto é
 `origin` em https://github.com/ticosanjr/OpenDesk (privado); `scripts/release.sh`

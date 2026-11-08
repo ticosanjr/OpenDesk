@@ -88,6 +88,7 @@ export function IntegrationsPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [retrying, setRetrying] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const section = params.get("section") ?? "smtp";
@@ -188,6 +189,21 @@ export function IntegrationsPage() {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setTesting(false);
+    }
+  }
+
+  async function retryDelivery(id: string) {
+    setRetrying(id);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiPost<Delivery>(`/api/integrations/deliveries/${id}/retry`);
+      await load();
+      setMessage("Entrega reenviada.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setRetrying(null);
     }
   }
 
@@ -556,6 +572,22 @@ export function IntegrationsPage() {
                   <span className="font-mono text-[9px] text-zinc-600">
                     {delivery.attempts} tentativa(s) · {relativeTime(delivery.updated_at)}
                   </span>
+                  {delivery.status === "FAILED" ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void retryDelivery(delivery.id)}
+                      disabled={retrying === delivery.id}
+                      aria-label={`Reenviar entrega ${delivery.id}`}
+                    >
+                      {retrying === delivery.id ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <RefreshCw size={12} />
+                      )}
+                      Reenviar
+                    </Button>
+                  ) : null}
                   {delivery.last_error ? (
                     <span className="w-full truncate text-[9px] text-red-300">
                       {delivery.last_error}
