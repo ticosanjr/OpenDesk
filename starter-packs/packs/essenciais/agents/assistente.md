@@ -1,7 +1,7 @@
 ---
 name: Assistente
 description: Orquestra pedidos e escolhe o caminho certo.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #3b82f6
 avatar: 🤖

@@ -85,6 +85,11 @@ impl AppPaths {
 /// It lives outside the app data directory so users can back it up, sync it or
 /// open it in Finder/Explorer normally.
 pub fn default_workspaces_root() -> PathBuf {
+    if let Ok(configured) = std::env::var("OPENDESK_WORKSPACES_ROOT")
+        && !configured.trim().is_empty()
+    {
+        return PathBuf::from(configured);
+    }
     if let Some(user_dirs) = directories::UserDirs::new() {
         let base = user_dirs
             .document_dir()

@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState, type CSSProperties } from "react";
+import { Suspense, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, RefreshCw, Settings, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -290,13 +290,17 @@ export function AppShell() {
     (workspace) => workspace.id === activeWorkspaceId,
   );
   const accent = safeHexColor(activeWorkspace?.color_hex);
-  const workspaceStyle = {
-    "--workspace-accent": accent,
-    "--workspace-border": `color-mix(in srgb, ${accent} 26%, #27272a)`,
-    "--workspace-border-soft": `color-mix(in srgb, ${accent} 14%, #27272a)`,
-    "--workspace-glow": `color-mix(in srgb, ${accent} 10%, transparent)`,
-    "--workspace-surface": `color-mix(in srgb, ${accent} 7%, #18181b)`,
-  } as CSSProperties;
+  const workspaceStyle = useMemo(
+    () =>
+      ({
+        "--workspace-accent": accent,
+        "--workspace-border": `color-mix(in srgb, ${accent} 26%, #27272a)`,
+        "--workspace-border-soft": `color-mix(in srgb, ${accent} 14%, #27272a)`,
+        "--workspace-glow": `color-mix(in srgb, ${accent} 10%, transparent)`,
+        "--workspace-surface": `color-mix(in srgb, ${accent} 7%, #18181b)`,
+      }) as CSSProperties,
+    [accent],
+  );
 
   return (
     <div

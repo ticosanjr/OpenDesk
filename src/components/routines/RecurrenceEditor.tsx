@@ -2,6 +2,10 @@ import { CalendarDays, Clock3 } from "lucide-react";
 import type { Recurrence, SchedulePreview } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import {
+  smallInputClass as inputClass,
+  smallLabelClass as labelClass,
+} from "@/lib/ui-classes";
 
 const FREQUENCIES: Array<{ id: Recurrence["frequency"]; label: string }> = [
   { id: "once", label: "Uma vez" },
@@ -187,7 +191,3 @@ export function RecurrenceEditor({
   );
 }
 
-const inputClass =
-  "h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[11px] text-zinc-100 outline-none focus:border-blue-500/60";
-const labelClass =
-  "mb-1 block text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-500";

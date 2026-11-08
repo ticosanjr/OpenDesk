@@ -1,18 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { seedWorkspace } from "./helpers";
 
-const DATA_DIR = "/tmp/opendesk-e2e/data";
-
-function api() {
-  const endpoint = JSON.parse(readFileSync(`${DATA_DIR}/api.json`, "utf8")) as {
-    port: number;
-    token: string;
-  };
-  return {
-    baseURL: `http://127.0.0.1:${endpoint.port}`,
-    headers: { Authorization: `Bearer ${endpoint.token}` },
-  };
-}
 
 const ROUTES = [
   "/",
@@ -33,21 +22,10 @@ test("every route scrolls to the end at desktop sizes", async ({
   page,
   request,
 }) => {
-  const auth = api();
-  const existing = (await (
-    await request.get(`${auth.baseURL}/api/workspaces`, { headers: auth.headers })
-  ).json()) as Array<{ id: string; root_path: string }>;
-  let workspace = existing[0];
-  if (!workspace) {
-    const created = await request.post(`${auth.baseURL}/api/workspaces`, {
-      headers: auth.headers,
-      data: { name: "Scroll Workspace", root_path: "/tmp/opendesk-e2e/workspaces-scroll" },
-    });
-    workspace = (await created.json()) as { id: string; root_path: string };
-  }
-  mkdirSync(`${workspace.root_path}/input`, { recursive: true });
+  const workspace = await seedWorkspace(request, "Scroll");
+  mkdirSync(`${workspace.root}/input`, { recursive: true });
   writeFileSync(
-    `${workspace.root_path}/input/scroll.md`,
+    `${workspace.root}/input/scroll.md`,
     `# Scroll\n\n${"linha de teste\\n".repeat(120)}`,
   );
 

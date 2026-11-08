@@ -1,7 +1,7 @@
 ---
 name: Planejador Doméstico
 description: Organiza orçamento e metas da casa.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #14b8a6
 avatar: 🤖

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   Ban,
@@ -116,8 +116,13 @@ export function AttentionCard() {
     }
   }, [workspaceId]);
 
+  const mounted = useRef(false);
   useEffect(() => {
-    void load();
+    // Coalesce bursts of run/task events into one refresh.
+    const delay = mounted.current ? 250 : 0;
+    mounted.current = true;
+    const handle = window.setTimeout(() => void load(), delay);
+    return () => window.clearTimeout(handle);
   }, [
     load,
     lastTaskEvent?.task_id,
@@ -259,7 +264,7 @@ export function AttentionCard() {
   }
 
   return (
-    <Card className="border-amber-500/30 bg-amber-500/[0.04]">
+    <Card data-testid="attention-card" className="border-amber-500/30 bg-amber-500/[0.04]">
       <CardContent className="space-y-3 p-3.5">
         <div className="flex flex-wrap items-center gap-2">
           <AlertTriangle size={15} className="shrink-0 text-amber-400" />

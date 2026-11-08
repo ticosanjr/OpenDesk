@@ -71,10 +71,20 @@ describe("RecipesPage", () => {
       expect(screen.getByDisplayValue("Passo 1")).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByRole("button", { name: /Dry-run/ }));
+    fireEvent.change(
+      screen.getByPlaceholderText(/analise o contrato/),
+      { target: { value: "analise o briefing" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Iniciar dry-run/ }));
     await waitFor(() =>
       expect(apiPost).toHaveBeenCalledWith("/api/recipes/receita-e2e/run", {
         dry_run: true,
-        trigger_context: { manual: true },
+        trigger_context: {
+          manual: true,
+          context: "analise o briefing",
+          prompt: "analise o briefing",
+          question: "analise o briefing",
+        },
       }),
     );
   });

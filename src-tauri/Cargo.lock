@@ -3924,7 +3924,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk"
-version = "0.24.0"
+version = "0.24.1"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3976,6 +3976,7 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "tokio-util",
+ "tower",
  "tower-http",
  "tracing",
  "tracing-appender",

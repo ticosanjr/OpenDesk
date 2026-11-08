@@ -41,10 +41,14 @@ export function ToolsCard() {
   const [installing, setInstalling] = useState<string | null>(null);
   const [manualPath, setManualPath] = useState<Record<string, string>>({});
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (refresh = false) => {
     setLoading(true);
     try {
-      setTools(await apiGet<ToolInfo[]>("/api/io/tools"));
+      setTools(
+        await apiGet<ToolInfo[]>(
+          `/api/io/tools${refresh ? "?refresh=1" : ""}`,
+        ),
+      );
     } catch (cause) {
       toast({
         tone: "error",
@@ -57,14 +61,14 @@ export function ToolsCard() {
   }, []);
 
   useEffect(() => {
-    void load();
+    void load(false);
   }, [load]);
 
   async function install(tool: ToolInfo) {
     setInstalling(tool.name);
     try {
       await apiPost(`/api/io/tools/${tool.name}/install`, {});
-      await load();
+      await load(true);
       toast({ tone: "success", title: `${tool.label} instalado` });
     } catch (cause) {
       toast({
@@ -83,7 +87,7 @@ export function ToolsCard() {
     try {
       await apiPut(`/api/io/tools/${tool.name}/path`, { path: selected });
       setManualPath((current) => ({ ...current, [tool.name]: "" }));
-      await load();
+      await load(true);
       toast({ tone: "success", title: `${tool.label} configurado`, description: selected });
     } catch (cause) {
       toast({
@@ -97,7 +101,7 @@ export function ToolsCard() {
   async function clearPath(tool: ToolInfo) {
     try {
       await apiPut(`/api/io/tools/${tool.name}/path`, { path: null });
-      await load();
+      await load(true);
     } catch (cause) {
       toast({
         tone: "error",
@@ -124,7 +128,7 @@ export function ToolsCard() {
             <span className="font-mono">~/.local/share/opendesk/tools</span>.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+        <Button variant="outline" size="sm" onClick={() => void load(true)} disabled={loading}>
           <IconLabel icon={<RefreshCw size={13} className={loading ? "animate-spin" : undefined} />}>
             Verificar novamente
           </IconLabel>

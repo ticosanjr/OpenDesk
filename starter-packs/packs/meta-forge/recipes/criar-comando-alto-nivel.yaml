@@ -1,0 +1,51 @@
+id: criar-comando-alto-nivel
+name: Criar comando de alto nível
+description: Projeta interface, validação e exemplos antes de publicar um comando.
+enabled: true
+triggers: []
+flow:
+  - type: step
+    id: interface
+    name: Definir interface
+    mode: build
+    agent: arquiteto-capacidades
+    effort: low
+    prompt: |
+      Leia {{trigger.context}}. Defina nome, intenção única, `$ARGUMENTS`, formato,
+      pré-condições, saída, erros e três exemplos. Salve em
+      `capabilities/commands/<nome>/spec.md`.
+  - type: step
+    id: draft
+    name: Escrever comando
+    mode: build
+    agent: arquiteto-capacidades
+    effort: medium
+    prompt: |
+      Escreva o comando com frontmatter, passos determinísticos, validação e
+      exemplos. Salve em `capabilities/commands/<nome>/`.
+  - type: step
+    id: test
+    name: Testar casos vazio, válido e inválido
+    mode: build
+    agent: revisor-capacidades
+    effort: medium
+    prompt: |
+      Teste o comando com argumento vazio, válido e inválido. Registre falhas,
+      ajuste e produza `capabilities/commands/<nome>/avaliacao.md`.
+  - type: hitl
+    id: aprovar
+    name: Aprovar comando
+    interaction_type: APPROVAL_WITH_FEEDBACK
+    channels: [DESKTOP_UI]
+    timeout_minutes: 240
+    on_timeout: PAUSE_AND_ALERT
+    prompt_template: Aprovar o comando e seus exemplos?
+  - type: step
+    id: final
+    name: Empacotar comando
+    mode: build
+    agent: arquiteto-capacidades
+    effort: low
+    prompt: |
+      Finalize em `capabilities/output/command-<nome>/` com comando, spec,
+      avaliação, README e CHANGELOG.

@@ -486,6 +486,8 @@ export function StudioOverview({
                               size="sm"
                               className="h-7 px-2 text-[9px]"
                               onClick={() => setBackupsFor(item)}
+                              title="Ver backups"
+                              aria-label="Ver backups"
                             >
                               <History size={11} />
                             </Button>
@@ -494,6 +496,8 @@ export function StudioOverview({
                               size="sm"
                               className="h-7 px-2 text-[9px] text-red-300/80"
                               onClick={() => void remove(item)}
+                              title="Excluir item"
+                              aria-label="Excluir item"
                             >
                               <Trash2 size={11} />
                             </Button>

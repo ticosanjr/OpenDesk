@@ -27,6 +27,10 @@ import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
 import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
+import {
+  fieldInputClass as inputClass,
+  fieldLabelClass as labelClass,
+} from "@/lib/ui-classes";
 
 interface PackCounts {
   agents: number;
@@ -39,6 +43,13 @@ interface PackCounts {
 interface PackRequires {
   tools: string[];
   integrations: string[];
+}
+
+interface PackHealth {
+  status: "installed" | "modified" | "partial" | string;
+  missing_files: number;
+  modified_files: number;
+  missing_routines: number;
 }
 
 interface PackSummary {
@@ -55,6 +66,8 @@ interface PackSummary {
   installed: boolean;
   installed_version?: string | null;
   installed_at?: string | null;
+  update_available: boolean;
+  health: PackHealth;
 }
 
 interface Category {
@@ -103,6 +116,7 @@ interface InstallResult {
   version: string;
   written: number;
   skipped: number;
+  skipped_conflicts: number;
   routines: string[];
   folders: string[];
 }
@@ -123,12 +137,14 @@ export function PacksPage() {
   const [plan, setPlan] = useState<InstallPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [overwritePaths, setOverwritePaths] = useState<Set<string>>(new Set());
   const [removing, setRemoving] = useState(false);
   const [templateOpen, setTemplateOpen] = useState<WorkspaceTemplate | null>(null);
   const [templateName, setTemplateName] = useState("");
   const [templateRoot, setTemplateRoot] = useState("");
   const [templateColor, setTemplateColor] = useState("#3b82f6");
   const [creatingTemplate, setCreatingTemplate] = useState(false);
+  const [templateErrors, setTemplateErrors] = useState<string[]>([]);
   const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
     try {
       return localStorage.getItem(ONBOARDING_KEY) === "1";
@@ -180,6 +196,7 @@ export function PacksPage() {
   async function openPack(pack: PackSummary) {
     setSelected(pack);
     setPlan(null);
+    setOverwritePaths(new Set());
     if (!activeWorkspaceId) return;
     setPlanLoading(true);
     try {
@@ -199,34 +216,34 @@ export function PacksPage() {
     }
   }
 
-  async function installPack(overwriteConflicts: boolean) {
+  async function installPack() {
     if (!selected || !activeWorkspaceId) return;
-    if (plan?.conflicts) {
-      const confirmed = await confirmAction({
-        title: `Substituir ${plan.conflicts} arquivo(s)?`,
-        description:
-          "O conteúdo atual será salvo em backup antes da substituição. Arquivos idênticos são mantidos.",
-        confirmLabel: "Substituir e adicionar",
-        tone: "destructive",
-      });
-      if (!confirmed) return;
-    }
     setInstalling(true);
     try {
-      const overwrite =
-        overwriteConflicts && plan
-          ? plan.files
-              .filter((file) => file.status === "conflict")
-              .map((file) => file.path)
-          : [];
+      const overwrite = plan
+        ? plan.files
+            .filter(
+              (file) =>
+                file.status === "conflict" && overwritePaths.has(file.path),
+            )
+            .map((file) => file.path)
+        : [];
       const result = await apiPost<InstallResult>(
         `/api/starter-packs/${selected.id}/install`,
-        { workspace_id: activeWorkspaceId, overwrite },
+        {
+          workspace_id: activeWorkspaceId,
+          overwrite,
+          skip_conflicts: true,
+        },
       );
       toast({
         tone: "success",
         title: `${selected.name} adicionado`,
-        description: `${result.written} arquivo(s), ${result.routines.length} rotina(s).`,
+        description: `${result.written} arquivo(s), ${result.routines.length} rotina(s)${
+          result.skipped_conflicts
+            ? `, ${result.skipped_conflicts} conflito(s) mantido(s)`
+            : ""
+        }.`,
       });
       setSelected(null);
       setPlan(null);
@@ -286,6 +303,7 @@ export function PacksPage() {
   }
 
   function openTemplate(template: WorkspaceTemplate) {
+    setTemplateErrors([]);
     setTemplateOpen(template);
     setTemplateName(template.name);
     setTemplateRoot("");
@@ -306,6 +324,7 @@ export function PacksPage() {
         root_path: templateRoot.trim() || null,
         color: templateColor,
       });
+      setTemplateErrors(result.errors);
       toast({
         tone: result.errors.length ? "warning" : "success",
         title: "Workspace criado",
@@ -313,7 +332,7 @@ export function PacksPage() {
           result.errors.length ? ` · ${result.errors.length} pendência(s)` : ""
         }.`,
       });
-      setTemplateOpen(null);
+      if (result.errors.length === 0) setTemplateOpen(null);
       await refresh();
       await load();
     } catch (cause) {
@@ -379,22 +398,12 @@ export function PacksPage() {
           </CardHeader>
           <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {templates.map((template) => (
-              <button
+              <TemplateCard
                 key={template.id}
-                type="button"
+                template={template}
+                action="criar workspace"
                 onClick={() => openTemplate(template)}
-                className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3 text-left transition-colors hover:border-zinc-600"
-              >
-                <span className="text-[12px] font-medium text-zinc-200">
-                  {template.name}
-                </span>
-                <span className="mt-1 block text-[10px] leading-snug text-zinc-500">
-                  {template.description}
-                </span>
-                <span className="mt-2 block text-[10px] text-blue-300">
-                  {template.packs.length} pacotes · criar workspace
-                </span>
-              </button>
+              />
             ))}
           </CardContent>
         </Card>
@@ -459,7 +468,27 @@ export function PacksPage() {
                       {pack.name}
                     </span>
                     {pack.recommended ? <Badge variant="blue">recomendado</Badge> : null}
-                    {pack.installed ? <Badge variant="green">instalado</Badge> : null}
+                    {pack.installed ? (
+                      <Badge
+                        variant={
+                          pack.health.status === "partial"
+                            ? "red"
+                            : pack.update_available
+                              ? "yellow"
+                              : pack.health.status === "modified"
+                                ? "purple"
+                                : "green"
+                        }
+                      >
+                        {pack.health.status === "partial"
+                          ? "parcial"
+                          : pack.update_available
+                            ? "atualização"
+                            : pack.health.status === "modified"
+                              ? "personalizado"
+                              : "instalado"}
+                      </Badge>
+                    ) : null}
                   </div>
                   <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-zinc-500">
                     {pack.description}
@@ -514,28 +543,11 @@ export function PacksPage() {
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {templates.map((template) => (
-            <button
+            <TemplateCard
               key={template.id}
-              type="button"
+              template={template}
               onClick={() => openTemplate(template)}
-              className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3 text-left transition-colors hover:border-zinc-600"
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ background: template.color }}
-                />
-                <span className="text-[12px] font-medium text-zinc-200">
-                  {template.name}
-                </span>
-              </div>
-              <p className="mt-1 text-[10px] leading-snug text-zinc-500">
-                {template.description}
-              </p>
-              <p className="mt-2 text-[10px] text-zinc-600">
-                {template.packs.length} pacotes
-              </p>
-            </button>
+            />
           ))}
         </CardContent>
       </Card>
@@ -558,8 +570,42 @@ export function PacksPage() {
               <Badge variant="default">{selected.counts.commands} comandos</Badge>
               <Badge variant="default">{selected.counts.recipes} receitas</Badge>
               <Badge variant="default">{selected.counts.routines} rotinas</Badge>
-              {selected.installed ? <Badge variant="green">instalado</Badge> : null}
+              {selected.installed ? (
+                <Badge
+                  variant={
+                    selected.health.status === "partial"
+                      ? "red"
+                      : selected.update_available
+                        ? "yellow"
+                        : selected.health.status === "modified"
+                          ? "purple"
+                          : "green"
+                  }
+                >
+                  {selected.health.status === "partial"
+                    ? "parcial"
+                    : selected.update_available
+                      ? "atualização"
+                      : selected.health.status === "modified"
+                        ? "personalizado"
+                        : "instalado"}
+                </Badge>
+              ) : null}
             </div>
+            {selected.installed && selected.update_available ? (
+              <p className="text-[10px] text-amber-200">
+                Versão instalada {selected.installed_version ?? "?"}; disponível{" "}
+                {selected.version}.
+              </p>
+            ) : null}
+            {selected.health.status === "partial" ? (
+              <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-200">
+                Faltam {selected.health.missing_files} arquivo(s) e{" "}
+                {selected.health.missing_routines} rotina(s). Use “Reparar” para
+                recriar o que falta; arquivos personalizados aparecem como
+                conflito e exigem confirmação.
+              </p>
+            ) : null}
 
             {selected.requires.tools.length || selected.requires.integrations.length ? (
               <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.05] px-3 py-2 text-[10px] text-amber-200">
@@ -591,11 +637,40 @@ export function PacksPage() {
                   </div>
                 </div>
                 {plan.conflicts > 0 ? (
-                  <p className="flex items-start gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-200">
-                    <TriangleAlert size={12} className="mt-0.5 shrink-0" />
-                    Existem arquivos diferentes com o mesmo nome. Substituir cria backup
-                    do conteúdo atual.
-                  </p>
+                  <>
+                    <p className="flex items-start gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-200">
+                      <TriangleAlert size={12} className="mt-0.5 shrink-0" />
+                      Marque os arquivos que podem ser substituídos. Os não marcados
+                      serão mantidos como estão; substituições fazem backup.
+                    </p>
+                    <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-zinc-800/70 p-2">
+                      {plan.files
+                        .filter((file) => file.status === "conflict")
+                        .map((file) => (
+                          <label
+                            key={file.path}
+                            className="flex items-center gap-2 text-[10px] text-zinc-300"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={overwritePaths.has(file.path)}
+                              onChange={(event) =>
+                                setOverwritePaths((current) => {
+                                  const next = new Set(current);
+                                  if (event.target.checked) next.add(file.path);
+                                  else next.delete(file.path);
+                                  return next;
+                                })
+                              }
+                              className="accent-blue-500"
+                            />
+                            <span className="truncate font-mono text-[9px]">
+                              {file.path}
+                            </span>
+                          </label>
+                        ))}
+                    </div>
+                  </>
                 ) : null}
                 {plan.routines.length > 0 ? (
                   <p className="text-[10px] text-zinc-500">
@@ -642,7 +717,7 @@ export function PacksPage() {
               ) : null}
               <Button
                 size="sm"
-                onClick={() => void installPack(plan?.conflicts ? true : false)}
+                onClick={() => void installPack()}
                 disabled={!activeWorkspaceId || installing || !plan}
               >
                 <IconLabel
@@ -654,7 +729,13 @@ export function PacksPage() {
                     )
                   }
                 >
-                  {selected.installed ? "Reinstalar" : "Adicionar ao workspace"}
+                  {selected.health.status === "partial"
+                    ? "Reparar"
+                    : selected.update_available
+                      ? "Atualizar"
+                      : selected.installed
+                        ? "Reinstalar"
+                        : "Adicionar ao workspace"}
                 </IconLabel>
               </Button>
             </div>
@@ -714,6 +795,16 @@ export function PacksPage() {
             <p className="text-[10px] leading-snug text-zinc-500">
               Pacotes: {templateOpen.packs.join(", ")}. Rotinas entram inativas.
             </p>
+            {templateErrors.length > 0 ? (
+              <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-200">
+                <p className="font-semibold">Instalação parcial</p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                  {templateErrors.map((error) => (
+                    <li key={error}>{error}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             <div className="flex justify-end gap-2 border-t border-zinc-800/70 pt-3">
               <Button variant="ghost" size="sm" onClick={() => setTemplateOpen(null)}>
                 Cancelar
@@ -745,7 +836,38 @@ export function PacksPage() {
   );
 }
 
-const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
-const labelClass =
-  "mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500";
+
+function TemplateCard({
+  template,
+  action,
+  onClick,
+}: {
+  template: WorkspaceTemplate;
+  action?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3 text-left transition-colors hover:border-zinc-600"
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className="h-2.5 w-2.5 rounded-full"
+          style={{ background: template.color }}
+        />
+        <span className="text-[12px] font-medium text-zinc-200">
+          {template.name}
+        </span>
+      </div>
+      <p className="mt-1 text-[10px] leading-snug text-zinc-500">
+        {template.description}
+      </p>
+      <p className="mt-2 text-[10px] text-zinc-600">
+        {template.packs.length} pacotes
+        {action ? ` · ${action}` : ""}
+      </p>
+    </button>
+  );
+}

@@ -46,6 +46,10 @@ import { FieldHint } from "@/components/ui/field-hint";
 import { IconLabel } from "@/components/ui/icon-label";
 import { PathInput } from "@/components/ui/path-input";
 import { TRIGGER_TYPES, triggerDescription, triggerLabel } from "@/lib/trigger-types";
+import {
+  fieldInputClass as inputClass,
+  fieldLabelClass as labelClass,
+} from "@/lib/ui-classes";
 
 interface RecipeOption {
   id: string;
@@ -239,7 +243,7 @@ export function RoutinesPage() {
   if (!activeWorkspaceId) {
     return (
       <PageBody>
-        <PageHeader eyebrow="automação recorrente" title="Rotinas (Cron)" />
+        <PageHeader eyebrow="automação recorrente" title="Rotinas & Gatilhos" />
         <EmptyState
           icon={CalendarClock}
           title="Nenhum workspace ativo"
@@ -258,8 +262,8 @@ export function RoutinesPage() {
     <PageBody>
       <PageHeader
         eyebrow="automação recorrente"
-        title="Rotinas (Cron)"
-        description={`${workspace?.name ?? "Workspace"} · agendamento com pasta determinística, fila, e-mail e histórico.`}
+        title="Rotinas & Gatilhos"
+        description={`${workspace?.name ?? "Workspace"} · horário, pasta, e-mail, Signal, webhook ou SQL; executa prompt ou receita.`}
         actions={
           <>
             <Button variant="outline" size="sm" onClick={() => void load()}>
@@ -508,6 +512,8 @@ export function RoutinesPage() {
                         size="sm"
                         className="h-7"
                         onClick={() => void remove(schedule)}
+                        title="Excluir rotina"
+                        aria-label="Excluir rotina"
                       >
                         <Trash2 size={12} />
                       </Button>
@@ -1385,7 +1391,3 @@ function CreateScheduleModal({
   );
 }
 
-const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
-const labelClass =
-  "mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500";

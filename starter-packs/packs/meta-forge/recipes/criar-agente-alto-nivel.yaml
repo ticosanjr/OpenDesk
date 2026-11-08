@@ -1,0 +1,70 @@
+id: criar-agente-alto-nivel
+name: Criar agente de alto nível
+description: Define papel, ferramentas, paradas e evals antes de publicar um agente.
+enabled: true
+triggers: []
+flow:
+  - type: step
+    id: spec
+    name: Definir trabalho e fronteiras
+    mode: build
+    agent: arquiteto-capacidades
+    effort: medium
+    prompt: |
+      Leia {{trigger.context}}. Produza `capabilities/agents/<nome>/spec.md` com
+      tarefa, usuário, entradas, saídas, não-objetivos, ferramentas mínimas,
+      permissões, handoffs, paradas e riscos.
+  - type: hitl
+    id: aprovar-spec
+    name: Aprovar spec do agente
+    interaction_type: APPROVAL_WITH_FEEDBACK
+    channels: [DESKTOP_UI]
+    timeout_minutes: 240
+    on_timeout: PAUSE_AND_ALERT
+    prompt_template: Aprovar o papel, as ferramentas e os limites do agente?
+  - type: step
+    id: evals
+    name: Criar cenários de avaliação
+    mode: build
+    agent: designer-avaliacao
+    effort: medium
+    prompt: |
+      Crie `capabilities/agents/<nome>/evals/` com casos de sucesso,
+      ambiguidade, ferramenta negada, contexto insuficiente e falha segura.
+      Defina rubrica e resultado esperado.
+  - type: step
+    id: draft
+    name: Escrever agente
+    mode: build
+    agent: arquiteto-capacidades
+    effort: high
+    prompt: |
+      Escreva `agent.md` com frontmatter e instruções concisas. Inclua processo,
+      contrato de saída, limites e quando pedir humano. Não amplie ferramentas
+      sem necessidade.
+  - type: step
+    id: red-team
+    name: Red team
+    mode: build
+    agent: revisor-capacidades
+    effort: high
+    prompt: |
+      Revise o agente: escopo, permissões, paradas, handoffs, prompt injection,
+      custo de contexto e evals. Bloqueie publicação se houver risco não tratado.
+  - type: hitl
+    id: aprovar
+    name: Aprovar agente
+    interaction_type: APPROVAL_WITH_FEEDBACK
+    channels: [DESKTOP_UI]
+    timeout_minutes: 240
+    on_timeout: PAUSE_AND_ALERT
+    prompt_template: Aprovar o agente e seus limites de permissão?
+  - type: step
+    id: final
+    name: Empacotar agente
+    mode: build
+    agent: arquiteto-capacidades
+    effort: low
+    prompt: |
+      Finalize o pacote em `capabilities/output/agent-<nome>/` com agent.md,
+      spec, evals, README e CHANGELOG.

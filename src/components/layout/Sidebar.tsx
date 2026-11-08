@@ -108,7 +108,7 @@ export function Sidebar() {
                   title={collapsed ? item.label : undefined}
                   className={({ isActive }) =>
                     cn(
-                      "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
+                      "group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors",
                       isActive
                         ? "workspace-nav-active text-zinc-100"
                         : "text-zinc-500 hover:bg-zinc-900/70 hover:text-zinc-200",
@@ -170,7 +170,7 @@ export function Sidebar() {
 
 export function SidebarSectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="px-2.5 pb-1 pt-3 font-mono text-[9px] uppercase tracking-[0.16em] text-zinc-700">
+    <p className="px-2.5 pb-1 pt-2 font-mono text-[9px] uppercase tracking-[0.16em] text-zinc-700">
       {children}
     </p>
   );

@@ -1,7 +1,7 @@
 ---
 name: Tutor
 description: Explica com progressão e checa entendimento.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #8b5cf6
 avatar: 🤖

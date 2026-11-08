@@ -10,8 +10,8 @@ flow:
   mode: build
   agent: escriba-reuniao
   effort: medium
-  prompt: Leia a transcrição em input/. Gere ata com contexto, decisões, riscos e action items. Salve
-    em {{run.output_dir}}/ata.md.
+  prompt: Leia a transcrição em reunioes/input/. Gere ata com contexto, decisões, riscos e action items.
+    Salve em {{run.output_dir}}/ata.md.
 - type: step
   id: passo-2
   name: Validar ações

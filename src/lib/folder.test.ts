@@ -41,6 +41,8 @@ describe("folder helpers", () => {
     await expect(pickFolder("Folder")).resolves.toBeNull();
 
     vi.mocked(open).mockRejectedValueOnce(new Error("no picker"));
+    await expect(pickFolder("Folder")).resolves.toBeNull();
+    vi.mocked(open).mockRejectedValueOnce(new Error("no picker"));
     await expect(pickFile("Binary")).resolves.toBeNull();
   });
 });

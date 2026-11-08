@@ -5,19 +5,7 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs";
-
-const DATA_DIR = "/tmp/opendesk-e2e/data";
-
-function api() {
-  const endpoint = JSON.parse(readFileSync(`${DATA_DIR}/api.json`, "utf8")) as {
-    port: number;
-    token: string;
-  };
-  return {
-    baseURL: `http://127.0.0.1:${endpoint.port}`,
-    headers: { Authorization: `Bearer ${endpoint.token}` },
-  };
-}
+import { api } from "./helpers";
 
 test("workspace, settings, Studio and external edit sync", async ({ page, request }) => {
   const auth = api();
@@ -57,7 +45,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     headers: auth.headers,
   });
   expect(about.ok()).toBeTruthy();
-  expect((await about.json()).app.version).toBe("0.24.0");
+  expect((await about.json()).app.version).toBe("0.24.1");
   const engineStatus = await request.get(`${auth.baseURL}/api/engine/status`, {
     headers: auth.headers,
   });
@@ -322,7 +310,7 @@ test("creates and edits a recurrence routine with calendar, agent search and not
   expect(invalid.status()).toBe(400);
 
   await page.goto("/#/routines");
-  await expect(page.getByRole("heading", { name: "Rotinas (Cron)" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Rotinas & Gatilhos" })).toBeVisible();
   await page.getByRole("main").getByRole("button", { name: "Nova rotina" }).click();
 
   const dialog = page.getByRole("dialog");

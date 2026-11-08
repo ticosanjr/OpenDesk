@@ -39,6 +39,8 @@ import { links } from "@/lib/links";
 import { toast } from "@/store/toast-store";
 import type { Workspace } from "@/lib/types";
 import { Modal } from "@/components/ui/modal";
+import { smallLabelClass as labelClass } from "@/lib/ui-classes";
+import { fieldInputClass as inputClass } from "@/lib/ui-classes";
 
 export function SettingsPage() {
   const workspaces = useAppStore((state) => state.workspaces);
@@ -539,7 +541,5 @@ function WorkspaceEditModal({
   );
 }
 
-const labelClass =
-  "mb-1 block text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-500";
-const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
+
+

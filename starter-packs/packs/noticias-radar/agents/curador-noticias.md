@@ -1,7 +1,7 @@
 ---
 name: Curador de Notícias
 description: Seleciona o que importa.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #0891b2
 avatar: 🤖

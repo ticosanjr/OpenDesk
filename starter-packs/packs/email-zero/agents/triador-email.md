@@ -1,7 +1,7 @@
 ---
 name: Triador de E-mail
 description: Classifica e prioriza mensagens.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #6366f1
 avatar: 🤖

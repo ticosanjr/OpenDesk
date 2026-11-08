@@ -1,0 +1,73 @@
+id: criar-skill-alto-nivel
+name: Criar skill de alto nível
+description: Pesquisa, avalia, escreve e revisa uma skill antes de publicar.
+enabled: true
+triggers: []
+flow:
+  - type: step
+    id: intake
+    name: Pesquisar e definir a linha de base
+    mode: build
+    agent: pesquisador-metodologia
+    effort: medium
+    prompt: |
+      Leia o contexto em {{trigger.context}}. Pesquise a metodologia e produza
+      `capabilities/research/skill-plan.md` com: objetivo, usuários, gatilhos,
+      não-objetivos, falha atual, 3 tarefas de linha de base e referências.
+  - type: hitl
+    id: aprovar-plano
+    name: Aprovar escopo e plano de avaliação
+    interaction_type: APPROVAL_WITH_FEEDBACK
+    channels: [DESKTOP_UI]
+    timeout_minutes: 240
+    on_timeout: PAUSE_AND_ALERT
+    prompt_template: Aprovar o escopo, as falhas e o plano de avaliação antes de escrever a skill?
+  - type: step
+    id: evals
+    name: Desenhar evals e solução de referência
+    mode: build
+    agent: designer-avaliacao
+    effort: medium
+    prompt: |
+      A partir de `capabilities/research/skill-plan.md`, crie `capabilities/evals/`
+      com 3–5 casos de capability, 2 de regression, casos negativos, rubrica,
+      solução de referência e métricas. Leia as transcrições depois.
+  - type: step
+    id: draft
+    name: Escrever draft mínimo da skill
+    mode: build
+    agent: arquiteto-capacidades
+    effort: high
+    prompt: |
+      Com o plano e as evals, escreva o pacote da skill em
+      `capabilities/skills/<nome>/`: SKILL.md conciso, referências de um nível,
+      scripts quando determinísticos, README e CHANGELOG. Use progressive
+      disclosure e descrição em terceira pessoa.
+  - type: step
+    id: red-team
+    name: Red team e revisão
+    mode: build
+    agent: revisor-capacidades
+    effort: high
+    prompt: |
+      Revise o pacote contra o checklist. Aponte bloqueadores, riscos e
+      preferências com trecho e correção. Verifique evals de regression,
+      gatilhos negativos, permissões e custo de contexto.
+  - type: hitl
+    id: aprovar-publicacao
+    name: Aprovar publicação
+    interaction_type: APPROVAL_WITH_FEEDBACK
+    channels: [DESKTOP_UI]
+    timeout_minutes: 240
+    on_timeout: PAUSE_AND_ALERT
+    prompt_template: Aprovar o pacote final da skill? Nada será publicado sem sua decisão.
+  - type: step
+    id: final
+    name: Empacotar e registrar decisão
+    mode: build
+    agent: arquiteto-capacidades
+    effort: low
+    prompt: |
+      Finalize em `capabilities/output/skill-<nome>/` com SKILL.md, evals,
+      README, CHANGELOG e `avaliacao.md` (baseline, resultados, falhas e
+      decisão). Não escreva em `.opencode` sem aprovação explícita.

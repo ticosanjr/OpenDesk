@@ -6,6 +6,8 @@ use serde::Serialize;
 use std::{
     path::{Path, PathBuf},
     process::Command,
+    sync::{Mutex, OnceLock},
+    time::{Duration, Instant},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -19,6 +21,10 @@ pub struct ToolSpec {
     pub archive: bool,
     pub manual_hint: &'static str,
 }
+
+type ToolCache = Option<(Instant, Vec<ToolInfo>)>;
+static CACHE: OnceLock<Mutex<ToolCache>> = OnceLock::new();
+const CACHE_TTL: Duration = Duration::from_secs(30);
 
 pub const TOOLS: &[ToolSpec] = &[
     ToolSpec {
@@ -155,7 +161,31 @@ pub fn info(spec: ToolSpec) -> ToolInfo {
 }
 
 pub fn list() -> Vec<ToolInfo> {
-    TOOLS.iter().copied().map(info).collect()
+    let cache = CACHE.get_or_init(|| Mutex::new(None));
+    if let Ok(guard) = cache.lock()
+        && let Some((at, tools)) = guard.as_ref()
+        && at.elapsed() < CACHE_TTL
+    {
+        return tools.clone();
+    }
+    let tools: Vec<ToolInfo> = TOOLS.iter().copied().map(info).collect();
+    if let Ok(mut guard) = cache.lock() {
+        *guard = Some((Instant::now(), tools.clone()));
+    }
+    tools
+}
+
+pub fn list_fresh() -> Vec<ToolInfo> {
+    invalidate_cache();
+    list()
+}
+
+pub fn invalidate_cache() {
+    if let Some(cache) = CACHE.get()
+        && let Ok(mut guard) = cache.lock()
+    {
+        *guard = None;
+    }
 }
 
 pub async fn install(name: &str) -> AppResult<ToolInfo> {
@@ -239,6 +269,7 @@ pub async fn install(name: &str) -> AppResult<ToolInfo> {
             "source": "managed",
         }))?,
     )?;
+    invalidate_cache();
     let after = info(spec);
     if !after.installed {
         return Err(AppError::Internal(format!(
@@ -376,6 +407,7 @@ pub fn set_manual_path(name: &str, path: Option<&str>) -> AppResult<()> {
         manual_paths_file(),
         serde_json::to_vec_pretty(&serde_json::Value::Object(paths))?,
     )?;
+    invalidate_cache();
     Ok(())
 }
 

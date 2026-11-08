@@ -1,0 +1,26 @@
+id: auditar-capacidades
+name: Auditar capacidades
+description: Inventário semanal de skills, agentes e comandos com lacunas e riscos.
+enabled: true
+triggers: []
+flow:
+  - type: step
+    id: inventario
+    name: Inventariar capacidades
+    mode: build
+    agent: pesquisador-metodologia
+    effort: medium
+    prompt: |
+      Leia `capabilities/` e produza inventário de skills, agentes e comandos:
+      nome, finalidade, última avaliação, evals existentes, riscos e lacunas.
+      Salve em `capabilities/output/inventario.md`.
+  - type: step
+    id: auditoria
+    name: Auditar qualidade e regressão
+    mode: build
+    agent: revisor-capacidades
+    effort: medium
+    prompt: |
+      Audite o inventário contra o checklist. Aponte capacidades sem eval,
+      gatilhos ambíguos, permissões amplas, referências profundas e riscos de
+      segurança. Salve em `capabilities/output/auditoria.md`.

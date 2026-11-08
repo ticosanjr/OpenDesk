@@ -1,7 +1,7 @@
 ---
 name: Gerente de Lançamento
 description: Coordena GTM.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #f59e0b
 avatar: 🤖

@@ -1,7 +1,7 @@
 ---
 name: Agente de Suporte
 description: Responde com clareza e empatia.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #3b82f6
 avatar: 🤖

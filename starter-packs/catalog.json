@@ -38,6 +38,7 @@
     }
   ],
   "packs": [
+    "meta-forge",
     "essenciais",
     "deep-research",
     "wiki-karpathy",
@@ -69,6 +70,7 @@
     "empresa",
     "pesquisa-wiki",
     "comercial",
-    "escritorio"
+    "escritorio",
+    "fabrica-capacidades"
   ]
 }

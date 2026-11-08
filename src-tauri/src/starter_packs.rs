@@ -2,9 +2,10 @@ use crate::{
     app_state::AppState,
     config_sync::{
         file_ops::{read_text, validate_slug, write_text_atomic},
+        markdown,
         paths::StudioPaths,
     },
-    db::{self, schedules, workspaces},
+    db::{self, schedules, settings, workspaces},
     error::{AppError, AppResult},
     recipes::{parser as recipe_parser, store as recipe_store},
 };
@@ -108,6 +109,15 @@ pub struct PackCounts {
     pub routines: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct PackHealth {
+    /// installed | modified | partial
+    pub status: String,
+    pub missing_files: usize,
+    pub modified_files: usize,
+    pub missing_routines: usize,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct PackSummary {
     pub id: String,
@@ -123,6 +133,8 @@ pub struct PackSummary {
     pub installed: bool,
     pub installed_version: Option<String>,
     pub installed_at: Option<String>,
+    pub update_available: bool,
+    pub health: PackHealth,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -131,6 +143,8 @@ pub struct PackDetail {
     pub installed: bool,
     pub installed_at: Option<String>,
     pub installed_version: Option<String>,
+    pub update_available: bool,
+    pub health: PackHealth,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -182,12 +196,50 @@ struct InstalledFile {
     sha256: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct InstalledRoutine {
+    id: String,
+    #[serde(default)]
+    file: String,
+    #[serde(default)]
+    name: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum StoredRoutine {
+    Legacy(String),
+    Full {
+        id: String,
+        #[serde(default)]
+        file: String,
+        #[serde(default)]
+        name: String,
+    },
+}
+
+fn parse_stored_routines(json: &str) -> Vec<InstalledRoutine> {
+    serde_json::from_str::<Vec<StoredRoutine>>(json)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|routine| match routine {
+            StoredRoutine::Legacy(id) => InstalledRoutine {
+                id,
+                file: String::new(),
+                name: String::new(),
+            },
+            StoredRoutine::Full { id, file, name } => InstalledRoutine { id, file, name },
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct InstallResult {
     pub pack_id: String,
     pub version: String,
     pub written: usize,
     pub skipped: usize,
+    pub skipped_conflicts: usize,
     pub routines: Vec<String>,
     pub folders: Vec<String>,
 }
@@ -335,6 +387,14 @@ fn planned_for(manifest: &PackManifest, _dir: &'static Dir<'static>) -> AppResul
         let file = BUNDLE
             .get_file(format!("packs/{}/commands/{name}", manifest.id))
             .ok_or_else(|| AppError::BadRequest(format!("comando ausente: {name}")))?;
+        let text = std::str::from_utf8(file.contents())
+            .map_err(|_| AppError::BadRequest(format!("comando não é UTF-8: {name}")))?;
+        let document = markdown::parse(text)?;
+        if document.body.trim().is_empty() {
+            return Err(AppError::BadRequest(format!(
+                "comando sem instruções: {name}"
+            )));
+        }
         push(
             format!(".opencode/commands/{name}"),
             "command",
@@ -355,6 +415,23 @@ fn planned_for(manifest: &PackManifest, _dir: &'static Dir<'static>) -> AppResul
         for (relative, bytes) in files {
             let relative = relative.trim_start_matches('/');
             safe_relative(relative)?;
+            if relative == "SKILL.md" {
+                let text = std::str::from_utf8(bytes)
+                    .map_err(|_| AppError::BadRequest(format!("skill não é UTF-8: {id}")))?;
+                let document = markdown::parse(text)?;
+                if markdown::get_string(&document.frontmatter, "description")
+                    .unwrap_or_default()
+                    .trim()
+                    .is_empty()
+                {
+                    return Err(AppError::BadRequest(format!(
+                        "skill sem description no frontmatter: {id}"
+                    )));
+                }
+                if document.body.trim().is_empty() {
+                    return Err(AppError::BadRequest(format!("skill sem conteúdo: {id}")));
+                }
+            }
             push(
                 format!(".opencode/skills/{id}/{relative}"),
                 "skill",
@@ -414,6 +491,37 @@ fn load_pack(
 ) -> AppResult<LoadedPack> {
     let planned = planned_for(&manifest, dir)?;
     let routines = planned_routines(&manifest, dir, workspace_id)?;
+    let recipe_ids: std::collections::HashSet<&str> = planned
+        .iter()
+        .filter_map(|file| file.recipe_id.as_deref())
+        .collect();
+    for (file, input) in &routines {
+        if input.name.trim().is_empty() {
+            return Err(AppError::BadRequest(format!("rotina {file} sem nome")));
+        }
+        if !schedules::TRIGGER_TYPES.contains(&input.trigger_type.as_str()) {
+            return Err(AppError::BadRequest(format!(
+                "rotina {file} com trigger_type inválido '{}'",
+                input.trigger_type
+            )));
+        }
+        if input.trigger_type == "CRON" && input.cron_expression.trim().is_empty() {
+            return Err(AppError::BadRequest(format!(
+                "rotina {file} CRON sem cron_expression"
+            )));
+        }
+        if input.target_kind == "RECIPE"
+            && input
+                .recipe_id
+                .as_deref()
+                .map(|recipe_id| !recipe_ids.contains(recipe_id))
+                .unwrap_or(true)
+        {
+            return Err(AppError::BadRequest(format!(
+                "rotina {file} aponta para receita fora do pacote"
+            )));
+        }
+    }
     Ok(LoadedPack {
         manifest,
         planned,
@@ -421,27 +529,81 @@ fn load_pack(
     })
 }
 
+#[derive(Debug, Clone)]
+struct InstalledRecord {
+    version: String,
+    installed_at: String,
+    files: Vec<InstalledFile>,
+    routines: Vec<InstalledRoutine>,
+}
+
 async fn installed_map(
     pool: &sqlx::SqlitePool,
     workspace_id: Option<&str>,
-) -> AppResult<HashMap<String, (String, String)>> {
+) -> AppResult<HashMap<String, InstalledRecord>> {
     let Some(workspace_id) = workspace_id else {
         return Ok(HashMap::new());
     };
-    let rows = sqlx::query_as::<_, (String, String, String)>(
-        "SELECT pack_id, pack_version, installed_at FROM starter_pack_installs
-         WHERE workspace_id = ?",
+    let rows = sqlx::query_as::<_, (String, String, String, String, String)>(
+        "SELECT pack_id, pack_version, installed_at, files_json, routines_json
+         FROM starter_pack_installs WHERE workspace_id = ?",
     )
     .bind(workspace_id)
     .fetch_all(pool)
     .await?;
     Ok(rows
         .into_iter()
-        .map(|(id, version, installed_at)| (id, (version, installed_at)))
+        .map(|(id, version, installed_at, files_json, routines_json)| {
+            (
+                id,
+                InstalledRecord {
+                    version,
+                    installed_at,
+                    files: serde_json::from_str(&files_json).unwrap_or_default(),
+                    routines: parse_stored_routines(&routines_json),
+                },
+            )
+        })
         .collect())
 }
 
-fn summary(manifest: &PackManifest, installed: Option<&(String, String)>) -> PackSummary {
+fn health_for(root: &Path, record: &InstalledRecord, db_routines: &[String]) -> PackHealth {
+    let mut health = PackHealth::default();
+    for file in &record.files {
+        match read_text(&root.join(&file.path)) {
+            Ok(Some(snapshot)) if snapshot.sha256 == file.sha256 => {}
+            Ok(Some(_)) => health.modified_files += 1,
+            _ => health.missing_files += 1,
+        }
+    }
+    for routine in &record.routines {
+        if !db_routines.contains(&routine.id) {
+            health.missing_routines += 1;
+        }
+    }
+    health.status = if health.missing_files > 0 || health.missing_routines > 0 {
+        "partial".into()
+    } else if health.modified_files > 0 {
+        "modified".into()
+    } else {
+        "installed".into()
+    };
+    health
+}
+
+async fn routine_ids(pool: &sqlx::SqlitePool, workspace_id: &str) -> AppResult<Vec<String>> {
+    Ok(schedules::list(pool, workspace_id)
+        .await?
+        .into_iter()
+        .map(|schedule| schedule.id)
+        .collect())
+}
+
+fn summary(
+    manifest: &PackManifest,
+    installed: Option<&InstalledRecord>,
+    health: PackHealth,
+) -> PackSummary {
     PackSummary {
         id: manifest.id.clone(),
         version: manifest.version.clone(),
@@ -460,8 +622,12 @@ fn summary(manifest: &PackManifest, installed: Option<&(String, String)>) -> Pac
             routines: manifest.contents.routines.len(),
         },
         installed: installed.is_some(),
-        installed_version: installed.map(|value| value.0.clone()),
-        installed_at: installed.map(|value| value.1.clone()),
+        installed_version: installed.map(|value| value.version.clone()),
+        installed_at: installed.map(|value| value.installed_at.clone()),
+        update_available: installed
+            .map(|value| value.version != manifest.version)
+            .unwrap_or(false),
+        health,
     }
 }
 
@@ -477,10 +643,26 @@ pub async fn list(
             .ok(),
     };
     let installed = installed_map(&state.db, workspace_id.as_deref()).await?;
+    let root = match workspace_id.as_deref() {
+        Some(id) => workspaces::get(&state.db, id)
+            .await
+            .ok()
+            .map(|workspace| PathBuf::from(workspace.root_path)),
+        None => None,
+    };
+    let db_routines = match workspace_id.as_deref() {
+        Some(id) => routine_ids(&state.db, id).await?,
+        None => Vec::new(),
+    };
     let mut packs = Vec::new();
     for id in &catalog.packs {
         let (manifest, _) = load_manifest(id)?;
-        packs.push(summary(&manifest, installed.get(id)));
+        let record = installed.get(id);
+        let health = match (root.as_deref(), record) {
+            (Some(root), Some(record)) => health_for(root, record, &db_routines),
+            _ => PackHealth::default(),
+        };
+        packs.push(summary(&manifest, record, health));
     }
     Ok((catalog.categories, packs))
 }
@@ -499,11 +681,27 @@ pub async fn detail(
     };
     let installed = installed_map(&state.db, workspace_id.as_deref()).await?;
     let entry = installed.get(pack_id);
+    let health = match (entry, workspace_id.as_deref()) {
+        (Some(record), Some(id)) => match workspaces::get(&state.db, id).await {
+            Ok(workspace) => health_for(
+                Path::new(&workspace.root_path),
+                record,
+                &routine_ids(&state.db, id).await?,
+            ),
+            Err(_) => PackHealth::default(),
+        },
+        _ => PackHealth::default(),
+    };
+    let update_available = entry
+        .map(|value| value.version != manifest.version)
+        .unwrap_or(false);
     Ok(PackDetail {
         manifest,
         installed: entry.is_some(),
-        installed_version: entry.map(|value| value.0.clone()),
-        installed_at: entry.map(|value| value.1.clone()),
+        installed_version: entry.map(|value| value.version.clone()),
+        installed_at: entry.map(|value| value.installed_at.clone()),
+        update_available,
+        health,
     })
 }
 
@@ -560,6 +758,7 @@ pub async fn install(
     pack_id: &str,
     workspace_id: &str,
     overwrite: &[String],
+    skip_conflicts: bool,
 ) -> AppResult<InstallResult> {
     let workspace = workspaces::get(&state.db, workspace_id).await?;
     let root = Path::new(&workspace.root_path);
@@ -581,7 +780,7 @@ pub async fn install(
             conflicts.push(planned.target.clone());
         }
     }
-    if !conflicts.is_empty() {
+    if !conflicts.is_empty() && !skip_conflicts {
         return Err(AppError::Conflict(format!(
             "estes arquivos já existem com conteúdo diferente: {}",
             conflicts.join(", ")
@@ -590,6 +789,8 @@ pub async fn install(
 
     let mut written = 0usize;
     let mut skipped = 0usize;
+    let mut skipped_conflicts = 0usize;
+    let mut recipes_changed = false;
     for planned in &loaded.planned {
         if let Some(snapshot) = read_text(&root.join(&planned.target))?
             && snapshot.sha256 == planned.sha256
@@ -597,13 +798,11 @@ pub async fn install(
             skipped += 1;
             continue;
         }
-        if planned.kind == "recipe"
-            && let Some(recipe_id) = &planned.recipe_id
+        if let Some(snapshot) = read_text(&root.join(&planned.target))?
+            && snapshot.sha256 != planned.sha256
+            && !overwrite.contains(planned.target.as_str())
         {
-            let yaml = std::str::from_utf8(&planned.bytes)
-                .map_err(|_| AppError::Internal("receita não é UTF-8".into()))?;
-            recipe_store::save_yaml(&state.db, workspace_id, recipe_id, yaml).await?;
-            written += 1;
+            skipped_conflicts += 1;
             continue;
         }
         let text = std::str::from_utf8(&planned.bytes)
@@ -614,15 +813,104 @@ pub async fn install(
             None,
             &state.paths.backups_dir,
         )?;
+        if planned.kind == "recipe" {
+            recipes_changed = true;
+        }
         written += 1;
     }
+    if recipes_changed {
+        recipe_store::sync_workspace(&state.db, workspace_id, root).await?;
+        crate::api::recipes::sync_all_recipe_trigger_sources(state).await?;
+    }
 
-    let mut routine_ids = Vec::new();
-    for (_, input) in &loaded.routines {
+    let previous = sqlx::query_scalar::<_, String>(
+        "SELECT routines_json FROM starter_pack_installs
+         WHERE workspace_id = ? AND pack_id = ?",
+    )
+    .bind(workspace_id)
+    .bind(&loaded.manifest.id)
+    .fetch_optional(&state.db)
+    .await?
+    .map(|json| parse_stored_routines(&json))
+    .unwrap_or_default();
+
+    let mut installed_routines = Vec::new();
+    for (index, (file, input)) in loaded.routines.iter().enumerate() {
+        let mut existing_id = previous
+            .iter()
+            .find(|routine| !routine.file.is_empty() && routine.file == *file)
+            .map(|routine| routine.id.clone());
+        if existing_id.is_none()
+            && let Some(routine) = previous.get(index)
+            && routine.file.is_empty()
+        {
+            existing_id = Some(routine.id.clone());
+        }
+        if existing_id.is_none()
+            && let Some(recipe_id) = input.recipe_id.as_deref()
+        {
+            if let Some(routine) =
+                schedules::find_by_name_recipe(&state.db, workspace_id, &input.name, recipe_id)
+                    .await?
+            {
+                existing_id = Some(routine.id);
+            } else if let Some(routine) =
+                schedules::find_by_recipe(&state.db, workspace_id, recipe_id).await?
+            {
+                existing_id = Some(routine.id);
+            }
+        }
+
+        if let Some(id) = existing_id
+            && schedules::get(&state.db, &id).await.is_ok()
+        {
+            let update = schedules::UpdateScheduleInput {
+                name: Some(input.name.clone()),
+                description: input.description.clone(),
+                cron_expression: Some(input.cron_expression.clone()),
+                timezone: Some(input.timezone.clone()),
+                agent_name: input.agent_name.clone(),
+                command_or_prompt: Some(input.command_or_prompt.clone()),
+                trigger_type: Some(input.trigger_type.clone()),
+                trigger_config_json: input.trigger_config_json.clone(),
+                target_kind: Some(input.target_kind.clone()),
+                recipe_id: input.recipe_id.clone(),
+                router_policy: Some(input.router_policy.clone()),
+                output_folder_template: Some(input.output_folder_template.clone()),
+                notify_email_recipients: input.notify_email_recipients.clone(),
+                notify_signal: Some(input.notify_signal),
+                notify_signal_recipients: input.notify_signal_recipients.clone(),
+                notify_only_on_change: Some(input.notify_only_on_change),
+                recurrence_json: input.recurrence_json.clone(),
+                one_time: Some(input.one_time),
+                misfire_policy: Some(input.misfire_policy.clone()),
+                safe_readonly_mode: Some(input.safe_readonly_mode),
+                sync_to_google_docs: Some(input.sync_to_google_docs),
+                sync_to_google_calendar: Some(input.sync_to_google_calendar),
+                is_active: None,
+            };
+            let schedule = schedules::update(&state.db, &id, update).await?;
+            crate::api::schedules::sync_trigger_source(state, &schedule).await?;
+            installed_routines.push(InstalledRoutine {
+                id: schedule.id,
+                file: file.clone(),
+                name: schedule.name,
+            });
+            continue;
+        }
+
         let schedule = schedules::create(&state.db, input.clone()).await?;
         crate::api::schedules::sync_trigger_source(state, &schedule).await?;
-        routine_ids.push(schedule.id);
+        installed_routines.push(InstalledRoutine {
+            id: schedule.id,
+            file: file.clone(),
+            name: schedule.name.clone(),
+        });
     }
+    let routine_ids: Vec<String> = installed_routines
+        .iter()
+        .map(|routine| routine.id.clone())
+        .collect();
 
     let files_json = serde_json::to_string(
         &loaded
@@ -634,7 +922,10 @@ pub async fn install(
             })
             .collect::<Vec<_>>(),
     )?;
-    let routines_json = serde_json::to_string(&routine_ids)?;
+    if !installed_routines.is_empty() {
+        state.io_bus.reload(state.clone()).await?;
+    }
+    let routines_json = serde_json::to_string(&installed_routines)?;
     let id = uuid::Uuid::now_v7().to_string();
     sqlx::query(
         "INSERT INTO starter_pack_installs
@@ -655,6 +946,7 @@ pub async fn install(
     .execute(&state.db)
     .await?;
 
+    crate::api::files::invalidate_search_index();
     if let Err(error) = state.refresh_watcher().await {
         tracing::warn!(error = %error, "watcher refresh after pack install failed");
     }
@@ -664,6 +956,7 @@ pub async fn install(
         version: loaded.manifest.version,
         written,
         skipped,
+        skipped_conflicts,
         routines: routine_ids,
         folders: loaded.manifest.contents.folders,
     })
@@ -686,14 +979,15 @@ pub async fn uninstall(
     .await?
     .ok_or_else(|| AppError::NotFound(format!("pacote {pack_id} não instalado")))?;
     let files: Vec<InstalledFile> = serde_json::from_str(&row.0).unwrap_or_default();
-    let routines: Vec<String> = serde_json::from_str(&row.1).unwrap_or_default();
+    let routines = parse_stored_routines(&row.1);
 
     // Routines that already ran (or were activated) are kept, together with
     // their recipe file, so the user never ends up with a broken routine.
     let mut routines_removed = 0usize;
     let mut routines_kept = Vec::new();
     let mut kept_recipe_targets = std::collections::HashSet::new();
-    for routine_id in routines {
+    for routine in routines {
+        let routine_id = routine.id;
         if let Ok(schedule) = schedules::get(&state.db, &routine_id).await {
             if schedule.last_run_at.is_some() || schedule.is_active {
                 if let Some(recipe_id) = schedule.recipe_id.clone() {
@@ -731,7 +1025,9 @@ pub async fn uninstall(
         .bind(pack_id)
         .execute(&state.db)
         .await?;
+    let _ = crate::api::recipes::sync_all_recipe_trigger_sources(state).await;
 
+    crate::api::files::invalidate_search_index();
     if let Err(error) = state.refresh_watcher().await {
         tracing::warn!(error = %error, "watcher refresh after pack uninstall failed");
     }
@@ -743,6 +1039,104 @@ pub async fn uninstall(
         routines_removed,
         routines_kept,
     })
+}
+
+/// Create the first-run capability factory workspace once. Existing users keep
+/// their active workspace; the factory is additive and fully removable.
+pub async fn ensure_default_factory_workspace(
+    state: &Arc<AppState>,
+) -> AppResult<Option<workspaces::Workspace>> {
+    if settings::get(&state.db, "factory_workspace_created")
+        .await?
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+    {
+        return Ok(None);
+    }
+    let existing = workspaces::list(&state.db).await?;
+    let had_workspaces = !existing.is_empty();
+    let workspace = if let Some(found) = existing
+        .iter()
+        .find(|workspace| workspace.name == "Fábrica de Capacidades")
+        .cloned()
+    {
+        found
+    } else {
+        let root_setting = settings::get(&state.db, "workspaces_root")
+            .await?
+            .and_then(|value| value.as_str().map(str::to_string))
+            .unwrap_or_else(|| {
+                crate::paths::default_workspaces_root()
+                    .to_string_lossy()
+                    .to_string()
+            });
+        let root = PathBuf::from(root_setting).join("fabrica-de-capacidades");
+        workspaces::create_trusted(
+            &state.db,
+            &state.paths,
+            db::models::CreateWorkspaceInput {
+                name: "Fábrica de Capacidades".into(),
+                root_path: root.to_string_lossy().to_string(),
+                description: Some(
+                    "Crie, avalie e melhore skills, agentes e comandos com metodologia eval-driven."
+                        .into(),
+                ),
+                color_hex: Some("#8b5cf6".into()),
+                default_router_policy: Some("COST_BENEFIT".into()),
+                default_email_recipient: None,
+                google_drive_folder_id: None,
+                timezone: None,
+            },
+        )
+        .await?
+    };
+
+    let template = templates()?
+        .into_iter()
+        .find(|template| template.id == "fabrica-capacidades");
+    if let Some(template) = &template {
+        for folder in &template.folders {
+            safe_relative(folder)?;
+            std::fs::create_dir_all(Path::new(&workspace.root_path).join(folder))?;
+        }
+        for (filename, content) in [
+            ("README.md", template.readme.as_deref()),
+            ("MEMORY.md", template.memory.as_deref()),
+        ] {
+            if let Some(content) = content {
+                let path = Path::new(&workspace.root_path).join(filename);
+                if !path.exists() {
+                    std::fs::write(path, content)?;
+                }
+            }
+        }
+    }
+
+    let packs = template
+        .map(|template| template.packs)
+        .unwrap_or_else(|| vec!["essenciais".into(), "meta-forge".into()]);
+    for pack in packs {
+        if let Err(error) = install(state, &pack, &workspace.id, &[], true).await {
+            tracing::warn!(pack = %pack, error = %error, "default factory pack install failed");
+            return Err(error);
+        }
+    }
+    if !had_workspaces {
+        settings::set_active_workspace(&state.db, &workspace.id).await?;
+    }
+    if let Err(error) = crate::proposals::ensure_workspace_bridge(state, &workspace.id).await {
+        tracing::warn!(error = %error, "could not register config bridge for factory workspace");
+    }
+    settings::set(
+        &state.db,
+        "factory_workspace_created",
+        &serde_json::Value::Bool(true),
+    )
+    .await?;
+    if let Err(error) = state.refresh_watcher().await {
+        tracing::warn!(error = %error, "watcher refresh after factory workspace failed");
+    }
+    Ok(Some(workspace))
 }
 
 pub fn templates() -> AppResult<Vec<WorkspaceTemplate>> {
@@ -826,7 +1220,7 @@ pub async fn create_from_template(
     let mut installed = Vec::new();
     let mut errors = Vec::new();
     for pack_id in &template.packs {
-        match install(state, pack_id, &workspace.id, &[]).await {
+        match install(state, pack_id, &workspace.id, &[], false).await {
             Ok(result) => installed.push(result.pack_id),
             Err(error) => errors.push(format!("{pack_id}: {error}")),
         }
@@ -951,12 +1345,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn creates_the_default_factory_workspace_once() {
+        let (temp, state, _) = test_state().await;
+        crate::db::settings::set(
+            &state.db,
+            "workspaces_root",
+            &serde_json::json!(temp.path().join("areas")),
+        )
+        .await
+        .expect("root setting");
+        let created = ensure_default_factory_workspace(&state)
+            .await
+            .expect("factory")
+            .expect("created");
+        assert_eq!(created.name, "Fábrica de Capacidades");
+        let root = PathBuf::from(&created.root_path);
+        assert!(
+            root.join(".opencode/agents/arquiteto-capacidades.md")
+                .is_file()
+        );
+        assert!(root.join("capabilities/evals").is_dir());
+        assert!(
+            ensure_default_factory_workspace(&state)
+                .await
+                .expect("second")
+                .is_none()
+        );
+        assert!(
+            workspaces::list(&state.db)
+                .await
+                .expect("workspaces")
+                .iter()
+                .filter(|workspace| workspace.name == "Fábrica de Capacidades")
+                .count()
+                == 1
+        );
+    }
+
+    #[tokio::test]
     async fn installs_validates_and_uninstalls_a_pack() {
         let (_temp, state, workspace_id) = test_state().await;
         let workspace = workspaces::get(&state.db, &workspace_id).await.expect("ws");
         let root = PathBuf::from(&workspace.root_path);
 
-        let result = install(&state, "essenciais", &workspace_id, &[])
+        let result = install(&state, "essenciais", &workspace_id, &[], false)
             .await
             .expect("install");
         assert!(result.written >= 8, "written: {result:?}");
@@ -973,7 +1405,7 @@ mod tests {
             .await
             .expect("recipe indexed");
 
-        let again = install(&state, "essenciais", &workspace_id, &[])
+        let again = install(&state, "essenciais", &workspace_id, &[], false)
             .await
             .expect("reinstall");
         assert_eq!(again.written, 0);
@@ -996,9 +1428,196 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn reinstalling_a_pack_does_not_duplicate_routines() {
+        let (_temp, state, workspace_id) = test_state().await;
+        let first = install(&state, "wiki-karpathy", &workspace_id, &[], false)
+            .await
+            .expect("first install");
+        let second = install(&state, "wiki-karpathy", &workspace_id, &[], false)
+            .await
+            .expect("second install");
+        assert_eq!(first.routines, second.routines);
+        let routines = schedules::list(&state.db, &workspace_id)
+            .await
+            .expect("list");
+        assert_eq!(routines.len(), 1, "routines: {routines:?}");
+    }
+
+    #[tokio::test]
+    async fn recipe_io_triggers_create_and_remove_sources() {
+        let (_temp, state, workspace_id) = test_state().await;
+        let yaml = r#"
+id: webhook-recipe
+name: Webhook Recipe
+triggers:
+  - type: WEBHOOK
+    config: { secret: teste }
+flow:
+  - type: step
+    id: s1
+    name: Um
+    prompt: ok
+"#;
+        crate::recipes::store::save_yaml(&state.db, &workspace_id, "webhook-recipe", yaml)
+            .await
+            .expect("save recipe");
+        crate::api::recipes::sync_recipe_trigger_sources(&state, &workspace_id, "webhook-recipe")
+            .await
+            .expect("sync source");
+        let sources = crate::db::io_bus::list_inbound(&state.db, &workspace_id)
+            .await
+            .expect("sources");
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].source_type, "WEBHOOK_HTTP");
+        let config: serde_json::Value =
+            serde_json::from_str(&sources[0].config_json).expect("config");
+        assert_eq!(config["recipe_id"], "webhook-recipe");
+
+        let without = yaml.replace(
+            "triggers:\n  - type: WEBHOOK\n    config: { secret: teste }",
+            "triggers: []",
+        );
+        crate::recipes::store::save_yaml(&state.db, &workspace_id, "webhook-recipe", &without)
+            .await
+            .expect("save without trigger");
+        crate::api::recipes::sync_recipe_trigger_sources(&state, &workspace_id, "webhook-recipe")
+            .await
+            .expect("sync removal");
+        assert!(
+            crate::db::io_bus::list_inbound(&state.db, &workspace_id)
+                .await
+                .expect("sources")
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn skip_conflicts_preserves_custom_files_without_overwrite() {
+        let (_temp, state, workspace_id) = test_state().await;
+        let workspace = workspaces::get(&state.db, &workspace_id).await.expect("ws");
+        let root = PathBuf::from(&workspace.root_path);
+        let agent = root.join(".opencode/agents/assistente.md");
+        std::fs::create_dir_all(agent.parent().unwrap()).expect("dir");
+        std::fs::write(&agent, "custom").expect("custom");
+
+        let result = install(&state, "essenciais", &workspace_id, &[], true)
+            .await
+            .expect("install");
+        assert_eq!(result.skipped_conflicts, 1);
+        assert_eq!(std::fs::read_to_string(&agent).unwrap(), "custom");
+        assert!(root.join(".opencode/agents/pesquisador.md").is_file());
+
+        install(
+            &state,
+            "essenciais",
+            &workspace_id,
+            &[".opencode/agents/assistente.md".into()],
+            true,
+        )
+        .await
+        .expect("overwrite");
+        assert!(
+            std::fs::read_to_string(&agent)
+                .unwrap()
+                .contains("Assistente")
+        );
+    }
+
+    #[tokio::test]
+    async fn reports_an_available_pack_update() {
+        let (_temp, state, workspace_id) = test_state().await;
+        install(&state, "essenciais", &workspace_id, &[], false)
+            .await
+            .expect("install");
+        sqlx::query(
+            "UPDATE starter_pack_installs SET pack_version = '0.0.1'
+             WHERE workspace_id = ? AND pack_id = 'essenciais'",
+        )
+        .bind(&workspace_id)
+        .execute(&state.db)
+        .await
+        .expect("downgrade version");
+        let (_, packs) = list(&state, Some(&workspace_id)).await.expect("list");
+        let pack = packs
+            .iter()
+            .find(|pack| pack.id == "essenciais")
+            .expect("pack");
+        assert!(pack.update_available);
+    }
+
+    #[tokio::test]
+    async fn reports_partial_pack_and_repairs_missing_files() {
+        let (_temp, state, workspace_id) = test_state().await;
+        install(&state, "essenciais", &workspace_id, &[], false)
+            .await
+            .expect("install");
+        let workspace = workspaces::get(&state.db, &workspace_id).await.expect("ws");
+        let root = PathBuf::from(&workspace.root_path);
+        let (_, packs) = list(&state, Some(&workspace_id)).await.expect("list");
+        let pack = packs
+            .iter()
+            .find(|pack| pack.id == "essenciais")
+            .expect("pack");
+        assert_eq!(pack.health.status, "installed");
+
+        std::fs::remove_file(root.join(".opencode/agents/assistente.md")).expect("remove");
+        let (_, packs) = list(&state, Some(&workspace_id)).await.expect("list");
+        let pack = packs
+            .iter()
+            .find(|pack| pack.id == "essenciais")
+            .expect("pack");
+        assert_eq!(pack.health.status, "partial");
+        assert_eq!(pack.health.missing_files, 1);
+
+        install(&state, "essenciais", &workspace_id, &[], false)
+            .await
+            .expect("repair");
+        assert!(root.join(".opencode/agents/assistente.md").is_file());
+        let (_, packs) = list(&state, Some(&workspace_id)).await.expect("list");
+        let pack = packs
+            .iter()
+            .find(|pack| pack.id == "essenciais")
+            .expect("pack");
+        assert_eq!(pack.health.status, "installed");
+    }
+
+    #[tokio::test]
+    async fn reinstall_reuses_a_routine_kept_by_uninstall() {
+        let (_temp, state, workspace_id) = test_state().await;
+        let first = install(&state, "wiki-karpathy", &workspace_id, &[], false)
+            .await
+            .expect("install");
+        let routine_id = first.routines[0].clone();
+        schedules::mark_run(
+            &state.db,
+            &routine_id,
+            "SUCCESS",
+            &chrono::Utc::now().to_rfc3339(),
+        )
+        .await
+        .expect("mark run");
+        let removed = uninstall(&state, "wiki-karpathy", &workspace_id)
+            .await
+            .expect("uninstall");
+        assert_eq!(removed.routines_kept, vec![routine_id.clone()]);
+
+        let again = install(&state, "wiki-karpathy", &workspace_id, &[], false)
+            .await
+            .expect("reinstall");
+        assert_eq!(again.routines, vec![routine_id]);
+        assert_eq!(
+            schedules::list(&state.db, &workspace_id)
+                .await
+                .expect("list")
+                .len(),
+            1
+        );
+    }
+
+    #[tokio::test]
     async fn installs_routines_inactive_and_removes_them() {
         let (_temp, state, workspace_id) = test_state().await;
-        let result = install(&state, "wiki-karpathy", &workspace_id, &[])
+        let result = install(&state, "wiki-karpathy", &workspace_id, &[], false)
             .await
             .expect("install");
         assert_eq!(result.routines.len(), 1);

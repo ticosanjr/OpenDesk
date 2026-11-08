@@ -10,7 +10,8 @@ flow:
   mode: build
   agent: contador-pj
   effort: medium
-  prompt: Liste os documentos em input/, classifique por competência e aponte o que falta. Salve em {{run.output_dir}}/01-documentos.md.
+  prompt: Liste os documentos em empresa/contabilidade/input/, classifique por competência e aponte o
+    que falta. Salve em {{run.output_dir}}/01-documentos.md.
 - type: step
   id: passo-2
   name: Conciliar

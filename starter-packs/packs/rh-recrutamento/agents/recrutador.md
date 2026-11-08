@@ -1,7 +1,7 @@
 ---
 name: Recrutador
 description: Descreve vagas e triagem.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #06b6d4
 avatar: 🤖

@@ -1,7 +1,7 @@
 ---
 name: Copy de Títulos
 description: Cria títulos com curiosidade honesta.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #f43f5e
 avatar: 🤖

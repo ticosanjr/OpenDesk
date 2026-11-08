@@ -43,7 +43,11 @@ fn validate_color(color: &str) -> AppResult<String> {
     }
 }
 
-fn canonicalize_workspace_path(path: &str, paths: &AppPaths) -> AppResult<String> {
+fn canonicalize_workspace_path(
+    path: &str,
+    paths: &AppPaths,
+    allow_temp: bool,
+) -> AppResult<String> {
     let trimmed = path.trim();
     if trimmed.is_empty() {
         return Err(AppError::BadRequest("workspace path is required".into()));
@@ -51,7 +55,8 @@ fn canonicalize_workspace_path(path: &str, paths: &AppPaths) -> AppResult<String
     let candidate = std::path::Path::new(trimmed);
     std::fs::create_dir_all(candidate).map_err(AppError::Io)?;
     let canonical = std::fs::canonicalize(candidate).map_err(AppError::Io)?;
-    if !cfg!(test)
+    if !allow_temp
+        && !cfg!(test)
         && std::env::var("OPENDESK_ALLOW_TEMP_WORKSPACES")
             .ok()
             .as_deref()
@@ -103,12 +108,32 @@ pub async fn create(
     paths: &AppPaths,
     input: CreateWorkspaceInput,
 ) -> AppResult<Workspace> {
+    create_with(pool, paths, input, false).await
+}
+
+/// Create an app-managed workspace. Unlike [`create`], this trusts the caller's
+/// root path even when it lives under the system temp directory, which is how
+/// tests and isolated environments point `OPENDESK_WORKSPACES_ROOT` elsewhere.
+pub async fn create_trusted(
+    pool: &SqlitePool,
+    paths: &AppPaths,
+    input: CreateWorkspaceInput,
+) -> AppResult<Workspace> {
+    create_with(pool, paths, input, true).await
+}
+
+async fn create_with(
+    pool: &SqlitePool,
+    paths: &AppPaths,
+    input: CreateWorkspaceInput,
+    allow_temp: bool,
+) -> AppResult<Workspace> {
     let name = input.name.trim();
     if name.is_empty() {
         return Err(AppError::BadRequest("workspace name is required".into()));
     }
 
-    let root_path = canonicalize_workspace_path(&input.root_path, paths)?;
+    let root_path = canonicalize_workspace_path(&input.root_path, paths, allow_temp)?;
     let color = validate_color(input.color_hex.as_deref().unwrap_or("#3b82f6"))?;
     let policy = validate_policy(
         input
@@ -174,7 +199,7 @@ pub async fn update(
     };
 
     let root_path = match input.root_path {
-        Some(path) => canonicalize_workspace_path(&path, paths)?,
+        Some(path) => canonicalize_workspace_path(&path, paths, false)?,
         None => current.root_path,
     };
 

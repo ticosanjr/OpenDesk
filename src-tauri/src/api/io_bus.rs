@@ -164,8 +164,22 @@ pub async fn delete_secret(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
-pub async fn tools() -> Json<Vec<crate::io_bus::tools::ToolInfo>> {
-    Json(crate::io_bus::tools::list())
+#[derive(Debug, Deserialize, Default)]
+pub struct ToolQuery {
+    #[serde(default)]
+    pub refresh: bool,
+}
+
+pub async fn tools(Query(query): Query<ToolQuery>) -> Json<Vec<crate::io_bus::tools::ToolInfo>> {
+    let result = tokio::task::spawn_blocking(move || {
+        if query.refresh {
+            crate::io_bus::tools::list_fresh()
+        } else {
+            crate::io_bus::tools::list()
+        }
+    })
+    .await;
+    Json(result.unwrap_or_default())
 }
 
 pub async fn install_tool(

@@ -1,7 +1,7 @@
 ---
 name: Redator de Blog
 description: Escreve artigos com voz editorial.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #ec4899
 avatar: 🤖

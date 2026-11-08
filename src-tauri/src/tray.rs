@@ -71,10 +71,9 @@ pub fn setup(app: &AppHandle, state: Arc<AppState>) -> tauri::Result<()> {
         ],
     )?;
 
-    let icon = app
-        .default_window_icon()
-        .cloned()
-        .ok_or_else(|| tauri::Error::AssetNotFound("default window icon".into()))?;
+    // Use the same mark shown next to "OpenDesk" in the app. The generated
+    // 32px icon is the tray-optimized version of public/opendesk.svg.
+    let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/32x32.png"))?;
 
     TrayIconBuilder::with_id("main")
         .icon(icon)

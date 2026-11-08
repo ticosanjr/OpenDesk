@@ -187,6 +187,42 @@ pub async fn list_by_trigger(
         .await?)
 }
 
+pub async fn find_by_name_recipe(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    name: &str,
+    recipe_id: &str,
+) -> AppResult<Option<Schedule>> {
+    let query = format!(
+        "SELECT {COLUMNS} FROM schedules
+         WHERE workspace_id = ? AND name = ? AND recipe_id = ?
+         ORDER BY created_at LIMIT 1"
+    );
+    Ok(sqlx::query_as::<_, Schedule>(&query)
+        .bind(workspace_id)
+        .bind(name)
+        .bind(recipe_id)
+        .fetch_optional(pool)
+        .await?)
+}
+
+pub async fn find_by_recipe(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    recipe_id: &str,
+) -> AppResult<Option<Schedule>> {
+    let query = format!(
+        "SELECT {COLUMNS} FROM schedules
+         WHERE workspace_id = ? AND recipe_id = ?
+         ORDER BY created_at LIMIT 1"
+    );
+    Ok(sqlx::query_as::<_, Schedule>(&query)
+        .bind(workspace_id)
+        .bind(recipe_id)
+        .fetch_optional(pool)
+        .await?)
+}
+
 pub async fn active(pool: &SqlitePool) -> AppResult<Vec<Schedule>> {
     let query =
         format!("SELECT {COLUMNS} FROM schedules WHERE is_active = 1 ORDER BY next_run_at ASC");

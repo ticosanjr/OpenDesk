@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "id": "fabrica-capacidades",
+  "name": "Fábrica de Capacidades",
+  "description": "Workspace para criar, avaliar e melhorar skills, agentes e comandos com metodologia eval-driven.",
+  "color": "#8b5cf6",
+  "router_policy": "COST_BENEFIT",
+  "packs": [
+    "essenciais",
+    "meta-forge"
+  ],
+  "folders": [
+    "capabilities/research",
+    "capabilities/evals",
+    "capabilities/skills",
+    "capabilities/agents",
+    "capabilities/commands",
+    "capabilities/output"
+  ],
+  "readme": "# Fábrica de Capacidades\n\nEste workspace existe para criar e melhorar skills, agentes e comandos.\n\n## Como usar\n\n1. Escolha `/criar-skill`, `/criar-agente` ou `/criar-comando`.\n2. Preencha contexto e tarefa.\n3. Aprove o plano e as evals no HITL.\n4. Revise o pacote final em `capabilities/output/`.\n5. Só instale em `.opencode` depois da aprovação.\n\n## Estrutura\n\n- `capabilities/research/` — pesquisa e linha de base.\n- `capabilities/evals/` — casos, rubrica e resultados.\n- `capabilities/skills/`, `agents/`, `commands/` — drafts.\n- `capabilities/output/` — pacotes finais e relatórios.\n",
+  "memory": "# MEMORY — Fábrica de Capacidades\n\n- Método: eval-driven; baseline antes da documentação.\n- Toda capacidade precisa de capability + regression.\n- Progressive disclosure: SKILL.md curto e referências de um nível.\n- Nada é publicado em `.opencode` sem aprovação humana.\n"
+}

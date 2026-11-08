@@ -9,6 +9,9 @@ rotinas e pastas. Nada é aplicado automaticamente: o usuário escolhe na págin
 - Instalação mostra prévia, conflitos e requisitos.
 - Arquivos idênticos são ignorados (reinstalação idempotente).
 - Conflito nunca é sobrescrito sem confirmação; o Studio faz backup.
+- A UI permite escolher conflito por arquivo. Os não selecionados são mantidos
+  e o pacote aparece como `personalizado`.
+- Pacotes instalados mostram `atualização` quando a versão do bundle é maior.
 - Remoção apaga apenas arquivos cujo checksum ainda é o instalado.
 - Rotinas entram **inativas**.
 - Receitas com efeito externo (e-mail, publicação, envio) terminam em HITL.
@@ -18,7 +21,7 @@ rotinas e pastas. Nada é aplicado automaticamente: o usuário escolhe na págin
 
 | Categoria | Pacotes |
 |---|---|
-| Base | `essenciais` |
+| Base | `meta-forge`, `essenciais` |
 | Pesquisa | `deep-research`, `wiki-karpathy`, `estudos-tutor` |
 | Negócios | `vendas-pre-vendas`, `pos-vendas`, `lancamento-produto`, `imobiliario`, `contabilidade-pj` |
 | Escritório | `rh-recrutamento`, `administrativo-escritorio`, `notas-fiscais`, `juridico`, `suporte-cliente` |
@@ -26,8 +29,8 @@ rotinas e pastas. Nada é aplicado automaticamente: o usuário escolhe na págin
 | Casa | `casa-financas`, `saude-bem-estar`, `viagens` |
 | Produtividade | `email-zero`, `reunioes` |
 
-Templates de workspace: `pessoal-casa`, `conteudo`, `empresa`,
-`pesquisa-wiki`, `comercial`, `escritorio`.
+Templates de workspace: `fabrica-capacidades`, `pessoal-casa`, `conteudo`,
+`empresa`, `pesquisa-wiki`, `comercial`, `escritorio`.
 
 ## Estrutura do bundle
 
@@ -98,7 +101,8 @@ necessária para um novo pacote.
 - `GET /api/starter-packs` — catálogo e status no workspace.
 - `GET /api/starter-packs/{id}` — detalhe.
 - `POST /api/starter-packs/{id}/preview` — plano de instalação.
-- `POST /api/starter-packs/{id}/install` — instala (com `overwrite` opcional).
+- `POST /api/starter-packs/{id}/install` — instala; aceita `overwrite` por
+  arquivo e `skip_conflicts` para preservar os não selecionados.
 - `DELETE /api/starter-packs/{id}` — remove com preservação.
 - `GET /api/starter-packs/templates` — templates de workspace.
 - `POST /api/starter-packs/templates/create` — cria workspace e instala packs.

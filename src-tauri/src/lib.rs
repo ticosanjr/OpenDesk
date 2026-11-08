@@ -19,6 +19,8 @@ mod recipes;
 mod run_timeline;
 mod secrets;
 mod starter_packs;
+#[cfg(test)]
+mod test_support;
 mod tray;
 mod updates;
 
@@ -206,6 +208,16 @@ pub fn run() {
                 }
                 state.io_bus.start(state.clone()).await?;
                 recipes::runtime::start(state.clone());
+                if let Err(error) =
+                    crate::api::recipes::sync_all_recipe_trigger_sources(&state).await
+                {
+                    tracing::warn!(error = %error, "recipe trigger source sync failed");
+                }
+                if let Err(error) =
+                    crate::starter_packs::ensure_default_factory_workspace(&state).await
+                {
+                    tracing::warn!(error = %error, "default factory workspace failed");
+                }
                 if let Err(error) = proposals::ensure_all(&state).await {
                     tracing::warn!(error = %error, "could not register config MCP bridge");
                 }
@@ -315,6 +327,9 @@ pub fn run_headless() {
         state.cron.spawn();
         state.io_bus.start(state.clone()).await.expect("io bus");
         let _ = recipes::runtime::start(state.clone());
+        if let Err(error) = crate::starter_packs::ensure_default_factory_workspace(&state).await {
+            tracing::warn!(error = %error, "default factory workspace failed");
+        }
         if let Err(error) = proposals::ensure_all(&state).await {
             tracing::warn!(error = %error, "could not register config MCP bridge");
         }

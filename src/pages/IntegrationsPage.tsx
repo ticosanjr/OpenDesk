@@ -34,6 +34,10 @@ import { apiGet, apiPost, apiPut } from "@/lib/api";
 import type { Delivery, GoogleConfig, GoogleStatus, SmtpSettings } from "@/lib/types";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import {
+  fieldInputClass as inputClass,
+  fieldLabelClass as labelClass,
+} from "@/lib/ui-classes";
 
 const GOOGLE_SERVICES = [
   { icon: FileText, title: "Docs", description: "Markdown → documento nativo formatado" },
@@ -624,7 +628,3 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
-const labelClass =
-  "mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500";

@@ -72,3 +72,36 @@ describe("task visibility", () => {
     expect(loadVisibility("ws-2")).toEqual(DEFAULT_VISIBILITY);
   });
 });
+
+describe("task visibility edge cases", () => {
+  it("filters today and seven-day windows", () => {
+    const now = new Date("2026-11-08T12:00:00Z");
+    const tasks = [
+      task({ id: "today", status: "DONE", updated_at: "2026-11-08T09:00:00Z" }),
+      task({ id: "yesterday", status: "DONE", updated_at: "2026-11-07T09:00:00Z" }),
+      task({ id: "last-week", status: "CANCELLED", updated_at: "2026-11-02T09:00:00Z" }),
+    ];
+    expect(
+      applyRetention(tasks, { retention: "today", maxItems: 0 }, now).map(
+        (item) => item.id,
+      ),
+    ).toEqual(["today"]);
+    expect(
+      applyRetention(tasks, { retention: "7d", maxItems: 0 }, now).map(
+        (item) => item.id,
+      ),
+    ).toEqual(["today", "yesterday", "last-week"]);
+  });
+
+  it("sanitizes malformed storage and ignores missing workspaces", () => {
+    localStorage.clear();
+    localStorage.setItem("opendesk.kanban.visibility.ws-1", "not-json");
+    expect(loadVisibility("ws-1")).toEqual(DEFAULT_VISIBILITY);
+    localStorage.setItem(
+      "opendesk.kanban.visibility.ws-1",
+      JSON.stringify({ retention: "never", maxItems: -4 }),
+    );
+    expect(loadVisibility("ws-1")).toEqual(DEFAULT_VISIBILITY);
+    expect(() => saveVisibility(null, DEFAULT_VISIBILITY)).not.toThrow();
+  });
+});

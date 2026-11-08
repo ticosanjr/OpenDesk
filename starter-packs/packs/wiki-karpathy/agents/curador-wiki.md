@@ -1,7 +1,7 @@
 ---
 name: Curador da Wiki
 description: Transforma fontes em notas atômicas.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #f59e0b
 avatar: 🤖

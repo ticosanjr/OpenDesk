@@ -1,7 +1,7 @@
 ---
 name: Analista Jurídico
 description: Resume e aponta riscos.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #7c3aed
 avatar: 🤖

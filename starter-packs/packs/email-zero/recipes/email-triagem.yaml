@@ -10,7 +10,7 @@ flow:
   mode: build
   agent: triador-email
   effort: medium
-  prompt: Classifique as mensagens de input/ por urgência, tipo e ação. Salve em {{run.output_dir}}/triagem.md.
+  prompt: Classifique as mensagens de email/entrada/ por urgência, tipo e ação. Salve em {{run.output_dir}}/triagem.md.
 - type: step
   id: passo-2
   name: Rascunhar respostas

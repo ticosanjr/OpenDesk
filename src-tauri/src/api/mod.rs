@@ -69,7 +69,7 @@ pub async fn spawn_server(state: Arc<AppState>) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn router(state: Arc<AppState>) -> Router {
+pub(crate) fn router(state: Arc<AppState>) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::list([
             HeaderValue::from_static("tauri://localhost"),
@@ -347,6 +347,7 @@ fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/router/config", get(router::get_config))
         .route("/api/router/model", put(router::set_router_model))
+        .route("/api/router/blend", put(router::set_blend))
         .route("/api/router/analyze", post(router::analyze))
         .route(
             "/api/router/rules",
@@ -761,3 +762,6 @@ fn query_token(uri: &axum::http::Uri) -> Option<String> {
         )
     })
 }
+
+#[cfg(test)]
+mod tests;

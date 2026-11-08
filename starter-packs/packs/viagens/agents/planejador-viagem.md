@@ -1,7 +1,7 @@
 ---
 name: Planejador de Viagem
 description: Monta roteiro realista.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #38bdf8
 avatar: 🤖

@@ -92,6 +92,7 @@ pub async fn create_schedule(
     }
     let schedule = schedules::get(&state.db, &schedule.id).await?;
     sync_trigger_source(&state, &schedule).await?;
+    state.io_bus.reload(state.clone()).await?;
     state.events.publish(OpenDeskWsEvent::ScheduleUpdated {
         schedule_id: schedule.id.clone(),
         workspace_id: schedule.workspace_id.clone(),
@@ -151,6 +152,7 @@ pub async fn update_schedule(
     .await?;
     let schedule = schedules::get(&state.db, &id).await?;
     sync_trigger_source(&state, &schedule).await?;
+    state.io_bus.reload(state.clone()).await?;
     state.events.publish(OpenDeskWsEvent::ScheduleUpdated {
         schedule_id: schedule.id.clone(),
         workspace_id: schedule.workspace_id.clone(),
@@ -164,6 +166,7 @@ pub async fn delete_schedule(
 ) -> AppResult<StatusCode> {
     remove_trigger_sources(&state, &id).await?;
     schedules::delete(&state.db, &id).await?;
+    state.io_bus.reload(state.clone()).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -372,6 +375,40 @@ pub(crate) async fn execute_signal_routines(
             schedules::mark_run(&state.db, &schedule.id, "QUEUED", &Utc::now().to_rfc3339()).await;
         return Ok(true);
     }
+
+    // A recipe can also subscribe to Signal directly via a SIGNAL_MSG trigger.
+    for index in crate::recipes::store::list_all(&state.db).await? {
+        if !index.is_enabled || index.workspace_id != workspace_id {
+            continue;
+        }
+        let Ok(yaml) = crate::recipes::store::yaml_for(&state.db, &index.id).await else {
+            continue;
+        };
+        let Ok(recipe) = crate::recipes::parser::parse(&yaml) else {
+            continue;
+        };
+        for trigger in recipe.triggers() {
+            if trigger.trigger_type != "SIGNAL_MSG" {
+                continue;
+            }
+            let filter = trigger
+                .config
+                .get("from_filter")
+                .and_then(|value| value.as_str())
+                .unwrap_or("")
+                .trim();
+            if !filter.is_empty() && !source_number.contains(filter) {
+                continue;
+            }
+            let context = serde_json::json!({
+                "signal_source": source_number,
+                "text": text,
+                "recipe_id": recipe.id,
+            });
+            crate::recipes::engine::start(state.clone(), recipe.clone(), context, false).await?;
+            return Ok(true);
+        }
+    }
     Ok(false)
 }
 
@@ -395,6 +432,7 @@ pub async fn set_schedule_active(
         schedules::set_next_run(&state.db, &id, Some(&next.to_rfc3339())).await?;
     }
     sync_trigger_source(&state, &schedule).await?;
+    state.io_bus.reload(state.clone()).await?;
     let schedule = schedules::get(&state.db, &id).await?;
     state.events.publish(OpenDeskWsEvent::ScheduleUpdated {
         schedule_id: schedule.id.clone(),

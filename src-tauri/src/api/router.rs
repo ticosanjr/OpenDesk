@@ -25,6 +25,7 @@ pub struct RouterConfig {
     pub workspace_id: String,
     pub policy: String,
     pub router_model: Option<String>,
+    pub cost_blend: f64,
     pub rules: Vec<RouterRule>,
     pub budget: budget::BudgetStatus,
 }
@@ -41,10 +42,12 @@ pub async fn get_config(
     let router_model = crate::db::settings::get(&state.db, "router_model")
         .await?
         .and_then(|value| value.as_str().map(str::to_string));
+    let cost_blend = cost_blend(&state.db).await?;
     Ok(Json(RouterConfig {
         workspace_id,
         policy,
         router_model,
+        cost_blend,
         rules,
         budget,
     }))
@@ -153,6 +156,7 @@ pub async fn analyze(
         .map_err(|error| {
             AppError::BadRequest(format!("não foi possível listar modelos: {error}"))
         })?;
+    let blend = cost_blend(&state.db).await?;
     let mut rows = Vec::new();
     for model in models {
         let Some((input_cost, output_cost)) = model_cost(&model.cost) else {
@@ -170,7 +174,7 @@ pub async fn analyze(
             name: model.name.clone().unwrap_or(id),
             input_cost,
             output_cost,
-            blended_cost: input_cost * 0.7 + output_cost * 0.3,
+            blended_cost: blended_cost(input_cost, output_cost, blend),
         });
     }
     rows.sort_by(|left, right| {
@@ -182,11 +186,40 @@ pub async fn analyze(
     let router_model = crate::db::settings::get(&state.db, "router_model")
         .await?
         .and_then(|value| value.as_str().map(str::to_string));
+    let recommendation = if rows.is_empty() {
+        "Nenhum modelo com preço disponível. Verifique se o OpenCode está online e expõe custos por modelo.".to_string()
+    } else {
+        let cheapest = rows.first().expect("non-empty");
+        let priciest = rows.last().expect("non-empty");
+        let spread = if cheapest.blended_cost > 0.0 {
+            priciest.blended_cost / cheapest.blended_cost
+        } else {
+            1.0
+        };
+        format!(
+            "Com {:.0}% de peso na entrada, o menor custo combinado é {} (${:.3}/1M). O mais caro é {} (${:.3}/1M), {:.1}x maior. {} modelo(s) comparados.{}",
+            blend * 100.0,
+            cheapest.model,
+            cheapest.blended_cost,
+            priciest.model,
+            priciest.blended_cost,
+            spread,
+            rows.len(),
+            router_model
+                .as_deref()
+                .map(|model| format!(
+                    " Modelo roteador configurado: {model} (parecer local, sem chamada ao modelo)."
+                ))
+                .unwrap_or_default()
+        )
+    };
     Ok(Json(serde_json::json!({
         "workspace_id": workspace_id,
         "router_model": router_model,
+        "cost_blend": blend,
         "models": rows,
         "cheapest": cheapest,
+        "recommendation": recommendation,
         "generated_at": chrono::Utc::now().to_rfc3339(),
     })))
 }
@@ -203,6 +236,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn blend_changes_the_ranking_weight() {
+        assert!((blended_cost(1.0, 3.0, 0.5) - 2.0).abs() < f64::EPSILON);
+        assert!((blended_cost(1.0, 3.0, 0.7) - 1.6).abs() < f64::EPSILON);
+    }
+
+    #[test]
     fn reads_per_million_costs_from_daemon_payload() {
         let costs = vec![serde_json::json!({
             "input": 0.25,
@@ -213,4 +252,39 @@ mod tests {
         assert_eq!(model_cost(&[]), None);
         assert_eq!(model_cost(&[serde_json::json!({ "input": 1.0 })]), None);
     }
+}
+
+async fn cost_blend(pool: &sqlx::SqlitePool) -> AppResult<f64> {
+    let value = crate::db::settings::get(pool, "router_cost_blend")
+        .await?
+        .and_then(|value| value.as_f64())
+        .unwrap_or(0.7);
+    Ok(value.clamp(0.0, 1.0))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BlendBody {
+    pub blend: f64,
+}
+
+pub async fn set_blend(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<BlendBody>,
+) -> AppResult<Json<serde_json::Value>> {
+    if !(0.0..=1.0).contains(&body.blend) {
+        return Err(AppError::BadRequest(
+            "blend precisa estar entre 0 e 1".into(),
+        ));
+    }
+    crate::db::settings::set(
+        &state.db,
+        "router_cost_blend",
+        &serde_json::json!(body.blend),
+    )
+    .await?;
+    Ok(Json(serde_json::json!({ "blend": body.blend })))
+}
+
+fn blended_cost(input: f64, output: f64, blend: f64) -> f64 {
+    input * blend + output * (1.0 - blend)
 }

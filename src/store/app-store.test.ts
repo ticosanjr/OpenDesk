@@ -228,6 +228,68 @@ describe("websocket event reducer", () => {
     handleEvent({ event_id: 15, event_type: "UnknownEvent", payload: {} });
   });
 
+  it("refreshes on resync and counts proposal events", async () => {
+    const { handleEvent } = await import("./app-store");
+    const get = apiGet as Mock;
+    get.mockResolvedValue([]);
+    handleEvent({ event_id: 30, event_type: "ResyncRequired", payload: {} });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(get).toHaveBeenCalled();
+
+    useAppStore.setState({ lastProposalEvent: 0 });
+    handleEvent({ event_id: 31, event_type: "ProposalCreated", payload: {} });
+    handleEvent({ event_id: 32, event_type: "ProposalResolved", payload: {} });
+    expect(useAppStore.getState().lastProposalEvent).toBe(2);
+  });
+
+  it("applies defaults for partial realtime payloads", async () => {
+    const { handleEvent } = await import("./app-store");
+    useAppStore.setState({
+      dashboard: null,
+      lastScheduleEvent: { schedule_id: "keep", workspace_id: "ws" },
+    });
+
+    handleEvent({
+      event_id: 50,
+      event_type: "PermissionRequested",
+      payload: { request_id: "req-2", workspace_id: "ws" },
+    });
+    expect(useAppStore.getState().lastPermissionEvent).toMatchObject({
+      request_id: "req-2",
+      action: "permission",
+      resources: [],
+    });
+
+    handleEvent({ event_id: 51, event_type: "RunFinished", payload: {} });
+    handleEvent({
+      event_id: 52,
+      event_type: "ArtifactCreated",
+      payload: { artifact: { id: "a1" } },
+    });
+    expect(useAppStore.getState().lastArtifact?.id).toBe("a1");
+    expect(useAppStore.getState().dashboard).toBeNull();
+
+    handleEvent({
+      event_id: 53,
+      event_type: "GoogleConnectionUpdated",
+      payload: { workspace_id: "ws" },
+    });
+    expect(useAppStore.getState().lastGoogleEvent?.connected).toBe(false);
+
+    handleEvent({ event_id: 54, event_type: "EngineUpdateProgress", payload: {} });
+    expect(useAppStore.getState().lastEngineUpdate?.phase).toBe("running");
+
+    handleEvent({ event_id: 55, event_type: "ScheduleUpdated", payload: {} });
+    expect(useAppStore.getState().lastScheduleEvent?.schedule_id).toBe("keep");
+
+    handleEvent({ event_id: 56, event_type: "BudgetAlert", payload: {} });
+    expect(useAppStore.getState().budgetAlert).toMatchObject({
+      level: "soft",
+      daily_spent: 0,
+      daily_limit: 0,
+    });
+  });
+
   it("applies google and engine update events", async () => {
     const { handleEvent } = await import("./app-store");
     handleEvent({
@@ -304,6 +366,92 @@ describe("boot and sockets", () => {
     socket?.onmessage?.({ data: "not json" });
     socket?.onerror?.();
     expect(socket?.readyState).toBe(FakeWebSocket.CLOSED);
+  });
+
+
+  it("handles boot errors, empty workspaces and daemon-less restart", async () => {
+    (apiGet as Mock).mockRejectedValue(new Error("offline"));
+    await useAppStore.getState().boot();
+    expect(useAppStore.getState().booted).toBe(false);
+    expect(useAppStore.getState().error).toContain("offline");
+
+    (apiGet as Mock).mockImplementation(async (path: string) => {
+      if (path.includes("daemon")) return daemon;
+      return [];
+    });
+    await useAppStore.getState().refresh();
+    expect(useAppStore.getState().dashboard).toBeNull();
+
+    useAppStore.setState({ daemon: null });
+    (apiPost as Mock).mockResolvedValue({ ok: true });
+    await useAppStore.getState().restartDaemon();
+    expect(useAppStore.getState().daemon).toBeNull();
+  });
+
+  it("refreshes the dashboard for the active workspace", async () => {
+    (apiGet as Mock).mockImplementation(async (path: string) => {
+      if (path.includes("daemon")) return daemon;
+      if (path.includes("workspaces")) return [{ id: "ws-1" }];
+      if (path.includes("dashboard")) return { runs_total: 7 };
+      return null;
+    });
+    useAppStore.setState({ activeWorkspaceId: "ws-1" });
+    await useAppStore.getState().refresh();
+    expect(useAppStore.getState().dashboard?.runs_total).toBe(7);
+  });
+
+  it("ignores incomplete realtime payloads", async () => {
+    const { handleEvent } = await import("./app-store");
+    useAppStore.setState({
+      lastTaskEvent: null,
+      lastRunChunk: null,
+      lastPermissionEvent: null,
+      lastFsEvent: null,
+    });
+    handleEvent({ event_id: 40, event_type: "TaskUpdated", payload: { task_id: "t1" } });
+    handleEvent({ event_id: 41, event_type: "RunStreamChunk", payload: {} });
+    handleEvent({ event_id: 42, event_type: "PermissionRequested", payload: {} });
+    handleEvent({ event_id: 43, event_type: "FsSyncTriggered", payload: {} });
+    expect(useAppStore.getState().lastTaskEvent).toBeNull();
+    expect(useAppStore.getState().lastRunChunk).toBeNull();
+    expect(useAppStore.getState().lastPermissionEvent).toBeNull();
+    expect(useAppStore.getState().lastFsEvent).toMatchObject({
+      entity: "file",
+      path: "",
+      workspace_id: "",
+    });
+  });
+  it("falls back when the saved active workspace no longer exists", async () => {
+    (apiGet as Mock).mockImplementation(async (path: string) => {
+      if (path.includes("daemon")) return daemon;
+      if (path.includes("workspaces")) return [{ id: "ws-1" }];
+      if (path.includes("dashboard")) return { runs_total: 2 };
+      return null;
+    });
+    useAppStore.setState({ activeWorkspaceId: "gone" });
+    await useAppStore.getState().refresh();
+    expect(useAppStore.getState().activeWorkspaceId).toBe("ws-1");
+  });
+
+  it("reconnects after close and ignores duplicate timers", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("WebSocket", FakeWebSocket);
+    (websocketUrl as Mock).mockResolvedValue("ws://127.0.0.1:1/ws?token=x");
+    (apiGet as Mock).mockResolvedValue([]);
+    await useAppStore.getState().boot();
+    const first = FakeWebSocket.last;
+    expect(first).not.toBeNull();
+    first!.readyState = FakeWebSocket.OPEN;
+    await useAppStore.getState().boot();
+    expect(FakeWebSocket.last).toBe(first);
+
+    first!.readyState = FakeWebSocket.CLOSED;
+    first!.onclose?.();
+    first!.onclose?.();
+    expect(useAppStore.getState().connected).toBe(false);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(FakeWebSocket.last).not.toBe(first);
+    vi.useRealTimers();
   });
 
   it("activates a workspace and loads its dashboard", async () => {

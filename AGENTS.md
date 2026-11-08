@@ -93,7 +93,8 @@ barramento universal de I/O (UEN), sinks determinísticos, ferramentas externas
 opcionais, hardening de SQLite/watcher/permissões, receitas YAML com HITL
 modular, Rsync local/remoto e auto-organização de agentes com propostas
 aprovadas via HITL.
-Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário.
+Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
+Fábrica de Capacidades default (`meta-forge`).
 Próxima frente: retry durável de Google/Drive, assinatura de updates, cobertura
 Rust ≥80%, Windows/macOS e testes de contrato Google/OpenCode.
 

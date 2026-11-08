@@ -408,6 +408,21 @@ async fn execute(
     Ok(())
 }
 
+fn ensure_step_finished(step_id: &str, status: &str) -> AppResult<()> {
+    match status {
+        "SUCCESS" => Ok(()),
+        "FAILED" => Err(AppError::BadRequest(format!(
+            "step {step_id} falhou; a receita foi interrompida"
+        ))),
+        "CANCELLED" => Err(AppError::BadRequest(format!(
+            "step {step_id} foi cancelado; a receita foi interrompida"
+        ))),
+        other => Err(AppError::BadRequest(format!(
+            "step {step_id} terminou com status inesperado '{other}'"
+        ))),
+    }
+}
+
 fn previous_step(flow: &[FlowItem], index: usize) -> Option<(usize, &Step)> {
     flow[..index]
         .iter()
@@ -481,6 +496,7 @@ async fn execute_step(
     if let Some(routine_id) = routine_id {
         let _ = db::runs::set_schedule_id(&state.db, &run_result.id, routine_id).await;
     }
+    ensure_step_finished(&step.id, &run_result.status)?;
     *session_id = run_result.session_id.clone();
     let summary = run_result.summary_response.clone().unwrap_or_default();
     let artifacts = db::artifacts::list_by_run(&state.db, &run_result.id, 200)
@@ -605,6 +621,14 @@ fn mode_for_step(step: &Step) -> String {
 mod tests {
     use super::*;
     use crate::recipes::parser::Step;
+
+    #[test]
+    fn aborta_receita_quando_step_falha() {
+        assert!(ensure_step_finished("s1", "SUCCESS").is_ok());
+        assert!(ensure_step_finished("s1", "FAILED").is_err());
+        assert!(ensure_step_finished("s1", "CANCELLED").is_err());
+        assert!(ensure_step_finished("s1", "RUNNING").is_err());
+    }
 
     #[test]
     fn maps_step_mode() {

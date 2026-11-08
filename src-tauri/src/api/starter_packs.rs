@@ -16,6 +16,8 @@ pub struct InstallBody {
     pub workspace_id: Option<String>,
     #[serde(default)]
     pub overwrite: Vec<String>,
+    #[serde(default)]
+    pub skip_conflicts: bool,
 }
 
 pub async fn list_packs(
@@ -60,7 +62,14 @@ pub async fn install_pack(
     let workspace_id =
         crate::api::tasks::resolve_workspace_id(&state, body.workspace_id.as_deref()).await?;
     Ok(Json(
-        crate::starter_packs::install(&state, &id, &workspace_id, &body.overwrite).await?,
+        crate::starter_packs::install(
+            &state,
+            &id,
+            &workspace_id,
+            &body.overwrite,
+            body.skip_conflicts,
+        )
+        .await?,
     ))
 }
 

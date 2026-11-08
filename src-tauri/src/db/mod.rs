@@ -89,6 +89,84 @@ pub async fn ping(pool: &SqlitePool) -> bool {
 
 #[cfg(test)]
 mod migration_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn upgrades_a_legacy_database_to_the_latest_schema() {
+        use sqlx::migrate::Migrator;
+        let dir = tempfile::TempDir::new().unwrap();
+        let partial = dir.path().join("partial-migrations");
+        std::fs::create_dir_all(&partial).unwrap();
+        let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations");
+        for entry in std::fs::read_dir(&source).unwrap().flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if let Some(version) = name
+                .split('_')
+                .next()
+                .and_then(|value| value.parse::<i64>().ok())
+                && version <= 19
+            {
+                std::fs::copy(entry.path(), partial.join(name)).unwrap();
+            }
+        }
+        let db_path = dir.path().join("legacy.db");
+        let options =
+            sqlx::sqlite::SqliteConnectOptions::from_str(&format!("sqlite:{}", db_path.display()))
+                .unwrap()
+                .create_if_missing(true)
+                .journal_mode(SqliteJournalMode::Wal)
+                .foreign_keys(true);
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await
+            .unwrap();
+        Migrator::new(partial)
+            .await
+            .unwrap()
+            .run(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO workspaces (id, name, root_path) VALUES ('legacy', 'Legacy', '/tmp/legacy')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO tasks (id, workspace_id, title, description, status) VALUES ('legacy-task', 'legacy', 'Velha', 'x', 'BACKLOG')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        pool.close().await;
+
+        let migrated = super::init(&db_path).await.unwrap();
+        let status: String =
+            sqlx::query_scalar("SELECT status FROM tasks WHERE id = 'legacy-task'")
+                .fetch_one(&migrated)
+                .await
+                .unwrap();
+        assert_eq!(status, "TODO");
+        let schedule_cols: Vec<(String,)> =
+            sqlx::query_as("SELECT name FROM pragma_table_info('schedules')")
+                .fetch_all(&migrated)
+                .await
+                .unwrap();
+        let names: Vec<&str> = schedule_cols.iter().map(|c| c.0.as_str()).collect();
+        for column in [
+            "trigger_type",
+            "trigger_config_json",
+            "target_kind",
+            "recipe_id",
+        ] {
+            assert!(names.contains(&column), "missing {column}: {names:?}");
+        }
+        let alert: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'alert_dismissals'",
+        )
+        .fetch_one(&migrated)
+        .await
+        .unwrap();
+        assert_eq!(alert, 1);
+    }
+
     #[tokio::test]
     async fn all_migrations_apply() {
         let dir = tempfile::TempDir::new().unwrap();

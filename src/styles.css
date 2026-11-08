@@ -126,6 +126,11 @@ body {
   outline-color: color-mix(in srgb, var(--workspace-accent) 70%, transparent);
 }
 
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 96px;
+}
+
 .workspace-topline {
   background: linear-gradient(
     90deg,

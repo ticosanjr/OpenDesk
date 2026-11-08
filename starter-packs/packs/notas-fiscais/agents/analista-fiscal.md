@@ -1,7 +1,7 @@
 ---
 name: Analista Fiscal
 description: Organiza notas e competência.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #eab308
 avatar: 🤖

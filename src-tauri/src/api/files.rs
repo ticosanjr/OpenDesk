@@ -11,8 +11,10 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex, OnceLock},
+    time::{Duration, Instant},
 };
 
 const MAX_PREVIEW_BYTES: usize = 512 * 1024;
@@ -27,7 +29,7 @@ pub struct FileQuery {
     pub limit: Option<usize>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct FileSearchResult {
     pub name: String,
     pub path: String,
@@ -35,6 +37,11 @@ pub struct FileSearchResult {
     pub size: u64,
     pub modified: Option<String>,
 }
+
+type SearchIndex = HashMap<PathBuf, (Instant, Vec<FileSearchResult>)>;
+static SEARCH_INDEX: OnceLock<Mutex<SearchIndex>> = OnceLock::new();
+const SEARCH_INDEX_TTL: Duration = Duration::from_secs(15);
+const SEARCH_INDEX_MAX: usize = 20_000;
 
 const SEARCH_SKIP: [&str; 8] = [
     ".git",
@@ -62,7 +69,7 @@ pub async fn search(
     Ok(Json(search_root(&root, &needle, limit)))
 }
 
-fn search_root(root: &Path, needle: &str, limit: usize) -> Vec<FileSearchResult> {
+fn build_index(root: &Path) -> Vec<FileSearchResult> {
     let mut results = Vec::new();
     for entry in walkdir::WalkDir::new(root)
         .max_depth(12)
@@ -81,13 +88,9 @@ fn search_root(root: &Path, needle: &str, limit: usize) -> Vec<FileSearchResult>
             Ok(metadata) if !metadata.file_type().is_symlink() => metadata,
             _ => continue,
         };
-        let path = relative_to(root, entry.path());
-        if !path.to_lowercase().contains(needle) {
-            continue;
-        }
         results.push(FileSearchResult {
             name: entry.file_name().to_string_lossy().to_string(),
-            path,
+            path: relative_to(root, entry.path()),
             is_dir: metadata.is_dir(),
             size: metadata.len(),
             modified: metadata
@@ -95,17 +98,56 @@ fn search_root(root: &Path, needle: &str, limit: usize) -> Vec<FileSearchResult>
                 .ok()
                 .map(|value| chrono::DateTime::<chrono::Utc>::from(value).to_rfc3339()),
         });
-        if results.len() >= limit {
+        if results.len() >= SEARCH_INDEX_MAX {
             break;
         }
     }
-    results.sort_by(|left, right| {
-        right
-            .is_dir
-            .cmp(&left.is_dir)
-            .then_with(|| left.path.len().cmp(&right.path.len()))
-    });
     results
+}
+
+fn search_root(root: &Path, needle: &str, limit: usize) -> Vec<FileSearchResult> {
+    let cache = SEARCH_INDEX.get_or_init(|| Mutex::new(HashMap::new()));
+    let cached = cache.lock().ok().and_then(|guard| {
+        guard
+            .get(root)
+            .filter(|(at, _)| at.elapsed() < SEARCH_INDEX_TTL)
+            .map(|(_, value)| value.clone())
+    });
+    let entries = match cached {
+        Some(value) => value,
+        None => {
+            // Build outside the lock so one large workspace does not block
+            // searches for other workspaces.
+            let index = build_index(root);
+            if let Ok(mut guard) = cache.lock() {
+                guard.insert(root.to_path_buf(), (Instant::now(), index.clone()));
+            }
+            index
+        }
+    };
+    let mut results: Vec<FileSearchResult> = entries
+        .into_iter()
+        .filter(|entry| entry.path.to_lowercase().contains(needle))
+        .collect();
+    results.sort_by_key(|entry| {
+        let name = entry.name.to_lowercase();
+        (
+            if name.contains(needle) { 0 } else { 1 },
+            if name.starts_with(needle) { 0 } else { 1 },
+            if entry.is_dir { 0 } else { 1 },
+            entry.path.len(),
+        )
+    });
+    results.truncate(limit);
+    results
+}
+
+pub fn invalidate_search_index() {
+    if let Some(cache) = SEARCH_INDEX.get()
+        && let Ok(mut guard) = cache.lock()
+    {
+        guard.clear();
+    }
 }
 
 #[derive(Debug, Serialize)]

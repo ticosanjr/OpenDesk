@@ -17,6 +17,10 @@ import { apiGet, apiPost, apiPut } from "@/lib/api";
 import { useAppStore } from "@/store/app-store";
 import type { SignalStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import {
+  smallInputClass as inputClass,
+  smallLabelClass as labelClass,
+} from "@/lib/ui-classes";
 
 export function SignalCard() {
   const workspaces = useAppStore((state) => state.workspaces);
@@ -286,7 +290,3 @@ export function SignalCard() {
   );
 }
 
-const inputClass =
-  "h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[11px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
-const labelClass =
-  "mb-1 block text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-500";

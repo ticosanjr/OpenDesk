@@ -82,6 +82,7 @@ pub async fn apply(state: &Arc<AppState>, proposal: &proposals::ConfigProposal) 
                 let index = recipe_store::get(&state.db, id).await?;
                 std::fs::remove_file(index.file_path)?;
                 recipe_store::sync_workspace(&state.db, &proposal.workspace_id, &root).await?;
+                let _ = crate::api::recipes::sync_all_recipe_trigger_sources(state).await;
                 return Ok(());
             }
             let yaml = payload
@@ -89,6 +90,8 @@ pub async fn apply(state: &Arc<AppState>, proposal: &proposals::ConfigProposal) 
                 .and_then(|value| value.as_str())
                 .ok_or_else(|| AppError::BadRequest("recipe proposal sem yaml".into()))?;
             recipe_store::save_yaml(&state.db, &proposal.workspace_id, id, yaml).await?;
+            crate::api::recipes::sync_recipe_trigger_sources(state, &proposal.workspace_id, id)
+                .await?;
         }
         "ROUTINE" => {
             let id = payload
@@ -99,6 +102,7 @@ pub async fn apply(state: &Arc<AppState>, proposal: &proposals::ConfigProposal) 
                 if let Some(id) = id {
                     let _ = crate::api::schedules::remove_trigger_sources(state, &id).await;
                     schedules::delete(&state.db, &id).await?;
+                    state.io_bus.reload(state.clone()).await?;
                 }
                 return Ok(());
             }
@@ -107,6 +111,7 @@ pub async fn apply(state: &Arc<AppState>, proposal: &proposals::ConfigProposal) 
             input.workspace_id = proposal.workspace_id.clone();
             let schedule = schedules::create(&state.db, input).await?;
             crate::api::schedules::sync_trigger_source(state, &schedule).await?;
+            state.io_bus.reload(state.clone()).await?;
             if schedule.trigger_type == "CRON"
                 && let Ok(next) = crate::queue_scheduler::cron_engine::next_occurrence(
                     &schedule.cron_expression,

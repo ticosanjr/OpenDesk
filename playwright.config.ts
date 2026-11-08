@@ -14,6 +14,7 @@ const e2eEnv = {
   OPENDESK_API_PORT: "4317",
   OPENDESK_SKIP_DAEMON: "1",
   OPENDESK_ALLOW_TEMP_WORKSPACES: "1",
+  OPENDESK_WORKSPACES_ROOT: `${e2eDir}/workspaces-root`,
   RUST_LOG: "opendesk=info",
 };
 

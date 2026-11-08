@@ -1,18 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { readFileSync } from "node:fs";
+import { api } from "./helpers";
 
-const DATA_DIR = "/tmp/opendesk-e2e/data";
-
-function api() {
-  const endpoint = JSON.parse(readFileSync(`${DATA_DIR}/api.json`, "utf8")) as {
-    port: number;
-    token: string;
-  };
-  return {
-    baseURL: `http://127.0.0.1:${endpoint.port}`,
-    headers: { Authorization: `Bearer ${endpoint.token}` },
-  };
-}
 
 test("installs and removes a starter pack from the packs page", async ({
   page,

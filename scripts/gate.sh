@@ -6,7 +6,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-MIN_LINES="${OPENDESK_MIN_LINES:-40}"
+MIN_LINES="${OPENDESK_MIN_LINES:-44}"
+CORE_MIN_LINES="${OPENDESK_CORE_MIN_LINES:-46}"
 
 echo "==> TypeScript"
 npm run check
@@ -28,7 +29,11 @@ npm run build
 
 if command -v cargo-llvm-cov >/dev/null 2>&1; then
   echo "==> Rust coverage (fail under ${MIN_LINES}% lines)"
-  (cd src-tauri && cargo llvm-cov --summary-only --fail-under-lines "$MIN_LINES")
+  COVERAGE_SUMMARY="$(mktemp)"
+  (cd src-tauri && cargo llvm-cov --summary-only --fail-under-lines "$MIN_LINES") | tee "$COVERAGE_SUMMARY"
+  echo "==> Core Rust coverage (fail under ${CORE_MIN_LINES}% lines)"
+  CORE_MIN_LINES="$CORE_MIN_LINES" "$ROOT/scripts/coverage-core.sh" "$COVERAGE_SUMMARY"
+  rm -f "$COVERAGE_SUMMARY"
 else
   echo "    cargo-llvm-cov not installed; skipping the Rust coverage ratchet"
   echo "    install with: cargo install cargo-llvm-cov"

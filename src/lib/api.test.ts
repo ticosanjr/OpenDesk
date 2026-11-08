@@ -30,21 +30,26 @@ describe("api client", () => {
     expect((init.headers as Headers).get("Authorization")).toBe("Bearer token-123");
   });
 
-  it("sends JSON bodies for POST and PUT", async () => {
+  it("sends JSON bodies for POST, PUT and PATCH", async () => {
     const fetchMock = vi
       .fn()
       .mockImplementation(async () => jsonResponse({ ok: true }));
     vi.stubGlobal("fetch", fetchMock);
-    const { apiPost, apiPut } = await import("./api");
+    const { apiPatch, apiPost, apiPut } = await import("./api");
 
     await apiPost("/api/tasks", { title: "x" });
     await apiPut("/api/queue/concurrency", { concurrency: 2 });
+    await apiPatch("/api/tasks/1", { priority: 3 });
 
     const postInit = fetchMock.mock.calls[0][1] as RequestInit;
     expect(postInit.method).toBe("POST");
     expect((postInit.headers as Headers).get("Content-Type")).toBe("application/json");
     expect(postInit.body).toBe(JSON.stringify({ title: "x" }));
     expect((fetchMock.mock.calls[1][1] as RequestInit).method).toBe("PUT");
+    expect((fetchMock.mock.calls[2][1] as RequestInit).method).toBe("PATCH");
+    expect((fetchMock.mock.calls[2][1] as RequestInit).body).toBe(
+      JSON.stringify({ priority: 3 }),
+    );
   });
 
   it("surfaces API error messages and handles 204", async () => {

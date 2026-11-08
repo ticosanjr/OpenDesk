@@ -34,6 +34,7 @@ import { toast } from "@/store/toast-store";
 import { links } from "@/lib/links";
 import { EntityLink } from "@/components/ui/entity-link";
 import { confirmAction } from "@/store/confirm-store";
+import { smallLabelClass as labelClass } from "@/lib/ui-classes";
 
 export function ChatPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -637,5 +638,4 @@ function MetaBuilder({ workspaceId }: { workspaceId: string }) {
   );
 }
 
-const labelClass =
-  "mb-1 block text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-500";
+

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { AgentFile } from "@/lib/types";
 import { loadAgents, loadRuntime } from "@/lib/studio-cache";
 import { cn } from "@/lib/utils";
+import { fieldInputClass } from "@/lib/ui-classes";
 
 const BUILTIN_AGENTS = ["build", "plan", "explore", "general"];
 
@@ -20,6 +21,7 @@ export function AgentCombobox({
   placeholder = "automático (router)",
   className,
   allowEmpty = true,
+  compact = false,
 }: {
   value: string;
   onChange: (value: string, agent: AgentFile | null) => void;
@@ -27,6 +29,8 @@ export function AgentCombobox({
   placeholder?: string;
   className?: string;
   allowEmpty?: boolean;
+  /** Show only @id; useful in narrow grid fields. */
+  compact?: boolean;
 }) {
   const [agents, setAgents] = useState<AgentFile[]>([]);
   const [runtimeIds, setRuntimeIds] = useState<string[]>([]);
@@ -71,9 +75,11 @@ export function AgentCombobox({
 
   const selected = options.find((agent) => agent.id === value) ?? null;
   const display = value
-    ? selected?.name && selected.name !== "manual"
-      ? `${selected.name} (@${value})`
-      : `@${value}`
+    ? compact
+      ? `@${value}`
+      : selected?.name && selected.name !== "manual"
+        ? `${selected.name} (@${value})`
+        : `@${value}`
     : "";
 
   const filtered = useMemo(() => {
@@ -205,5 +211,4 @@ export function AgentCombobox({
   );
 }
 
-const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
+const inputClass = fieldInputClass;

@@ -1,7 +1,7 @@
 ---
 name: Pesquisador Sênior
 description: Conduz investigação estruturada.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #0ea5e9
 avatar: 🤖

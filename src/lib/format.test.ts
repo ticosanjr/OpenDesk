@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  formatClock,
+  formatDateTime,
   formatDuration,
   formatNumber,
   formatPercent,
@@ -45,5 +47,34 @@ describe("formatDuration", () => {
     expect(formatDuration(1250)).toBe("1,3 s");
     expect(formatDuration(63_000)).toBe("1m 03s");
     expect(formatDuration(3_723_000)).toBe("1h 02m");
+  });
+});
+
+describe("formatClock and formatDateTime", () => {
+  it("formats clock and date-time values defensively", () => {
+    expect(formatClock(null)).toBe("—");
+    expect(formatDateTime(undefined)).toBe("—");
+    expect(formatClock("2026-11-08T12:34:56Z")).toMatch(/\d{2}:\d{2}:\d{2}/);
+    expect(formatDateTime("2026-11-08T12:34:56Z")).toMatch(/2026/);
+  });
+
+  it("falls back when the locale formatter throws", () => {
+    const clock = vi
+      .spyOn(Date.prototype, "toLocaleTimeString")
+      .mockImplementationOnce(() => {
+        throw new Error("clock");
+      });
+    expect(formatClock("2026-11-08T12:34:56Z")).toBe("—");
+    clock.mockRestore();
+
+    const dateTime = vi
+      .spyOn(Date.prototype, "toLocaleString")
+      .mockImplementationOnce(() => {
+        throw new Error("date");
+      });
+    expect(formatDateTime("2026-11-08T12:34:56Z")).toBe(
+      "2026-11-08T12:34:56Z",
+    );
+    dateTime.mockRestore();
   });
 });

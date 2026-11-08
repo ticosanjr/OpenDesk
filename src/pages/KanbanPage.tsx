@@ -518,6 +518,7 @@ export function KanbanPage() {
                   <label className="block space-y-1">
                     <span className="text-[10px] text-zinc-400">Período</span>
                     <select
+                      aria-label="Período de retenção"
                       value={visibility.retention}
                       onChange={(event) =>
                         updateVisibility({
@@ -539,6 +540,7 @@ export function KanbanPage() {
                       Máximo de cards (0 = sem limite)
                     </span>
                     <input
+                      aria-label="Máximo de cards concluídos"
                       type="number"
                       min={0}
                       max={200}
@@ -755,7 +757,10 @@ export function KanbanPage() {
                             </p>
                           </div>
                           <Tooltip content={`Status: ${meta.label} (${task.status})`}>
-                            <Badge variant={meta.tone}>
+                            <Badge
+                              variant={meta.tone}
+                              className="shrink-0 whitespace-nowrap"
+                            >
                               <StatusIcon size={9} />
                               {meta.label}
                             </Badge>

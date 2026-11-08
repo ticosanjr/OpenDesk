@@ -1,0 +1,44 @@
+id: avaliar-capacidade
+name: Avaliar capacidade
+description: Produz suíte, resultados e leitura de transcrições de uma capacidade.
+enabled: true
+triggers: []
+flow:
+  - type: step
+    id: inventario
+    name: Inventariar a capacidade e falhas
+    mode: build
+    agent: pesquisador-metodologia
+    effort: medium
+    prompt: |
+      Leia a capacidade indicada em {{trigger.context}} e os arquivos em
+      `capabilities/`. Liste objetivo, gatilhos, entradas, saídas e falhas
+      observadas. Salve em `capabilities/evals/inventario.md`.
+  - type: step
+    id: suite
+    name: Montar a suíte de avaliação
+    mode: build
+    agent: designer-avaliacao
+    effort: high
+    prompt: |
+      Crie capability e regression, casos negativos, rubrica, referência e
+      métricas. Salve em `capabilities/evals/`. Execute o que for possível de
+      forma determinística e registre limitações.
+  - type: hitl
+    id: revisar
+    name: Revisar resultados e transcrições
+    interaction_type: APPROVAL_WITH_FEEDBACK
+    channels: [DESKTOP_UI]
+    timeout_minutes: 240
+    on_timeout: PAUSE_AND_ALERT
+    prompt_template: Aprovar o relatório de avaliação e o plano de melhoria?
+  - type: step
+    id: relatorio
+    name: Escrever relatório
+    mode: build
+    agent: revisor-capacidades
+    effort: medium
+    prompt: |
+      Produza `capabilities/output/avaliacao-<nome>.md` com resultados por caso,
+      pass@k/pass^k quando aplicável, falhas reais x graders injustos, riscos e
+      recomendação (publicar, iterar ou reverter).

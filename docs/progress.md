@@ -1109,3 +1109,113 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Editor YAML sincroniza números de linha com o scroll.
 - Migração `0022`; ADR 0032; `docs/starter-packs.md`.
 - Testes: 174 Rust; Vitest e Playwright executados no gate.
+
+## 2026-11-08 — 0.24.1: P0 de pacotes e receitas
+
+- Reinstalação de pacote não duplica rotinas; rotina preservada após remoção é
+  reutilizada na reinstalação.
+- Receitas com gatilhos IMAP, webhook e SQL criam/atualizam/removem fontes de
+  I/O automaticamente; Signal também pode acionar receitas.
+- Receita interrompe se um step termina FAILED/CANCELLED e marca a rotina.
+- Pacotes reportam status `installed`, `modified` ou `partial`, com arquivos/
+  rotinas faltando e ação de reparo.
+- Modal de execução de receita aceita contexto para `{{trigger.context}}`.
+- Packs corrigidos: caminhos de entrada por pacote e agente principal `primary`.
+- Validação de frontmatter de agentes/skills/comandos e de rotinas no bundle.
+- Versão 0.24.1 (sem release).
+
+## 2026-11-08 — 0.24.1: P1 de cobertura e confiança
+
+- `build_router` exposto para testes de contrato com `tower::ServiceExt::oneshot`.
+- Testes de API para health/auth, pacotes, conflito com overwrite, busca de
+  arquivos, dismiss versionado do Attention, fontes de receita/rotina e
+  criação de workspace por template.
+- Teste de upgrade de banco legado (0019 → 0022): Backlog vira TODO, colunas de
+  trigger e `alert_dismissals` são criadas.
+- Gate de cobertura global elevado para 44% e novo gate de core (46%) em
+  `scripts/coverage-core.sh`, cobrindo db/api/recipes/queue/io_bus/config_sync/
+  dsh_router/starter_packs.
+- Engine interrompe receita em step falho (já coberto) e rotinas reutilizam
+  fontes ao instalar pacotes.
+
+## 2026-11-08 — 0.24.1: P2 de produto e performance
+
+- Pacotes mostram atualização disponível (versão instalada x versão do bundle)
+  e aceitam seleção por arquivo em conflitos; arquivos não selecionados são
+  preservados.
+- Instalação em lote: receitas são indexadas uma vez por pacote em vez de uma
+  sincronização por receita.
+- Detecção de ferramentas ganhou cache de 30s, `refresh=1` para verificação
+  manual e execução fora do runtime com `spawn_blocking`.
+- Editor YAML faz parse com debounce de 200ms.
+- Busca de arquivos usa índice em memória por 15s, invalidado ao instalar ou
+  remover pacote, e prioriza nome sobre caminho.
+- Cards do Kanban e jobs da fila usam `content-visibility` para reduzir render
+  fora da viewport.
+- Roteador ganhou peso entrada/saída configurável e parecer textual local
+  comparando menor/maior custo e spread.
+
+## 2026-11-08 — 0.24.1: cobertura Playwright ampliada
+
+- Novos cenários de UI: conflito por arquivo em pacotes, reparo de pacote,
+  uninstall preservando edição, template de workspace, fluxo de receita com
+  reordenação e múltiplos gatilhos, contexto de execução, dismiss/remoção no
+  Attention, busca global de arquivos, tema do workspace + retenção do Kanban,
+  accordion de rotina com receita e blend do roteador.
+- Helpers Playwright com workspace isolado e retry para locks transitórios.
+- Suíte E2E passa de 25 para 35 testes.
+
+## 2026-11-08 — 0.24.1: auditoria visual e otimizações seguras
+
+- Novo teste Playwright de auditoria de UI em 1440x900 e 1100x800, cobrindo
+  todas as rotas principais e modais: overflow horizontal, elementos cobertos,
+  botões sem nome acessível e erros não capturados.
+- Corrigido o cabeçalho de Arquivos que fazia o seletor “Todo o workspace” ficar
+  sob o painel de pré-visualização.
+- Nome acessível em botões de histórico/exclusão do Studio e exclusão de rotina.
+- Sidebar mais compacta: Configurações permanece visível em 1100x800.
+- Kanban com badge de status sem quebra de linha.
+- Receitas exibem `@agente` compacto no stepper, sem truncamento estranho.
+- Título “Rotinas (Cron)” corrigido para “Rotinas & Gatilhos”.
+- Otimizações: debounce de eventos no Attention Card, memoização de fila e tema
+  do workspace, e índice de arquivos construído fora do lock.
+
+## 2026-11-08 — 0.24.1: cobertura 90%+ e DRY
+
+- Cobertura unitária da lógica subiu para 98,86% de linhas, 98,02% de
+  statements, 99,25% de funções e 91,66% de branches; thresholds do Vitest
+  elevados para 90% em todas as métricas.
+- Novos testes para formatClock/formatDateTime, links de runs, notificações
+  nativas, retenção (hoje/7d/storage inválido), recorrência, trigger types,
+  apiPatch, toast clear, reconexão WebSocket e eventos parciais do app store.
+- E2E: helper único de API/workspace substitui cópias em todas as specs;
+  auditoria de UI cobre 14 rotas em 1440×900/1100×800 e 4 modais.
+- DRY: classes de formulário centralizadas em `src/lib/ui-classes.ts`,
+  `TemplateCard` extraído e cards do Kanban/pacotes/arquivos ajustados.
+
+## 2026-11-08 — 0.24.1: cobertura unitária 90%+ e DRY
+
+- Vitest: 98,86% linhas, 98,02% statements, 99,25% funções, 91,66% branches;
+  thresholds elevados para 90% em todas as métricas.
+- 81 testes unitários (Vitest) e 37 Playwright.
+- Specs Playwright passaram a usar um único helper de API/workspace.
+- Classes de formulário centralizadas em `src/lib/ui-classes.ts`.
+- `TemplateCard` extraído; cards do Kanban, Arquivos, Pacotes, Receitas e
+  Rotinas ajustados com auditoria visual automatizada.
+
+## 2026-11-08 — 0.24.1: Fábrica de Capacidades e ícone unificado
+
+- Novo pack `meta-forge` com 4 agentes, 6 skills, 5 comandos, 6 receitas e
+  rotina semanal de auditoria.
+- Metodologia eval-driven: baseline, evals de capability/regression, referência,
+  progressive disclosure, red team e refino por falhas.
+- Workspace default `Fábrica de Capacidades` criada uma vez, com template
+  reutilizável e sem roubar o foco de workspaces existentes.
+- Ícones de tray, janela e bundle regenerados a partir de `public/opendesk.svg`;
+  tray usa explicitamente o PNG 32×32.
+- `OPENDESK_WORKSPACES_ROOT` adicionado para isolamento de testes.
+- Teste E2E garante agentes/skills/comandos/receitas da fábrica.
+- Criação interna da fábrica usa `create_trusted`, para que um
+  `OPENDESK_WORKSPACES_ROOT` isolado funcione sem afrouxar a validação de
+  workspaces criados pelo usuário.
+- Smoke headless e GUI (Xvfb) confirmam criação única e ausência de panic.

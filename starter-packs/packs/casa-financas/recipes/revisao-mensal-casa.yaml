@@ -10,7 +10,7 @@ flow:
   mode: build
   agent: planejador-domestico
   effort: medium
-  prompt: Organize receitas e despesas de input/. Calcule sobra e categorize. Salve em {{run.output_dir}}/01-orcamento.md.
+  prompt: Organize receitas e despesas de casa/financas/input/. Calcule sobra e categorize. Salve em {{run.output_dir}}/01-orcamento.md.
 - type: step
   id: passo-2
   name: Revisar assinaturas

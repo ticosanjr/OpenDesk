@@ -312,7 +312,7 @@ export function FilesPage() {
 
       <div className="grid min-h-0 flex-1 gap-3 overflow-hidden lg:grid-cols-[minmax(280px,380px)_1fr]">
         <Card className="flex h-full min-h-0 flex-col">
-          <CardHeader className="gap-2 px-3.5 py-3">
+          <CardHeader className="flex-col items-stretch gap-2 px-3.5 py-3">
             <div className="flex w-full flex-wrap items-center gap-1 text-[10px] text-zinc-500">
               {crumbs.map((crumb, index) => (
                 <span key={crumb.path || "root"} className="flex items-center gap-1">

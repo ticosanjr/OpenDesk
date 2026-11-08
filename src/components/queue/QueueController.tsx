@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -61,11 +62,16 @@ export function QueueController({
     (job) => job.status === "QUEUED" || job.status === "PAUSED",
   ).length;
   const failed = queue.filter((job) => job.status === "FAILED").length;
-  const sorted = [...queue].sort((left, right) => {
-    const order = (STATUS_ORDER[left.status] ?? 9) - (STATUS_ORDER[right.status] ?? 9);
-    if (order !== 0) return order;
-    return left.enqueued_at.localeCompare(right.enqueued_at);
-  });
+  const sorted = useMemo(
+    () =>
+      [...queue].sort((left, right) => {
+        const order =
+          (STATUS_ORDER[left.status] ?? 9) - (STATUS_ORDER[right.status] ?? 9);
+        if (order !== 0) return order;
+        return left.enqueued_at.localeCompare(right.enqueued_at);
+      }),
+    [queue],
+  );
 
   return (
     <Card>
@@ -159,7 +165,7 @@ export function QueueController({
             {sorted.map((job) => (
               <div
                 key={job.id}
-                className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-2.5 py-2"
+                className="cv-auto rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-2.5 py-2"
               >
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Badge

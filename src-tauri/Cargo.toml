@@ -1,6 +1,6 @@
 [package]
 name = "opendesk"
-version = "0.24.0"
+version = "0.24.1"
 description = "OpenDesk — visual governance, automation and observability for OpenCode"
 authors = ["OpenDesk"]
 edition = "2024"
@@ -76,6 +76,7 @@ native-tls = "0.2.18"
 
 [dev-dependencies]
 tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
 
 [profile.release]
 codegen-units = 1

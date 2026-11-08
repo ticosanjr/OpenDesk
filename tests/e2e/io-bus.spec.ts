@@ -1,19 +1,7 @@
 import { expect, test } from "@playwright/test";
-import { readFileSync } from "node:fs";
 import { createHmac } from "node:crypto";
+import { api } from "./helpers";
 
-const DATA_DIR = "/tmp/opendesk-e2e/data";
-
-function api() {
-  const endpoint = JSON.parse(readFileSync(`${DATA_DIR}/api.json`, "utf8")) as {
-    port: number;
-    token: string;
-  };
-  return {
-    baseURL: `http://127.0.0.1:${endpoint.port}`,
-    headers: { Authorization: `Bearer ${endpoint.token}` },
-  };
-}
 
 test("io bus inbound, outbound, bindings and webhook idempotency", async ({
   request,

@@ -27,11 +27,16 @@ import { LoadingState } from "@/components/ui/loading-state";
 import { formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { confirmAction } from "@/store/confirm-store";
+import {
+  fieldInputClass as inputClass,
+  fieldLabelClass as labelClass,
+} from "@/lib/ui-classes";
 
 interface RouterConfig {
   workspace_id: string;
   policy: string;
   router_model?: string | null;
+  cost_blend: number;
   rules: RouterRule[];
   budget: BudgetStatus;
 }
@@ -48,6 +53,8 @@ interface ModelCost {
 interface RouterAnalysis {
   workspace_id: string;
   router_model?: string | null;
+  cost_blend: number;
+  recommendation: string;
   models: ModelCost[];
   cheapest?: string | null;
   generated_at: string;
@@ -66,6 +73,8 @@ export function RouterPage() {
   const [ruleOpen, setRuleOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [routerModel, setRouterModel] = useState("");
+  const [costBlend, setCostBlend] = useState(0.7);
+  const [savingBlend, setSavingBlend] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
   const [analysis, setAnalysis] = useState<RouterAnalysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -89,6 +98,7 @@ export function RouterPage() {
       ]);
       setConfig(routerConfig);
       setRouterModel(routerConfig.router_model ?? "");
+      setCostBlend(routerConfig.cost_blend ?? 0.7);
       setSettings(budgetSettings);
       setError(null);
     } catch (cause) {
@@ -147,6 +157,19 @@ export function RouterPage() {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setSavingModel(false);
+    }
+  }
+
+  async function saveBlend() {
+    setSavingBlend(true);
+    setError(null);
+    try {
+      await apiPut("/api/router/blend", { blend: costBlend });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSavingBlend(false);
     }
   }
 
@@ -272,8 +295,38 @@ export function RouterPage() {
               </IconLabel>
             </Button>
           </div>
+          <div className="flex flex-wrap items-end gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-2.5">
+            <label className="min-w-[220px] flex-1">
+              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+                Peso da entrada no custo combinado: {Math.round(costBlend * 100)}% entrada /{" "}
+                {Math.round((1 - costBlend) * 100)}% saída
+              </span>
+              <input
+                aria-label="Peso da entrada"
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={costBlend}
+                onChange={(event) => setCostBlend(Number(event.target.value))}
+                className="w-full accent-blue-500"
+              />
+            </label>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={() => void saveBlend()}
+              disabled={savingBlend}
+            >
+              <IconLabel icon={<Save size={12} />}>Salvar blend</IconLabel>
+            </Button>
+          </div>
           {analysis ? (
             <div className="space-y-2">
+              <p className="rounded-lg border border-blue-500/20 bg-blue-500/[0.05] px-3 py-2 text-[11px] leading-snug text-blue-100">
+                {analysis.recommendation}
+              </p>
               <p className="text-[10px] text-zinc-500">
                 {analysis.models.length} modelo(s) comparado(s). Mais barato:{" "}
                 <span className="font-mono text-emerald-300">
@@ -690,7 +743,3 @@ function CreateRuleModal({
   );
 }
 
-const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
-const labelClass =
-  "mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500";

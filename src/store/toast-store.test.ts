@@ -46,5 +46,7 @@ describe("toast store", () => {
       toast({ tone: "info", title: `Item ${index}` });
     }
     expect(useToastStore.getState().toasts.length).toBeLessThanOrEqual(5);
+    useToastStore.getState().clear();
+    expect(useToastStore.getState().toasts).toHaveLength(0);
   });
 });

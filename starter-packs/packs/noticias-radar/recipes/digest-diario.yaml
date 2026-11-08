@@ -10,8 +10,8 @@ flow:
   mode: build
   agent: curador-noticias
   effort: medium
-  prompt: Leia as fontes em input/. Selecione as 10 notícias mais relevantes, deduplique e registre fonte.
-    Salve em {{run.output_dir}}/01-noticias.md.
+  prompt: Leia as fontes em noticias/input/. Selecione as 10 notícias mais relevantes, deduplique e registre
+    fonte. Salve em {{run.output_dir}}/01-noticias.md.
 - type: step
   id: passo-2
   name: Analisar tendências

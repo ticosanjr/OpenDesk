@@ -1,7 +1,7 @@
 ---
 name: Assistente Administrativo
 description: Organiza rotinas e comunicações.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #64748b
 avatar: 🤖

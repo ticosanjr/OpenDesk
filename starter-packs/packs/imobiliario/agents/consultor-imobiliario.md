@@ -1,7 +1,7 @@
 ---
 name: Consultor Imobiliário
 description: Organiza opções e visitas.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #84cc16
 avatar: 🤖

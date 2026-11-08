@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -15,6 +15,7 @@ import {
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CountPill } from "@/components/ui/count-pill";
@@ -125,17 +126,27 @@ export function RecipesPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editorLoading, setEditorLoading] = useState(false);
+  const [runMode, setRunMode] = useState<"dry" | "run" | null>(null);
+  const [runContext, setRunContext] = useState("");
+  const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const recipe = useMemo(() => {
-    try {
-      const parsed = parseYaml(yaml);
-      return parsed && typeof parsed === "object"
-        ? (parsed as Dictionary)
-        : null;
-    } catch {
-      return null;
-    }
+  const [recipe, setRecipe] = useState<Dictionary | null>(null);
+
+  // Parse with a short debounce: typing in the YAML editor no longer
+  // re-renders the whole visual stepper on every keystroke.
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      try {
+        const parsed = parseYaml(yaml);
+        setRecipe(
+          parsed && typeof parsed === "object" ? (parsed as Dictionary) : null,
+        );
+      } catch {
+        setRecipe(null);
+      }
+    }, 200);
+    return () => window.clearTimeout(handle);
   }, [yaml]);
 
   const load = useCallback(async () => {
@@ -188,6 +199,9 @@ export function RecipesPage() {
 
   function update(next: Dictionary) {
     setYaml(stringifyYaml(next));
+    // Visual edits are committed immediately; the debounce only protects
+    // parsing while the user types raw YAML.
+    setRecipe(next);
   }
 
   async function save() {
@@ -217,21 +231,32 @@ export function RecipesPage() {
     }
   }
 
-  async function run(dryRun: boolean) {
+  async function run(dryRun: boolean, context: string) {
     if (!selected) return;
+    setRunning(true);
     try {
+      const text = context.trim();
       const run = await apiPost<RecipeRun>(`/api/recipes/${selected}/run`, {
         dry_run: dryRun,
-        trigger_context: { manual: true },
+        trigger_context: {
+          manual: true,
+          context: text,
+          prompt: text,
+          question: text,
+        },
       });
       toast({
         tone: "success",
         title: dryRun ? "Dry-run iniciado" : "Receita iniciada",
         description: `run ${run.id.slice(0, 8)}`,
       });
+      setRunMode(null);
+      setRunContext("");
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setRunning(false);
     }
   }
 
@@ -314,10 +339,21 @@ export function RecipesPage() {
                 Fluxo visual
               </CardTitle>
               <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="h-7" onClick={() => void run(true)} disabled={!selected}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7"
+                  onClick={() => setRunMode("dry")}
+                  disabled={!selected}
+                >
                   <IconLabel icon={<Sparkles size={12} />}>Dry-run</IconLabel>
                 </Button>
-                <Button size="sm" className="h-7" onClick={() => void run(false)} disabled={!selected}>
+                <Button
+                  size="sm"
+                  className="h-7"
+                  onClick={() => setRunMode("run")}
+                  disabled={!selected}
+                >
                   <IconLabel icon={<Play size={12} />}>Executar</IconLabel>
                 </Button>
               </div>
@@ -380,6 +416,63 @@ export function RecipesPage() {
           )}
         </CardContent>
       </Card>
+
+      <Modal
+        open={runMode !== null}
+        onClose={() => {
+          if (!running) setRunMode(null);
+        }}
+        title={runMode === "dry" ? "Dry-run da receita" : "Executar receita"}
+        description="O contexto abaixo fica disponível como {{trigger.context}}, {{trigger.prompt}} e {{trigger.question}} nos prompts."
+        className="max-w-lg"
+      >
+        <div className="space-y-3">
+          <label className="block">
+            <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+              Contexto / pergunta (opcional)
+            </span>
+            <textarea
+              value={runContext}
+              onChange={(event) => setRunContext(event.target.value)}
+              rows={6}
+              placeholder="Ex.: analise o contrato em juridico/contratos/atual.pdf"
+              className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 p-2.5 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60"
+            />
+          </label>
+          <p className="text-[10px] leading-snug text-zinc-500">
+            Para anexar arquivos, coloque-os na pasta de entrada do pacote e
+            referencie o caminho no contexto. O dry-run não executa ferramentas
+            externas.
+          </p>
+          <div className="flex justify-end gap-2 border-t border-zinc-800/70 pt-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRunMode(null)}
+              disabled={running}
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void run(runMode === "dry", runContext)}
+              disabled={running}
+            >
+              <IconLabel
+                icon={
+                  running ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Play size={13} />
+                  )
+                }
+              >
+                {runMode === "dry" ? "Iniciar dry-run" : "Executar agora"}
+              </IconLabel>
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </PageBody>
   );
 }
@@ -941,6 +1034,7 @@ function StepEditor({
             onChange={(value) => onChange({ agent: value || null })}
             workspaceId={workspaceId}
             placeholder="automático (router)"
+            compact
             className="[&_input]:h-8 [&_input]:text-[10px]"
           />
         </LabeledField>

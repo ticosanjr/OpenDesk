@@ -1,7 +1,7 @@
 ---
 name: Gerente de Sucesso
 description: Cuida da adoção e renovação.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #0d9488
 avatar: 🤖

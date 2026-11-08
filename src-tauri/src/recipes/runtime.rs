@@ -64,6 +64,7 @@ pub async fn sync_workspace(state: &Arc<AppState>, workspace_id: &str) -> AppRes
         std::path::Path::new(&workspace.root_path),
     )
     .await?;
+    crate::api::recipes::sync_all_recipe_trigger_sources(state).await?;
     Ok(())
 }
 

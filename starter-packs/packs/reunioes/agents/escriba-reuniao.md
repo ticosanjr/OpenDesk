@@ -1,7 +1,7 @@
 ---
 name: Escriba de Reunião
 description: Transforma conversa em ata útil.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #f97316
 avatar: 🤖

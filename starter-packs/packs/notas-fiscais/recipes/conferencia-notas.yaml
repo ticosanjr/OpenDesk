@@ -10,7 +10,7 @@ flow:
   mode: build
   agent: analista-fiscal
   effort: medium
-  prompt: Leia as notas em input/, extraia campos e marque ilegíveis. Salve em {{run.output_dir}}/01-notas.md.
+  prompt: Leia as notas em fiscal/notas/, extraia campos e marque ilegíveis. Salve em {{run.output_dir}}/01-notas.md.
 - type: step
   id: passo-2
   name: Conferir

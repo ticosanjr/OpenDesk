@@ -1,7 +1,7 @@
 ---
 name: Contador PJ
 description: Organiza números e fechamento mensal.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #10b981
 avatar: 🤖

@@ -10,8 +10,8 @@ flow:
   mode: build
   agent: recrutador
   effort: medium
-  prompt: Aplique a matriz de avaliação aos currículos em input/. Registre evidência e incerteza. Salve
-    em {{run.output_dir}}/triagem.md.
+  prompt: Aplique a matriz de avaliação aos currículos em rh/curriculos/. Registre evidência e incerteza.
+    Salve em {{run.output_dir}}/triagem.md.
 - type: step
   id: passo-2
   name: Revisar decisão

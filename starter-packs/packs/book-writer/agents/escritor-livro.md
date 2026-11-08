@@ -1,7 +1,7 @@
 ---
 name: Escritor
 description: Escreve capítulos com voz consistente.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #a855f7
 avatar: 🤖

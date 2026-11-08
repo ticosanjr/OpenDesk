@@ -1,7 +1,7 @@
 ---
 name: Roteirista YouTube
 description: Escreve roteiro com retenção.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #ef4444
 avatar: 🤖

@@ -1,0 +1,44 @@
+id: melhorar-capacidade
+name: Melhorar capacidade
+description: Corrige uma capacidade a partir de falhas observadas e regression.
+enabled: true
+triggers: []
+flow:
+  - type: step
+    id: diagnostico
+    name: Diagnosticar a falha
+    mode: build
+    agent: pesquisador-metodologia
+    effort: medium
+    prompt: |
+      Reproduza a falha descrita em {{trigger.context}} e classifique a causa:
+      descoberta, instrução, contexto, ferramenta, ambiente ou grader. Salve em
+      `capabilities/research/falha-<nome>.md`.
+  - type: step
+    id: correcao
+    name: Aplicar a menor correção
+    mode: build
+    agent: arquiteto-capacidades
+    effort: high
+    prompt: |
+      Aplique a menor mudança que corrige a causa. Não adicione regras sem
+      evidência. Atualize o artifact da capacidade e registre a hipótese no
+      CHANGELOG.
+  - type: step
+    id: regressao
+    name: Rodar caso e regression
+    mode: build
+    agent: designer-avaliacao
+    effort: high
+    prompt: |
+      Rode o caso que falhou e a suíte de regression. Leia as transcrições e
+      produza `capabilities/output/melhoria-<nome>.md` com antes/depois e
+      decisão de manter ou reverter.
+  - type: hitl
+    id: aprovar
+    name: Aprovar mudança
+    interaction_type: APPROVAL_WITH_FEEDBACK
+    channels: [DESKTOP_UI]
+    timeout_minutes: 240
+    on_timeout: PAUSE_AND_ALERT
+    prompt_template: Aprovar a mudança com base na evidência de regression?

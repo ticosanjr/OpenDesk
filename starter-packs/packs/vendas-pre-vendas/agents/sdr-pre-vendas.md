@@ -1,7 +1,7 @@
 ---
 name: SDR / Pré-vendas
 description: Qualifica e prepara contexto.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #22c55e
 avatar: 🤖

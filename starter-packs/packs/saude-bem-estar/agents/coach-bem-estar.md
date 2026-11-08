@@ -1,7 +1,7 @@
 ---
 name: Coach de Bem-estar
 description: Ajuda a criar hábitos sustentáveis.
-mode: subagent
+mode: primary
 router_policy: COST_BENEFIT
 color: #f472b6
 avatar: 🤖

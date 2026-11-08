@@ -10,5 +10,5 @@ flow:
   mode: build
   agent: analista-assinaturas
   effort: medium
-  prompt: Analise extratos e recibos em input/ e liste assinaturas recorrentes com custo anual. Salve
-    em {{run.output_dir}}/assinaturas.md.
+  prompt: Analise extratos e recibos em casa/financas/input/ e liste assinaturas recorrentes com custo
+    anual. Salve em {{run.output_dir}}/assinaturas.md.
