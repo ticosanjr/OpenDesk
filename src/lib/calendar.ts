@@ -20,6 +20,32 @@ export const CALENDAR_VIEWS: Array<{ id: CalendarView; label: string }> = [
   { id: "day", label: "Dia" },
 ];
 
+function viewKey(workspaceId?: string | null): string {
+  return `opendesk.calendar.view.${workspaceId ?? "global"}`;
+}
+
+export function loadCalendarView(workspaceId?: string | null): CalendarView {
+  try {
+    const value = localStorage.getItem(viewKey(workspaceId));
+    return CALENDAR_VIEWS.some((view) => view.id === value)
+      ? (value as CalendarView)
+      : "month";
+  } catch {
+    return "month";
+  }
+}
+
+export function saveCalendarView(
+  workspaceId: string | null | undefined,
+  view: CalendarView,
+): void {
+  try {
+    localStorage.setItem(viewKey(workspaceId), view);
+  } catch {
+    // Storage can be unavailable; the in-memory view still works.
+  }
+}
+
 export type CalendarCategory =
   | "routines"
   | "recipes"

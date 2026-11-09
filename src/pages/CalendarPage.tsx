@@ -33,6 +33,8 @@ import {
   CALENDAR_VIEWS,
   isVisibleItem,
   itemsForDay,
+  loadCalendarView,
+  saveCalendarView,
   viewDays,
   viewRange,
   type CalendarCategory,
@@ -65,7 +67,7 @@ export function CalendarPage() {
     const value = new Date(focusDate);
     return Number.isNaN(value.getTime()) ? new Date() : value;
   })();
-  const [view, setView] = useState<CalendarView>("month");
+  const [view, setView] = useState<CalendarView>(() => loadCalendarView(activeWorkspaceId));
   const [month, setMonth] = useState(() => startOfMonth(initialDate));
   const [selectedDay, setSelectedDay] = useState(() => startOfDay(initialDate));
   const [items, setItems] = useState<CalendarItem[]>([]);
@@ -82,6 +84,14 @@ export function CalendarPage() {
     executions: true,
     events: true,
   });
+
+  useEffect(() => {
+    setView(loadCalendarView(activeWorkspaceId));
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    saveCalendarView(activeWorkspaceId, view);
+  }, [activeWorkspaceId, view]);
 
   const days = useMemo(
     () => viewDays(view, month, selectedDay),

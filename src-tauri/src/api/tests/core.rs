@@ -718,3 +718,211 @@ async fn meta_builder_creates_skill_agent_and_command() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn blueprints_list_apply_and_skip_existing_files() {
+    let ctx = test_support::context().await;
+    let query = format!("workspace_id={}", ctx.workspace_id);
+    let (status, list) = call(&ctx, Method::GET, "/api/blueprints", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list.as_array().expect("blueprints").len(), 4);
+
+    let (status, applied) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/blueprints/conteudo/apply?{query}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{applied}");
+    assert!(!applied["created"].as_array().expect("created").is_empty());
+    assert!(
+        ctx.workspace_root
+            .join(".opencode/agents/pesquisador.md")
+            .is_file()
+    );
+
+    let (status, again) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/blueprints/conteudo/apply?{query}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!again["skipped"].as_array().expect("skipped").is_empty());
+
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/blueprints/missing/apply?{query}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn updates_rollback_without_backup_is_actionable() {
+    let ctx = test_support::context().await;
+    let (status, body) = call(&ctx, Method::POST, "/api/updates/rollback", None).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(
+        body["message"]
+            .as_str()
+            .is_some_and(|value| value.contains("backup"))
+    );
+}
+
+#[tokio::test]
+async fn google_status_config_and_mcp_registration_work_offline() {
+    let ctx = test_support::context().await;
+    let query = format!("workspace_id={}", ctx.workspace_id);
+
+    let (status, state) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/integrations/google/status?{query}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(state["connected"], false);
+
+    let (status, config) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/integrations/google/config?{query}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        config["scopes"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty())
+    );
+
+    let (status, saved) = call(
+        &ctx,
+        Method::PUT,
+        "/api/integrations/google/config",
+        Some(json!({ "client_id": "client-id", "client_secret": "secret" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{saved}");
+    assert_eq!(saved["client_id_set"], true);
+
+    let (status, registered) = call(
+        &ctx,
+        Method::POST,
+        "/api/integrations/google/mcp/register",
+        Some(json!({ "workspace_id": ctx.workspace_id })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{registered}");
+    let document = crate::config_sync::jsonc_editor::read_for_scope(
+        &crate::config_sync::paths::StudioPaths::new(Some(ctx.workspace_root.clone())),
+        "workspace",
+    )
+    .expect("config");
+    assert!(
+        crate::config_sync::jsonc_editor::list_mcp_servers(&document)
+            .iter()
+            .any(|server| server.name == "opendesk-google")
+    );
+
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        "/api/integrations/google/disconnect",
+        Some(json!({ "workspace_id": ctx.workspace_id })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn permissions_list_decide_agent_states_and_context() {
+    let ctx = test_support::context().await;
+    let query = format!("workspace_id={}", ctx.workspace_id);
+    crate::db::permissions::create(
+        &ctx.state.db,
+        None,
+        None,
+        &ctx.workspace_id,
+        "ses-1",
+        "req-1",
+        "edit",
+        &["src/main.rs".into()],
+    )
+    .await
+    .expect("permission");
+
+    let (status, pending) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/permissions?{query}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(pending["requests"].as_array().expect("requests").len(), 1);
+
+    let (status, decided) = call(
+        &ctx,
+        Method::POST,
+        "/api/permissions/req-1/reply",
+        Some(json!({ "decision": "once" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(decided["status"], "DECIDED");
+
+    let (status, states) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/agents/states?{query}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(states["agents"].is_array());
+
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        "/api/tasks?workspace_id=ws-test",
+        Some(json!({
+            "title": "Contexto",
+            "description": "Sem execução",
+            "execution_mode": "BUILD_DIRECT",
+            "tags": []
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, tasks) = call(&ctx, Method::GET, "/api/tasks?workspace_id=ws-test", None).await;
+    let task_id = tasks.as_array().expect("tasks")[0]["id"]
+        .as_str()
+        .expect("task id")
+        .to_string();
+    let (status, context) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/tasks/{task_id}/context"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(context["percent"], 0.0);
+
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/tasks/{task_id}/compact"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}

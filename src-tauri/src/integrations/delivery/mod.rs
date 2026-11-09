@@ -1,6 +1,8 @@
+mod channel;
 mod email;
 mod google;
 mod render;
+mod signal_channel;
 #[cfg(test)]
 mod tests;
 
@@ -19,11 +21,13 @@ use crate::{
     secrets::SecretStore,
     text::split_recipients,
 };
-use email::retry_email;
+use channel::DeliveryChannel;
+use email::{deliver_email, retry_email};
 use google::{export_google, retry_drive, retry_gdocs};
 use html_escape::encode_text;
 use render::{attachments_from_paths, build_attachments, build_html};
 use sha2::{Digest, Sha256};
+use signal_channel::deliver_signal;
 use sqlx::SqlitePool;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -146,109 +150,35 @@ pub async fn deliver_run(
     if let Some(config) = &smtp_config
         && !unchanged_output
     {
-        for recipient in recipients {
-            let key = format!("smtp:{run_id}:{recipient}");
-            let Some(delivery) = deliveries::create_pending(
-                pool,
-                workspace_id,
-                artifact_list.first().map(|artifact| artifact.id.as_str()),
-                "SMTP",
-                &key,
-            )
-            .await?
-            else {
-                continue;
-            };
-
-            match with_retry(3, || {
-                smtp_mailer::send_email(
-                    config,
-                    &recipient,
-                    &subject,
-                    html.clone(),
-                    attachments.clone(),
-                )
-            })
-            .await
-            {
-                Ok(()) => {
-                    let _ = deliveries::mark_success(pool, &delivery.id, None, None).await;
-                    tracing::info!(run = run_id, recipient, "run summary emailed");
-                }
-                Err(error) => {
-                    let payload = serde_json::json!({
-                        "recipient": recipient,
-                        "subject": subject,
-                        "html": html,
-                        "artifact_paths": retry_artifacts,
-                    })
-                    .to_string();
-                    let _ = deliveries::mark_failed_retryable(
-                        pool,
-                        &delivery.id,
-                        &format!("{error:#}"),
-                        &payload,
-                        5,
-                    )
-                    .await;
-                    tracing::warn!(run = run_id, recipient, error = %error, "email delivery failed; scheduled for retry");
-                }
-            }
-        }
+        deliver_email(
+            pool,
+            workspace_id,
+            run_id,
+            artifact_list.first().map(|artifact| artifact.id.as_str()),
+            &subject,
+            &html,
+            attachments,
+            &retry_artifacts,
+            &recipients,
+            config,
+        )
+        .await?;
     }
 
     if let Some(schedule) = &schedule
         && schedule.notify_signal
         && !unchanged_output
     {
-        let config = signal::load(pool).await?;
-        let mut signal_recipients = schedule
-            .notify_signal_recipients
-            .as_deref()
-            .map(split_recipients)
-            .unwrap_or_default();
-        if signal_recipients.is_empty() {
-            signal_recipients = config.allowlist.clone();
-        }
-        let message = format!(
-            "[OpenDesk] {title}\nstatus: {}\n{}\n{}",
-            run.status,
-            run.summary_response.as_deref().unwrap_or("sem resumo"),
-            artifact_list
-                .first()
-                .map(|artifact| artifact.absolute_path.as_str())
-                .unwrap_or("sem artefato")
-        );
-        if config.account.trim().is_empty() {
-            tracing::warn!(schedule = %schedule.id, "Signal notification skipped: account is not configured");
-        } else {
-            for recipient in signal_recipients {
-                let key = format!("signal:{run_id}:{recipient}");
-                let Some(delivery) = deliveries::create_pending(
-                    pool,
-                    workspace_id,
-                    artifact_list.first().map(|artifact| artifact.id.as_str()),
-                    "SIGNAL",
-                    &key,
-                )
-                .await?
-                else {
-                    continue;
-                };
-                match signal::send_text(&config.cli_path, &config.account, &recipient, &message)
-                    .await
-                {
-                    Ok(()) => {
-                        let _ = deliveries::mark_success(pool, &delivery.id, None, None).await;
-                    }
-                    Err(error) => {
-                        let _ = deliveries::mark_failed(pool, &delivery.id, &format!("{error:#}"))
-                            .await;
-                        tracing::warn!(run = run_id, recipient, error = %error, "Signal notification failed");
-                    }
-                }
-            }
-        }
+        deliver_signal(
+            pool,
+            workspace_id,
+            run_id,
+            &title,
+            &run,
+            artifact_list.first(),
+            schedule,
+        )
+        .await?;
     }
 
     if let (Some(schedule), Some(hash)) = (&schedule, novelty_hash.as_deref()) {
@@ -315,10 +245,27 @@ async fn retry_delivery(state: &AppState, delivery: &deliveries::Delivery) -> Ap
             return Ok(());
         }
     };
-    match delivery.channel.as_str() {
-        "GDOCS" => retry_gdocs(state, delivery, &payload).await,
-        "DRIVE" => retry_drive(state, delivery, &payload).await,
-        _ => retry_email(state, delivery, &payload).await,
+    match DeliveryChannel::parse(&delivery.channel) {
+        Some(DeliveryChannel::GoogleDocs) => retry_gdocs(state, delivery, &payload).await,
+        Some(DeliveryChannel::GoogleDrive) => retry_drive(state, delivery, &payload).await,
+        Some(DeliveryChannel::Smtp) => retry_email(state, delivery, &payload).await,
+        Some(DeliveryChannel::Signal) => Ok(()),
+        Some(DeliveryChannel::Gmail)
+        | Some(DeliveryChannel::GoogleCalendar)
+        | Some(DeliveryChannel::GoogleTasks) => {
+            let _ = deliveries::mark_skipped(
+                &state.db,
+                &delivery.id,
+                "delivery channel has no retry adapter",
+            )
+            .await;
+            Ok(())
+        }
+        None => {
+            let _ =
+                deliveries::mark_skipped(&state.db, &delivery.id, "unknown delivery channel").await;
+            Ok(())
+        }
     }
 }
 

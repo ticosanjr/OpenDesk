@@ -22,6 +22,7 @@ import { IconLabel } from "@/components/ui/icon-label";
 import { LoadingState } from "@/components/ui/loading-state";
 import { Modal } from "@/components/ui/modal";
 import { PathInput } from "@/components/ui/path-input";
+import { ExternalResources } from "@/components/packs/ExternalResources";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
@@ -409,6 +410,48 @@ export function PacksPage() {
         </Card>
       ) : null}
 
+      {onboardingDismissed || installedCount > 0 ? (
+        <Card>
+          <CardHeader className="py-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-[12px]">
+                <FolderPlus size={14} className="text-zinc-500" />
+                Workspaces prontos
+              </CardTitle>
+              <p className="mt-1 text-[10px] text-zinc-500">
+                Crie um workspace com cor, pastas e pacotes já organizados. Você pode
+                editar tudo depois.
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {templates.map((template) => (
+              <TemplateCard
+                key={template.id}
+                template={template}
+                onClick={() => openTemplate(template)}
+              />
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <ExternalResources
+        onCreateWorkspace={(templateId) => {
+          const template = templates.find((item) => item.id === templateId);
+          if (template) openTemplate(template);
+        }}
+      />
+
+      <div className="flex flex-wrap items-end justify-between gap-3 pt-1">
+        <div>
+          <h2 className="text-[13px] font-semibold text-zinc-100">Adicionar capacidades</h2>
+          <p className="mt-0.5 text-[10px] text-zinc-500">
+            Instale pacotes no workspace ativo ou use um workspace pronto como base.
+          </p>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/20 px-3 py-2">
         <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
           <Search size={13} className="shrink-0 text-zinc-600" />
@@ -527,30 +570,6 @@ export function PacksPage() {
           ))}
         </div>
       )}
-
-      <Card>
-        <CardHeader className="py-3">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-[12px]">
-              <FolderPlus size={14} className="text-zinc-500" />
-              Workspaces prontos
-            </CardTitle>
-            <p className="mt-1 text-[10px] text-zinc-500">
-              Crie um workspace com cor, pastas e pacotes já organizados. Você pode
-              editar tudo depois.
-            </p>
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {templates.map((template) => (
-            <TemplateCard
-              key={template.id}
-              template={template}
-              onClick={() => openTemplate(template)}
-            />
-          ))}
-        </CardContent>
-      </Card>
 
       <Modal
         open={selected !== null}
@@ -865,8 +884,12 @@ function TemplateCard({
         {template.description}
       </p>
       <p className="mt-2 text-[10px] text-zinc-600">
-        {template.packs.length} pacotes
+        {template.packs.length} pacotes · {template.folders.length} pastas
         {action ? ` · ${action}` : ""}
+      </p>
+      <p className="mt-1 truncate font-mono text-[8px] text-zinc-700">
+        {template.packs.slice(0, 4).join(" · ")}
+        {template.packs.length > 4 ? ` +${template.packs.length - 4}` : ""}
       </p>
     </button>
   );

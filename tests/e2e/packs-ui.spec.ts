@@ -61,6 +61,23 @@ test("starter pack repair recreates missing files and uninstall preserves edits"
 
 });
 
+test("external capability catalog filters and opens a recommended workspace", async ({
+  page,
+  request,
+}) => {
+  await seedWorkspace(request, "Packs Resources");
+  await page.goto("/#/packs");
+  await expect(page.getByText("Descobrir capacidades")).toBeVisible();
+
+  await page.getByRole("button", { name: "MCP", exact: true }).click();
+  const smithery = page.locator("article").filter({ hasText: "Smithery" });
+  await expect(smithery).toBeVisible();
+  await smithery.getByRole("button", { name: "Criar workspace" }).click();
+  await expect(
+    page.getByRole("dialog").getByText(/Criar workspace:/),
+  ).toBeVisible();
+});
+
 test("workspace template creates a ready-to-use workspace from the UI", async ({
   page,
   request,

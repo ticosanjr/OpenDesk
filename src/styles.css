@@ -196,6 +196,21 @@ button {
   .opendesk-gear-reverse {
     animation: none;
   }
+
+  .animate-spin,
+  .animate-pulse,
+  .animate-bounce {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  [class*="animate-["] {
+    animation: none !important;
+  }
+
+  .focus-pulse {
+    animation: none;
+  }
 }
 
 /* Markdown preview */

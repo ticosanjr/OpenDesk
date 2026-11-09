@@ -81,6 +81,7 @@ export function TriggerEditor({
           variant="ghost"
           size="icon"
           className="h-7 w-7 text-red-300"
+          aria-label="Remover gatilho"
           onClick={onRemove}
           title="Remover gatilho"
         >

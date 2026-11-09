@@ -1,4 +1,70 @@
+use super::channel::DeliveryChannel;
 use super::*;
+
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn deliver_email(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    run_id: &str,
+    artifact_id: Option<&str>,
+    subject: &str,
+    html: &str,
+    attachments: Vec<EmailAttachment>,
+    retry_artifacts: &[String],
+    recipients: &[String],
+    config: &smtp_mailer::SmtpConfig,
+) -> AppResult<()> {
+    for recipient in recipients {
+        let key = format!("smtp:{run_id}:{recipient}");
+        let Some(delivery) = deliveries::create_pending(
+            pool,
+            workspace_id,
+            artifact_id,
+            DeliveryChannel::Smtp.as_str(),
+            &key,
+        )
+        .await?
+        else {
+            continue;
+        };
+
+        match with_retry(3, || {
+            smtp_mailer::send_email(
+                config,
+                recipient,
+                subject,
+                html.to_string(),
+                attachments.clone(),
+            )
+        })
+        .await
+        {
+            Ok(()) => {
+                let _ = deliveries::mark_success(pool, &delivery.id, None, None).await;
+                tracing::info!(run = run_id, recipient, "run summary emailed");
+            }
+            Err(error) => {
+                let payload = serde_json::json!({
+                    "recipient": recipient,
+                    "subject": subject,
+                    "html": html,
+                    "artifact_paths": retry_artifacts,
+                })
+                .to_string();
+                let _ = deliveries::mark_failed_retryable(
+                    pool,
+                    &delivery.id,
+                    &format!("{error:#}"),
+                    &payload,
+                    5,
+                )
+                .await;
+                tracing::warn!(run = run_id, recipient, error = %error, "email delivery failed; scheduled for retry");
+            }
+        }
+    }
+    Ok(())
+}
 
 pub(super) async fn retry_email(
     state: &AppState,

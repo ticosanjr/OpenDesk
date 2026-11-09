@@ -122,7 +122,7 @@ export function CapturePage() {
             </option>
           ))}
         </select>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => void close()}>
+        <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Fechar captura" onClick={() => void close()}>
           <X size={14} />
         </Button>
       </div>

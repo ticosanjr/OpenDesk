@@ -15,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadingState } from "@/components/ui/loading-state";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiGet } from "@/lib/api";
@@ -147,10 +148,7 @@ export function RunsPage() {
       <Card>
         <CardContent className="p-0">
           {loading && runs.length === 0 ? (
-            <p className="flex items-center gap-2 p-5 text-[11px] text-zinc-500">
-              <Loader2 size={13} className="animate-spin" />
-              Carregando execuções…
-            </p>
+            <LoadingState compact label="Carregando execuções…" rows={4} />
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={Activity}

@@ -61,6 +61,7 @@ export function DashboardPage() {
   const setWorkspaceDialogOpen = useUiStore(
     (state) => state.setWorkspaceDialogOpen,
   );
+  const setTaskDialogOpen = useUiStore((state) => state.setTaskDialogOpen);
 
   const activeWorkspace = workspaces.find(
     (workspace) => workspace.id === activeWorkspaceId,
@@ -369,6 +370,11 @@ export function DashboardPage() {
                 icon={Bot}
                 title="Nenhum agente configurado"
                 description="Crie um agente no OpenCode Studio ou adicione um arquivo em .opencode/agents/."
+                action={
+                  <Button size="sm" variant="outline" onClick={() => navigate("/studio")}>
+                    Abrir Studio
+                  </Button>
+                }
               />
             ) : (
               <div className="grid gap-2 md:grid-cols-2">
@@ -541,6 +547,11 @@ export function DashboardPage() {
                 icon={Archive}
                 title="Nenhuma atividade ainda"
                 description="Runs e artefatos aparecerão aqui em tempo real via WebSocket."
+                action={
+                  <Button size="sm" onClick={() => setTaskDialogOpen(true)}>
+                    Criar tarefa
+                  </Button>
+                }
               />
             ) : (
               <div className="space-y-2">

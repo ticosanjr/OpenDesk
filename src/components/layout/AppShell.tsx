@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, RefreshCw, Settings, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -7,6 +7,7 @@ import { CommandPalette } from "@/components/layout/CommandPalette";
 import { WorkspaceDialog } from "@/components/layout/WorkspaceDialog";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Modal } from "@/components/ui/modal";
 import { Toaster } from "@/components/ui/toaster";
 import { useAppStore } from "@/store/app-store";
@@ -23,7 +24,31 @@ import {
   sendNativeNotification,
 } from "@/lib/notification-policy";
 
+const ROUTE_LABELS: Array<[string, string]> = [
+  ["/search", "Buscar"],
+  ["/kanban", "Kanban"],
+  ["/calendar", "Calendário"],
+  ["/runs/", "Execução"],
+  ["/runs", "Execuções"],
+  ["/chat", "Chat"],
+  ["/artifacts", "Artefatos"],
+  ["/files", "Arquivos"],
+  ["/routines", "Rotinas"],
+  ["/recipes", "Receitas"],
+  ["/packs", "Pacotes"],
+  ["/studio", "Studio"],
+  ["/router", "Roteador"],
+  ["/integrations", "Integrações"],
+  ["/settings", "Configurações"],
+];
+
+function routeLabel(pathname: string): string {
+  if (pathname === "/") return "Dashboard";
+  return ROUTE_LABELS.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? "OpenDesk";
+}
+
 export function AppShell() {
+  const mainRef = useRef<HTMLElement | null>(null);
   const boot = useAppStore((state) => state.boot);
   const loading = useAppStore((state) => state.loading);
   const error = useAppStore((state) => state.error);
@@ -49,6 +74,10 @@ export function AppShell() {
   useEffect(() => {
     setDismissedBudget(null);
   }, [budgetAlert?.message]);
+
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!lastRunEvent) return;
@@ -302,6 +331,13 @@ export function AppShell() {
     [accent],
   );
 
+  useEffect(() => {
+    const label = routeLabel(location.pathname);
+    document.title = activeWorkspace?.name
+      ? `${label} · ${activeWorkspace.name} · OpenDesk`
+      : `${label} · OpenDesk`;
+  }, [activeWorkspace?.name, location.pathname]);
+
   return (
     <div
       className="workspace-scope flex h-dvh w-screen overflow-hidden bg-[#09090b] text-zinc-100"
@@ -397,7 +433,7 @@ export function AppShell() {
             </button>
           </div>
         ) : null}
-        <main className="app-main min-h-0 flex-1">
+        <main ref={mainRef} className="app-main min-h-0 flex-1">
           <Suspense
             fallback={
               <div className="space-y-3 p-5 lg:p-7">
@@ -410,7 +446,9 @@ export function AppShell() {
               </div>
             }
           >
-            <Outlet />
+            <ErrorBoundary resetKey={location.pathname}>
+              <Outlet />
+            </ErrorBoundary>
           </Suspense>
         </main>
       </div>

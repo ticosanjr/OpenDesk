@@ -1,8 +1,7 @@
 use super::*;
 use crate::config_sync::{
-    agents::{self, AgentWriteInput, PermissionRule},
-    commands::{self, CommandWriteInput},
-    jsonc_editor, markdown,
+    agents::{self, AgentWriteInput},
+    content_installation::{ContentDraft, ContentInstallation},
     skills::{self, SkillExtraFile, SkillWriteInput},
 };
 use std::path::Path as FsPath;
@@ -70,85 +69,22 @@ pub async fn install_apply(
         "workspace",
     )
     .await?;
+    let installation =
+        ContentInstallation::new(&target.paths, &target.scope, &state.paths.backups_dir);
     let mut written = Vec::new();
     for item in body.items {
         let kind = StudioKind::parse(&item.kind)?;
-        match kind {
-            StudioKind::Mcp => {
-                let server = item.server.clone().ok_or_else(|| {
-                    AppError::BadRequest(format!("mcp {} has no server object", item.id))
-                })?;
-                let path = target.paths.config_path(&target.scope)?;
-                jsonc_editor::upsert_mcp_server(
-                    &path,
-                    &item.id,
-                    &server,
-                    None,
-                    &state.paths.backups_dir,
-                )?;
-            }
-            StudioKind::Agent => {
-                let (frontmatter, body) = parse_markdown(&item.body);
-                agents::write(
-                    &target.paths,
-                    &target.scope,
-                    &item.id,
-                    AgentWriteInput {
-                        name: markdown::get_string(&frontmatter, "name").or(item.name.clone()),
-                        avatar: markdown::get_string(&frontmatter, "avatar"),
-                        description: markdown::get_string(&frontmatter, "description")
-                            .or(item.description.clone()),
-                        mode: markdown::get_string(&frontmatter, "mode"),
-                        model: markdown::get_string(&frontmatter, "model"),
-                        color: markdown::get_string(&frontmatter, "color"),
-                        router_policy: markdown::get_string(&frontmatter, "router_policy"),
-                        hidden: markdown::get_bool(&frontmatter, "hidden").unwrap_or(false),
-                        steps: markdown::get_u32(&frontmatter, "steps"),
-                        disabled: markdown::get_bool(&frontmatter, "disabled").unwrap_or(false),
-                        permissions: parse_permissions(&frontmatter)?,
-                        system: body,
-                        expected_sha256: None,
-                    },
-                    &state.paths.backups_dir,
-                )?;
-            }
-            StudioKind::Skill => {
-                let (frontmatter, body) = parse_markdown(&item.body);
-                skills::write(
-                    &target.paths,
-                    &target.scope,
-                    &item.id,
-                    SkillWriteInput {
-                        name: markdown::get_string(&frontmatter, "name").or(item.name.clone()),
-                        description: markdown::get_string(&frontmatter, "description")
-                            .or(item.description.clone()),
-                        body,
-                        files: item.files.clone(),
-                        expected_sha256: None,
-                    },
-                    &state.paths.backups_dir,
-                )?;
-            }
-            StudioKind::Command => {
-                let (frontmatter, body) = parse_markdown(&item.body);
-                commands::write(
-                    &target.paths,
-                    &target.scope,
-                    &item.id,
-                    CommandWriteInput {
-                        description: markdown::get_string(&frontmatter, "description")
-                            .or(item.description.clone()),
-                        agent: markdown::get_string(&frontmatter, "agent"),
-                        model: markdown::get_string(&frontmatter, "model"),
-                        subagent: markdown::get_bool(&frontmatter, "subagent"),
-                        template: body,
-                        expected_sha256: None,
-                    },
-                    &state.paths.backups_dir,
-                )?;
-            }
-        }
-        written.push(json!({ "kind": kind.as_str(), "id": item.id }));
+        let draft = ContentDraft {
+            kind,
+            id: item.id,
+            name: item.name,
+            description: item.description,
+            body: item.body,
+            files: item.files,
+            server: item.server,
+        };
+        installation.install(&draft)?;
+        written.push(json!({ "kind": kind.as_str(), "id": draft.id }));
     }
     Ok(Json(
         json!({ "ok": true, "scope": target.scope, "items": written }),
@@ -275,22 +211,6 @@ pub async fn import_runtime(
         "id": body.id,
         "scope": target.scope,
     })))
-}
-
-pub(super) fn parse_markdown(content: &str) -> (serde_yaml::Mapping, String) {
-    match markdown::parse(content) {
-        Ok(document) => (document.frontmatter, document.body),
-        Err(_) => (serde_yaml::Mapping::new(), content.to_string()),
-    }
-}
-
-pub(super) fn parse_permissions(mapping: &serde_yaml::Mapping) -> AppResult<Vec<PermissionRule>> {
-    let Some(value) = mapping.get(serde_yaml::Value::String("permissions".into())) else {
-        return Ok(Vec::new());
-    };
-    serde_yaml::from_value::<Vec<PermissionRule>>(value.clone()).map_err(|error| {
-        AppError::BadRequest(format!("invalid permissions in imported agent: {error}"))
-    })
 }
 
 pub(super) async fn collect_source(

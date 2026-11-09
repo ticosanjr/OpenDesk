@@ -337,6 +337,7 @@ export function RecipeStepper({
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
+                aria-label="Mover etapa para cima"
                 onClick={() => move(index, -1)}
                 disabled={index === 0}
                 title="Mover para cima"
@@ -347,6 +348,7 @@ export function RecipeStepper({
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
+                aria-label="Mover etapa para baixo"
                 onClick={() => move(index, 1)}
                 disabled={index === flow.length - 1}
                 title="Mover para baixo"
@@ -357,6 +359,7 @@ export function RecipeStepper({
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-red-300"
+                aria-label="Remover etapa"
                 onClick={() => setFlow(flow.filter((_, position) => position !== index))}
                 title="Remover"
               >

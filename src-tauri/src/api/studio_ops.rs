@@ -287,6 +287,9 @@ pub async fn effective(
         } else {
             "ancestor"
         };
+        if !paths.has_studio_files("workspace") {
+            continue;
+        }
         for kind in StudioKind::ALL {
             for item in StudioItem::list(&paths, "workspace", kind)? {
                 insert_effective(&mut items, kind, scope, item);
@@ -761,8 +764,10 @@ mod tests {
 
 #[cfg(test)]
 mod install_tests {
-    use super::*;
-    use crate::config_sync::markdown;
+    use crate::config_sync::{
+        content_installation::{parse_markdown, parse_permissions},
+        markdown,
+    };
 
     #[test]
     fn imported_agent_frontmatter_is_parsed() {

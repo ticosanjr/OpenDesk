@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadingState } from "@/components/ui/loading-state";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
@@ -355,7 +356,7 @@ export function RoutinesPage() {
         className="max-w-2xl"
       >
         {historyLoading ? (
-          <p className="text-[11px] text-zinc-500">Carregando histórico…</p>
+          <LoadingState compact label="Carregando histórico…" rows={3} />
         ) : historyRuns.length === 0 ? (
           <p className="rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-[11px] text-zinc-600">
             Nenhum run registrado ainda. Use “Executar agora” ou aguarde o próximo disparo.

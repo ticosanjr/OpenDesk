@@ -99,6 +99,28 @@ async fn drive_retry_skips_when_the_artifact_is_gone() {
 }
 
 #[tokio::test]
+async fn legacy_google_channels_are_skipped_instead_of_staying_failed() {
+    let (context, delivery) = due_delivery(
+        "GMAIL",
+        "gmail:retry:legacy",
+        serde_json::json!({ "to": "user@example.com" }),
+    )
+    .await;
+    retry_delivery(&context.state, &delivery)
+        .await
+        .expect("retry");
+    let stored = deliveries::get_by_key(&context.state.db, "gmail:retry:legacy")
+        .await
+        .expect("get")
+        .expect("row");
+    assert_eq!(stored.status, "SKIPPED");
+    assert_eq!(
+        stored.last_error.as_deref(),
+        Some("delivery channel has no retry adapter")
+    );
+}
+
+#[tokio::test]
 async fn retry_rejects_invalid_payloads_without_touching_google() {
     let (context, delivery) = due_delivery(
         "DRIVE",

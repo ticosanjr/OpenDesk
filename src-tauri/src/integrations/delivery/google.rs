@@ -27,9 +27,14 @@ pub(super) async fn export_google(
             && let Ok(markdown) = std::fs::read_to_string(&artifact.absolute_path)
         {
             let key = format!("gdocs:{run_id}");
-            if let Ok(Some(delivery)) =
-                deliveries::create_pending(pool, workspace_id, Some(&artifact.id), "GDOCS", &key)
-                    .await
+            if let Ok(Some(delivery)) = deliveries::create_pending(
+                pool,
+                workspace_id,
+                Some(&artifact.id),
+                DeliveryChannel::GoogleDocs.as_str(),
+                &key,
+            )
+            .await
             {
                 match with_retry(3, || {
                     api.gdocs_create_from_markdown(workspace_id, title, &markdown, folder_id)
@@ -77,9 +82,14 @@ pub(super) async fn export_google(
             .take(5)
         {
             let key = format!("drive:{run_id}:{}", artifact.id);
-            let Ok(Some(delivery)) =
-                deliveries::create_pending(pool, workspace_id, Some(&artifact.id), "DRIVE", &key)
-                    .await
+            let Ok(Some(delivery)) = deliveries::create_pending(
+                pool,
+                workspace_id,
+                Some(&artifact.id),
+                DeliveryChannel::GoogleDrive.as_str(),
+                &key,
+            )
+            .await
             else {
                 continue;
             };

@@ -62,7 +62,19 @@ flow:
   await page.getByLabel("Tipo do gatilho 1").selectOption("WEBHOOK");
   await page.getByLabel("Tipo do gatilho 2").selectOption("CRON");
   await page.getByRole("button", { name: /Salvar/ }).first().click();
-  await expect(page.getByText("Receita salva").first()).toBeVisible();
+  await expect
+    .poll(async () => {
+      const detail = await request.get(`${auth.baseURL}/api/recipes/${id}`, {
+        headers: auth.headers,
+      });
+      const yaml = ((await detail.json()) as { yaml: string }).yaml;
+      return {
+        reordered: yaml.indexOf("id: passo-2") < yaml.indexOf("id: passo-1"),
+        webhook: yaml.includes("type: WEBHOOK"),
+        cron: yaml.includes("type: CRON"),
+      };
+    })
+    .toEqual({ reordered: true, webhook: true, cron: true });
 
   const detail = await request.get(`${auth.baseURL}/api/recipes/${id}`, {
     headers: auth.headers,

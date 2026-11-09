@@ -25,7 +25,7 @@ export function StudioList({
             {count}
           </span>
         </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onNew} title={newLabel}>
+        <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={newLabel} onClick={onNew} title={newLabel}>
           <Plus size={14} />
         </Button>
       </div>

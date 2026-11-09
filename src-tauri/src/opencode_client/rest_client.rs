@@ -435,7 +435,7 @@ mod tests {
         headers
             .get("authorization")
             .and_then(|value| value.to_str().ok())
-            .map(|value| value.starts_with("Basic "))
+            .map(|value| value == "Basic b3BlbmNvZGU6c2VjcmV0")
             .unwrap_or(false)
     }
 
@@ -698,5 +698,14 @@ mod tests {
     async fn reports_transport_errors() {
         let client = RestClient::new_with_url("http://127.0.0.1:1", "secret".into());
         assert!(client.info().await.is_err());
+    }
+
+    #[tokio::test]
+    async fn contract_rejects_unauthorized_requests() {
+        let (url, handle) = mock_server().await;
+        let client = RestClient::new_with_url(&url, "wrong".into());
+        let error = client.info().await.expect_err("unauthorized");
+        assert!(error.to_string().contains("401"), "{error}");
+        handle.abort();
     }
 }

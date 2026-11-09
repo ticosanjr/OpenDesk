@@ -208,13 +208,14 @@ export function OutboundSinksCard({ workspaceId }: { workspaceId: string }) {
                   <p className="truncate text-[9px] text-red-300/80">{sink.last_error}</p>
                 ) : null}
               </div>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => edit(sink)}>
+              <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Editar sink" onClick={() => edit(sink)}>
                 <Pencil size={12} />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-red-300"
+                aria-label="Remover sink"
                 onClick={() => void remove(sink)}
               >
                 <Trash2 size={12} />

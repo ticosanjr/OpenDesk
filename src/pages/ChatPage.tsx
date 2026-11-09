@@ -388,10 +388,10 @@ export function ChatPage() {
                     }}
                     className="h-7 min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-950 px-2 text-[11px] text-zinc-100 outline-none"
                   />
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => void renameThread()}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Confirmar novo nome" onClick={() => void renameThread()}>
                     <Check size={12} />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRenaming(false)}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Cancelar renomeação" onClick={() => setRenaming(false)}>
                     <X size={12} />
                   </Button>
                 </div>

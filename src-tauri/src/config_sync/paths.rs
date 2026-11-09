@@ -67,6 +67,13 @@ impl StudioPaths {
         Ok(base.join("opencode.jsonc"))
     }
 
+    pub fn has_studio_files(&self, scope: &str) -> bool {
+        let Ok(opencode) = self.opencode_dir(scope) else {
+            return false;
+        };
+        opencode.is_dir() || self.config_path(scope).is_ok_and(|path| path.exists())
+    }
+
     pub fn ensure_scope_layout(&self, scope: &str) -> AppResult<()> {
         for dir in [
             self.agents_dir(scope)?,
@@ -162,6 +169,15 @@ mod tests {
             studio.workspace_output_dir().unwrap(),
             temp.path().join("workspace/output")
         );
+    }
+
+    #[test]
+    fn detects_whether_a_scope_has_studio_files() {
+        let temp = TempDir::new().expect("temp");
+        let studio = paths(&temp);
+        assert!(!studio.has_studio_files("workspace"));
+        studio.ensure_scope_layout("workspace").expect("layout");
+        assert!(studio.has_studio_files("workspace"));
     }
 
     #[test]

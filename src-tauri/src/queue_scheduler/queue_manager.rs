@@ -1,7 +1,7 @@
 use crate::{
     db::{
         artifacts::{self, CreateArtifactInput},
-        budget, model_health, queue, runs, schedules, tasks, workspaces,
+        budget, model_health, queue, runs, tasks, workspaces,
     },
     error::{AppError, AppResult},
     events::{ArtifactProvenanceDto, EventBus, OpenDeskWsEvent, QueueJobDto},
@@ -11,6 +11,7 @@ use crate::{
         session_runner::{self, RunRequest, RunStatus},
     },
     paths::AppPaths,
+    queue_scheduler::settlement,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -335,7 +336,7 @@ impl QueueManager {
             Err(error) => {
                 let _ =
                     queue::finish(&self.pool, &job.id, "FAILED", Some(&error.to_string())).await;
-                self.mark_schedule(&job, "FAILED").await;
+                settlement::mark_schedule(&self.pool, &self.events, &job, "FAILED").await;
                 self.publish_queue(&job.workspace_id).await;
                 return;
             }
@@ -440,7 +441,7 @@ impl QueueManager {
             Err(error) => {
                 let _ =
                     queue::finish(&self.pool, &job.id, "FAILED", Some(&error.to_string())).await;
-                self.mark_schedule(&job, "FAILED").await;
+                settlement::mark_schedule(&self.pool, &self.events, &job, "FAILED").await;
                 self.publish_queue(&job.workspace_id).await;
                 return;
             }
@@ -472,7 +473,7 @@ impl QueueManager {
                 Some("OpenCode daemon is offline"),
             )
             .await;
-            self.mark_schedule(&job, "SKIPPED_OFFLINE").await;
+            settlement::mark_schedule(&self.pool, &self.events, &job, "SKIPPED_OFFLINE").await;
             if let Some(task) = &task {
                 let _ =
                     tasks::set_phase_status(&self.pool, &task.id, Some("failed"), Some("BLOCKED"))
@@ -583,31 +584,13 @@ impl QueueManager {
             .await;
         }
 
-        for permission in &outcome.permissions {
-            let _ = sqlx::query(
-                "INSERT INTO permission_audit (
-                    id, run_id, session_id, request_id, permission_action, resource, decision
-                 ) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            )
-            .bind(Uuid::now_v7().to_string())
-            .bind(&run_id)
-            .bind(&outcome.session_id)
-            .bind(&permission.request_id)
-            .bind(&permission.action)
-            .bind(permission.resources.join(","))
-            .bind(&permission.decision)
-            .execute(&self.pool)
-            .await;
-        }
+        settlement::record_permissions(&self.pool, &run_id, &outcome).await;
 
-        let _ = runs::finish(
+        settlement::finish_run(
             &self.pool,
             &run_id,
-            outcome.status.as_str(),
-            &outcome.usage,
+            &outcome,
             started.elapsed().as_millis() as i64,
-            outcome.summary.as_deref(),
-            outcome.log_tail.as_deref(),
         )
         .await;
 
@@ -625,7 +608,7 @@ impl QueueManager {
                 .as_deref()
                 .or(outcome.summary.as_deref())
                 .unwrap_or("run failed without a message");
-            let (code, hint) = classify_run_error(message);
+            let (code, hint) = settlement::classify_run_error(message);
             let _ = runs::set_error(&self.pool, &run_id, code, message, hint).await;
             if code == "rate_limited" {
                 let _ =
@@ -676,101 +659,22 @@ impl QueueManager {
             }
         }
 
-        let queue_status = match outcome.status {
-            RunStatus::Success => "COMPLETED",
-            RunStatus::Failed => "FAILED",
-            RunStatus::Cancelled => "CANCELLED",
-        };
-        let _ = queue::finish(&self.pool, &job.id, queue_status, outcome.error.as_deref()).await;
-        self.mark_schedule(
-            &job,
-            match outcome.status {
-                RunStatus::Success => "SUCCESS",
-                RunStatus::Failed => "FAILED",
-                RunStatus::Cancelled => "CANCELLED",
-            },
-        )
-        .await;
+        settlement::settle_queue(&self.pool, &self.events, &job, &outcome).await;
 
-        if let Some(task) = &task
-            && !fallback_enqueued
-        {
-            let _ = tasks::set_last_run(
+        if let Some(task) = &task {
+            settlement::settle_task(
                 &self.pool,
-                &task.id,
-                Some(&run_id),
-                Some(outcome.status.as_str()),
+                &self.events,
+                task,
+                phase,
+                &outcome,
+                &run_id,
+                fallback_enqueued,
             )
             .await;
-
-            let (next_status, phase_status) = match (phase, outcome.status) {
-                ("plan", RunStatus::Success) => {
-                    tasks::set_plan(
-                        &self.pool,
-                        &task.id,
-                        outcome
-                            .summary
-                            .as_deref()
-                            .unwrap_or("Plano concluído sem texto retornado pelo modelo."),
-                    )
-                    .await
-                    .ok();
-                    if task.execution_mode == "PLAN_ONLY" {
-                        ("DONE", "plan_complete")
-                    } else {
-                        ("IN_REVIEW", "awaiting_approval")
-                    }
-                }
-                (_, RunStatus::Success) => (
-                    "DONE",
-                    if phase == "audit" {
-                        "audit_approved"
-                    } else {
-                        "build_complete"
-                    },
-                ),
-                (_, RunStatus::Cancelled) => ("CANCELLED", "cancelled"),
-                (_, RunStatus::Failed) => ("BLOCKED", "failed"),
-            };
-
-            if next_status == "CANCELLED" {
-                let _ = tasks::set_cancelled(&self.pool, &task.id).await;
-            } else {
-                let _ = tasks::set_phase_status(
-                    &self.pool,
-                    &task.id,
-                    Some(phase_status),
-                    Some(next_status),
-                )
-                .await;
-            }
-            if next_status == "BLOCKED" {
-                let message = outcome
-                    .error
-                    .as_deref()
-                    .or(outcome.summary.as_deref())
-                    .unwrap_or("run failed without a message");
-                let _ = tasks::set_blocked_reason(&self.pool, &task.id, Some(message)).await;
-            } else {
-                let _ = tasks::set_blocked_reason(&self.pool, &task.id, None).await;
-            }
-
-            self.events.publish(OpenDeskWsEvent::TaskUpdated {
-                task_id: task.id.clone(),
-                workspace_id: task.workspace_id.clone(),
-                stage: next_status.into(),
-                phase_status: Some(phase_status.into()),
-            });
         }
 
-        self.events.publish(OpenDeskWsEvent::RunFinished {
-            run_id: run_id.clone(),
-            task_id: job.task_id.clone(),
-            status: outcome.status.as_str().to_string(),
-            estimated_cost_usd: outcome.usage.estimated_cost_usd,
-            tokens_input: outcome.usage.tokens_input,
-            tokens_output: outcome.usage.tokens_output,
-        });
+        settlement::publish_run_finished(&self.events, &job, &run_id, &outcome);
 
         let delivery_pool = self.pool.clone();
         let delivery_paths = self.paths.clone();
@@ -934,25 +838,6 @@ impl QueueManager {
         }
     }
 
-    /// Keep routine history and notifications accurate for prompt routines.
-    /// Recipe routines update the same status from the recipe engine.
-    async fn mark_schedule(&self, job: &queue::QueueJob, status: &str) {
-        let Some(schedule_id) = job.schedule_id.as_deref() else {
-            return;
-        };
-        let _ = schedules::mark_run(
-            &self.pool,
-            schedule_id,
-            status,
-            &chrono::Utc::now().to_rfc3339(),
-        )
-        .await;
-        self.events.publish(OpenDeskWsEvent::ScheduleUpdated {
-            schedule_id: schedule_id.to_string(),
-            workspace_id: job.workspace_id.clone(),
-        });
-    }
-
     async fn publish_queue(&self, workspace_id: &str) {
         if let Ok(jobs) = queue::list(&self.pool, Some(workspace_id)).await {
             self.events.publish(OpenDeskWsEvent::QueueUpdated {
@@ -968,67 +853,6 @@ impl QueueManager {
 }
 
 impl QueueManager {}
-
-fn classify_run_error(message: &str) -> (&'static str, &'static str) {
-    let lower = message.to_lowercase();
-    if lower.contains("daemon is offline") || lower.contains("connection refused") {
-        (
-            "engine_offline",
-            "O motor OpenCode não está acessível. Reinicie o motor em Configurações → OpenCode Engine.",
-        )
-    } else if lower.contains("401") || lower.contains("unauthorized") || lower.contains("password")
-    {
-        (
-            "auth_failed",
-            "O OpenCode rejeitou a autenticação. Reinicie o motor para renovar a senha do daemon.",
-        )
-    } else if lower.contains("model") && (lower.contains("not found") || lower.contains("unknown"))
-    {
-        (
-            "model_not_found",
-            "O modelo configurado não existe ou não está disponível para este workspace. Edite a tarefa e escolha outro modelo.",
-        )
-    } else if lower.contains("agent") && lower.contains("not found") {
-        (
-            "agent_not_found",
-            "O agente configurado não existe no workspace. Edite a tarefa e escolha outro agente.",
-        )
-    } else if lower.contains("429")
-        || lower.contains("too many requests")
-        || lower.contains("503")
-        || lower.contains("service unavailable")
-    {
-        (
-            "rate_limited",
-            "O provedor limitou temporariamente o modelo. O OpenDesk tenta um fallback configurado; se não houver, a tarefa fica bloqueada.",
-        )
-    } else if lower.contains("timed out") || lower.contains("timeout") {
-        (
-            "timeout",
-            "A execução excedeu o tempo limite. Tente novamente ou reduza o escopo da tarefa.",
-        )
-    } else if lower.contains("cancel") {
-        (
-            "cancelled",
-            "A execução foi cancelada. Use Tentar de novo para enfileirar outra execução.",
-        )
-    } else if lower.contains("budget") {
-        (
-            "budget_blocked",
-            "O budget guard bloqueou a execução. Ajuste o limite em Roteador & Custos ou aguarde o próximo período.",
-        )
-    } else if lower.contains("no such file") || lower.contains("enoent") {
-        (
-            "binary_missing",
-            "O binário do OpenCode não foi encontrado. Configure o caminho em Configurações → OpenCode Engine.",
-        )
-    } else {
-        (
-            "run_failed",
-            "Abra o log completo e o diagnóstico da tarefa. Se o erro citar modelo/agente, edite a tarefa e tente novamente.",
-        )
-    }
-}
 
 fn clamp_concurrency(value: usize) -> usize {
     value.clamp(1, 4)
@@ -1105,39 +929,6 @@ fn artifact_dto(artifact: &artifacts::ArtifactProvenance) -> ArtifactProvenanceD
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn classifies_common_run_failures() {
-        assert_eq!(
-            classify_run_error("OpenCode daemon is offline").0,
-            "engine_offline"
-        );
-        assert_eq!(classify_run_error("HTTP 401 Unauthorized").0, "auth_failed");
-        assert_eq!(
-            classify_run_error("model not found: x").0,
-            "model_not_found"
-        );
-        assert_eq!(
-            classify_run_error("agent not found: x").0,
-            "agent_not_found"
-        );
-        assert_eq!(classify_run_error("request timed out").0, "timeout");
-        assert_eq!(classify_run_error("cancelled by user").0, "cancelled");
-        assert_eq!(classify_run_error("budget hard stop").0, "budget_blocked");
-        assert_eq!(
-            classify_run_error("429 Too Many Requests").0,
-            "rate_limited"
-        );
-        assert_eq!(
-            classify_run_error("503 Service Unavailable").0,
-            "rate_limited"
-        );
-        assert_eq!(
-            classify_run_error("No such file or directory").0,
-            "binary_missing"
-        );
-        assert_eq!(classify_run_error("something else").0, "run_failed");
-    }
 
     #[test]
     fn concurrency_is_clamped_to_a_safe_range() {

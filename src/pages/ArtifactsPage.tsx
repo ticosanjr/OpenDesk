@@ -460,6 +460,7 @@ export function ArtifactsPage() {
                 <Button
                   variant="ghost"
                   size="icon"
+                  aria-label="Fechar visualizador"
                   onClick={() => setSelected(null)}
                   className="h-8 w-8"
                 >

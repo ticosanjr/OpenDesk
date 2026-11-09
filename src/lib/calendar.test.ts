@@ -9,7 +9,9 @@ import {
   isVisibleItem,
   itemTimeLabel,
   itemsForDay,
+  loadCalendarView,
   monthGrid,
+  saveCalendarView,
 } from "./calendar";
 import type { CalendarItem } from "./types";
 
@@ -97,6 +99,16 @@ describe("calendar helpers", () => {
         }),
       ),
     ).toBe("09:00");
+  });
+
+  it("persists the calendar view per workspace", () => {
+    localStorage.clear();
+    expect(loadCalendarView("ws-a")).toBe("month");
+    saveCalendarView("ws-a", "seven");
+    expect(loadCalendarView("ws-a")).toBe("seven");
+    expect(loadCalendarView("ws-b")).toBe("month");
+    localStorage.setItem("opendesk.calendar.view.ws-a", "invalid");
+    expect(loadCalendarView("ws-a")).toBe("month");
   });
 });
 

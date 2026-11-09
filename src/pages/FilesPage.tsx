@@ -477,6 +477,7 @@ export function FilesPage() {
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7"
+                  aria-label="Copiar caminho"
                   title="Copiar caminho"
                   onClick={() => void copyPath(content.path)}
                 >
@@ -486,6 +487,7 @@ export function FilesPage() {
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7"
+                  aria-label="Abrir arquivo"
                   title="Abrir arquivo"
                   onClick={() => void reveal(content.path)}
                 >
@@ -496,7 +498,7 @@ export function FilesPage() {
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
             {loadingFile ? (
-              <p className="p-3 text-[11px] text-zinc-600">Carregando arquivo…</p>
+              <LoadingState compact label="Carregando arquivo…" rows={3} />
             ) : !selected ? (
               <EmptyState
                 icon={FileText}

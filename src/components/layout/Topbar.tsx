@@ -154,6 +154,7 @@ export function Topbar() {
         <Button
           variant="ghost"
           size="icon"
+          aria-label="Novo workspace"
           title="Novo workspace"
           className="shrink-0"
           onClick={() => setWorkspaceDialogOpen(true)}

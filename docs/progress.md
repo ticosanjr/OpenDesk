@@ -1480,3 +1480,64 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Gate completo passou: **60,23% global** e **66,37% core** no Rust, **97,55%**
   de linhas no Vitest, **265 Rust**, **93 Vitest** e **41 Playwright**.
 - Versão 0.28.0 publicada com artefatos locais, tag e GitHub Release.
+
+## 2026-11-09 — settlement, content installation e delivery
+
+- `queue_scheduler::settlement` extraiu a liquidação de run do `execute_job`:
+  status de fila/rotina, permissões, fechamento do run, task, eventos e
+  classificação de erro. Testes cobrem plano/build, falha com bloqueio e os
+  códigos de erro.
+- `config_sync::content_installation` centraliza parsing e escrita de agent,
+  skill, command e MCP; `install_apply` agora só monta `ContentDraft`.
+- `delivery` ganhou `DeliveryChannel` e adapters explícitos para SMTP e Signal;
+  retry e nomes de canal deixaram de ser strings soltas. O enum agora também
+  cobre GMAIL, GCALENDAR e GTASKS do schema, marcando canais legados sem adapter
+  como `SKIPPED` em vez de deixá-los presos em `FAILED`.
+- Contratos: payloads Google (Calendar, Gmail raw, Docs) e autenticação/erros do
+  OpenCode V2 cobertos.
+- `StudioPaths::has_studio_files` evita varrer raízes ancestrais sem `.opencode`
+  no merge efetivo do Studio.
+- Cobertura: **61,78% global** e **68,07% core**; ratchet local elevado para
+  **61% / 67%**. A meta de 80% segue como trilha incremental.
+- O E2E de receita deixou de depender do toast e passou a aguardar o estado
+  persistido, eliminando flake sob carga.
+- Testes: **282 Rust**, **93 Vitest** e **41 Playwright**.
+
+## 2026-11-09 — detalhes premium de navegação e feedback
+
+- Erros de render agora ficam isolados na rota: o shell continua navegável e o
+  boundary reseta ao trocar de rota, em vez de derrubar o app inteiro.
+- A navegação volta ao topo do `main` ao trocar de página; mudanças de query não
+  provocam salto durante a digitação.
+- O título da janela passa a refletir a página e o workspace ativo.
+- Movimento reduzido desativa spinners, skeletons, barras de loading e pulsos.
+- `RunsPage` usa o mesmo `LoadingState` do restante do produto.
+- Calendário lembra a última visão (Mês, Semana, 7 dias ou Dia) por workspace.
+- Botões somente de ícone receberam nome acessível em Arquivos, Artefatos, Chat,
+  Captura, Studio, integrações e editor de receitas.
+- Empty states do Dashboard agora têm CTA para Studio e criação de tarefa;
+  históricos e prévias usam `LoadingState` em vez de texto solto.
+- Testes: **282 Rust**, **95 Vitest**; Playwright direcionado de calendário,
+  auditoria de UI e fluxo principal verde (19 testes).
+
+## 2026-11-09 — pacotes, catálogo externo e criação por objetivo
+
+- Página Pacotes reorganizada em três camadas: **Workspaces prontos**,
+  **Descobrir capacidades** e **Adicionar capacidades**.
+- Novo catálogo externo curado com 18 fontes para skills, agentes, comandos,
+  MCPs, workflows e prompts: skills.sh, officialskills.sh, Linkly, ClawHub,
+  GitHub Topics, FlowGPT, PromptBase, Smithery, Glama, Anthropic MCP, PulseMCP,
+  Awesome MCP, mcp.so, Composio, Docker MCP, Cursor Directory, Dify e n8n.
+- Cada fonte tem foco, forma de consumo, tags e um atalho para criar o workspace
+  recomendado quando há template adequado.
+- Templates mostram quantidade de pacotes, pastas e composição resumida.
+- Quando o onboarding está visível, a lista de workspaces prontos não duplica os
+  mesmos cards; ela reaparece após dispensar o onboarding ou instalar um pacote.
+- Testes: **97 Vitest** e E2E novo de filtro MCP + criação de workspace a partir
+  de um recurso externo.
+
+## 2026-11-09 — release 0.29.0
+
+- Gate completo passou com **282 Rust**, **97 Vitest** e **42 Playwright**.
+- Cobertura Rust: **61,62% global** e **67,82% core**.
+- Versão 0.29.0 publicada com artefatos locais, tag e GitHub Release.

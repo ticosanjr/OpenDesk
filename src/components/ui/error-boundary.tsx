@@ -7,13 +7,19 @@ interface State {
 }
 
 export class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
+  { children: React.ReactNode; resetKey?: unknown },
   State
 > {
   state: State = { error: null };
 
   static getDerivedStateFromError(error: Error): State {
     return { error };
+  }
+
+  componentDidUpdate(previous: { resetKey?: unknown }) {
+    if (previous.resetKey !== this.props.resetKey && this.state.error) {
+      this.setState({ error: null });
+    }
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {

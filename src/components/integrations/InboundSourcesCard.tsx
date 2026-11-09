@@ -224,13 +224,14 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
                   <p className="truncate text-[9px] text-red-300/80">{source.last_error}</p>
                 ) : null}
               </div>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => edit(source)}>
+              <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Editar fonte" onClick={() => edit(source)}>
                 <Pencil size={12} />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-red-300"
+                aria-label="Remover fonte"
                 onClick={() => void remove(source)}
               >
                 <Trash2 size={12} />

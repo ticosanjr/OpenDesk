@@ -1,5 +1,6 @@
 pub mod agents;
 pub mod commands;
+pub mod content_installation;
 pub mod file_ops;
 pub mod jsonc_editor;
 pub mod markdown;
