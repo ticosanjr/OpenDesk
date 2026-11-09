@@ -2,6 +2,7 @@ pub mod about;
 pub mod artifacts;
 pub mod attachments;
 pub mod attention;
+pub mod audit;
 pub mod backups;
 pub mod blueprints;
 pub mod browse;
@@ -45,14 +46,17 @@ use crate::{
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, Path, Query, Request, State},
-    http::{HeaderValue, Method, StatusCode, header::AUTHORIZATION},
+    http::{
+        HeaderValue, Method, StatusCode,
+        header::{AUTHORIZATION, RETRY_AFTER},
+    },
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, patch, post, put},
 };
 use serde::Deserialize;
 use serde_json::json;
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 use tower_http::{
     cors::{AllowOrigin, Any, CorsLayer},
     trace::TraceLayer,
@@ -120,6 +124,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/agents", get(agents))
         .route("/api/dashboard", get(dashboard))
         .route("/api/metrics", get(metrics::get))
+        .route("/api/audit", get(audit::list))
         .route("/api/attention", get(attention::attention))
         .route("/api/attention/dismiss", post(attention::dismiss))
         .route("/api/starter-packs", get(starter_packs::list_packs))
@@ -525,6 +530,10 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .fallback(not_found)
         .layer(middleware::from_fn_with_state(
             state.clone(),
+            guard_middleware,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
             auth_middleware,
         ))
         .layer(cors)
@@ -802,6 +811,45 @@ async fn not_found() -> impl IntoResponse {
             "message": "route not found"
         })),
     )
+}
+
+async fn guard_middleware(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let method = request.method().clone();
+    let uri = request.uri().clone();
+    if let Some(class) = crate::audit::rate_class(&method, uri.path())
+        && let Err(retry_after) = state.rate_limiter.check(class)
+    {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(RETRY_AFTER, retry_after.to_string())],
+            Json(json!({
+                "code": "rate_limited",
+                "message": format!(
+                    "limite local de requisições excedido; tente novamente em {retry_after}s"
+                ),
+            })),
+        )
+            .into_response();
+    }
+    let started = Instant::now();
+    let response = next.run(request).await;
+    let status = response.status().as_u16();
+    if crate::audit::should_audit(&method, uri.path()) {
+        let pool = state.db.clone();
+        let duration_ms = started.elapsed().as_millis() as i64;
+        tokio::spawn(async move {
+            if let Err(error) =
+                crate::audit::record(&pool, &method, &uri, status, duration_ms).await
+            {
+                tracing::warn!(error = %error, "api audit write failed");
+            }
+        });
+    }
+    response
 }
 
 async fn auth_middleware(

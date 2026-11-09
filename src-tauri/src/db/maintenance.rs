@@ -44,6 +44,12 @@ pub async fn maintenance_once(pool: &SqlitePool, paths: &AppPaths) -> AppResult<
     .execute(pool)
     .await;
     let _ = sqlx::query(
+        "DELETE FROM api_audit
+         WHERE created_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 days')",
+    )
+    .execute(pool)
+    .await;
+    let _ = sqlx::query(
         "DELETE FROM calendar_events
          WHERE status = 'CANCELLED'
            AND updated_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 days')",

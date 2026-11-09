@@ -1756,6 +1756,19 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - ADR 0042 documenta as métricas derivadas.
 - Testes: **322 Rust**, **127 Vitest** e **54 Playwright**.
 
+## 2026-11-09 — rate limit e auditoria da API local
+
+- Rate limit em memória por classe (leitura 900/min, escrita 300/min,
+  sensível 120/min), com 429 + `Retry-After`.
+- Limites configuráveis por variáveis `OPENDESK_RATE_LIMIT_*`.
+- Tabela `api_audit` registra mutações e leituras sensíveis sem corpo, prompt,
+  header ou credencial.
+- Retenção de 90 dias no maintenance.
+- Nova aba **Configurações → Auditoria** com filtros e limites vigentes.
+- Endpoint `GET /api/audit`.
+- ADR 0043 documenta a decisão.
+- Testes: **326 Rust**, **127 Vitest** e **55 Playwright**.
+
 ## 2026-11-09 — release 0.31.0
 
 - Gate completo passou com **286 Rust**, **101 Vitest** e **43 Playwright**.

@@ -15,6 +15,7 @@ import {
   Loader2,
   Save,
   Settings,
+  ShieldCheck,
   Wrench,
 } from "lucide-react";
 import { openPath } from "@tauri-apps/plugin-opener";
@@ -31,6 +32,7 @@ import { SectionTabs } from "@/components/ui/section-tabs";
 import { ToolsCard } from "@/components/settings/ToolsCard";
 import { QueueSettingsCard } from "@/components/settings/QueueSettingsCard";
 import { BackupsCard } from "@/components/settings/BackupsCard";
+import { AuditCard } from "@/components/settings/AuditCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiDelete, apiGet, apiPatch, apiPut } from "@/lib/api";
@@ -71,6 +73,7 @@ export function SettingsPage() {
     { id: "notifications", label: "Notificações", icon: Bell },
     { id: "queue", label: "Fila", icon: ListChecks },
     { id: "backups", label: "Backups", icon: Archive },
+    { id: "audit", label: "Auditoria", icon: ShieldCheck },
     { id: "workspaces", label: "Workspaces", icon: FolderOpen },
     { id: "tools", label: "Ferramentas", icon: Wrench },
     { id: "about", label: "Sobre", icon: Info },
@@ -159,6 +162,7 @@ export function SettingsPage() {
       {activeTab === "notifications" ? <NotificationCard /> : null}
       {activeTab === "queue" ? <QueueSettingsCard /> : null}
       {activeTab === "backups" ? <BackupsCard /> : null}
+      {activeTab === "audit" ? <AuditCard /> : null}
       {activeTab === "tools" ? <ToolsCard /> : null}
 
       {activeTab === "general" ? (

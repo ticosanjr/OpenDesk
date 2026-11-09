@@ -29,6 +29,7 @@ export const links = {
       | "notifications"
       | "queue"
       | "backups"
+      | "audit"
       | "tools"
       | "about"
       | "workspaces" = "general",
