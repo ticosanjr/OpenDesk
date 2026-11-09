@@ -201,7 +201,14 @@ pub async fn get(pool: &SqlitePool, id: &str) -> AppResult<Task> {
         .ok_or_else(|| AppError::NotFound(format!("task {id}")))
 }
 
-pub const ORIGINS: [&str; 5] = ["MANUAL", "RECIPE", "IO_BUS", "CAPTURE", "ROUTINE"];
+pub const ORIGINS: [&str; 6] = [
+    "MANUAL",
+    "RECIPE",
+    "IO_BUS",
+    "CAPTURE",
+    "ROUTINE",
+    "DELEGATION",
+];
 
 fn validate_origin(value: &str) -> AppResult<String> {
     let normalized = value.trim().to_uppercase();

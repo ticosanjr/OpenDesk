@@ -1678,6 +1678,26 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - ADRs 0036 (origem/dedupe) e 0037 (HITL) documentam as decisões.
 - Testes: **303 Rust**, **116 Vitest** e **49 Playwright**.
 
+## 2026-11-09 — governança de agentes
+
+- Nova página **Agentes & Governança** com organograma, cargos, times, gestores
+  e escopo global/workspace.
+- Perfis operacionais em `agent_profiles` mantêm o arquivo do agente como SSOT;
+  cargo, time, gestor, budget, quota e heartbeat ficam no SQLite.
+- Budget mensal por agente derivado de `task_runs`, com bloqueio de dispatch e
+  mensagem acionável quando esgotado.
+- Quota de concorrência aplicada em `next_queued`; sem perfil, vale o limite do
+  grupo.
+- Metas em `agent_goals` com métrica, alvo, progresso, prazo e status.
+- Delegações em `agent_delegations`: pedido PENDING, aprovação HITL cria tarefa
+  `DELEGATION`, atribui ao destino e tenta despachar.
+- Heartbeat opt-in com loop de 60s, intervalo configurável, check-in manual e
+  tarefas `ROUTINE`; slot reservado antes da criação para evitar duplo disparo.
+- Performance de 30 dias por agente: runs, sucesso, falhas, custo, duração e
+  tokens.
+- ADR 0038 documenta a decisão.
+- Testes: **307 Rust**, **121 Vitest** e **51 Playwright**.
+
 ## 2026-11-09 — release 0.31.0
 
 - Gate completo passou com **286 Rust**, **101 Vitest** e **43 Playwright**.

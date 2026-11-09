@@ -93,7 +93,14 @@ export interface Task {
   last_run_at?: string | null;
   blocked_reason?: string | null;
   cancelled_at?: string | null;
-  origin: "MANUAL" | "RECIPE" | "IO_BUS" | "CAPTURE" | "ROUTINE" | string;
+  origin:
+    | "MANUAL"
+    | "RECIPE"
+    | "IO_BUS"
+    | "CAPTURE"
+    | "ROUTINE"
+    | "DELEGATION"
+    | string;
   parent_task_id?: string | null;
   dedupe_key?: string | null;
   deduplicated?: boolean;

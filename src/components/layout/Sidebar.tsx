@@ -11,6 +11,7 @@ import {
   Gauge,
   KanbanSquare,
   MessageSquare,
+  Network,
   Package,
   PanelLeftClose,
   PanelLeftOpen,
@@ -62,6 +63,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
   {
     label: "Governança",
     items: [
+      { to: "/governance", label: "Agentes & Governança", icon: Network },
       { to: "/learning", label: "Aprendizado", icon: Brain },
       { to: "/router", label: "Roteador & Custos", icon: Route },
       { to: "/integrations", label: "Integrações", icon: Plug },

@@ -215,6 +215,25 @@ pub async fn next_queued(pool: &SqlitePool) -> AppResult<Option<QueueJob>> {
              WHEN 'light_api' THEN 5
              ELSE 100
            END
+           -- Optional per-agent quota. No profile means the group limit above
+           -- remains the only constraint.
+           AND (
+             NOT EXISTS (
+               SELECT 1 FROM agent_profiles p
+               WHERE p.workspace_id = q.workspace_id
+                 AND p.agent_id = q.resolved_agent
+                 AND p.concurrency_quota > 0
+             )
+             OR (
+               SELECT COUNT(*) FROM execution_queue r
+               WHERE r.status = 'RUNNING'
+                 AND r.workspace_id = q.workspace_id
+                 AND r.resolved_agent = q.resolved_agent
+             ) < (
+               SELECT p.concurrency_quota FROM agent_profiles p
+               WHERE p.workspace_id = q.workspace_id AND p.agent_id = q.resolved_agent
+             )
+           )
          ORDER BY q.priority DESC, q.enqueued_at ASC
          LIMIT 1"
     );

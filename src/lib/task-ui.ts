@@ -27,6 +27,7 @@ export const ORIGIN_LABEL: Record<string, string> = {
   IO_BUS: "io bus",
   CAPTURE: "captura",
   ROUTINE: "rotina",
+  DELEGATION: "delegação",
 };
 
 export const EFFORT_TONE: Record<string, "default" | "blue" | "purple"> = {

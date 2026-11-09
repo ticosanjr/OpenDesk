@@ -174,10 +174,15 @@ pub(crate) async fn dispatch_task_with_session(
     session_id: Option<&str>,
 ) -> AppResult<serde_json::Value> {
     validate_model_ref(body.manual_model.as_deref())?;
-    crate::api::engine::require_engine_strict(state).await?;
     let task = tasks::get(&state.db, id).await?;
     let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
+    if let Some(agent) = body.manual_agent.as_deref() {
+        crate::governance::check_budget(&state.db, &task.workspace_id, agent).await?;
+    }
+    crate::api::engine::require_engine_strict(state).await?;
     let decision = plan_decision(state, &task, &workspace, &body, approved_plan).await?;
+    crate::governance::check_budget(&state.db, &task.workspace_id, &decision.selected_agent)
+        .await?;
     let job = enqueue_decision_with_session(
         state,
         &task,

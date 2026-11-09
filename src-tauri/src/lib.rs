@@ -8,6 +8,7 @@ mod doctor;
 mod dsh_router;
 mod error;
 mod events;
+mod governance;
 mod integrations;
 mod io_bus;
 mod learning;
@@ -213,6 +214,7 @@ pub fn run() {
                 }
                 state.io_bus.start(state.clone()).await?;
                 recipes::runtime::start(state.clone());
+                governance::start_heartbeat(state.clone());
                 if let Err(error) =
                     crate::api::recipes::sync_all_recipe_trigger_sources(&state).await
                 {

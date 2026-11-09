@@ -100,7 +100,9 @@ modular, Rsync local/remoto, auto-organização de agentes com propostas aprovad
 e retry durável de Google Docs/Drive, além de aprendizado contínuo leve
 (lições de runs e propostas de skill com aprovação HITL), separação entre
 trabalho e automações no Kanban, deduplicação de tarefas/jobs com carência
-configurável e HITL com pergunta e consequências explícitas.
+configurável, HITL com pergunta e consequências explícitas, e governança de
+agentes com organograma, metas, budgets, quota, performance, delegação HITL e
+heartbeat opt-in.
 Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
 Fábrica de Capacidades default (`meta-forge`).
 Próxima frente: assinatura de updates, cobertura Rust ≥80%, Windows/macOS e

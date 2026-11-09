@@ -13,6 +13,7 @@ pub mod dedupe;
 pub mod engine;
 pub mod files;
 pub mod google;
+pub mod governance;
 pub mod integrations;
 pub mod io_bus;
 pub mod learning;
@@ -384,6 +385,25 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             get(proposals::list).post(proposals::create),
         )
         .route("/api/proposals/{id}/resolve", post(proposals::resolve))
+        .route("/api/governance", get(governance::overview))
+        .route("/api/governance/agents/{id}", put(governance::put_agent))
+        .route(
+            "/api/governance/agents/{id}/heartbeat",
+            post(governance::heartbeat_now),
+        )
+        .route("/api/governance/goals", post(governance::create_goal))
+        .route(
+            "/api/governance/goals/{id}",
+            put(governance::update_goal).delete(governance::delete_goal),
+        )
+        .route(
+            "/api/governance/delegations",
+            post(governance::create_delegation),
+        )
+        .route(
+            "/api/governance/delegations/{id}/resolve",
+            post(governance::resolve_delegation),
+        )
         .route("/api/learning", get(learning::overview))
         .route("/api/learning/settings", put(learning::update_settings))
         .route("/api/learning/scan", post(learning::scan))

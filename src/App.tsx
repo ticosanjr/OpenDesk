@@ -42,6 +42,9 @@ const StudioPage = lazy(() =>
 const LearningPage = lazy(() =>
   import("@/pages/LearningPage").then((module) => ({ default: module.LearningPage })),
 );
+const GovernancePage = lazy(() =>
+  import("@/pages/GovernancePage").then((module) => ({ default: module.GovernancePage })),
+);
 const RouterPage = lazy(() =>
   import("@/pages/RouterPage").then((module) => ({ default: module.RouterPage })),
 );
@@ -78,6 +81,7 @@ export default function App() {
           <Route path="packs" element={<PacksPage />} />
           <Route path="studio" element={<StudioPage />} />
           <Route path="learning" element={<LearningPage />} />
+          <Route path="governance" element={<GovernancePage />} />
           <Route path="router" element={<RouterPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="settings" element={<SettingsPage />} />

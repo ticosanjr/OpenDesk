@@ -37,6 +37,7 @@ const ROUTE_LABELS: Array<[string, string]> = [
   ["/recipes", "Receitas"],
   ["/packs", "Pacotes"],
   ["/studio", "Studio"],
+  ["/governance", "Governança"],
   ["/learning", "Aprendizado"],
   ["/router", "Roteador"],
   ["/integrations", "Integrações"],
