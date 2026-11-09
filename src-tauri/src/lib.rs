@@ -1,6 +1,7 @@
 mod api;
 mod app_state;
 mod chat;
+mod cli;
 mod config_sync;
 mod db;
 mod dedupe;
@@ -20,6 +21,7 @@ mod paths;
 mod proposals;
 mod queue_scheduler;
 mod recipes;
+mod run_export;
 mod run_timeline;
 mod secrets;
 mod starter_packs;
@@ -299,6 +301,10 @@ pub fn run() {
 /// Headless mode used by browser tests and future daemon-only installs.
 /// It runs the same AppState, SQLite, watcher and Axum API without a Tauri
 /// window or tray. `OPENDESK_SKIP_DAEMON=1` keeps the OpenCode engine offline.
+pub fn run_cli(args: Vec<String>) {
+    cli::run(args);
+}
+
 pub fn run_headless() {
     init_logging();
 

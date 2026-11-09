@@ -1,0 +1,376 @@
+//! Portable session export: Markdown, HTML and JSON derived from a run timeline.
+
+use crate::{
+    app_state::AppState,
+    db::{artifacts, queue, runs, tasks, workspaces},
+    error::{AppError, AppResult},
+    run_timeline::{RunTimeline, TimelineArtifact, timeline_from_events},
+};
+use std::io::BufRead;
+
+pub async fn load_timeline(state: &AppState, id: &str) -> AppResult<RunTimeline> {
+    let run = runs::get(&state.db, id).await?;
+    let path = run.log_path.clone();
+    let events = path
+        .as_deref()
+        .and_then(|path| std::fs::File::open(path).ok())
+        .map(|file| {
+            std::io::BufReader::new(file)
+                .lines()
+                .map_while(Result::ok)
+                .filter_map(|line| serde_json::from_str::<serde_json::Value>(&line).ok())
+                .collect::<Vec<_>>()
+        });
+    let log_missing = events.is_none();
+    let mut timeline =
+        timeline_from_events(Some(run.clone()), events.unwrap_or_default(), log_missing);
+
+    let workspace = workspaces::get(&state.db, &run.workspace_id).await.ok();
+    if let Some(workspace) = &workspace {
+        timeline.workspace_root = Some(workspace.root_path.clone());
+    }
+    let mut output_directory = match run.task_id.as_deref() {
+        Some(task_id) => tasks::get(&state.db, task_id)
+            .await
+            .ok()
+            .and_then(|task| task.output_dir_path),
+        None => None,
+    };
+    if output_directory.is_none()
+        && let Some(job_id) = run.queue_job_id.as_deref()
+    {
+        output_directory = queue::get(&state.db, job_id)
+            .await
+            .ok()
+            .and_then(|job| job.output_dir);
+    }
+    if let Some(output) = &output_directory {
+        timeline.output_directory = Some(output.clone());
+        if let Some(workspace) = &workspace {
+            timeline.output_directory_relative = output
+                .strip_prefix(&workspace.root_path)
+                .map(str::to_string);
+        }
+    }
+    timeline.artifacts = artifacts::list_by_run(&state.db, id, 200)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|artifact| TimelineArtifact {
+            id: artifact.id,
+            file_path: artifact.file_path,
+            absolute_path: artifact.absolute_path,
+            action_type: artifact.action_type,
+            created_at: artifact.created_at,
+        })
+        .collect();
+    Ok(timeline)
+}
+
+fn format_duration(ms: i64) -> String {
+    if ms < 1000 {
+        format!("{ms} ms")
+    } else if ms < 60_000 {
+        format!("{:.1} s", ms as f64 / 1000.0)
+    } else {
+        format!("{}m {:02}s", ms / 60_000, (ms % 60_000) / 1000)
+    }
+}
+
+fn task_title(timeline: &RunTimeline) -> &str {
+    timeline
+        .run
+        .as_ref()
+        .and_then(|run| run.task_title.as_deref())
+        .unwrap_or("Execução")
+}
+
+pub fn render_markdown(timeline: &RunTimeline) -> String {
+    let mut out = String::new();
+    let run = timeline.run.as_ref();
+    out.push_str(&format!("# {}\n\n", task_title(timeline)));
+    if let Some(run) = run {
+        out.push_str(&format!("- **Run:** `{}`\n", run.id));
+        out.push_str(&format!("- **Status:** {}\n", run.status));
+        out.push_str(&format!("- **Agente:** {}\n", run.agent_name));
+        out.push_str(&format!("- **Modelo:** {}\n", run.model_id));
+        out.push_str(&format!("- **Início:** {}\n", run.started_at));
+        if let Some(completed) = &run.completed_at {
+            out.push_str(&format!("- **Fim:** {completed}\n"));
+        }
+        out.push_str(&format!(
+            "- **Duração:** {}\n",
+            format_duration(timeline.duration_ms)
+        ));
+        out.push_str(&format!(
+            "- **Tokens:** {} entrada / {} saída\n",
+            run.tokens_input, run.tokens_output
+        ));
+        out.push_str(&format!("- **Custo:** US$ {:.4}\n", run.estimated_cost_usd));
+        if let Some(error) = &run.error_message {
+            out.push_str(&format!("- **Erro:** {error}\n"));
+        }
+    }
+    if let Some(output) = &timeline.output_directory_relative {
+        out.push_str(&format!("- **Saída:** `{output}`\n"));
+    }
+    out.push('\n');
+
+    let result = if timeline.result.text.trim().is_empty() {
+        run.and_then(|run| run.summary_response.as_deref())
+            .unwrap_or("")
+    } else {
+        timeline.result.text.trim()
+    };
+    if !result.is_empty() {
+        out.push_str("## Resultado\n\n");
+        out.push_str(result);
+        out.push_str("\n\n");
+    }
+
+    if !timeline.steps.is_empty() {
+        out.push_str("## Passos\n\n");
+        out.push_str("| # | Agente | Modelo | Duração | Tokens | Custo |\n");
+        out.push_str("|---|---|---|---|---|---|\n");
+        for step in &timeline.steps {
+            out.push_str(&format!(
+                "| {} | {} | {} | {} | {}/{} | US$ {:.4} |\n",
+                step.index,
+                step.agent.as_deref().unwrap_or("—"),
+                step.model.as_deref().unwrap_or("—"),
+                format_duration(step.duration_ms),
+                step.tokens_input,
+                step.tokens_output,
+                step.cost_usd
+            ));
+        }
+        out.push('\n');
+    }
+
+    if !timeline.thinking.text.trim().is_empty() {
+        out.push_str("## Raciocínio\n\n");
+        out.push_str(timeline.thinking.text.trim());
+        out.push_str("\n\n");
+    }
+
+    if !timeline.executed.tools.is_empty() {
+        out.push_str("## Ferramentas\n\n");
+        for tool in &timeline.executed.tools {
+            out.push_str(&format!(
+                "- **{}** — {} ({}, {})\n",
+                tool.name,
+                tool.summary,
+                tool.status,
+                format_duration(tool.duration_ms)
+            ));
+        }
+        out.push('\n');
+    }
+
+    if !timeline.artifacts.is_empty() {
+        out.push_str("## Artefatos\n\n");
+        for artifact in &timeline.artifacts {
+            out.push_str(&format!(
+                "- `{}` — {} ({})\n",
+                artifact.file_path, artifact.action_type, artifact.created_at
+            ));
+        }
+        out.push('\n');
+    }
+
+    out.push_str(&format!(
+        "---\n\nGerado pelo OpenDesk · {} eventos · {}\n",
+        timeline.events_count,
+        chrono::Utc::now().to_rfc3339()
+    ));
+    out
+}
+
+pub fn render_html(timeline: &RunTimeline) -> String {
+    use html_escape::encode_text;
+    let run = timeline.run.as_ref();
+    let result = if timeline.result.text.trim().is_empty() {
+        run.and_then(|run| run.summary_response.as_deref())
+            .unwrap_or("")
+    } else {
+        timeline.result.text.trim()
+    };
+    let mut steps = String::new();
+    if !timeline.steps.is_empty() {
+        steps.push_str("<h2>Passos</h2><table><thead><tr><th>#</th><th>Agente</th><th>Modelo</th><th>Duração</th><th>Tokens</th><th>Custo</th></tr></thead><tbody>");
+        for step in &timeline.steps {
+            steps.push_str(&format!(
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}/{}</td><td>US$ {:.4}</td></tr>",
+                step.index,
+                encode_text(step.agent.as_deref().unwrap_or("—")),
+                encode_text(step.model.as_deref().unwrap_or("—")),
+                format_duration(step.duration_ms),
+                step.tokens_input,
+                step.tokens_output,
+                step.cost_usd
+            ));
+        }
+        steps.push_str("</tbody></table>");
+    }
+    let mut tools = String::new();
+    if !timeline.executed.tools.is_empty() {
+        tools.push_str("<h2>Ferramentas</h2><ul>");
+        for tool in &timeline.executed.tools {
+            tools.push_str(&format!(
+                "<li><strong>{}</strong> — {} <span class=\"muted\">({}, {})</span></li>",
+                encode_text(&tool.name),
+                encode_text(&tool.summary),
+                encode_text(&tool.status),
+                format_duration(tool.duration_ms)
+            ));
+        }
+        tools.push_str("</ul>");
+    }
+    let mut artifacts = String::new();
+    if !timeline.artifacts.is_empty() {
+        artifacts.push_str("<h2>Artefatos</h2><ul>");
+        for artifact in &timeline.artifacts {
+            artifacts.push_str(&format!(
+                "<li><code>{}</code> — {} <span class=\"muted\">{}</span></li>",
+                encode_text(&artifact.file_path),
+                encode_text(&artifact.action_type),
+                encode_text(&artifact.created_at)
+            ));
+        }
+        artifacts.push_str("</ul>");
+    }
+    let thinking = if timeline.thinking.text.trim().is_empty() {
+        String::new()
+    } else {
+        format!(
+            "<h2>Raciocínio</h2><pre>{}</pre>",
+            encode_text(timeline.thinking.text.trim())
+        )
+    };
+    let error = run
+        .and_then(|run| run.error_message.as_deref())
+        .map(|error| format!("<p class=\"error\">{}</p>", encode_text(error)))
+        .unwrap_or_default();
+    let meta = run
+        .map(|run| {
+            format!(
+                "<dl><dt>Run</dt><dd><code>{}</code></dd><dt>Status</dt><dd>{}</dd><dt>Agente</dt><dd>{}</dd><dt>Modelo</dt><dd>{}</dd><dt>Duração</dt><dd>{}</dd><dt>Tokens</dt><dd>{} / {}</dd><dt>Custo</dt><dd>US$ {:.4}</dd></dl>",
+                encode_text(&run.id),
+                encode_text(&run.status),
+                encode_text(&run.agent_name),
+                encode_text(&run.model_id),
+                format_duration(timeline.duration_ms),
+                run.tokens_input,
+                run.tokens_output,
+                run.estimated_cost_usd
+            )
+        })
+        .unwrap_or_default();
+    format!(
+        "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><title>{title}</title><style>body{{font:14px/1.55 system-ui,sans-serif;max-width:900px;margin:40px auto;padding:0 20px;color:#18181b}}h1{{font-size:22px}}h2{{font-size:15px;margin-top:28px;border-bottom:1px solid #e4e4e7;padding-bottom:4px}}table{{border-collapse:collapse;width:100%}}th,td{{border-bottom:1px solid #e4e4e7;padding:6px 8px;text-align:left;font-size:12px}}pre{{background:#f4f4f5;padding:12px;border-radius:8px;white-space:pre-wrap;word-break:break-word}}.muted{{color:#71717a}}.error{{color:#b91c1c;background:#fef2f2;padding:10px;border-radius:8px}}dl{{display:grid;grid-template-columns:max-content 1fr;gap:2px 14px;font-size:12px}}dt{{color:#71717a}}dd{{margin:0}}</style></head><body><h1>{title}</h1>{meta}{error}{result}{steps}{thinking}{tools}{artifacts}<p class=\"muted\">Gerado pelo OpenDesk · {events} eventos</p></body></html>",
+        title = encode_text(task_title(timeline)),
+        meta = meta,
+        error = error,
+        result = if result.is_empty() {
+            String::new()
+        } else {
+            format!("<h2>Resultado</h2><pre>{}</pre>", encode_text(result))
+        },
+        steps = steps,
+        thinking = thinking,
+        tools = tools,
+        artifacts = artifacts,
+        events = timeline.events_count
+    )
+}
+
+pub fn render_json(timeline: &RunTimeline) -> AppResult<String> {
+    serde_json::to_string_pretty(timeline)
+        .map_err(|error| AppError::Internal(format!("could not encode export: {error}")))
+}
+
+pub fn render(
+    timeline: &RunTimeline,
+    format: &str,
+) -> AppResult<(String, &'static str, &'static str)> {
+    match format.trim().to_lowercase().as_str() {
+        "md" | "markdown" => Ok((
+            render_markdown(timeline),
+            "text/markdown; charset=utf-8",
+            "md",
+        )),
+        "html" | "htm" => Ok((render_html(timeline), "text/html; charset=utf-8", "html")),
+        "json" => Ok((
+            render_json(timeline)?,
+            "application/json; charset=utf-8",
+            "json",
+        )),
+        other => Err(AppError::BadRequest(format!(
+            "formato de export inválido '{other}'; use md, html ou json"
+        ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::runs::{CreateRunInput, RunUsage};
+    use crate::test_support;
+
+    #[tokio::test]
+    async fn renders_all_formats_from_a_run() {
+        let ctx = test_support::context().await;
+        crate::db::runs::create(
+            &ctx.state.db,
+            CreateRunInput {
+                id: "run-export".into(),
+                queue_job_id: None,
+                workspace_id: ctx.workspace_id.clone(),
+                task_id: None,
+                schedule_id: None,
+                parent_run_id: None,
+                phase: None,
+                agent_name: "build".into(),
+                execution_mode: "build".into(),
+                provider_id: Some("opencode-go".into()),
+                model_id: "glm-5.3".into(),
+                effort_level: "high".into(),
+                pricing_snapshot_json: None,
+                log_path: None,
+            },
+        )
+        .await
+        .expect("run");
+        crate::db::runs::finish(
+            &ctx.state.db,
+            "run-export",
+            "SUCCESS",
+            &RunUsage::default(),
+            1200,
+            Some("resultado final"),
+            None,
+        )
+        .await
+        .expect("finish");
+
+        let timeline = load_timeline(&ctx.state, "run-export")
+            .await
+            .expect("timeline");
+        let md = render_markdown(&timeline);
+        assert!(md.contains("resultado final"));
+        assert!(md.contains("run-export"));
+        let html = render_html(&timeline);
+        assert!(html.starts_with("<!doctype html>"));
+        assert!(html.contains("resultado final"));
+        let (body, mime, ext) = render(&timeline, "json").expect("json");
+        assert_eq!(mime, "application/json; charset=utf-8");
+        assert_eq!(ext, "json");
+        assert!(body.contains("\"run-export\""));
+    }
+
+    #[test]
+    fn rejects_unknown_formats() {
+        let timeline = RunTimeline::default();
+        assert!(render(&timeline, "pdf").is_err());
+    }
+}

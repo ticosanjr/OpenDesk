@@ -2,7 +2,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    if std::env::args().any(|argument| argument == "doctor") {
+    let cli_args = std::env::args().skip(1).collect::<Vec<_>>();
+    if cli_args.first().is_some_and(|argument| {
+        matches!(
+            argument.as_str(),
+            "status" | "workspaces" | "tasks" | "runs" | "queue" | "export" | "--help" | "-h"
+        )
+    }) {
+        opendesk_lib::run_cli(cli_args);
+    } else if std::env::args().any(|argument| argument == "doctor") {
         let json = std::env::args().any(|argument| argument == "--json");
         let fix_daemons = std::env::args().any(|argument| argument == "--fix-daemons");
         opendesk_lib::run_doctor(json, fix_daemons);

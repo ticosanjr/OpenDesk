@@ -1698,6 +1698,21 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - ADR 0038 documenta a decisão.
 - Testes: **307 Rust**, **121 Vitest** e **51 Playwright**.
 
+## 2026-11-09 — CLI headless e export de sessão
+
+- O binário ganhou subcomandos `status`, `workspaces list`, `tasks
+  list/create/run`, `runs list/show`, `queue list` e `export`.
+- CLI usa a API local existente com Bearer token e `api.json`; não abre SQLite
+  nem duplica execução.
+- Saída humana compacta ou `--json`, com flags de workspace, agente, modelo,
+  modo, prioridade, tags e limite.
+- Export por run em Markdown, HTML autocontido e JSON, com status, agente,
+  modelo, tokens, custo, resultado, passos, raciocínio, ferramentas e artefatos.
+- Endpoint `GET /api/runs/{id}/export` e botões MD/HTML/JSON na página de
+  execução.
+- ADR 0039 documenta a decisão.
+- Testes: **312 Rust**, **122 Vitest** e **51 Playwright**.
+
 ## 2026-11-09 — release 0.31.0
 
 - Gate completo passou com **286 Rust**, **101 Vitest** e **43 Playwright**.

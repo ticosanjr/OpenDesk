@@ -100,6 +100,24 @@ export async function websocketUrl(): Promise<string> {
   return `ws://127.0.0.1:${port}/ws?token=${encodeURIComponent(token)}`;
 }
 
+export async function apiBlob(path: string): Promise<Blob> {
+  const { port, token } = await getEndpoint();
+  const response = await fetch(`http://127.0.0.1:${port}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    let message = `Request failed (${response.status})`;
+    try {
+      const body = (await response.json()) as { message?: string };
+      if (body.message) message = body.message;
+    } catch {
+      // Keep the status-based message.
+    }
+    throw new Error(message);
+  }
+  return response.blob();
+}
+
 export async function apiText(path: string): Promise<string> {
   const { port, token } = await getEndpoint();
   const response = await fetch(`http://127.0.0.1:${port}${path}`, {

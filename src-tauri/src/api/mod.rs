@@ -324,6 +324,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/runs/{id}", get(runs::get_run))
         .route("/api/runs/{id}/log", get(runs::run_log))
         .route("/api/runs/{id}/timeline", get(runs::run_timeline))
+        .route("/api/runs/{id}/export", get(runs::export_run))
         .route(
             "/api/runs/{id}/retry-other-model",
             post(tasks::retry_other_model),

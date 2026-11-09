@@ -102,7 +102,7 @@ e retry durável de Google Docs/Drive, além de aprendizado contínuo leve
 trabalho e automações no Kanban, deduplicação de tarefas/jobs com carência
 configurável, HITL com pergunta e consequências explícitas, e governança de
 agentes com organograma, metas, budgets, quota, performance, delegação HITL e
-heartbeat opt-in.
+heartbeat opt-in, CLI headless e export de sessão em Markdown/HTML/JSON.
 Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
 Fábrica de Capacidades default (`meta-forge`).
 Próxima frente: assinatura de updates, cobertura Rust ≥80%, Windows/macOS e

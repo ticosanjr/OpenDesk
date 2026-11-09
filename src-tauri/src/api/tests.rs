@@ -59,6 +59,7 @@ async fn unauthenticated(ctx: &TestContext, uri: &str) -> StatusCode {
 mod attention;
 mod calendar;
 mod core;
+mod export;
 mod governance;
 mod io_bus;
 mod learning;

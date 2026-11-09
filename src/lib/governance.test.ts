@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AgentGoal, AgentProfileRow, GovernanceAgent } from "./types";
 import {
   budgetPercent,
+  delegationSummary,
   delegationTone,
   formatUsd,
   goalProgress,
@@ -65,10 +66,27 @@ describe("governance helpers", () => {
 
   it("labels tones and currency", () => {
     expect(delegationTone("PENDING")).toBe("yellow");
+    expect(delegationTone("APPROVED")).toBe("green");
     expect(delegationTone("REJECTED")).toBe("red");
+    expect(delegationTone("FAILED")).toBe("red");
+    expect(delegationTone("OTHER")).toBe("default");
     expect(goalTone("DONE")).toBe("green");
     expect(goalTone("PAUSED")).toBe("yellow");
+    expect(goalTone("ACTIVE")).toBe("purple");
+    expect(goalTone("CANCELLED")).toBe("default");
     expect(formatUsd(12.5)).toBe("US$ 12.50");
     expect(formatUsd(null)).toBe("—");
+    expect(
+      delegationSummary({
+        id: "d",
+        workspace_id: "ws",
+        from_agent: "lead",
+        to_agent: "build",
+        title: "x",
+        prompt: "p",
+        status: "PENDING",
+        requested_at: "2026-01-01T00:00:00Z",
+      }),
+    ).toBe("@lead → @build");
   });
 });
