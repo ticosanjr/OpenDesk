@@ -414,6 +414,22 @@ impl CronEngine {
         }
 
         let prompt = self.resolve_prompt(schedule, &workspace_root).await;
+        let needs_browser = if crate::browse::needs_browser(&schedule.name, &prompt, &[]) {
+            match self.app.get().and_then(Weak::upgrade) {
+                Some(app) => crate::browse::ensure_for_task(
+                    &app,
+                    &schedule.workspace_id,
+                    &schedule.name,
+                    &prompt,
+                    &[],
+                )
+                .await
+                .unwrap_or(true),
+                None => true,
+            }
+        } else {
+            false
+        };
         let packed = dsh_router::pack(&PackContext {
             workspace_root: &workspace_root,
             output_directory: &decision.output_directory,
@@ -424,6 +440,7 @@ impl CronEngine {
             phase: &decision.phase,
             plan: None,
             agent: &decision.selected_agent,
+            needs_browser,
         });
 
         match self

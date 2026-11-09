@@ -11,6 +11,7 @@ pub struct PackContext<'a> {
     pub phase: &'a str,
     pub plan: Option<&'a str>,
     pub agent: &'a str,
+    pub needs_browser: bool,
 }
 
 pub fn pack(context: &PackContext<'_>) -> String {
@@ -55,6 +56,10 @@ pub fn pack(context: &PackContext<'_>) -> String {
     prompt.push_str("## Descrição\n\n");
     prompt.push_str(context.task_description.trim());
     prompt.push_str("\n\n");
+
+    if context.needs_browser {
+        prompt.push_str(crate::browse::instructions());
+    }
 
     prompt.push_str("## DIRETÓRIO DE SAÍDA OBRIGATÓRIO\n\n");
     prompt.push_str(&format!(
@@ -151,10 +156,26 @@ mod tests {
             phase: "build",
             plan: Some("1. Ler input"),
             agent: "build",
+            needs_browser: false,
         });
         assert!(prompt.contains("DIRETÓRIO DE SAÍDA OBRIGATÓRIO"));
         assert!(prompt.contains("/tmp/out/2026-11/task"));
         assert!(prompt.contains("Plano aprovado"));
         assert!(prompt.contains("input/brief.md"));
+
+        let browser_prompt = pack(&PackContext {
+            workspace_root: temp.path(),
+            output_directory: "/tmp/out",
+            task_title: "Pesquisa",
+            task_description: "Abra https://example.com",
+            tags: &["needs-browser".into()],
+            priority: 2,
+            phase: "build",
+            plan: None,
+            agent: "build",
+            needs_browser: true,
+        });
+        assert!(browser_prompt.contains("OpenCode Browse"));
+        assert!(browser_prompt.contains("session_new"));
     }
 }

@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   CheckCircle2,
   FileText,
+  Globe,
   GripVertical,
   Loader2,
   Play,
@@ -61,6 +62,7 @@ export function TaskCard({
 }) {
   const state = taskState(task);
   const running = state === "running";
+  const webTask = task.tags_json.includes('"needs-browser"');
 
   const meta = [
     task.assigned_agent ? (
@@ -82,6 +84,12 @@ export function TaskCard({
     task.origin && task.origin !== "MANUAL" ? (
       <Badge key="origin" variant="purple">
         {ORIGIN_LABEL[task.origin] ?? task.origin}
+      </Badge>
+    ) : null,
+    webTask ? (
+      <Badge key="web" variant="blue">
+        <Globe size={9} />
+        web
       </Badge>
     ) : null,
     pinned > 0 ? (

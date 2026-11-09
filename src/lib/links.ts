@@ -37,6 +37,7 @@ export const links = {
       | "smtp"
       | "google"
       | "signal"
+      | "browser"
       | "inbound"
       | "sinks"
       | "deliveries"

@@ -328,6 +328,15 @@ pub(crate) async fn enqueue_decision_with_session(
     tasks::set_output_dir(&state.db, &task.id, &decision.output_directory).await?;
 
     let tags = task.tags();
+    let needs_browser = crate::browse::ensure_for_task(
+        state,
+        &task.workspace_id,
+        &task.title,
+        &task.description,
+        &tags,
+    )
+    .await
+    .unwrap_or(false);
     let prompt = dsh_router::pack(&PackContext {
         workspace_root: std::path::Path::new(&workspace.root_path),
         output_directory: &decision.output_directory,
@@ -338,6 +347,7 @@ pub(crate) async fn enqueue_decision_with_session(
         phase: &decision.phase,
         plan: approved_plan.or(task.plan_markdown.as_deref()),
         agent: &decision.selected_agent,
+        needs_browser,
     });
 
     tasks::move_to(&state.db, &task.id, "TODO", None).await?;
@@ -723,6 +733,15 @@ pub async fn post_task_message(
 ",
         );
     let tags = task.tags();
+    let needs_browser = crate::browse::ensure_for_task(
+        &state,
+        &task.workspace_id,
+        &task.title,
+        &task.description,
+        &tags,
+    )
+    .await
+    .unwrap_or(false);
     let packed = dsh_router::pack(&PackContext {
         workspace_root: std::path::Path::new(&workspace.root_path),
         output_directory: &decision.output_directory,
@@ -733,6 +752,7 @@ pub async fn post_task_message(
         phase: "follow_up",
         plan: task.plan_markdown.as_deref(),
         agent: &decision.selected_agent,
+        needs_browser,
     });
     let prompt = format!(
         "{packed}\n\n## Conversa com o usuário\n\n{conversation}\n\nContinue a execução considerando a mensagem acima. Se precisar de uma decisão, pare e faça a pergunta."

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ArrowRightLeft,
+  Globe,
   Loader2,
   Plus,
 } from "lucide-react";
@@ -11,6 +12,7 @@ import { Modal } from "@/components/ui/modal";
 import { ModelCombobox } from "@/components/ui/model-combobox";
 import { PromptAttachments } from "@/components/ui/prompt-attachments";
 import { SlashTextarea } from "@/components/ui/slash-textarea";
+import { Switch } from "@/components/ui/switch";
 import { apiDelete, apiPatch, apiPost } from "@/lib/api";
 import { links } from "@/lib/links";
 import { PRIORITY_LABEL } from "@/lib/task-ui";
@@ -90,6 +92,7 @@ export function TaskFormModal({
   const [executionMode, setExecutionMode] = useState("AUTO_DSH");
   const [priority, setPriority] = useState(2);
   const [tags, setTags] = useState("");
+  const [needsBrowser, setNeedsBrowser] = useState(false);
   const [agent, setAgent] = useState("");
   const [model, setModel] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<string[]>([]);
@@ -114,8 +117,11 @@ export function TaskFormModal({
       setEmail(task.notify_email ?? "");
       setExportToGdocs(task.export_to_gdocs);
       try {
-        setTags((JSON.parse(task.tags_json) as string[]).join(", "));
+        const parsed = JSON.parse(task.tags_json) as string[];
+        setNeedsBrowser(parsed.includes("needs-browser"));
+        setTags(parsed.filter((tag) => tag !== "needs-browser").join(", "));
       } catch {
+        setNeedsBrowser(false);
         setTags("");
       }
     } else {
@@ -130,6 +136,7 @@ export function TaskFormModal({
       setEmail("");
       setExportToGdocs(false);
       setTags("");
+      setNeedsBrowser(false);
     }
   }, [open, task]);
 
@@ -151,6 +158,11 @@ export function TaskFormModal({
               .map((path) => `- ${path}`)
               .join("\n")}`
           : "";
+      const parsedTags = tags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter((tag) => Boolean(tag) && tag !== "needs-browser");
+      if (needsBrowser) parsedTags.push("needs-browser");
       const payload = {
         title: title.trim(),
         description: `${description.trim()}${attachmentBlock}`,
@@ -161,10 +173,7 @@ export function TaskFormModal({
         effort_level: effort,
         notify_email: email.trim() || null,
         export_to_gdocs: exportToGdocs,
-        tags: tags
-          .split(",")
-          .map((tag) => tag.trim())
-          .filter(Boolean),
+        tags: parsedTags,
       };
       if (mode === "create") {
         const created = await apiPost<Task>(
@@ -338,6 +347,23 @@ export function TaskFormModal({
             className={inputClass}
           />
         </label>
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2 sm:col-span-2">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-[11px] text-zinc-300">
+              <Globe size={12} className="text-sky-300" />
+              Precisa navegar na internet
+            </p>
+            <p className="mt-0.5 text-[9px] leading-snug text-zinc-600">
+              Ativa o OpenCode Browse automaticamente e inclui a skill de navegação
+              no prompt. Login, 2FA e captcha são entregues a você.
+            </p>
+          </div>
+          <Switch
+            checked={needsBrowser}
+            onCheckedChange={setNeedsBrowser}
+            label="Precisa navegar na internet"
+          />
+        </div>
         <label>
           <span className={labelClass}>E-mail de notificação</span>
           <input

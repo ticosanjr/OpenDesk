@@ -605,6 +605,16 @@ pub async fn catalog() -> Json<Value> {
                     "command": ["npx", "-y", "@playwright/mcp@latest"],
                     "disabled": false
                 }
+            },
+            {
+                "id": "browse",
+                "name": "OpenCode Browse",
+                "description": "Navegador real do usuário via MCP, com logins, abas, screenshots e handoff para 2FA.",
+                "server": {
+                    "type": "local",
+                    "command": ["npx", "-y", "@opencode/browse", "mcp"],
+                    "disabled": false
+                }
             }
         ]
     }))

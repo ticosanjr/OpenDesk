@@ -3,6 +3,7 @@ pub mod artifacts;
 pub mod attachments;
 pub mod attention;
 pub mod blueprints;
+pub mod browse;
 pub mod budget;
 pub mod calendar;
 pub mod capture;
@@ -386,6 +387,9 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             get(proposals::list).post(proposals::create),
         )
         .route("/api/proposals/{id}/resolve", post(proposals::resolve))
+        .route("/api/browse/status", get(browse::status))
+        .route("/api/browse/enable", post(browse::enable))
+        .route("/api/browse/disable", post(browse::disable))
         .route("/api/governance", get(governance::overview))
         .route("/api/governance/agents/{id}", put(governance::put_agent))
         .route(

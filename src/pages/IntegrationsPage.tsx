@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Cloud,
   FileText,
+  Globe,
   HardDrive,
   KeyRound,
   ListTodo,
@@ -28,6 +29,7 @@ import { SignalCard } from "@/components/settings/SignalCard";
 import { SectionTabs } from "@/components/ui/section-tabs";
 import { InboundSourcesCard } from "@/components/integrations/InboundSourcesCard";
 import { OutboundSinksCard } from "@/components/integrations/OutboundSinksCard";
+import { BrowserCard } from "@/components/integrations/BrowserCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -97,6 +99,7 @@ export function IntegrationsPage() {
     { id: "smtp", label: "SMTP", icon: Mail },
     { id: "google", label: "Google", icon: Cloud },
     { id: "signal", label: "Signal", icon: Plug },
+    { id: "browser", label: "Browser", icon: Globe },
     { id: "inbound", label: "Entradas", icon: Inbox },
     { id: "sinks", label: "Saídas", icon: Package },
     { id: "deliveries", label: "Histórico", icon: Send },
@@ -518,6 +521,8 @@ export function IntegrationsPage() {
           <SignalCard />
         </div>
       ) : null}
+
+      {activeTab === "browser" ? <BrowserCard /> : null}
 
       {activeTab === "inbound" ? (
         <InboundSourcesCard workspaceId={activeWorkspaceId ?? ""} />

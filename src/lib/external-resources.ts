@@ -111,6 +111,18 @@ export const EXTERNAL_RESOURCES: ExternalResource[] = [
     templateId: "conteudo-midia",
   },
   {
+    id: "opencode-browse",
+    group: "mcp",
+    name: "OpenCode Browse",
+    url: "https://opencode.ai/product/browse",
+    focus:
+      "MCP + extensão Chromium que dá aos agentes o navegador real do usuário, com abas, logins e handoff para 2FA.",
+    usage:
+      "Instale a extensão, rode `npx @opencode/browse install` e ative em Integrações → Browser.",
+    tags: ["MCP", "navegador", "internet", "Playwright"],
+    templateId: "fabrica-capacidades",
+  },
+  {
     id: "smithery",
     group: "mcp",
     name: "Smithery",

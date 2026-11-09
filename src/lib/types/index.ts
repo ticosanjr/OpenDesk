@@ -7,3 +7,4 @@ export * from "./calendar";
 export * from "./chat";
 export * from "./learning";
 export * from "./governance";
+export * from "./browser";

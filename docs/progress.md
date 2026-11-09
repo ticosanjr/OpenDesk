@@ -1713,6 +1713,21 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - ADR 0039 documenta a decisão.
 - Testes: **312 Rust**, **122 Vitest** e **51 Playwright**.
 
+## 2026-11-09 — integração com OpenCode Browse
+
+- Nova integração de primeira classe com o OpenCode Browse (MCP + extensão
+  Chromium) para tarefas que exigem navegar na internet.
+- Aba **Integrações → Browser** com status de binário, MCP, skill, comando,
+  ativação/desativação por workspace/global e link de instalação.
+- Tarefas com a tag `needs-browser` (ou URL/palavras-chave) recebem o MCP
+  `browse`, a skill `browse-web` e instruções de navegação no prompt.
+- Provisionamento idempotente no dispatch; sem reescrever config a cada run.
+- Login, 2FA, pagamento e captcha via handoff; OpenDesk não guarda credenciais.
+- Kanban exibe badge **web**; catálogo de MCPs e catálogo externo incluem o
+  Browse.
+- ADR 0040 documenta a decisão.
+- Testes: **316 Rust**, **124 Vitest** e **52 Playwright**.
+
 ## 2026-11-09 — release 0.31.0
 
 - Gate completo passou com **286 Rust**, **101 Vitest** e **43 Playwright**.

@@ -1,5 +1,6 @@
 mod api;
 mod app_state;
+mod browse;
 mod chat;
 mod cli;
 mod config_sync;
