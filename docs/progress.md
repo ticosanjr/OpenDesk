@@ -1541,3 +1541,26 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Gate completo passou com **282 Rust**, **97 Vitest** e **42 Playwright**.
 - Cobertura Rust: **61,62% global** e **67,82% core**.
 - Versão 0.29.0 publicada com artefatos locais, tag e GitHub Release.
+
+## 2026-11-09 — correção de REAL, boot resiliente e workspace unificado
+
+- Corrigido o erro intermitente `f64 (REAL) vs INTEGER` no SQLite: somas de
+  `estimated_cost_usd` agora usam `CAST(... AS REAL)` no budget, dashboard e
+  custo por modelo. Isso acontecia quando todos os custos eram zero.
+- O boot não depende mais do dashboard: daemon e workspaces são publicados
+  primeiro, com `Promise.allSettled`; falha do dashboard não esconde a lista de
+  workspaces.
+- O diálogo do Topbar agora unifica **Em branco**, **Template** e **Existente**.
+  Templates com pacotes/pastas podem ser criados sem passar pela página Pacotes.
+- `RunExecution` extraiu `plan_run` e `record_artifacts` do `execute_job`, com
+  teste do plano e da proveniência.
+- O catálogo externo só mostra “Usar template recomendado” quando o template
+  existe no backend, eliminando lookup silencioso.
+- Testes: **285 Rust**, **98 Vitest**; Playwright direcionado de workspace e
+  pacotes verde (6 testes).
+
+## 2026-11-09 — release 0.30.0
+
+- Gate completo passou com **285 Rust**, **101 Vitest** e **43 Playwright**.
+- Cobertura Rust: **61,74% global** e **68,04% core**.
+- Versão 0.30.0 publicada com artefatos locais, tag e GitHub Release.

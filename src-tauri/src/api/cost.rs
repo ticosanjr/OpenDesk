@@ -22,7 +22,7 @@ pub async fn model_mix(
     let rows = sqlx::query_as::<_, (String, String, i64, i64, f64, i64, i64)>(
         "SELECT provider_id, model_id, COUNT(*),
                 COALESCE(SUM(tokens_input + tokens_output), 0),
-                COALESCE(SUM(estimated_cost_usd), 0.0),
+                CAST(COALESCE(SUM(estimated_cost_usd), 0.0) AS REAL),
                 COALESCE(SUM(tokens_cache_read), 0),
                 COALESCE(SUM(tokens_input), 0)
          FROM task_runs

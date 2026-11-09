@@ -1,20 +1,16 @@
 use crate::{
-    db::{
-        artifacts::{self, CreateArtifactInput},
-        budget, model_health, queue, runs, tasks, workspaces,
-    },
+    db::{budget, model_health, queue, runs, tasks, workspaces},
     error::{AppError, AppResult},
-    events::{ArtifactProvenanceDto, EventBus, OpenDeskWsEvent, QueueJobDto},
+    events::{EventBus, OpenDeskWsEvent, QueueJobDto},
     integrations::{delivery, google_oauth::GoogleOAuth},
     opencode_client::{
         daemon_manager::DaemonManager,
         session_runner::{self, RunRequest, RunStatus},
     },
     paths::AppPaths,
-    queue_scheduler::settlement,
+    queue_scheduler::{run_execution, settlement},
 };
 use serde::Serialize;
-use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 use std::{
     collections::{HashMap, HashSet},
@@ -27,7 +23,6 @@ use std::{
 };
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
-use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct QueueStatus {
@@ -368,38 +363,14 @@ impl QueueManager {
             handle: heartbeat,
         };
 
-        let run_id = Uuid::now_v7().to_string();
-        let log_path = self.paths.run_logs_dir.join(format!("{run_id}.jsonl"));
-        let phase = if job.job_kind == "audit" {
-            "audit"
-        } else {
-            job.resolved_mode.as_str()
-        };
-        let (provider_id, model_id) = split_model(&job.resolved_model);
-        let title = task
-            .as_ref()
-            .map(|task| task.title.clone())
-            .unwrap_or_else(|| {
-                job.task_title
-                    .clone()
-                    .unwrap_or_else(|| "Scheduled task".into())
-            });
         let workspace_path = PathBuf::from(&workspace.root_path);
-        let output_dir = job
-            .output_dir
-            .clone()
-            .map(PathBuf::from)
-            .or_else(|| {
-                task.as_ref()
-                    .and_then(|task| task.output_dir_path.clone())
-                    .map(PathBuf::from)
-            })
-            .unwrap_or_else(|| {
-                workspace_path
-                    .join("output")
-                    .join(chrono::Utc::now().format("%Y-%m").to_string())
-                    .join(crate::dsh_router::slugify(&title))
-            });
+        let plan = run_execution::plan_run(&job, task.as_ref(), &self.paths, &workspace_path);
+        let run_id = plan.run_id;
+        let log_path = plan.log_path;
+        let phase = plan.phase;
+        let title = plan.title;
+        let output_dir = plan.output_dir;
+        let (provider_id, model_id) = split_model(&job.resolved_model);
         if let Err(error) = std::fs::create_dir_all(&output_dir) {
             tracing::warn!(path = %output_dir.display(), error = %error, "could not create output directory");
         }
@@ -513,7 +484,7 @@ impl QueueManager {
             workspace_root: &workspace_path,
             agent: &job.resolved_agent,
             model: &job.resolved_model,
-            phase,
+            phase: &phase,
             title: &title,
             prompt: &job.prompt_payload,
             log_path: &log_path,
@@ -544,45 +515,16 @@ impl QueueManager {
             phase
         );
 
-        let mut seen_files = HashSet::new();
-        for diff in &outcome.diffs {
-            seen_files.insert(diff.file.clone());
-            let action = match diff.status.as_str() {
-                "added" => "CREATED",
-                "deleted" => "DELETED",
-                _ => "MODIFIED",
-            };
-            self.record_artifact(
-                &job.workspace_id,
-                job.task_id.as_deref(),
-                &run_id,
-                &job.resolved_agent,
-                &reason,
-                &workspace_path,
-                &diff.file,
-                action,
-                Some(&diff.patch),
-            )
-            .await;
-        }
-
-        for write in &outcome.writes {
-            if seen_files.contains(&write.path) {
-                continue;
-            }
-            self.record_artifact(
-                &job.workspace_id,
-                job.task_id.as_deref(),
-                &run_id,
-                &job.resolved_agent,
-                &reason,
-                &workspace_path,
-                &write.path,
-                &write.action,
-                write.diff_patch.as_deref(),
-            )
-            .await;
-        }
+        run_execution::record_artifacts(
+            &self.pool,
+            &self.events,
+            &job,
+            &run_id,
+            &reason,
+            &workspace_path,
+            &outcome,
+        )
+        .await;
 
         settlement::record_permissions(&self.pool, &run_id, &outcome).await;
 
@@ -666,7 +608,7 @@ impl QueueManager {
                 &self.pool,
                 &self.events,
                 task,
-                phase,
+                &phase,
                 &outcome,
                 &run_id,
                 fallback_enqueued,
@@ -775,69 +717,6 @@ impl QueueManager {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    async fn record_artifact(
-        &self,
-        workspace_id: &str,
-        task_id: Option<&str>,
-        run_id: &str,
-        agent: &str,
-        reason: &str,
-        workspace_root: &Path,
-        file_path: &str,
-        action: &str,
-        diff_patch: Option<&str>,
-    ) {
-        if artifacts::exists(&self.pool, run_id, file_path)
-            .await
-            .unwrap_or(false)
-        {
-            return;
-        }
-
-        let absolute = if Path::new(file_path).is_absolute() {
-            PathBuf::from(file_path)
-        } else {
-            workspace_root.join(file_path)
-        };
-        let relative = absolute
-            .strip_prefix(workspace_root)
-            .map(|path| path.to_string_lossy().replace('\\', "/"))
-            .unwrap_or_else(|_| file_path.to_string());
-        let file_type = absolute
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .unwrap_or("")
-            .to_string();
-        let (size, hash) = file_fingerprint(&absolute);
-
-        match artifacts::create(
-            &self.pool,
-            CreateArtifactInput {
-                workspace_id: workspace_id.to_string(),
-                task_id: task_id.map(str::to_string),
-                run_id: run_id.to_string(),
-                file_path: relative,
-                absolute_path: absolute.to_string_lossy().to_string(),
-                file_type,
-                file_size_bytes: size,
-                content_sha256: hash,
-                previous_sha256: None,
-                action_type: action.to_string(),
-                created_by_agent: agent.to_string(),
-                creation_reason: reason.to_string(),
-                diff_patch: diff_patch.map(str::to_string),
-            },
-        )
-        .await
-        {
-            Ok(artifact) => self.events.publish(OpenDeskWsEvent::ArtifactCreated {
-                artifact: artifact_dto(&artifact),
-            }),
-            Err(error) => tracing::warn!(error = %error, "could not record artifact"),
-        }
-    }
-
     async fn publish_queue(&self, workspace_id: &str) {
         if let Ok(jobs) = queue::list(&self.pool, Some(workspace_id)).await {
             self.events.publish(OpenDeskWsEvent::QueueUpdated {
@@ -866,23 +745,6 @@ fn split_model(model: &str) -> (Option<String>, String) {
     }
 }
 
-fn file_fingerprint(path: &Path) -> (i64, Option<String>) {
-    let Ok(metadata) = std::fs::metadata(path) else {
-        return (0, None);
-    };
-    if !metadata.is_file() {
-        return (0, None);
-    }
-    let hash = std::fs::read(path).ok().map(|bytes| {
-        let digest = Sha256::digest(&bytes);
-        digest
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
-    });
-    (metadata.len() as i64, hash)
-}
-
 fn job_dto(job: queue::QueueJob) -> QueueJobDto {
     QueueJobDto {
         id: job.id,
@@ -906,23 +768,6 @@ fn job_dto(job: queue::QueueJob) -> QueueJobDto {
         retry_count: job.retry_count,
         max_retries: job.max_retries,
         error_message: job.error_message,
-    }
-}
-
-fn artifact_dto(artifact: &artifacts::ArtifactProvenance) -> ArtifactProvenanceDto {
-    ArtifactProvenanceDto {
-        id: artifact.id.clone(),
-        workspace_id: artifact.workspace_id.clone(),
-        task_id: artifact.task_id.clone(),
-        run_id: artifact.run_id.clone(),
-        file_path: artifact.file_path.clone(),
-        absolute_path: artifact.absolute_path.clone(),
-        file_type: artifact.file_type.clone(),
-        action_type: artifact.action_type.clone(),
-        created_by_agent: artifact.created_by_agent.clone(),
-        creation_reason: artifact.creation_reason.clone(),
-        diff_patch: artifact.diff_patch.clone(),
-        created_at: artifact.created_at.clone(),
     }
 }
 

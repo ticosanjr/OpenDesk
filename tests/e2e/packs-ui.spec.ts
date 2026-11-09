@@ -72,7 +72,7 @@ test("external capability catalog filters and opens a recommended workspace", as
   await page.getByRole("button", { name: "MCP", exact: true }).click();
   const smithery = page.locator("article").filter({ hasText: "Smithery" });
   await expect(smithery).toBeVisible();
-  await smithery.getByRole("button", { name: "Criar workspace" }).click();
+  await smithery.getByRole("button", { name: "Usar template recomendado" }).click();
   await expect(
     page.getByRole("dialog").getByText(/Criar workspace:/),
   ).toBeVisible();

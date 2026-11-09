@@ -1,6 +1,19 @@
 import { expect, test } from "@playwright/test";
 import { api, seedWorkspace } from "./helpers";
 
+test("workspace dialog offers blank, template and existing modes", async ({ page }) => {
+  await page.goto("/#/");
+  await page.getByRole("button", { name: "Novo workspace" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("button", { name: "Em branco" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Template" }).click();
+  await expect(dialog.getByText("Modelo de workspace")).toBeVisible();
+  await expect(dialog.getByText("Fábrica de Capacidades")).toBeVisible();
+  await dialog.getByRole("button", { name: "Existente" }).click();
+  await expect(dialog.getByText("Pasta do workspace existente")).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancelar" }).click();
+});
+
 test("workspace color drives the theme and kanban retention persists", async ({
   page,
   request,

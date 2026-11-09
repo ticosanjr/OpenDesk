@@ -590,9 +590,9 @@ async fn dashboard(
             COALESCE(SUM(tokens_output), 0) AS tokens_output,
             COALESCE(SUM(tokens_cache_read), 0) AS tokens_cache_read,
             COALESCE(SUM(tokens_cache_write), 0) AS tokens_cache_write,
-            COALESCE(SUM(estimated_cost_usd), 0.0) AS estimated_cost_usd,
-            COALESCE(SUM(CASE WHEN started_at >= strftime('%Y-%m-%dT00:00:00Z', 'now')
-                THEN estimated_cost_usd ELSE 0 END), 0.0) AS daily_cost_usd,
+            CAST(COALESCE(SUM(estimated_cost_usd), 0.0) AS REAL) AS estimated_cost_usd,
+            CAST(COALESCE(SUM(CASE WHEN started_at >= strftime('%Y-%m-%dT00:00:00Z', 'now')
+                THEN estimated_cost_usd ELSE 0 END), 0.0) AS REAL) AS daily_cost_usd,
             0 AS queue_running,
             0 AS queue_waiting,
             0 AS artifacts_total

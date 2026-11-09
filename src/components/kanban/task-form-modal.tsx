@@ -14,6 +14,7 @@ import { SlashTextarea } from "@/components/ui/slash-textarea";
 import { apiDelete, apiPatch, apiPost } from "@/lib/api";
 import { links } from "@/lib/links";
 import { PRIORITY_LABEL } from "@/lib/task-ui";
+import { isTaskRunning } from "@/lib/task-state";
 import type { Task } from "@/lib/types";
 import { toast } from "@/store/toast-store";
 import {
@@ -133,11 +134,7 @@ export function TaskFormModal({
   }, [open, task]);
 
   if (!open) return null;
-  const running =
-    task?.status === "IN_PROGRESS" ||
-    task?.phase_status === "queued" ||
-    task?.phase_status === "running" ||
-    task?.phase_status === "follow_up_queued";
+  const running = task ? isTaskRunning(task) : false;
 
   async function submit(rerun: boolean) {
     if (!workspaceId) return;

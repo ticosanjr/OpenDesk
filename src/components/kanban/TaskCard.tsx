@@ -17,6 +17,11 @@ import { WorkingIndicator } from "@/components/ui/working-indicator";
 import { links } from "@/lib/links";
 import { relativeTime } from "@/lib/format";
 import { EFFORT_TONE, PRIORITY_LABEL, PRIORITY_TONE } from "@/lib/task-ui";
+import {
+  isTaskAwaitingApproval,
+  isTaskFailed,
+  taskState,
+} from "@/lib/task-state";
 import type { Task } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -49,11 +54,8 @@ export function TaskCard({
   onDragStart: (event: React.DragEvent<HTMLElement>) => void;
   onDragEnd: () => void;
 }) {
-  const running =
-    task.status === "IN_PROGRESS" ||
-    task.phase_status === "queued" ||
-    task.phase_status === "running" ||
-    task.phase_status === "follow_up_queued";
+  const state = taskState(task);
+  const running = state === "running";
 
   const meta = [
     task.assigned_agent ? (
@@ -82,10 +84,9 @@ export function TaskCard({
       <Badge
         key="phase"
         variant={
-          task.phase_status.includes("failed")
+          isTaskFailed(task)
             ? "red"
-            : task.phase_status.includes("approval") ||
-                task.phase_status === "waiting"
+            : isTaskAwaitingApproval(task) || task.phase_status === "waiting"
               ? "yellow"
               : "default"
         }
@@ -117,7 +118,7 @@ export function TaskCard({
         "flex h-[152px] flex-col rounded-lg border bg-zinc-950/50 p-2.5 text-left outline-none transition-colors hover:border-zinc-700 focus-visible:ring-2 focus-visible:ring-blue-500/60",
         task.status === "BLOCKED"
           ? "border-red-500/40"
-          : task.status === "IN_PROGRESS"
+          : state === "running"
             ? "border-blue-500/40"
             : "border-zinc-800/80",
       )}
@@ -187,7 +188,7 @@ export function TaskCard({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {task.phase_status === "awaiting_approval" ? (
+          {isTaskAwaitingApproval(task) ? (
             <Button
               size="sm"
               className="h-6 px-1.5 text-[10px]"

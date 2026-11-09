@@ -100,9 +100,9 @@ pub async fn status(pool: &SqlitePool) -> AppResult<BudgetStatus> {
 
     let (daily_spent, monthly_spent): (f64, f64) = sqlx::query_as(
         "SELECT
-            COALESCE(SUM(CASE WHEN date(started_at) = date('now') THEN estimated_cost_usd ELSE 0 END), 0.0),
-            COALESCE(SUM(CASE WHEN strftime('%Y-%m', started_at) = strftime('%Y-%m', 'now')
-                THEN estimated_cost_usd ELSE 0 END), 0.0)
+            CAST(COALESCE(SUM(CASE WHEN date(started_at) = date('now') THEN estimated_cost_usd ELSE 0 END), 0.0) AS REAL),
+            CAST(COALESCE(SUM(CASE WHEN strftime('%Y-%m', started_at) = strftime('%Y-%m', 'now')
+                THEN estimated_cost_usd ELSE 0 END), 0.0) AS REAL)
          FROM task_runs
          WHERE status IN ('SUCCESS', 'FAILED')",
     )
@@ -232,6 +232,15 @@ mod tests {
         .execute(pool)
         .await
         .expect("run");
+    }
+
+    #[tokio::test]
+    async fn zero_cost_runs_decode_as_real() {
+        let (_temp, pool) = setup().await;
+        insert_run(&pool, 0.0, 100).await;
+        let status = status(&pool).await.expect("zero cost status");
+        assert_eq!(status.daily_spent, 0.0);
+        assert_eq!(status.monthly_spent, 0.0);
     }
 
     #[tokio::test]

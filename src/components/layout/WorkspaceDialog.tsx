@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FolderOpen, FolderPlus, Link2, Loader2 } from "lucide-react";
+import { FolderOpen, FolderPlus, LayoutTemplate, Link2, Loader2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,17 @@ import { joinPath, pickFolder, slugifyWorkspace } from "@/lib/folder";
 import { basename } from "@/lib/path";
 import { cn } from "@/lib/utils";
 
-type Mode = "create" | "existing";
+type Mode = "create" | "template" | "existing";
+
+interface WorkspaceTemplate {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  router_policy: string;
+  packs: string[];
+  folders: string[];
+}
 
 export function WorkspaceDialog() {
   const open = useUiStore((state) => state.workspaceDialogOpen);
@@ -30,6 +40,8 @@ export function WorkspaceDialog() {
     Array<{ id: string; name: string; description: string }>
   >([]);
   const [blueprint, setBlueprint] = useState("");
+  const [templates, setTemplates] = useState<WorkspaceTemplate[]>([]);
+  const [templateId, setTemplateId] = useState("");
   const [useAsDefault, setUseAsDefault] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +54,12 @@ export function WorkspaceDialog() {
     )
       .then(setBlueprints)
       .catch(() => setBlueprints([]));
+    void apiGet<WorkspaceTemplate[]>("/api/starter-packs/templates")
+      .then((list) => {
+        setTemplates(list);
+        setTemplateId((current) => current || list[0]?.id || "");
+      })
+      .catch(() => setTemplates([]));
     apiGet<{ workspaces_root: string }>("/api/app/defaults")
       .then((defaults) => {
         setRootParent((current) => current || defaults.workspaces_root);
@@ -56,7 +74,7 @@ export function WorkspaceDialog() {
     return joinPath(rootParent, slugifyWorkspace(name));
   }, [name, rootParent]);
 
-  const targetPath = mode === "create" ? createTarget : existingPath;
+  const targetPath = mode === "existing" ? existingPath : createTarget;
 
   async function chooseParent() {
     const selected = await pickFolder(
@@ -82,7 +100,12 @@ export function WorkspaceDialog() {
       setError("Informe o nome do workspace.");
       return;
     }
-    if (!targetPath.trim()) {
+    const template = templates.find((item) => item.id === templateId);
+    if (mode === "template" && !template) {
+      setError("Escolha um template de workspace.");
+      return;
+    }
+    if (mode !== "template" && !targetPath.trim()) {
       setError(
         mode === "create"
           ? "Escolha a pasta pai ou informe o caminho."
@@ -94,6 +117,30 @@ export function WorkspaceDialog() {
     setSaving(true);
     setError(null);
     try {
+      if (mode === "template" && template) {
+        const result = await apiPost<{
+          workspace: { id: string; name: string };
+          installed: string[];
+          errors: string[];
+        }>("/api/starter-packs/templates/create", {
+          template_id: template.id,
+          name: name.trim(),
+          root_path: targetPath.trim() || null,
+          color,
+        });
+        toast({
+          tone: result.errors.length ? "warning" : "success",
+          title: "Workspace criado",
+          description: `${result.workspace.name} · ${result.installed.length} pacote(s)${
+            result.errors.length ? ` · ${result.errors.length} pendência(s)` : ""
+          }.`,
+        });
+        await refresh();
+        setName("");
+        setOpen(false);
+        return;
+      }
+
       const workspace = await createWorkspace({
         name: name.trim(),
         root_path: targetPath.trim(),
@@ -121,7 +168,7 @@ export function WorkspaceDialog() {
         }
       }
 
-      if (mode === "create" && useAsDefault && rootParent.trim()) {
+      if (mode !== "existing" && useAsDefault && rootParent.trim()) {
         await apiPut("/api/settings/workspaces_root", rootParent.trim());
       }
 
@@ -142,8 +189,8 @@ export function WorkspaceDialog() {
     <Modal
       open={open}
       onClose={() => setOpen(false)}
-      title="Workspace"
-      description="Crie uma pasta nova em uma raiz escolhida ou registre uma pasta que já existe. O OpenDesk só adiciona input/, output/ e .opencode/ quando faltarem."
+      title="Novo workspace"
+      description="Comece em branco, use um template com pacotes e pastas prontos ou registre uma pasta existente. Tudo pode ser editado depois."
       className="max-w-xl"
     >
       <div className="space-y-4">
@@ -162,7 +209,23 @@ export function WorkspaceDialog() {
             )}
           >
             <FolderPlus size={13} />
-            Criar novo
+            Em branco
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode("template");
+              setError(null);
+            }}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+              mode === "template"
+                ? "bg-zinc-800 text-zinc-100"
+                : "text-zinc-500 hover:text-zinc-200",
+            )}
+          >
+            <LayoutTemplate size={13} />
+            Template
           </button>
           <button
             type="button"
@@ -178,7 +241,7 @@ export function WorkspaceDialog() {
             )}
           >
             <Link2 size={13} />
-            Adicionar existente
+            Existente
           </button>
         </div>
 
@@ -195,7 +258,58 @@ export function WorkspaceDialog() {
           />
         </label>
 
-        {mode === "create" ? (
+        {mode === "template" ? (
+          <div>
+            <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
+              Modelo de workspace
+            </span>
+            {templates.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-zinc-800 px-3 py-4 text-[10px] text-zinc-500">
+                Nenhum template disponível. Crie um workspace em branco e adicione
+                pacotes depois.
+              </p>
+            ) : (
+              <div className="grid max-h-52 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
+                {templates.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    aria-pressed={templateId === template.id}
+                    onClick={() => {
+                      setTemplateId(template.id);
+                      if (!name.trim()) setName(template.name);
+                      setColor(template.color);
+                    }}
+                    className={cn(
+                      "rounded-lg border p-2 text-left transition-colors",
+                      templateId === template.id
+                        ? "border-blue-500/50 bg-blue-500/[0.06]"
+                        : "border-zinc-800 bg-zinc-950/40 hover:border-zinc-700",
+                    )}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ background: template.color }}
+                      />
+                      <span className="text-[11px] font-medium text-zinc-200">
+                        {template.name}
+                      </span>
+                    </span>
+                    <span className="mt-0.5 line-clamp-2 block text-[9px] leading-snug text-zinc-500">
+                      {template.description}
+                    </span>
+                    <span className="mt-1 block font-mono text-[8px] text-zinc-700">
+                      {template.packs.length} pacotes · {template.folders.length} pastas
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {mode !== "existing" ? (
           <>
             <label className="block">
               <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
@@ -269,22 +383,36 @@ export function WorkspaceDialog() {
         )}
 
         <div className="grid grid-cols-[1fr_110px] gap-3">
-          <label className="block">
-            <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
-              Política padrão
-            </span>
-            <select
-              value={policy}
-              onChange={(event) => setPolicy(event.target.value)}
-              className={cn(inputClass, "px-2.5 text-[12px]")}
-            >
-              {Object.entries(ROUTER_POLICY_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+          {mode === "template" ? (
+            <div>
+              <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
+                Política do template
+              </span>
+              <div className="flex h-9 items-center rounded-lg border border-zinc-800 bg-zinc-900/30 px-2.5 text-[11px] text-zinc-400">
+                {ROUTER_POLICY_LABELS[
+                  templates.find((item) => item.id === templateId)?.router_policy ??
+                    "COST_BENEFIT"
+                ] ?? "Melhor custo-benefício"}
+              </div>
+            </div>
+          ) : (
+            <label className="block">
+              <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
+                Política padrão
+              </span>
+              <select
+                value={policy}
+                onChange={(event) => setPolicy(event.target.value)}
+                className={cn(inputClass, "px-2.5 text-[12px]")}
+              >
+                {Object.entries(ROUTER_POLICY_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <label className="block">
             <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
@@ -302,26 +430,28 @@ export function WorkspaceDialog() {
           </label>
         </div>
 
-        <label className="block">
-          <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
-            Equipe inicial (opcional)
-          </span>
-          <select
-            value={blueprint}
-            onChange={(event) => setBlueprint(event.target.value)}
-            className={cn(inputClass, "px-2.5 text-[12px]")}
-          >
-            <option value="">Nenhuma — começar vazio</option>
-            {blueprints.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-[9px] leading-relaxed text-zinc-600">
-            Cria agentes e skills em .opencode/ sem sobrescrever arquivos existentes.
-          </p>
-        </label>
+        {mode !== "template" ? (
+          <label className="block">
+            <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
+              Equipe inicial (opcional)
+            </span>
+            <select
+              value={blueprint}
+              onChange={(event) => setBlueprint(event.target.value)}
+              className={cn(inputClass, "px-2.5 text-[12px]")}
+            >
+              <option value="">Nenhuma — começar vazio</option>
+              {blueprints.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[9px] leading-relaxed text-zinc-600">
+              Cria agentes e skills em .opencode/ sem sobrescrever arquivos existentes.
+            </p>
+          </label>
+        ) : null}
 
         {error ? (
           <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
@@ -342,7 +472,7 @@ export function WorkspaceDialog() {
             </Button>
             <Button size="sm" onClick={() => void submit()} disabled={saving}>
               {saving ? <Loader2 size={14} className="animate-spin" /> : null}
-              {mode === "create" ? "Criar workspace" : "Adicionar workspace"}
+              {mode === "existing" ? "Adicionar workspace" : "Criar workspace"}
             </Button>
           </div>
         </div>

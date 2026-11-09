@@ -1,0 +1,276 @@
+use crate::{
+    db::{
+        artifacts::{self, CreateArtifactInput},
+        queue, tasks,
+    },
+    events::{ArtifactProvenanceDto, EventBus, OpenDeskWsEvent},
+    opencode_client::session_runner::RunOutcome,
+    paths::AppPaths,
+};
+use sha2::{Digest, Sha256};
+use sqlx::SqlitePool;
+use std::path::{Path, PathBuf};
+use uuid::Uuid;
+
+/// Everything that can be derived before the OpenCode session starts.
+#[derive(Debug, Clone)]
+pub struct RunPlan {
+    pub run_id: String,
+    pub log_path: PathBuf,
+    pub phase: String,
+    pub title: String,
+    pub output_dir: PathBuf,
+}
+
+pub fn plan_run(
+    job: &queue::QueueJob,
+    task: Option<&tasks::Task>,
+    paths: &AppPaths,
+    workspace_root: &Path,
+) -> RunPlan {
+    let run_id = Uuid::now_v7().to_string();
+    let log_path = paths.run_logs_dir.join(format!("{run_id}.jsonl"));
+    let phase = if job.job_kind == "audit" {
+        "audit"
+    } else {
+        job.resolved_mode.as_str()
+    }
+    .to_string();
+    let title = task.map(|task| task.title.clone()).unwrap_or_else(|| {
+        job.task_title
+            .clone()
+            .unwrap_or_else(|| "Scheduled task".into())
+    });
+    let output_dir = job
+        .output_dir
+        .clone()
+        .map(PathBuf::from)
+        .or_else(|| {
+            task.and_then(|task| task.output_dir_path.clone())
+                .map(PathBuf::from)
+        })
+        .unwrap_or_else(|| {
+            workspace_root
+                .join("output")
+                .join(chrono::Utc::now().format("%Y-%m").to_string())
+                .join(crate::dsh_router::slugify(&title))
+        });
+
+    RunPlan {
+        run_id,
+        log_path,
+        phase,
+        title,
+        output_dir,
+    }
+}
+
+/// Records every diff/write reported by a run. Kept separate from queue
+/// orchestration so provenance can be tested without an OpenCode session.
+pub async fn record_artifacts(
+    pool: &SqlitePool,
+    events: &EventBus,
+    job: &queue::QueueJob,
+    run_id: &str,
+    reason: &str,
+    workspace_root: &Path,
+    outcome: &RunOutcome,
+) {
+    let mut seen_files = std::collections::HashSet::new();
+    for diff in &outcome.diffs {
+        seen_files.insert(diff.file.clone());
+        let action = match diff.status.as_str() {
+            "added" => "CREATED",
+            "deleted" => "DELETED",
+            _ => "MODIFIED",
+        };
+        record_artifact(
+            pool,
+            events,
+            &job.workspace_id,
+            job.task_id.as_deref(),
+            run_id,
+            &job.resolved_agent,
+            reason,
+            workspace_root,
+            &diff.file,
+            action,
+            Some(&diff.patch),
+        )
+        .await;
+    }
+
+    for write in &outcome.writes {
+        if seen_files.contains(&write.path) {
+            continue;
+        }
+        record_artifact(
+            pool,
+            events,
+            &job.workspace_id,
+            job.task_id.as_deref(),
+            run_id,
+            &job.resolved_agent,
+            reason,
+            workspace_root,
+            &write.path,
+            &write.action,
+            write.diff_patch.as_deref(),
+        )
+        .await;
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn record_artifact(
+    pool: &SqlitePool,
+    events: &EventBus,
+    workspace_id: &str,
+    task_id: Option<&str>,
+    run_id: &str,
+    agent: &str,
+    reason: &str,
+    workspace_root: &Path,
+    file_path: &str,
+    action: &str,
+    diff_patch: Option<&str>,
+) {
+    if artifacts::exists(pool, run_id, file_path)
+        .await
+        .unwrap_or(false)
+    {
+        return;
+    }
+
+    let absolute = if Path::new(file_path).is_absolute() {
+        PathBuf::from(file_path)
+    } else {
+        workspace_root.join(file_path)
+    };
+    let relative = absolute
+        .strip_prefix(workspace_root)
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|_| file_path.to_string());
+    let file_type = absolute
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or("")
+        .to_string();
+    let (size, hash) = file_fingerprint(&absolute);
+
+    match artifacts::create(
+        pool,
+        CreateArtifactInput {
+            workspace_id: workspace_id.to_string(),
+            task_id: task_id.map(str::to_string),
+            run_id: run_id.to_string(),
+            file_path: relative,
+            absolute_path: absolute.to_string_lossy().to_string(),
+            file_type,
+            file_size_bytes: size,
+            content_sha256: hash,
+            previous_sha256: None,
+            action_type: action.to_string(),
+            created_by_agent: agent.to_string(),
+            creation_reason: reason.to_string(),
+            diff_patch: diff_patch.map(str::to_string),
+        },
+    )
+    .await
+    {
+        Ok(artifact) => events.publish(OpenDeskWsEvent::ArtifactCreated {
+            artifact: artifact_dto(&artifact),
+        }),
+        Err(error) => tracing::warn!(error = %error, "could not record artifact"),
+    }
+}
+
+fn file_fingerprint(path: &Path) -> (i64, Option<String>) {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return (0, None);
+    };
+    if !metadata.is_file() {
+        return (0, None);
+    }
+    let hash = std::fs::read(path).ok().map(|bytes| {
+        let digest = Sha256::digest(&bytes);
+        digest
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    });
+    (metadata.len() as i64, hash)
+}
+
+fn artifact_dto(artifact: &artifacts::ArtifactProvenance) -> ArtifactProvenanceDto {
+    ArtifactProvenanceDto {
+        id: artifact.id.clone(),
+        workspace_id: artifact.workspace_id.clone(),
+        task_id: artifact.task_id.clone(),
+        run_id: artifact.run_id.clone(),
+        file_path: artifact.file_path.clone(),
+        absolute_path: artifact.absolute_path.clone(),
+        file_type: artifact.file_type.clone(),
+        action_type: artifact.action_type.clone(),
+        created_by_agent: artifact.created_by_agent.clone(),
+        creation_reason: artifact.creation_reason.clone(),
+        diff_patch: artifact.diff_patch.clone(),
+        created_at: artifact.created_at.clone(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn job() -> queue::QueueJob {
+        queue::QueueJob {
+            id: "job".into(),
+            workspace_id: "ws".into(),
+            task_id: None,
+            schedule_id: None,
+            session_id: None,
+            concurrency_group: None,
+            prompt_payload: String::new(),
+            resolved_mode: "BUILD_DIRECT".into(),
+            resolved_agent: "build".into(),
+            resolved_model: "provider/model".into(),
+            resolved_effort: "low".into(),
+            job_kind: "prompt".into(),
+            scheduled_for: None,
+            output_dir: None,
+            priority: 1,
+            max_retries: 0,
+            retry_count: 0,
+            status: "QUEUED".into(),
+            task_title: Some("Tarefa".into()),
+            enqueued_at: String::new(),
+            started_at: None,
+            finished_at: None,
+            lease_expires_at: None,
+            last_heartbeat_at: None,
+            error_message: None,
+        }
+    }
+
+    #[test]
+    fn plan_uses_the_job_mode_and_slugged_title() {
+        let temp = tempfile::TempDir::new().expect("temp");
+        let paths = AppPaths {
+            data_dir: temp.path().join("data"),
+            config_dir: temp.path().join("config"),
+            cache_dir: temp.path().join("cache"),
+            log_dir: temp.path().join("logs"),
+            db_path: temp.path().join("data/opendesk.db"),
+            backups_dir: temp.path().join("backups"),
+            artifacts_dir: temp.path().join("artifacts"),
+            run_logs_dir: temp.path().join("runs"),
+            daemon_lock_path: temp.path().join("daemon.json"),
+            api_lock_path: temp.path().join("api.json"),
+        };
+        let plan = plan_run(&job(), None, &paths, temp.path());
+        assert_eq!(plan.phase, "BUILD_DIRECT");
+        assert!(plan.log_path.ends_with(format!("{}.jsonl", plan.run_id)));
+        assert!(plan.output_dir.ends_with("tarefa"));
+    }
+}

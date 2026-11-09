@@ -763,6 +763,55 @@ async fn blueprints_list_apply_and_skip_existing_files() {
 }
 
 #[tokio::test]
+async fn dashboard_decodes_zero_cost_runs_as_real() {
+    let ctx = test_support::context().await;
+    crate::db::runs::create(
+        &ctx.state.db,
+        crate::db::runs::CreateRunInput {
+            id: "run-zero-cost".into(),
+            queue_job_id: None,
+            workspace_id: ctx.workspace_id.clone(),
+            task_id: None,
+            schedule_id: None,
+            parent_run_id: None,
+            phase: Some("build".into()),
+            agent_name: "build".into(),
+            execution_mode: "BUILD_DIRECT".into(),
+            provider_id: Some("opencode-go".into()),
+            model_id: "glm-5.3".into(),
+            effort_level: "low".into(),
+            pricing_snapshot_json: None,
+            log_path: None,
+        },
+    )
+    .await
+    .expect("run");
+    crate::db::runs::finish(
+        &ctx.state.db,
+        "run-zero-cost",
+        "SUCCESS",
+        &crate::db::runs::RunUsage::default(),
+        10,
+        Some("ok"),
+        None,
+    )
+    .await
+    .expect("finish");
+
+    let (status, stats) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/dashboard?workspace_id={}", ctx.workspace_id),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{stats}");
+    assert_eq!(stats["runs_total"], 1);
+    assert_eq!(stats["estimated_cost_usd"], 0.0);
+    assert_eq!(stats["daily_cost_usd"], 0.0);
+}
+
+#[tokio::test]
 async fn updates_rollback_without_backup_is_actionable() {
     let ctx = test_support::context().await;
     let (status, body) = call(&ctx, Method::POST, "/api/updates/rollback", None).await;

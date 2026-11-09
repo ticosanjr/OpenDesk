@@ -437,6 +437,7 @@ export function PacksPage() {
       ) : null}
 
       <ExternalResources
+        availableTemplateIds={templates.map((template) => template.id)}
         onCreateWorkspace={(templateId) => {
           const template = templates.find((item) => item.id === templateId);
           if (template) openTemplate(template);

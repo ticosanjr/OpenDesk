@@ -3,6 +3,7 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
+export { isTerminalTaskStatus } from "./task-state";
 
 const seen = new Map<string, number>();
 const TTL_MS = 15 * 60 * 1000;
@@ -74,8 +75,4 @@ export async function sendNativeNotification(title: string, body: string) {
   } catch {
     return false;
   }
-}
-
-export function isTerminalTaskStatus(status: string): boolean {
-  return status === "DONE" || status === "BLOCKED" || status === "CANCELLED";
 }

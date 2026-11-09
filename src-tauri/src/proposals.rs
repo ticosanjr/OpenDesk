@@ -6,6 +6,7 @@ use crate::{
         file_ops, jsonc_editor,
         paths::StudioPaths,
         skills::{self, SkillWriteInput},
+        studio_item::{StudioItem, StudioKind},
     },
     db::{proposals, schedules, workspaces},
     error::{AppError, AppResult},
@@ -32,7 +33,7 @@ pub async fn apply(state: &Arc<AppState>, proposal: &proposals::ConfigProposal) 
                 .and_then(|value| value.as_str())
                 .unwrap_or("workspace");
             if proposal.action == "DELETE" {
-                agents::delete(&paths, scope, id)?;
+                StudioItem::new(&paths, scope, StudioKind::Agent, id).delete(&backup)?;
                 return Ok(());
             }
             let input: AgentWriteInput = serde_json::from_value(payload.clone())
@@ -49,7 +50,7 @@ pub async fn apply(state: &Arc<AppState>, proposal: &proposals::ConfigProposal) 
                 .and_then(|value| value.as_str())
                 .unwrap_or("workspace");
             if proposal.action == "DELETE" {
-                skills::delete(&paths, scope, id)?;
+                StudioItem::new(&paths, scope, StudioKind::Skill, id).delete(&backup)?;
                 return Ok(());
             }
             let input: SkillWriteInput = serde_json::from_value(payload.clone())
@@ -66,7 +67,7 @@ pub async fn apply(state: &Arc<AppState>, proposal: &proposals::ConfigProposal) 
                 .and_then(|value| value.as_str())
                 .unwrap_or("workspace");
             if proposal.action == "DELETE" {
-                commands::delete(&paths, scope, id)?;
+                StudioItem::new(&paths, scope, StudioKind::Command, id).delete(&backup)?;
                 return Ok(());
             }
             let input: CommandWriteInput = serde_json::from_value(payload.clone())

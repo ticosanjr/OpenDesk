@@ -10,8 +10,10 @@ import {
 } from "@/lib/external-resources";
 
 export function ExternalResources({
+  availableTemplateIds = [],
   onCreateWorkspace,
 }: {
+  availableTemplateIds?: string[];
   onCreateWorkspace?: (templateId: string) => void;
 }) {
   const [group, setGroup] = useState<ExternalResourceGroup | "all">("all");
@@ -106,13 +108,15 @@ export function ExternalResources({
                       {tag}
                     </span>
                   ))}
-                  {resource.templateId && onCreateWorkspace ? (
+                  {resource.templateId &&
+                  availableTemplateIds.includes(resource.templateId) &&
+                  onCreateWorkspace ? (
                     <button
                       type="button"
                       onClick={() => onCreateWorkspace(resource.templateId!)}
                       className="ml-auto rounded px-1.5 py-0.5 text-[9px] text-blue-300 hover:bg-blue-500/10 hover:text-blue-200"
                     >
-                      Criar workspace
+                      Usar template recomendado
                     </button>
                   ) : null}
                 </div>

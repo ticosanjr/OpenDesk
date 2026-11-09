@@ -65,6 +65,31 @@ describe("app store", () => {
     expect(useAppStore.getState().activeWorkspaceId).toBe("ws-1");
   });
 
+  it("keeps workspaces visible when the dashboard fails", async () => {
+    const workspace = {
+      id: "ws-1",
+      name: "WS",
+      root_path: "/tmp/ws",
+      color_hex: "#fff",
+      default_router_policy: "COST_BENEFIT",
+      timezone: "UTC",
+      is_active: true,
+      created_at: "",
+      last_opened_at: "",
+    };
+    (apiGet as Mock).mockImplementation(async (path: string) => {
+      if (path.includes("daemon")) return daemon;
+      if (path.includes("workspaces")) return [workspace];
+      if (path.includes("active_workspace_id")) return "ws-1";
+      throw new Error("dashboard decode failed");
+    });
+
+    await expect(useAppStore.getState().refresh()).resolves.toBeUndefined();
+    expect(useAppStore.getState().workspaces).toEqual([workspace]);
+    expect(useAppStore.getState().activeWorkspaceId).toBe("ws-1");
+    expect(useAppStore.getState().daemon?.online).toBe(true);
+  });
+
   it("marks the daemon as restarting", async () => {
     (apiPost as Mock).mockResolvedValue({ ok: true });
     useAppStore.setState({ daemon });

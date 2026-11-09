@@ -150,12 +150,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   refresh: async () => {
-    const [daemon, workspaces] = await Promise.all([
+    const previousWorkspaceId = get().activeWorkspaceId;
+    const previousDashboard = get().dashboard;
+    const [daemonResult, workspacesResult] = await Promise.allSettled([
       apiGet<DaemonStatus>("/api/daemon/status"),
       apiGet<Workspace[]>("/api/workspaces"),
     ]);
 
-    let activeWorkspaceId = get().activeWorkspaceId;
+    if (daemonResult.status === "fulfilled") {
+      set({ daemon: daemonResult.value });
+    }
+    if (workspacesResult.status === "rejected") {
+      throw workspacesResult.reason;
+    }
+
+    const workspaces = workspacesResult.value;
+    let activeWorkspaceId = previousWorkspaceId;
     if (!activeWorkspaceId && workspaces.length > 0) {
       try {
         activeWorkspaceId = await apiGet<string>(
@@ -173,14 +183,26 @@ export const useAppStore = create<AppStore>((set, get) => ({
       activeWorkspaceId = workspaces[0]?.id ?? null;
     }
 
-    let dashboard: DashboardStats | null = null;
-    if (activeWorkspaceId) {
-      dashboard = await apiGet<DashboardStats>(
-        `/api/dashboard?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
-      );
-    }
+    // Publish the workspace list before the dashboard. A slow or broken
+    // dashboard must never hide an otherwise loaded workspace.
+    set({
+      daemon: get().daemon,
+      workspaces,
+      activeWorkspaceId,
+      dashboard:
+        previousWorkspaceId === activeWorkspaceId ? previousDashboard : null,
+    });
 
-    set({ daemon, workspaces, activeWorkspaceId, dashboard });
+    if (activeWorkspaceId) {
+      try {
+        const dashboard = await apiGet<DashboardStats>(
+          `/api/dashboard?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+        );
+        set({ dashboard });
+      } catch {
+        // Keep the workspace list and retry the dashboard on the next refresh.
+      }
+    }
   },
 
   selectWorkspace: async (id: string) => {

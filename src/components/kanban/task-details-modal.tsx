@@ -24,6 +24,7 @@ import { Modal } from "@/components/ui/modal";
 import { apiGet, apiPost } from "@/lib/api";
 import { links } from "@/lib/links";
 import { STATUS_LABEL } from "@/lib/task-ui";
+import { isTaskAwaitingApproval, isTaskFailed, isTaskRunning } from "@/lib/task-state";
 import type { Task, TaskDiagnostics, TaskRun } from "@/lib/types";
 import { formatNumber, formatUsd, relativeTime } from "@/lib/format";
 import type { OutboundSink } from "@/components/integrations/OutboundSinksCard";
@@ -214,14 +215,10 @@ export function TaskDetailsModal({
     }
   }
 
-  const running =
-    task?.status === "IN_PROGRESS" ||
-    task?.phase_status === "queued" ||
-    task?.phase_status === "running" ||
-    task?.phase_status === "follow_up_queued";
+  const running = task ? isTaskRunning(task) : false;
   const failed =
-    task?.phase_status?.includes("failed") ||
-    diagnostics?.error !== null && diagnostics?.error !== undefined;
+    (task ? isTaskFailed(task) : false) ||
+    (diagnostics?.error !== null && diagnostics?.error !== undefined);
 
   return (
     <Modal
@@ -531,12 +528,12 @@ export function TaskDetailsModal({
                 Concluir
               </Button>
             ) : null}
-            {task.phase_status === "awaiting_approval" ? (
+            {isTaskAwaitingApproval(task) ? (
               <Button size="sm" onClick={() => onApprove(task)}>
                 <CheckCircle2 size={13} />
                 Aprovar plano e iniciar Build
               </Button>
-            ) : task.status !== "IN_PROGRESS" ? (
+            ) : !running ? (
               <Button
                 size="sm"
                 onClick={() => onDispatch(task)}
