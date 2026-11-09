@@ -1769,6 +1769,19 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - ADR 0043 documenta a decisão.
 - Testes: **326 Rust**, **127 Vitest** e **55 Playwright**.
 
+## 2026-11-09 — refatoração de governança, atenção e dedupe
+
+- `GovernancePage` reduzida de 1322 para 407 linhas, com componentes em
+  `src/components/governance/` (OrgChart, Goals, Delegations, Performance,
+  ProfileModal, GoalModal, StatCard, SectionTitle e tipos).
+- `AttentionCard` reduzido de 867 para 518 linhas, com `HitlCard`, `Section`,
+  `Row`/`DismissButton` e tipos em `src/components/dashboard/attention/`.
+- Deduplicação extraída de `db/tasks.rs` para `db/task_dedupe.rs`; arquivo caiu
+  de 968 para 853 linhas.
+- Sem mudanças de contrato ou comportamento; testes direcionados e completos
+  verdes.
+- Testes: **326 Rust**, **127 Vitest** e **55 Playwright**.
+
 ## 2026-11-09 — release 0.31.0
 
 - Gate completo passou com **286 Rust**, **101 Vitest** e **43 Playwright**.

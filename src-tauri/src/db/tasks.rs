@@ -1,3 +1,4 @@
+use super::task_dedupe;
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
@@ -109,7 +110,7 @@ pub struct UpdateTaskInput {
     pub clear_plan: bool,
 }
 
-const COLUMNS: &str = "id, workspace_id, title, description, status, phase, phase_status, \
+pub(crate) const COLUMNS: &str = "id, workspace_id, title, description, status, phase, phase_status, \
     priority, execution_mode, assigned_agent, preferred_model, agent_override, model_override, \
     effort_level, plan_markdown, output_dir_path, notify_email, export_to_gdocs, tags_json, \
     position_index, last_run_id, last_run_status, last_run_at, blocked_reason, cancelled_at, \
@@ -201,122 +202,6 @@ pub async fn get(pool: &SqlitePool, id: &str) -> AppResult<Task> {
         .ok_or_else(|| AppError::NotFound(format!("task {id}")))
 }
 
-pub const ORIGINS: [&str; 6] = [
-    "MANUAL",
-    "RECIPE",
-    "IO_BUS",
-    "CAPTURE",
-    "ROUTINE",
-    "DELEGATION",
-];
-
-fn validate_origin(value: &str) -> AppResult<String> {
-    let normalized = value.trim().to_uppercase();
-    if ORIGINS.contains(&normalized.as_str()) {
-        Ok(normalized)
-    } else {
-        Err(AppError::BadRequest(format!(
-            "invalid task origin '{value}'"
-        )))
-    }
-}
-
-fn normalize_title(value: &str) -> String {
-    crate::dedupe::normalize_text(value)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn build_dedupe_key(
-    workspace_id: &str,
-    title: &str,
-    description: &str,
-    mode: &str,
-    agent: Option<&str>,
-    model: Option<&str>,
-    effort: &str,
-    tags: &[String],
-    origin: &str,
-) -> String {
-    let mut normalized_tags = tags
-        .iter()
-        .map(|tag| tag.trim().to_lowercase())
-        .filter(|tag| !tag.is_empty())
-        .collect::<Vec<_>>();
-    normalized_tags.sort();
-    normalized_tags.dedup();
-    let tags = normalized_tags.join("\n");
-    crate::dedupe::fingerprint(&[
-        workspace_id,
-        origin,
-        &normalize_title(title),
-        &normalize_title(description),
-        mode,
-        agent.unwrap_or_default(),
-        model.unwrap_or_default(),
-        effort,
-        &tags,
-    ])
-}
-
-async fn active_by_key(
-    pool: &SqlitePool,
-    workspace_id: &str,
-    dedupe_key: &str,
-) -> AppResult<Option<Task>> {
-    let query = format!(
-        "SELECT {COLUMNS} FROM tasks
-         WHERE workspace_id = ? AND dedupe_key = ?
-           AND status IN ('TODO', 'IN_PROGRESS', 'IN_REVIEW')
-         ORDER BY created_at DESC LIMIT 1"
-    );
-    Ok(sqlx::query_as::<_, Task>(&query)
-        .bind(workspace_id)
-        .bind(dedupe_key)
-        .fetch_optional(pool)
-        .await?)
-}
-
-async fn recent_terminal_by_key(
-    pool: &SqlitePool,
-    workspace_id: &str,
-    dedupe_key: &str,
-) -> AppResult<Option<Task>> {
-    let query = format!(
-        "SELECT {COLUMNS} FROM tasks
-         WHERE workspace_id = ? AND dedupe_key = ?
-           AND status IN ('DONE', 'CANCELLED', 'BLOCKED')
-         ORDER BY COALESCE(last_run_at, updated_at, created_at) DESC LIMIT 1"
-    );
-    Ok(sqlx::query_as::<_, Task>(&query)
-        .bind(workspace_id)
-        .bind(dedupe_key)
-        .fetch_optional(pool)
-        .await?)
-}
-
-fn within_cooldown(task: &Task, minutes: i64) -> bool {
-    if minutes <= 0 {
-        return false;
-    }
-    let stamp = task
-        .last_run_at
-        .as_deref()
-        .or(Some(task.updated_at.as_str()))
-        .unwrap_or(task.created_at.as_str());
-    let Ok(parsed) = chrono::DateTime::parse_from_rfc3339(stamp) else {
-        return false;
-    };
-    chrono::Utc::now()
-        .signed_duration_since(parsed)
-        .num_minutes()
-        < minutes
-}
-
-fn as_deduplicated(mut task: Task) -> Task {
-    task.deduplicated = true;
-    task
-}
-
 pub async fn create(
     pool: &SqlitePool,
     workspace_id: &str,
@@ -342,12 +227,12 @@ pub async fn create_with_id(
     let mode = validate_mode(input.execution_mode.as_deref().unwrap_or("AUTO_DSH"))?;
     let effort = validate_effort(input.effort_level.as_deref().unwrap_or("medium"))?;
     let priority = input.priority.unwrap_or(2).clamp(1, 4);
-    let origin = validate_origin(input.origin.as_deref().unwrap_or("MANUAL"))?;
+    let origin = task_dedupe::validate_origin(input.origin.as_deref().unwrap_or("MANUAL"))?;
     let tags_json = serde_json::to_string(&input.tags).unwrap_or_else(|_| "[]".into());
     let settings = crate::dedupe::get_settings(pool).await?;
     let dedupe_enabled = input.dedupe != Some(false) && settings.enabled;
     let dedupe_key = dedupe_enabled.then(|| {
-        build_dedupe_key(
+        task_dedupe::build_key(
             workspace_id,
             title,
             input.description.trim(),
@@ -361,13 +246,13 @@ pub async fn create_with_id(
     });
 
     if let Some(key) = dedupe_key.as_deref() {
-        if let Some(existing) = active_by_key(pool, workspace_id, key).await? {
-            return Ok(as_deduplicated(existing));
+        if let Some(existing) = task_dedupe::active_by_key(pool, workspace_id, key).await? {
+            return Ok(task_dedupe::as_deduplicated(existing));
         }
-        if let Some(existing) = recent_terminal_by_key(pool, workspace_id, key).await?
-            && within_cooldown(&existing, settings.cooldown_minutes)
+        if let Some(existing) = task_dedupe::recent_terminal_by_key(pool, workspace_id, key).await?
+            && task_dedupe::within_cooldown(&existing, settings.cooldown_minutes)
         {
-            return Ok(as_deduplicated(existing));
+            return Ok(task_dedupe::as_deduplicated(existing));
         }
     }
 
@@ -415,9 +300,9 @@ pub async fn create_with_id(
         if let sqlx::Error::Database(database) = &error
             && database.message().contains("UNIQUE constraint failed")
             && let Some(key) = dedupe_key.as_deref()
-            && let Some(existing) = active_by_key(pool, workspace_id, key).await?
+            && let Some(existing) = task_dedupe::active_by_key(pool, workspace_id, key).await?
         {
-            return Ok(as_deduplicated(existing));
+            return Ok(task_dedupe::as_deduplicated(existing));
         }
         return Err(error.into());
     }
@@ -509,7 +394,7 @@ pub async fn update(pool: &SqlitePool, id: &str, input: UpdateTaskInput) -> AppR
     // Keep the fingerprint aligned with the edited content. If another active
     // task already owns it, surface a conflict instead of silently duplicating.
     let updated = get(pool, id).await?;
-    let dedupe_key = build_dedupe_key(
+    let dedupe_key = task_dedupe::build_key(
         &updated.workspace_id,
         &updated.title,
         &updated.description,
