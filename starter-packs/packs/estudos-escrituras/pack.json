@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "estudos-escrituras",
+  "version": "1.0.0",
+  "name": "Estudos das Escrituras",
+  "category": "oratoria",
+  "description": "Exegese, referências cruzadas e diário espiritual.",
+  "icon": "book-open",
+  "color": "#eab308",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "scripture-cross-referencer.md",
+      "context-historian.md",
+      "theological-synthesizer.md"
+    ],
+    "skills": [
+      "scripture-regex-tagger",
+      "hebrew-greek-glossary",
+      "topical-indexer",
+      "journal-entry-storer"
+    ],
+    "commands": [
+      "study-topic.md",
+      "analyze-passage.md"
+    ],
+    "recipes": [
+      "study-topic.yaml",
+      "analyze-passage.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "escrituras/topicos",
+      "escrituras/contexto",
+      "escrituras/diario"
+    ]
+  },
+  "examples": []
+}

@@ -12,6 +12,7 @@ import { Modal } from "@/components/ui/modal";
 import { FieldHint } from "@/components/ui/field-hint";
 import { IconLabel } from "@/components/ui/icon-label";
 import { PathInput } from "@/components/ui/path-input";
+import { TimezoneSelect } from "@/components/ui/timezone-select";
 import type { OutboundSink } from "@/components/integrations/OutboundSinksCard";
 import { useAppStore } from "@/store/app-store";
 import { PromptAttachments } from "@/components/ui/prompt-attachments";
@@ -427,11 +428,11 @@ export function CreateScheduleModal({
                     onChange={setRecurrence}
                   />
                   <label>
-                    <span className={labelClass}>Timezone</span>
-                    <input
+                    <span className={labelClass}>Fuso horário</span>
+                    <TimezoneSelect
                       value={timezone}
-                      onChange={(event) => setTimezone(event.target.value)}
-                      className={cn(inputClass, "font-mono")}
+                      onChange={setTimezone}
+                      className={inputClass}
                     />
                   </label>
                 </>

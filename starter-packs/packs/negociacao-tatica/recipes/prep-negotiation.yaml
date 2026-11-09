@@ -1,0 +1,29 @@
+id: prep-negotiation
+name: Preparar negociação
+description: Folha tática.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Auditar limites
+  mode: build
+  agent: batna-zopa-auditor
+  effort: medium
+  prompt: Calcule BATNA e ZOPA. Salve em {{run.output_dir}}/01-auditar-limites.md.
+- type: step
+  id: passo-2
+  name: Preparar táticas
+  mode: build
+  agent: black-swan-strategist
+  effort: medium
+  prompt: Liste perguntas e rótulos. Salve em {{run.output_dir}}/02-preparar-táticas.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

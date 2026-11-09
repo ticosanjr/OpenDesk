@@ -6,6 +6,7 @@ import { CountPill } from "@/components/ui/count-pill";
 import { IconLabel } from "@/components/ui/icon-label";
 import { FieldHint } from "@/components/ui/field-hint";
 import { PromptAttachments } from "@/components/ui/prompt-attachments";
+import { SlashTextarea } from "@/components/ui/slash-textarea";
 import { AgentCombobox } from "@/components/ui/agent-combobox";
 import { ModelCombobox } from "@/components/ui/model-combobox";
 import { cn } from "@/lib/utils";
@@ -466,11 +467,12 @@ function StepEditor({
         </LabeledField>
       </div>
       <LabeledField label="Prompt da etapa">
-        <textarea
+        <SlashTextarea
           value={String(step.prompt ?? "")}
-          onChange={(event) => onChange({ prompt: event.target.value })}
+          onChange={(value) => onChange({ prompt: value })}
+          workspaceId={workspaceId}
           rows={4}
-          className="w-full rounded border border-zinc-800 bg-zinc-900/50 p-2 font-mono text-[10px] text-zinc-200 outline-none"
+          className="font-mono text-[10px]"
         />
         <PromptAttachments
           workspaceId={workspaceId}

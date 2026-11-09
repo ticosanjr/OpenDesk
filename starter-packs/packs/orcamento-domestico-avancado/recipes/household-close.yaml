@@ -1,0 +1,29 @@
+id: household-close
+name: Fechar mês da casa
+description: Balanço doméstico.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Consolidar
+  mode: build
+  agent: receipt-itemizer
+  effort: medium
+  prompt: Some categorias e assinaturas. Salve em {{run.output_dir}}/01-consolidar.md.
+- type: step
+  id: passo-2
+  name: Analisar
+  mode: build
+  agent: inflation-tracker
+  effort: medium
+  prompt: Aponte desvios e aumentos. Salve em {{run.output_dir}}/02-analisar.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

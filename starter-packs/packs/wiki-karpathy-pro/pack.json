@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "wiki-karpathy-pro",
+  "version": "1.0.0",
+  "name": "Wiki Karpathy Pro",
+  "category": "educacao",
+  "description": "Segundo cérebro de primeiro princípio, notas atômicas e links.",
+  "icon": "network",
+  "color": "#06b6d4",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "first-principles-distiller.md",
+      "lexicon-auditor.md"
+    ],
+    "skills": [
+      "wikilink-resolver",
+      "orphan-node-detector",
+      "graph-density-measurer"
+    ],
+    "commands": [
+      "distill-to-core.md",
+      "audit-wiki.md"
+    ],
+    "recipes": [
+      "distill-to-core.yaml",
+      "audit-wiki.yaml"
+    ],
+    "routines": [
+      "auditoria-wiki.json"
+    ],
+    "folders": [
+      "wiki/notas",
+      "wiki/indice",
+      "wiki/orfas"
+    ]
+  },
+  "examples": []
+}

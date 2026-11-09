@@ -1,0 +1,29 @@
+id: launch-plan
+name: Planejar lançamento
+description: Cronograma e CPLs.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Montar timeline
+  mode: build
+  agent: launch-strategist
+  effort: medium
+  prompt: Defina fases, marcos e responsáveis. Salve em {{run.output_dir}}/01-montar-timeline.md.
+- type: step
+  id: passo-2
+  name: Escrever CPLs
+  mode: build
+  agent: cpl-scriptwriter
+  effort: medium
+  prompt: Estruture os conteúdos pré-lançamento. Salve em {{run.output_dir}}/02-escrever-cpls.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

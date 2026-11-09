@@ -1,0 +1,29 @@
+id: draft-talk
+name: Escrever discurso
+description: Mensagem completa.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Estruturar
+  mode: build
+  agent: sermon-architect
+  effort: medium
+  prompt: Monte esboço e princípio central. Salve em {{run.output_dir}}/01-estruturar.md.
+- type: step
+  id: passo-2
+  name: Ajustar tom
+  mode: build
+  agent: tone-sanctifier
+  effort: medium
+  prompt: Revise cadência e linguagem. Salve em {{run.output_dir}}/02-ajustar-tom.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

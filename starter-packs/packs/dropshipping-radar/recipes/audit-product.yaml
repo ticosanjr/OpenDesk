@@ -1,0 +1,36 @@
+id: audit-product
+name: Auditar produto
+description: Ficha financeira e riscos de fornecedor.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Mapear produto
+  mode: build
+  agent: product-scout
+  effort: medium
+  prompt: Levante demanda, concorrência e saturação. Salve em {{run.output_dir}}/01-mapear-produto.md.
+- type: step
+  id: passo-2
+  name: Modelar economia
+  mode: build
+  agent: unit-economics-auditor
+  effort: medium
+  prompt: Calcule custo posto e margem em faixas de CPA. Salve em {{run.output_dir}}/02-modelar-economia.md.
+- type: step
+  id: passo-3
+  name: Auditar fornecedor
+  mode: build
+  agent: supplier-vetter
+  effort: medium
+  prompt: Avalie prazo, disputa e confiabilidade. Salve em {{run.output_dir}}/03-auditar-fornecedor.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

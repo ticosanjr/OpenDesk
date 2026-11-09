@@ -12,18 +12,25 @@ import {
 export function ExternalResources({
   availableTemplateIds = [],
   onCreateWorkspace,
+  query = "",
 }: {
   availableTemplateIds?: string[];
   onCreateWorkspace?: (templateId: string) => void;
+  query?: string;
 }) {
   const [group, setGroup] = useState<ExternalResourceGroup | "all">("all");
-  const visible = useMemo(
-    () =>
-      group === "all"
-        ? EXTERNAL_RESOURCES
-        : EXTERNAL_RESOURCES.filter((resource) => resource.group === group),
-    [group],
-  );
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return EXTERNAL_RESOURCES.filter((resource) => {
+      if (group !== "all" && resource.group !== group) return false;
+      if (!needle) return true;
+      return `${resource.name} ${resource.focus} ${resource.usage} ${resource.tags.join(" ")}`
+        .toLowerCase()
+        .includes(needle);
+    });
+  }, [group, query]);
+
+  if (visible.length === 0) return null;
 
   return (
     <Card>

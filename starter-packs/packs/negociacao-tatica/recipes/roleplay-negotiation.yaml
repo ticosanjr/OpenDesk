@@ -1,0 +1,20 @@
+id: roleplay-negotiation
+name: Simular negociação
+description: Roleplay.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Simular
+  mode: build
+  agent: adversarial-sparring
+  effort: medium
+  prompt: Conduza a contraparte. Salve em {{run.output_dir}}/01-simular.md.
+- type: step
+  id: passo-2
+  name: Debriefar
+  mode: build
+  agent: black-swan-strategist
+  effort: medium
+  prompt: Aponte reações e ajustes. Salve em {{run.output_dir}}/02-debriefar.md.

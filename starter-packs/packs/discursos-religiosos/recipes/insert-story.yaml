@@ -1,0 +1,20 @@
+id: insert-story
+name: Inserir história
+description: Analogia pastoral.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Criar analogia
+  mode: build
+  agent: sermon-architect
+  effort: medium
+  prompt: Proponha história cotidiana. Salve em {{run.output_dir}}/01-criar-analogia.md.
+- type: step
+  id: passo-2
+  name: Revisar
+  mode: build
+  agent: tone-sanctifier
+  effort: medium
+  prompt: Ajuste para o tom do discurso. Salve em {{run.output_dir}}/02-revisar.md.

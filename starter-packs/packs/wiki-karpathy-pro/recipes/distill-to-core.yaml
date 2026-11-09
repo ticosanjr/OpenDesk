@@ -1,0 +1,20 @@
+id: distill-to-core
+name: Destilar para o núcleo
+description: Nota atômica.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Destilar
+  mode: build
+  agent: first-principles-distiller
+  effort: medium
+  prompt: Reduza ao mecanismo central. Salve em {{run.output_dir}}/01-destilar.md.
+- type: step
+  id: passo-2
+  name: Padronizar
+  mode: build
+  agent: lexicon-auditor
+  effort: medium
+  prompt: Defina termo canônico e links. Salve em {{run.output_dir}}/02-padronizar.md.

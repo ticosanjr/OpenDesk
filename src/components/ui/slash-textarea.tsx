@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { StudioRuntime } from "@/lib/types";
-import { loadRuntime } from "@/lib/studio-cache";
+import { loadAgents, loadRuntime } from "@/lib/studio-cache";
 import { cn } from "@/lib/utils";
 
 interface SlashItem {
@@ -8,6 +8,8 @@ interface SlashItem {
   label: string;
   detail: string;
 }
+
+type Trigger = "@" | "/" | "#";
 
 export function SlashTextarea({
   value,
@@ -19,6 +21,7 @@ export function SlashTextarea({
   disabled,
   onSubmit,
   submitOnEnter = false,
+  showHints = true,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -29,16 +32,21 @@ export function SlashTextarea({
   disabled?: boolean;
   onSubmit?: () => void;
   submitOnEnter?: boolean;
+  showHints?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const [runtime, setRuntime] = useState<StudioRuntime | null>(null);
-  const [slash, setSlash] = useState<{ query: string; start: number } | null>(null);
+  const [agents, setAgents] = useState<Array<{ id: string; name?: string | null; description?: string | null }>>([]);
+  const [slash, setSlash] = useState<{ trigger: Trigger; query: string; start: number } | null>(null);
   const [active, setActive] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     void loadRuntime(workspaceId).then((value) => {
       if (!cancelled) setRuntime(value);
+    });
+    void loadAgents(workspaceId).then((value) => {
+      if (!cancelled) setAgents(value);
     });
     return () => {
       cancelled = true;
@@ -48,31 +56,48 @@ export function SlashTextarea({
   const items = useMemo<SlashItem[]>(() => {
     if (!slash) return [];
     const query = slash.query.toLowerCase();
-    const commands = (runtime?.commands ?? [])
+    if (slash.trigger === "@") {
+      return agents
+        .filter((agent) => `${agent.id} ${agent.name ?? ""}`.toLowerCase().includes(query))
+        .slice(0, 14)
+        .map((agent) => ({
+          value: `@${agent.id}`,
+          label: `@${agent.id}`,
+          detail: agent.name || agent.description || "agente",
+        }));
+    }
+    if (slash.trigger === "#") {
+      return (runtime?.skills ?? [])
+        .filter((skill) => skill.id.toLowerCase().includes(query))
+        .slice(0, 14)
+        .map((skill) => ({
+          value: `#${skill.id}`,
+          label: `#${skill.id}`,
+          detail: skill.description ?? "skill",
+        }));
+    }
+    return (runtime?.commands ?? [])
       .filter((command) => command.name.toLowerCase().includes(query))
-      .slice(0, 12)
+      .slice(0, 14)
       .map((command) => ({
         value: `/${command.name}`,
         label: `/${command.name}`,
         detail: command.description ?? "comando",
       }));
-    const skills = (runtime?.skills ?? [])
-      .filter((skill) => skill.id.toLowerCase().includes(query))
-      .slice(0, 12)
-      .map((skill) => ({
-        value: `skill:${skill.id}`,
-        label: `skill: ${skill.id}`,
-        detail: skill.description ?? "skill",
-      }));
-    return [...commands, ...skills];
-  }, [runtime, slash]);
+  }, [agents, runtime, slash]);
 
   function update(next: string, cursor: number) {
     onChange(next);
     const before = next.slice(0, cursor);
-    const match = before.match(/(?:^|\s)\/([\w:.-]*)$/);
+    const match =
+      before.match(/(?:^|\s)([@/])([\w:.-]*)$/) ??
+      before.match(/(?:^|\s)(#)([\w:.-]+)$/);
     if (match) {
-      setSlash({ query: match[1], start: cursor - match[1].length - 1 });
+      setSlash({
+        trigger: match[1] as Trigger,
+        query: match[2],
+        start: cursor - match[2].length - 1,
+      });
       setActive(0);
     } else {
       setSlash(null);
@@ -148,6 +173,16 @@ export function SlashTextarea({
         )}
         aria-label="Comando ou prompt"
       />
+      {showHints ? (
+        <p className="mt-1 text-[9px] leading-snug text-zinc-600">
+          Use{" "}
+          <span className="font-mono text-zinc-400">@agente</span> para chamar um
+          agente,{" "}
+          <span className="font-mono text-zinc-400">/comando</span> para um comando
+          e{" "}
+          <span className="font-mono text-zinc-400">#skill</span> para uma skill.
+        </p>
+      ) : null}
       {slash ? (
         <div
           role="listbox"

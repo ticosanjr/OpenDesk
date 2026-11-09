@@ -42,6 +42,41 @@ pub async fn get_pack(
     ))
 }
 
+pub async fn list_items(
+    Path(id): Path<String>,
+) -> AppResult<Json<Vec<crate::starter_packs::PackItem>>> {
+    Ok(Json(crate::starter_packs::items(&id)?))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InstallItemBody {
+    pub workspace_id: Option<String>,
+    pub kind: String,
+    pub id: String,
+    #[serde(default)]
+    pub overwrite: bool,
+}
+
+pub async fn install_item(
+    State(state): State<Arc<AppState>>,
+    Path(pack_id): Path<String>,
+    Json(body): Json<InstallItemBody>,
+) -> AppResult<Json<crate::starter_packs::ItemInstallResult>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, body.workspace_id.as_deref()).await?;
+    Ok(Json(
+        crate::starter_packs::install_item(
+            &state,
+            &pack_id,
+            &workspace_id,
+            &body.kind,
+            &body.id,
+            body.overwrite,
+        )
+        .await?,
+    ))
+}
+
 pub async fn preview_pack(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,

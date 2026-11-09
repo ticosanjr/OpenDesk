@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "copywriting-direct-response",
+  "version": "1.0.0",
+  "name": "Copywriting Direct Response",
+  "category": "commerce",
+  "description": "VSL, landing pages, e-mails e páginas de captura.",
+  "icon": "pen-tool",
+  "color": "#a855f7",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "offer-architect.md",
+      "copy-drafter.md",
+      "objection-destroyer.md"
+    ],
+    "skills": [
+      "readability-analyzer",
+      "bullet-point-fascination-gen",
+      "vsl-scene-splitter",
+      "email-sequence-formatter"
+    ],
+    "commands": [
+      "write-vsl.md",
+      "email-sequence.md"
+    ],
+    "recipes": [
+      "write-vsl.yaml",
+      "email-sequence.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "copy/ofertas",
+      "copy/vsl",
+      "copy/emails"
+    ]
+  },
+  "examples": []
+}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Copy,
   FlaskConical,
@@ -44,6 +44,7 @@ export function RoutineCard({
   onRemove: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const recurrences =
     schedule.trigger_type === "CRON"
       ? describeRecurrence(
@@ -107,6 +108,24 @@ export function RoutineCard({
     setMenuOpen(false);
     callback();
   }
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeOnOutside = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [menuOpen]);
 
   return (
     <div
@@ -200,42 +219,44 @@ export function RoutineCard({
           <Pencil size={11} />
           Editar
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          aria-label={`Mais ações da rotina ${schedule.name}`}
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((value) => !value)}
-        >
-          <MoreHorizontal size={13} />
-        </Button>
+        <div ref={menuRef} className="relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            aria-label={`Mais ações da rotina ${schedule.name}`}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((value) => !value)}
+          >
+            <MoreHorizontal size={13} />
+          </Button>
 
-        {menuOpen ? (
-          <div className="absolute right-2 top-11 z-40 w-48 rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-2xl">
-            <MenuItem icon={<History size={12} />} onClick={() => action(onHistory)}>
-              Histórico
-            </MenuItem>
-            <MenuItem icon={<Copy size={12} />} onClick={() => action(onDuplicate)}>
-              Duplicar
-            </MenuItem>
-            <MenuItem icon={<FlaskConical size={12} />} onClick={() => action(onDryRun)}>
-              Dry-run
-            </MenuItem>
-            {schedule.notify_email_recipients || schedule.notify_signal ? (
-              <MenuItem icon={<Send size={12} />} onClick={() => action(onTestNotification)}>
-                Testar aviso
+          {menuOpen ? (
+            <div className="absolute right-0 top-8 z-40 w-48 rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-2xl">
+              <MenuItem icon={<History size={12} />} onClick={() => action(onHistory)}>
+                Histórico
               </MenuItem>
-            ) : null}
-            <MenuItem
-              icon={<Trash2 size={12} />}
-              destructive
-              onClick={() => action(onRemove)}
-            >
-              Excluir
-            </MenuItem>
-          </div>
-        ) : null}
+              <MenuItem icon={<Copy size={12} />} onClick={() => action(onDuplicate)}>
+                Duplicar
+              </MenuItem>
+              <MenuItem icon={<FlaskConical size={12} />} onClick={() => action(onDryRun)}>
+                Dry-run
+              </MenuItem>
+              {schedule.notify_email_recipients || schedule.notify_signal ? (
+                <MenuItem icon={<Send size={12} />} onClick={() => action(onTestNotification)}>
+                  Testar aviso
+                </MenuItem>
+              ) : null}
+              <MenuItem
+                icon={<Trash2 size={12} />}
+                destructive
+                onClick={() => action(onRemove)}
+              >
+                Excluir
+              </MenuItem>
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

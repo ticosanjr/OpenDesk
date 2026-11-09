@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "id": "mente-clara-journaling",
+  "version": "1.0.0",
+  "name": "Mente Clara & Journaling",
+  "category": "vida",
+  "description": "Reflexão, regulação emocional e desconstrução de sobrecarga.",
+  "icon": "brain",
+  "color": "#14b8a6",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "socratic-reflector.md",
+      "demand-decompressor.md"
+    ],
+    "skills": [
+      "cbt-distortion-detector",
+      "energy-drain-logger",
+      "grounding-exercise-guide"
+    ],
+    "commands": [
+      "unpack-overwhelm.md",
+      "cbt-thought-record.md"
+    ],
+    "recipes": [
+      "unpack-overwhelm.yaml",
+      "cbt-thought-record.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "diario",
+      "diario/insights",
+      "diario/export"
+    ]
+  },
+  "examples": []
+}

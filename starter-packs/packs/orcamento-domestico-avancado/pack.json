@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "orcamento-domestico-avancado",
+  "version": "1.0.0",
+  "name": "Orçamento Doméstico Avançado",
+  "category": "vida",
+  "description": "Cupons, custos por categoria, assinaturas e fechamento doméstico.",
+  "icon": "receipt",
+  "color": "#22c55e",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "receipt-itemizer.md",
+      "inflation-tracker.md"
+    ],
+    "skills": [
+      "tesseract-receipt-parser",
+      "category-tagger",
+      "household-burn-calc"
+    ],
+    "commands": [
+      "log-receipt.md",
+      "household-close.md"
+    ],
+    "recipes": [
+      "log-receipt.yaml",
+      "household-close.yaml"
+    ],
+    "routines": [
+      "fechamento-casa.json"
+    ],
+    "folders": [
+      "casa/financas/cupons",
+      "casa/financas/relatorios",
+      "casa/financas/assinaturas"
+    ]
+  },
+  "examples": []
+}

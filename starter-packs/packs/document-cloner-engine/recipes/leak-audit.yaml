@@ -1,0 +1,20 @@
+id: leak-audit
+name: Auditar vazamento
+description: Comparação de documentos.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Comparar
+  mode: build
+  agent: consistency-auditor
+  effort: medium
+  prompt: Liste resíduos e diferenças. Salve em {{run.output_dir}}/01-comparar.md.
+- type: step
+  id: passo-2
+  name: Corrigir
+  mode: build
+  agent: document-mutator
+  effort: medium
+  prompt: Ajuste sem alterar a estrutura. Salve em {{run.output_dir}}/02-corrigir.md.

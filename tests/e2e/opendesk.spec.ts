@@ -327,7 +327,7 @@ test("creates and edits a recurrence routine with calendar, agent search and not
   await expect(dialog.getByText("dias úteis às", { exact: false })).toBeVisible();
 
   // Timezone defaults to the local machine timezone and stays editable.
-  const timezone = await dialog.getByLabel("Timezone").inputValue();
+  const timezone = await dialog.getByLabel("Fuso horário").inputValue();
   expect(timezone.length).toBeGreaterThan(0);
 
   // Agent picker is optional and filters as the user types.
@@ -347,7 +347,7 @@ test("creates and edits a recurrence routine with calendar, agent search and not
   await dialog
     .getByLabel("Comando ou prompt")
     .fill("Produza um relatório de teste. /global-command");
-  await expect(dialog.getByText("Nenhum comando/skill encontrado.")).toBeVisible();
+  await expect(dialog.getByText(/Nenhum comando\/skill encontrado/)).toBeVisible();
   await dialog.getByRole("button", { name: "Criar rotina" }).click();
   await expect(page.getByText("Rotina E2E").first()).toBeVisible();
   await expect(page.getByText("dias úteis às", { exact: false }).first()).toBeVisible();
@@ -874,7 +874,7 @@ test("edits and removes a workspace without touching its folder", async ({
     .locator("xpath=ancestor::div[contains(@class,'rounded-lg')][1]");
   await row.getByRole("button", { name: "Editar" }).click();
   await page.getByLabel("Nome").fill("Workspace Renomeado");
-  await page.getByLabel("Timezone").fill("America/Sao_Paulo");
+  await page.getByLabel("Fuso horário").selectOption("America/Sao_Paulo");
   await page.getByRole("button", { name: "Salvar workspace" }).click();
   await expect(page.getByText("Workspace atualizado").first()).toBeVisible();
 

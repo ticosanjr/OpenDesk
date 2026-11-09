@@ -1,0 +1,20 @@
+id: catalog-item
+name: Criar ficha de catálogo
+description: Ficha técnica e SEO.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Estruturar ficha
+  mode: build
+  agent: catalog-manager
+  effort: medium
+  prompt: Monte ficha com especificações e medidas. Salve em {{run.output_dir}}/01-estruturar-ficha.md.
+- type: step
+  id: passo-2
+  name: Revisar SEO
+  mode: build
+  agent: catalog-manager
+  effort: medium
+  prompt: Ajuste título, bullets e meta tags. Salve em {{run.output_dir}}/02-revisar-seo.md.

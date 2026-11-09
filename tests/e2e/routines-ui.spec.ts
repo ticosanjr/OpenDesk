@@ -29,6 +29,9 @@ flow:
   await page.goto("/#/routines");
   await page.getByRole("main").getByRole("button", { name: "Nova rotina" }).click();
   const dialog = page.getByRole("dialog");
+  const timezone = dialog.getByLabel("Fuso horário");
+  await expect(timezone).toBeVisible();
+  await expect(timezone).toContainText("UTC+00:00");
   await dialog.getByLabel("Nome da rotina").fill("Rotina Receita UI");
   await dialog.getByLabel("Tipo de gatilho").selectOption("FOLDER_WATCH");
   await dialog
@@ -41,6 +44,11 @@ flow:
   await dialog.getByRole("button", { name: /Receita Rotina UI/ }).click();
   await dialog.getByRole("button", { name: "Criar rotina" }).click();
   await expect(dialog).toBeHidden();
+
+  await page.getByRole("button", { name: /Mais ações da rotina/ }).first().click();
+  await expect(page.getByRole("button", { name: "Histórico" })).toBeVisible();
+  await page.getByRole("heading", { name: "Rotinas & Gatilhos" }).click();
+  await expect(page.getByRole("button", { name: "Histórico" })).toBeHidden();
 
   await expect
     .poll(async () => {

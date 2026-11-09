@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "dropshipping-radar",
+  "version": "1.0.0",
+  "name": "Dropshipping Radar",
+  "category": "commerce",
+  "description": "Mineração, validação financeira e auditoria de fornecedores para produtos físicos.",
+  "icon": "radar",
+  "color": "#22c55e",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "product-scout.md",
+      "unit-economics-auditor.md",
+      "supplier-vetter.md"
+    ],
+    "skills": [
+      "aliexpress-schema-parser",
+      "landed-cost-calculator",
+      "competitor-price-scraper",
+      "supplier-scorecard"
+    ],
+    "commands": [
+      "audit-product.md",
+      "supplier-check.md"
+    ],
+    "recipes": [
+      "audit-product.yaml",
+      "supplier-check.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "commerce/produtos",
+      "commerce/fornecedores",
+      "commerce/relatorios"
+    ]
+  },
+  "examples": []
+}

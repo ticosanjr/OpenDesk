@@ -39,6 +39,7 @@ import { links } from "@/lib/links";
 import { toast } from "@/store/toast-store";
 import type { Workspace } from "@/lib/types";
 import { Modal } from "@/components/ui/modal";
+import { TimezoneSelect } from "@/components/ui/timezone-select";
 import { smallLabelClass as labelClass } from "@/lib/ui-classes";
 import { fieldInputClass as inputClass } from "@/lib/ui-classes";
 
@@ -504,12 +505,11 @@ function WorkspaceEditModal({
             </select>
           </label>
           <label>
-            <span className={labelClass}>Timezone</span>
-            <input
+            <span className={labelClass}>Fuso horário</span>
+            <TimezoneSelect
               value={timezone}
-              onChange={(event) => setTimezone(event.target.value)}
-              placeholder="America/Sao_Paulo"
-              className={cn(inputClass, "font-mono text-[10px]")}
+              onChange={setTimezone}
+              className={cn(inputClass, "text-[10px]")}
             />
           </label>
           <label className="sm:col-span-2">

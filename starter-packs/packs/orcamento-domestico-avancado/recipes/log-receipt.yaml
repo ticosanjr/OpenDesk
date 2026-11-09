@@ -1,0 +1,20 @@
+id: log-receipt
+name: Registrar cupom
+description: OCR e categorias.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Extrair
+  mode: build
+  agent: receipt-itemizer
+  effort: medium
+  prompt: Liste itens e valores. Salve em {{run.output_dir}}/01-extrair.md.
+- type: step
+  id: passo-2
+  name: Categorizar
+  mode: build
+  agent: inflation-tracker
+  effort: medium
+  prompt: Classifique e compare preços. Salve em {{run.output_dir}}/02-categorizar.md.

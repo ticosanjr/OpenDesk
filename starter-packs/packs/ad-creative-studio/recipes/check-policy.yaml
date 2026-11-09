@@ -1,0 +1,20 @@
+id: check-policy
+name: Checar política
+description: Riscos de bloqueio.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Ler copy
+  mode: build
+  agent: compliance-auditor
+  effort: medium
+  prompt: Identifique alegações e termos proibidos. Salve em {{run.output_dir}}/01-ler-copy.md.
+- type: step
+  id: passo-2
+  name: Corrigir
+  mode: build
+  agent: script-direct-response
+  effort: medium
+  prompt: Reescreva mantendo a intenção. Salve em {{run.output_dir}}/02-corrigir.md.

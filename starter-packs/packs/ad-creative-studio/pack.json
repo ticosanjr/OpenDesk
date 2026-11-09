@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "ad-creative-studio",
+  "version": "1.0.0",
+  "name": "Ad Creative Studio",
+  "category": "commerce",
+  "description": "Ganchos, scripts e compliance para anúncios de performance.",
+  "icon": "megaphone",
+  "color": "#ef4444",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "hook-engineer.md",
+      "script-direct-response.md",
+      "compliance-auditor.md"
+    ],
+    "skills": [
+      "ad-script-formatter",
+      "hook-variation-generator",
+      "policy-compliance-checker",
+      "display-url-generator"
+    ],
+    "commands": [
+      "create-ads.md",
+      "check-policy.md"
+    ],
+    "recipes": [
+      "create-ads.yaml",
+      "check-policy.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "ads/angulos",
+      "ads/scripts",
+      "ads/compliance"
+    ]
+  },
+  "examples": []
+}

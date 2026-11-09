@@ -1,0 +1,29 @@
+id: collection-summary
+name: Resumo da coleção
+description: Valor e seguro.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Consolidar
+  mode: build
+  agent: provenance-registrar
+  effort: medium
+  prompt: Liste itens e custos. Salve em {{run.output_dir}}/01-consolidar.md.
+- type: step
+  id: passo-2
+  name: Estimar
+  mode: build
+  agent: condition-grader
+  effort: medium
+  prompt: Aplique critérios de valor. Salve em {{run.output_dir}}/02-estimar.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

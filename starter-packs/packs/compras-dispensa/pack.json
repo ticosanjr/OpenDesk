@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "id": "compras-dispensa",
+  "version": "1.0.0",
+  "name": "Compras & Dispensa",
+  "category": "vida",
+  "description": "Lista inteligente, inventário e compras por corredor.",
+  "icon": "shopping-basket",
+  "color": "#84cc16",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "pantry-auditor.md",
+      "route-optimizer.md"
+    ],
+    "skills": [
+      "pantry-db-ops",
+      "aisle-categorizer",
+      "bulk-purchase-evaluator"
+    ],
+    "commands": [
+      "generate-shopping-list.md",
+      "bulk-math.md"
+    ],
+    "recipes": [
+      "generate-shopping-list.yaml",
+      "bulk-math.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "casa/compras",
+      "casa/dispensa",
+      "casa/listas"
+    ]
+  },
+  "examples": []
+}

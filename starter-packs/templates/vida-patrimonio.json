@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "id": "vida-patrimonio",
+  "name": "Vida Pessoal, Família & Patrimônio",
+  "color": "#14b8a6",
+  "description": "Journaling, compras da casa, orçamento doméstico e acervos.",
+  "packs": [
+    "essenciais",
+    "mente-clara-journaling",
+    "compras-dispensa",
+    "orcamento-domestico-avancado",
+    "colecionador-vault"
+  ],
+  "folders": [
+    "diario",
+    "casa/compras",
+    "casa/financas",
+    "colecao/itens"
+  ],
+  "readme": "# Vida Pessoal, Família & Patrimônio\n\nReflexão, rotina doméstica, orçamento e coleções.",
+  "memory": "# MEMORY — Vida Pessoal, Família & Patrimônio\n\n- Diário e finanças são dados sensíveis.\n- Nada substitui acompanhamento profissional.\n- Compras e patrimônio exigem revisão humana.",
+  "router_policy": "COST_BENEFIT"
+}

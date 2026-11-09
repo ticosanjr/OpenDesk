@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "id": "ecommerce-ops",
+  "version": "1.0.0",
+  "name": "E-commerce Ops",
+  "category": "commerce",
+  "description": "Catálogo, rastreio, expedição e estoque de segurança.",
+  "icon": "shopping-bag",
+  "color": "#0ea5e9",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "catalog-manager.md",
+      "logistics-tracker.md",
+      "fulfillment-clerk.md"
+    ],
+    "skills": [
+      "csv-inventory-sync",
+      "tracking-status-parser",
+      "sku-generator",
+      "seo-product-description"
+    ],
+    "commands": [
+      "catalog-item.md",
+      "audit-deliveries.md"
+    ],
+    "recipes": [
+      "catalog-item.yaml",
+      "audit-deliveries.yaml"
+    ],
+    "routines": [
+      "auditoria-entregas.json"
+    ],
+    "folders": [
+      "commerce/catalogo",
+      "commerce/pedidos",
+      "commerce/estoque"
+    ]
+  },
+  "examples": []
+}

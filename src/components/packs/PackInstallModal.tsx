@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Download, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +7,14 @@ import { CountPill } from "@/components/ui/count-pill";
 import { IconLabel } from "@/components/ui/icon-label";
 import { LoadingState } from "@/components/ui/loading-state";
 import { Modal } from "@/components/ui/modal";
-import type { InstallPlan, PackSummary } from "./pack-types";
+import type { InstallPlan, PackItem, PackSummary } from "./pack-types";
+
+const ITEM_KINDS = [
+  { id: "agent", label: "Agentes" },
+  { id: "skill", label: "Skills" },
+  { id: "command", label: "Comandos" },
+  { id: "recipe", label: "Receitas" },
+] as const;
 
 export function PackInstallModal({
   selected,
@@ -16,10 +24,14 @@ export function PackInstallModal({
   removing,
   overwritePaths,
   activeWorkspaceId,
+  items,
+  itemsLoading,
+  installingItem,
   onClose,
   onToggleOverwrite,
   onInstall,
   onRemove,
+  onInstallItem,
 }: {
   selected: PackSummary | null;
   plan: InstallPlan | null;
@@ -28,11 +40,18 @@ export function PackInstallModal({
   removing: boolean;
   overwritePaths: Set<string>;
   activeWorkspaceId: string | null;
+  items: PackItem[];
+  itemsLoading: boolean;
+  installingItem: string | null;
   onClose: () => void;
   onToggleOverwrite: (path: string, checked: boolean) => void;
   onInstall: () => void;
   onRemove: () => void;
+  onInstallItem: (kind: string, id: string) => void;
 }) {
+  const [itemKind, setItemKind] = useState<(typeof ITEM_KINDS)[number]["id"]>("agent");
+  const visibleItems = items.filter((item) => item.kind === itemKind);
+
   return (
     <Modal
       open={selected !== null}
@@ -92,6 +111,74 @@ export function PackInstallModal({
               {[...selected.requires.tools, ...selected.requires.integrations].join(", ")}
             </div>
           ) : null}
+
+          <div className="rounded-xl border border-zinc-800/70 bg-zinc-950/30">
+            <div className="flex flex-wrap gap-1 border-b border-zinc-800/70 p-1.5">
+              {ITEM_KINDS.map((kind) => {
+                const count = items.filter((item) => item.kind === kind.id).length;
+                return (
+                  <button
+                    key={kind.id}
+                    type="button"
+                    aria-pressed={itemKind === kind.id}
+                    onClick={() => setItemKind(kind.id)}
+                    className={
+                      itemKind === kind.id
+                        ? "rounded-md bg-zinc-800 px-2 py-1 text-[10px] text-zinc-100"
+                        : "rounded-md px-2 py-1 text-[10px] text-zinc-500 hover:text-zinc-200"
+                    }
+                  >
+                    {kind.label} <span className="font-mono text-zinc-600">{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="max-h-56 overflow-y-auto p-1.5">
+              {itemsLoading ? (
+                <LoadingState compact label="Carregando itens…" />
+              ) : visibleItems.length === 0 ? (
+                <p className="p-2 text-[10px] text-zinc-600">Nenhum item neste tipo.</p>
+              ) : (
+                visibleItems.map((item) => (
+                  <details
+                    key={`${item.kind}:${item.id}`}
+                    className="rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-2 [&_summary::-webkit-details-marker]:hidden"
+                  >
+                    <summary className="flex cursor-pointer items-center gap-2 text-[10px] text-zinc-300">
+                      <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                      <Badge variant="default">{item.kind}</Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-[9px]"
+                        disabled={!activeWorkspaceId || installingItem === `${item.kind}:${item.id}`}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          onInstallItem(item.kind, item.id);
+                        }}
+                      >
+                        {installingItem === `${item.kind}:${item.id}` ? "Instalando…" : "Instalar"}
+                      </Button>
+                    </summary>
+                    {item.description ? (
+                      <p className="mt-1 text-[9px] leading-snug text-zinc-500">
+                        {item.description}
+                      </p>
+                    ) : null}
+                    <pre className="mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap rounded border border-zinc-800/70 bg-black/25 p-2 font-mono text-[9px] leading-relaxed text-zinc-400">
+                      {item.content}
+                    </pre>
+                    {item.files.length > 0 ? (
+                      <p className="mt-1 font-mono text-[8px] text-zinc-600">
+                        Arquivos: {item.files.join(", ")}
+                      </p>
+                    ) : null}
+                  </details>
+                ))
+              )}
+            </div>
+          </div>
 
           {!activeWorkspaceId ? (
             <p className="rounded-lg border border-zinc-800 px-3 py-2 text-[10px] text-zinc-500">

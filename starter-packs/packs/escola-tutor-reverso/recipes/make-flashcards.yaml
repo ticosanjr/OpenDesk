@@ -1,0 +1,20 @@
+id: make-flashcards
+name: Criar flashcards
+description: CSV para Anki.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Extrair
+  mode: build
+  agent: exam-reverse-engineer
+  effort: medium
+  prompt: Identifique conceitos-chave. Salve em {{run.output_dir}}/01-extrair.md.
+- type: step
+  id: passo-2
+  name: Formatar
+  mode: build
+  agent: flashcard-builder
+  effort: medium
+  prompt: Monte CSV atômico. Salve em {{run.output_dir}}/02-formatar.md.

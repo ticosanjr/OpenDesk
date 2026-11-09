@@ -1585,6 +1585,39 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   o catálogo foi validado contra os diretórios e arquivos reais.
 - Testes de starter packs, typecheck, Vitest e E2E de pacotes/workspace verdes.
 
+## 2026-11-09 — pacotes por abas, itens individuais e novas verticais
+
+- Página Pacotes ganhou abas **Visão geral**, **Workspaces**, **Pacotes** e
+  **Capacidades externas**, com busca global nos três grupos.
+- Cada pacote agora lista agentes, skills, comandos e receitas com detalhe
+  expansível e instalação individual, sem marcar o pacote inteiro como instalado.
+- Modal de workspace mostra composição de packs, pastas e README do template.
+- Catálogo cresceu para **46 packs** e **11 workspaces**.
+- Novas verticais: **Performance & Digital Commerce**, **Oratória, Relações &
+  Ministério**, **Vida Pessoal, Família & Patrimônio** e **Educação, Pesquisa &
+  Engenharia de Documentos**.
+- 17 novos packs, incluindo dropshipping-radar, ecommerce-ops, afiliados-growth,
+  ad-creative-studio, copywriting-direct-response, formula-lancamento,
+  estudos-escrituras, discursos-religiosos, preparacao-discursos,
+  negociacao-tatica, mente-clara-journaling, compras-dispensa,
+  orcamento-domestico-avancado, colecionador-vault, escola-tutor-reverso,
+  wiki-karpathy-pro e document-cloner-engine.
+- Testes de starter packs: 15 verdes; E2E de pacotes: 5 verdes.
+
+## 2026-11-09 — ação por workspace, menu, autocomplete e timezone
+
+- Botões primários e switches ligados usam `--workspace-accent`; “Nova tarefa”,
+  “Reiniciar”, criação, execução e toggles de rotinas/receitas deixam de ser
+  azuis fixos.
+- Menu de ações da rotina fecha ao clicar fora ou pressionar Escape.
+- Prompt de etapa ganhou autocomplete com `@agente`, `/comando` e `#skill`, com
+  dica visível e navegação por teclado.
+- Timezone virou dropdown pesquisável por offset (`UTC-03:00 America/Sao_Paulo`),
+  com o fuso atual marcado; aplicado em rotinas, receitas e configurações.
+- Trigger CRON de receita agora usa frequência, horário, dia da semana/mês e
+  timezone; expressão crua só aparece em “Personalizado (avançado)”.
+- Testes: **104 Vitest**; E2E direcionado de workspace, rotinas e receitas verde.
+
 ## 2026-11-09 — release 0.31.0
 
 - Gate completo passou com **286 Rust**, **101 Vitest** e **43 Playwright**.

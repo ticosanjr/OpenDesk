@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "formula-lancamento",
+  "version": "1.0.0",
+  "name": "Fórmula de Lançamento",
+  "category": "commerce",
+  "description": "CPLs, cronograma reverso e debrief de lançamentos digitais.",
+  "icon": "rocket",
+  "color": "#f97316",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "launch-strategist.md",
+      "cpl-scriptwriter.md",
+      "debrief-analyst.md"
+    ],
+    "skills": [
+      "launch-timeline-builder",
+      "cpl-framework-mapper",
+      "cart-recovery-script",
+      "launch-debrief-calc"
+    ],
+    "commands": [
+      "launch-plan.md",
+      "script-cpl.md"
+    ],
+    "recipes": [
+      "launch-plan.yaml",
+      "launch-debrief.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "lancamento/cronograma",
+      "lancamento/cpls",
+      "lancamento/debrief"
+    ]
+  },
+  "examples": []
+}

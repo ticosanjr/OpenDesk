@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "id": "performance-digital-commerce",
+  "name": "Performance & Digital Commerce",
+  "color": "#22c55e",
+  "description": "Dropshipping, e-commerce, afiliados, anúncios, copy e lançamentos.",
+  "packs": [
+    "essenciais",
+    "dropshipping-radar",
+    "ecommerce-ops",
+    "afiliados-growth",
+    "ad-creative-studio",
+    "copywriting-direct-response",
+    "formula-lancamento"
+  ],
+  "folders": [
+    "commerce/produtos",
+    "commerce/pedidos",
+    "afiliados/ofertas",
+    "ads/angulos",
+    "copy/ofertas",
+    "lancamento/cronograma"
+  ],
+  "readme": "# Performance & Digital Commerce\n\nMineração de produtos, operação de e-commerce, afiliados, anúncios, copy e lançamentos.",
+  "memory": "# MEMORY — Performance & Digital Commerce\n\n- Margem líquida real antes de escalar.\n- Nenhum anúncio sai sem compliance.\n- Reviews e promessas precisam de evidência.",
+  "router_policy": "COST_BENEFIT"
+}

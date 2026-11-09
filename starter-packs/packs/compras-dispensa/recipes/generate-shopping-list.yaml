@@ -1,0 +1,20 @@
+id: generate-shopping-list
+name: Gerar lista de compras
+description: Lista por corredor.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Consolidar
+  mode: build
+  agent: pantry-auditor
+  effort: medium
+  prompt: Junte pedidos e evite duplicatas. Salve em {{run.output_dir}}/01-consolidar.md.
+- type: step
+  id: passo-2
+  name: Ordenar
+  mode: build
+  agent: route-optimizer
+  effort: medium
+  prompt: Agrupe por seção do mercado. Salve em {{run.output_dir}}/02-ordenar.md.

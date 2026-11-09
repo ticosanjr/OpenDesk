@@ -1,0 +1,20 @@
+id: email-sequence
+name: Sequência de e-mails
+description: 5 e-mails de venda.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Planejar
+  mode: build
+  agent: offer-architect
+  effort: medium
+  prompt: Defina arco narrativo. Salve em {{run.output_dir}}/01-planejar.md.
+- type: step
+  id: passo-2
+  name: Escrever
+  mode: build
+  agent: copy-drafter
+  effort: medium
+  prompt: Redija os cinco e-mails. Salve em {{run.output_dir}}/02-escrever.md.

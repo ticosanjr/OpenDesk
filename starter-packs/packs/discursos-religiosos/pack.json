@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "id": "discursos-religiosos",
+  "version": "1.0.0",
+  "name": "Discursos Religiosos",
+  "category": "oratoria",
+  "description": "Preparação de mensagens e sermões com clareza doutrinária e tom pastoral.",
+  "icon": "mic",
+  "color": "#0f766e",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "sermon-architect.md",
+      "tone-sanctifier.md"
+    ],
+    "skills": [
+      "talk-time-calibrator",
+      "parable-matcher",
+      "scripture-quote-formatter"
+    ],
+    "commands": [
+      "draft-talk.md",
+      "insert-story.md"
+    ],
+    "recipes": [
+      "draft-talk.yaml",
+      "insert-story.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "discursos/temas",
+      "discursos/esbocos",
+      "discursos/finais"
+    ]
+  },
+  "examples": []
+}

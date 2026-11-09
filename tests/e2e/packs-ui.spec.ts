@@ -78,6 +78,29 @@ test("external capability catalog filters and opens a recommended workspace", as
   ).toBeVisible();
 });
 
+test("package tabs, global search and individual item install work", async ({
+  page,
+  request,
+}) => {
+  const workspace = await seedWorkspace(request, "Packs Items");
+  await page.goto("/#/packs");
+  await page.getByPlaceholder(/Buscar nos workspaces/).fill("Dropshipping");
+  await expect(page.getByText("Dropshipping Radar").first()).toBeVisible();
+  await page.getByPlaceholder(/Buscar nos workspaces/).fill("");
+  await page.getByRole("button", { name: /Pacotes \(/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "Adicionar capacidades" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /^Essenciais/ }).first().click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("button", { name: /Agentes/ })).toBeVisible();
+  await dialog.getByRole("button", { name: "Instalar" }).first().click();
+  await expect(page.getByText(/agent assistente instalado/).first()).toBeVisible();
+  await expect
+    .poll(() => existsSync(`${workspace.root}/.opencode/agents/assistente.md`))
+    .toBe(true);
+});
+
 test("workspace template creates a ready-to-use workspace from the UI", async ({
   page,
   request,

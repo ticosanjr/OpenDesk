@@ -1,5 +1,5 @@
 {
-  "schema": 2,
+  "schema": 3,
   "categories": [
     {
       "id": "base",
@@ -40,6 +40,21 @@
       "id": "vida",
       "name": "Vida & Casa",
       "description": "Finanças pessoais, saúde, viagens e imóveis."
+    },
+    {
+      "id": "commerce",
+      "name": "Digital Commerce",
+      "description": "Dropshipping, e-commerce, afiliados, anúncios, copy e lançamentos."
+    },
+    {
+      "id": "oratoria",
+      "name": "Oratória & Ministério",
+      "description": "Escrituras, discursos religiosos, keynotes e negociação."
+    },
+    {
+      "id": "educacao",
+      "name": "Educação & Documentos",
+      "description": "Escola, wiki de primeiro princípio e clonagem estrutural de documentos."
     }
   ],
   "packs": [
@@ -71,7 +86,24 @@
     "financas-casa",
     "saude-treino",
     "viagens-planner",
-    "imobiliario"
+    "imobiliario",
+    "dropshipping-radar",
+    "ecommerce-ops",
+    "afiliados-growth",
+    "ad-creative-studio",
+    "copywriting-direct-response",
+    "formula-lancamento",
+    "estudos-escrituras",
+    "discursos-religiosos",
+    "preparacao-discursos",
+    "negociacao-tatica",
+    "mente-clara-journaling",
+    "compras-dispensa",
+    "orcamento-domestico-avancado",
+    "colecionador-vault",
+    "escola-tutor-reverso",
+    "wiki-karpathy-pro",
+    "document-cloner-engine"
   ],
   "templates": [
     "operacoes-backoffice",
@@ -80,6 +112,10 @@
     "conteudo-midia",
     "inteligencia-pesquisa",
     "fabrica-capacidades",
-    "vida-casa"
+    "vida-casa",
+    "performance-digital-commerce",
+    "oratoria-ministerio",
+    "vida-patrimonio",
+    "educacao-documentos"
   ]
 }

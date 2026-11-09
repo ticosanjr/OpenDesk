@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "id": "colecionador-vault",
+  "version": "1.0.0",
+  "name": "Colecionador Vault",
+  "category": "vida",
+  "description": "Catalogação, conservação, procedência e valor de acervos.",
+  "icon": "archive",
+  "color": "#a16207",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "condition-grader.md",
+      "provenance-registrar.md"
+    ],
+    "skills": [
+      "item-tagger-schema",
+      "inventory-photo-indexer",
+      "valuation-estimator"
+    ],
+    "commands": [
+      "catalog-item.md",
+      "collection-summary.md"
+    ],
+    "recipes": [
+      "catalog-item.yaml",
+      "collection-summary.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "colecao/itens",
+      "colecao/fotos",
+      "colecao/seguro"
+    ]
+  },
+  "examples": []
+}

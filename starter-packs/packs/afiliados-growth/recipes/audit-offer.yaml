@@ -1,0 +1,29 @@
+id: audit-offer
+name: Auditar oferta
+description: EPC e conformidade.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Analisar oferta
+  mode: build
+  agent: affiliate-scout
+  effort: medium
+  prompt: Compare comissão, cookie, EPC e regras. Salve em {{run.output_dir}}/01-analisar-oferta.md.
+- type: step
+  id: passo-2
+  name: Revisar
+  mode: build
+  agent: review-architect
+  effort: medium
+  prompt: Aponte riscos e promessas que precisam de cuidado. Salve em {{run.output_dir}}/02-revisar.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

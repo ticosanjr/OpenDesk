@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "id": "negociacao-tatica",
+  "version": "1.0.0",
+  "name": "Negociação Tática",
+  "category": "oratoria",
+  "description": "Preparação, BATNA/ZOPA e simulação de negociações complexas.",
+  "icon": "handshake",
+  "color": "#0891b2",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "black-swan-strategist.md",
+      "batna-zopa-auditor.md",
+      "adversarial-sparring.md"
+    ],
+    "skills": [
+      "calibrated-questions-gen",
+      "tactical-empathy-framing",
+      "concession-matrix-builder"
+    ],
+    "commands": [
+      "prep-negotiation.md",
+      "roleplay-negotiation.md"
+    ],
+    "recipes": [
+      "prep-negotiation.yaml",
+      "roleplay-negotiation.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "negociacao/preparacao",
+      "negociacao/cenarios",
+      "negociacao/acordos"
+    ]
+  },
+  "examples": []
+}

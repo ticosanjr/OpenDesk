@@ -1,0 +1,20 @@
+id: write-review
+name: Escrever review
+description: Review comparativo.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Pesquisar
+  mode: build
+  agent: affiliate-scout
+  effort: medium
+  prompt: Colete evidências e alternativas. Salve em {{run.output_dir}}/01-pesquisar.md.
+- type: step
+  id: passo-2
+  name: Redigir
+  mode: build
+  agent: review-architect
+  effort: medium
+  prompt: Escreva review honesto e CTA. Salve em {{run.output_dir}}/02-redigir.md.

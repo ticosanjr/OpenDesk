@@ -1,0 +1,36 @@
+id: create-ads
+name: Criar anúncios
+description: Matriz de criativos.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Gerar ganchos
+  mode: build
+  agent: hook-engineer
+  effort: medium
+  prompt: Crie ganchos por dor, curiosidade e lógica. Salve em {{run.output_dir}}/01-gerar-ganchos.md.
+- type: step
+  id: passo-2
+  name: Escrever scripts
+  mode: build
+  agent: script-direct-response
+  effort: medium
+  prompt: Monte scripts de resposta direta. Salve em {{run.output_dir}}/02-escrever-scripts.md.
+- type: step
+  id: passo-3
+  name: Auditar
+  mode: build
+  agent: compliance-auditor
+  effort: medium
+  prompt: Cheque políticas e promessas. Salve em {{run.output_dir}}/03-auditar.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

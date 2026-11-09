@@ -1,0 +1,29 @@
+id: unpack-overwhelm
+name: Desempacotar sobrecarga
+description: Fato, projeção e ação.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Separar
+  mode: build
+  agent: socratic-reflector
+  effort: medium
+  prompt: Distinga fatos de interpretações. Salve em {{run.output_dir}}/01-separar.md.
+- type: step
+  id: passo-2
+  name: Reduzir
+  mode: build
+  agent: demand-decompressor
+  effort: medium
+  prompt: Defina a menor próxima ação. Salve em {{run.output_dir}}/02-reduzir.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

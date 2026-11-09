@@ -22,6 +22,8 @@ import type {
   Category,
   InstallPlan,
   InstallResult,
+  ItemInstallResult,
+  PackItem,
   PackSummary,
   WorkspaceTemplate,
 } from "@/components/packs/pack-types";
@@ -43,9 +45,13 @@ export function PacksPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
+  const [tab, setTab] = useState<"all" | "workspaces" | "packs" | "resources">("all");
   const [selected, setSelected] = useState<PackSummary | null>(null);
   const [plan, setPlan] = useState<InstallPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
+  const [items, setItems] = useState<PackItem[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
+  const [installingItem, setInstallingItem] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
   const [overwritePaths, setOverwritePaths] = useState<Set<string>>(new Set());
   const [removing, setRemoving] = useState(false);
@@ -103,10 +109,36 @@ export function PacksPage() {
     });
   }, [category, packs, query]);
 
+  const filteredTemplates = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return templates;
+    return templates.filter((template) =>
+      `${template.name} ${template.description} ${template.packs.join(" ")}`
+        .toLowerCase()
+        .includes(needle),
+    );
+  }, [query, templates]);
+
+  const searching = query.trim().length > 0;
+
   async function openPack(pack: PackSummary) {
     setSelected(pack);
     setPlan(null);
+    setItems([]);
     setOverwritePaths(new Set());
+    setItemsLoading(true);
+    try {
+      const list = await apiGet<PackItem[]>(`/api/starter-packs/${pack.id}/items`);
+      setItems(Array.isArray(list) ? list : []);
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível carregar os itens",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setItemsLoading(false);
+    }
     if (!activeWorkspaceId) return;
     setPlanLoading(true);
     try {
@@ -123,6 +155,40 @@ export function PacksPage() {
       });
     } finally {
       setPlanLoading(false);
+    }
+  }
+
+  async function installItem(kind: string, id: string) {
+    if (!selected || !activeWorkspaceId) return;
+    const key = `${kind}:${id}`;
+    setInstallingItem(key);
+    try {
+      const result = await apiPost<ItemInstallResult>(
+        `/api/starter-packs/${selected.id}/items/install`,
+        {
+          workspace_id: activeWorkspaceId,
+          kind,
+          id,
+          overwrite: false,
+        },
+      );
+      toast({
+        tone: "success",
+        title: `${result.kind} ${result.id} instalado`,
+        description: `${result.written} arquivo(s) gravado(s)${
+          result.skipped_conflicts ? `, ${result.skipped_conflicts} conflito(s)` : ""
+        }.`,
+      });
+      await refresh();
+      await load();
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível instalar o item",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setInstallingItem(null);
     }
   }
 
@@ -157,6 +223,7 @@ export function PacksPage() {
       });
       setSelected(null);
       setPlan(null);
+      setItems([]);
       await load();
       await refresh();
     } catch (cause) {
@@ -199,6 +266,7 @@ export function PacksPage() {
       });
       setSelected(null);
       setPlan(null);
+      setItems([]);
       await load();
       await refresh();
     } catch (cause) {
@@ -291,7 +359,11 @@ export function PacksPage() {
         </p>
       ) : null}
 
-      {!onboardingDismissed && installedCount === 0 && templates.length > 0 ? (
+      {!searching &&
+      (tab === "all" || tab === "workspaces") &&
+      !onboardingDismissed &&
+      installedCount === 0 &&
+      templates.length > 0 ? (
         <Card className="border-blue-500/25 bg-blue-500/[0.04]">
           <CardHeader className="py-3">
             <CardTitle className="flex items-center gap-2 text-[13px]">
@@ -319,7 +391,50 @@ export function PacksPage() {
         </Card>
       ) : null}
 
-      {onboardingDismissed || installedCount > 0 ? (
+      <div className="flex flex-col gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/20 p-2">
+        <div className="flex flex-wrap items-center gap-1">
+          {[
+            { id: "all", label: "Visão geral" },
+            { id: "workspaces", label: `Workspaces (${templates.length})` },
+            { id: "packs", label: `Pacotes (${packs.length})` },
+            { id: "resources", label: "Capacidades externas" },
+          ].map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={tab === item.id}
+              onClick={() => setTab(item.id as typeof tab)}
+              className={
+                tab === item.id
+                  ? "rounded-lg bg-zinc-800 px-2.5 py-1 text-[10px] text-zinc-100"
+                  : "rounded-lg px-2.5 py-1 text-[10px] text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200"
+              }
+            >
+              {item.label}
+            </button>
+          ))}
+          <div className="ml-auto flex h-8 min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5 sm:max-w-md">
+            <Search size={13} className="shrink-0 text-zinc-600" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Buscar nos workspaces, pacotes e capacidades externas…"
+              className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
+            />
+          </div>
+        </div>
+        {searching ? (
+          <p className="text-[9px] text-zinc-500">
+            Resultados em {filteredTemplates.length} workspace(s), {filtered.length} pacote(s)
+            e capacidades externas.
+          </p>
+        ) : null}
+      </div>
+
+      {((searching && filteredTemplates.length > 0) ||
+      (!searching &&
+        (tab === "all" || tab === "workspaces") &&
+        (onboardingDismissed || installedCount > 0))) ? (
         <Card>
           <CardHeader className="py-3">
             <div>
@@ -334,7 +449,7 @@ export function PacksPage() {
             </div>
           </CardHeader>
           <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {templates.map((template) => (
+            {filteredTemplates.map((template) => (
               <TemplateCard
                 key={template.id}
                 template={template}
@@ -345,14 +460,20 @@ export function PacksPage() {
         </Card>
       ) : null}
 
-      <ExternalResources
-        availableTemplateIds={templates.map((template) => template.id)}
-        onCreateWorkspace={(templateId) => {
-          const template = templates.find((item) => item.id === templateId);
-          if (template) openTemplate(template);
-        }}
-      />
+      {(!searching && (tab === "all" || tab === "resources")) || searching ? (
+        <ExternalResources
+          query={query}
+          availableTemplateIds={templates.map((template) => template.id)}
+          onCreateWorkspace={(templateId) => {
+            const template = templates.find((item) => item.id === templateId);
+            if (template) openTemplate(template);
+          }}
+        />
+      ) : null}
 
+      {((!searching && (tab === "all" || tab === "packs")) ||
+      (searching && filtered.length > 0)) ? (
+        <>
       <div className="flex flex-wrap items-end justify-between gap-3 pt-1">
         <div>
           <h2 className="text-[13px] font-semibold text-zinc-100">Adicionar capacidades</h2>
@@ -363,15 +484,6 @@ export function PacksPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/20 px-3 py-2">
-        <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-          <Search size={13} className="shrink-0 text-zinc-600" />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar pacote por nome, descrição ou id…"
-            className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
-          />
-        </div>
         <select
           value={category}
           onChange={(event) => setCategory(event.target.value)}
@@ -396,7 +508,7 @@ export function PacksPage() {
         <EmptyState
           icon={Boxes}
           title="Nenhum pacote encontrado"
-          description="Ajuste a busca ou escolha outra categoria."
+          description="Ajuste o filtro de categoria ou limpe a busca."
         />
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -481,6 +593,9 @@ export function PacksPage() {
         </div>
       )}
 
+        </>
+      ) : null}
+
       <PackInstallModal
         selected={selected}
         plan={plan}
@@ -489,9 +604,13 @@ export function PacksPage() {
         removing={removing}
         overwritePaths={overwritePaths}
         activeWorkspaceId={activeWorkspaceId}
+        items={items}
+        itemsLoading={itemsLoading}
+        installingItem={installingItem}
         onClose={() => {
           setSelected(null);
           setPlan(null);
+          setItems([]);
         }}
         onToggleOverwrite={(path, checked) =>
           setOverwritePaths((current) => {
@@ -503,6 +622,7 @@ export function PacksPage() {
         }
         onInstall={() => void installPack()}
         onRemove={() => void removePack()}
+        onInstallItem={(kind, id) => void installItem(kind, id)}
       />
 
       <WorkspaceTemplateModal

@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "document-cloner-engine",
+  "version": "1.0.0",
+  "name": "Document Cloner Engine",
+  "category": "educacao",
+  "description": "Replicação estrutural de documentos com preservação de estilo e auditoria de vazamento.",
+  "icon": "copy",
+  "color": "#8b5cf6",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "structural-extractor.md",
+      "document-mutator.md",
+      "consistency-auditor.md"
+    ],
+    "skills": [
+      "ast-schema-inferer",
+      "variable-replacer",
+      "entity-leak-scanner",
+      "typst-document-compiler"
+    ],
+    "commands": [
+      "clone-document.md",
+      "leak-audit.md"
+    ],
+    "recipes": [
+      "clone-document.yaml",
+      "leak-audit.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "documentos/base",
+      "documentos/dados",
+      "documentos/saidas"
+    ]
+  },
+  "examples": []
+}

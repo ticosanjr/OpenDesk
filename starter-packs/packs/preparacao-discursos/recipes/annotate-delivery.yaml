@@ -1,0 +1,20 @@
+id: annotate-delivery
+name: Anotar entrega
+description: Cartões de oratória.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Marcar
+  mode: build
+  agent: rhetoric-coach
+  effort: medium
+  prompt: Adicione pausas e ênfases. Salve em {{run.output_dir}}/01-marcar.md.
+- type: step
+  id: passo-2
+  name: Revisar
+  mode: build
+  agent: audience-calibrator
+  effort: medium
+  prompt: Confira adequação à plateia. Salve em {{run.output_dir}}/02-revisar.md.

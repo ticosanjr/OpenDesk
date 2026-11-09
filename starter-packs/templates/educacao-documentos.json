@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "id": "educacao-documentos",
+  "name": "Educação, Pesquisa & Engenharia de Documentos",
+  "color": "#06b6d4",
+  "description": "Simulados, wiki de primeiro princípio e clonagem estrutural de documentos.",
+  "packs": [
+    "essenciais",
+    "escola-tutor-reverso",
+    "wiki-karpathy-pro",
+    "document-cloner-engine"
+  ],
+  "folders": [
+    "escola/provas",
+    "escola/flashcards",
+    "wiki/notas",
+    "documentos/base",
+    "documentos/saidas"
+  ],
+  "readme": "# Educação, Pesquisa & Engenharia de Documentos\n\nEstudo dirigido, wiki e replicação de documentos.",
+  "memory": "# MEMORY — Educação, Pesquisa & Engenharia de Documentos\n\n- Exercícios têm gabarito e fonte.\n- Notas são atômicas e linkadas.\n- Documento clonado passa por auditoria de vazamento.",
+  "router_policy": "COST_BENEFIT"
+}

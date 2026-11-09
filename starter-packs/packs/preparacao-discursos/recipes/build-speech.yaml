@@ -1,0 +1,36 @@
+id: build-speech
+name: Construir discurso
+description: Keynote em 3 atos.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Calibrar
+  mode: build
+  agent: audience-calibrator
+  effort: medium
+  prompt: Defina profundidade e analogias. Salve em {{run.output_dir}}/01-calibrar.md.
+- type: step
+  id: passo-2
+  name: Escrever
+  mode: build
+  agent: rhetoric-coach
+  effort: medium
+  prompt: Redija com retórica e ritmo. Salve em {{run.output_dir}}/02-escrever.md.
+- type: step
+  id: passo-3
+  name: Anotar
+  mode: build
+  agent: rhetoric-coach
+  effort: medium
+  prompt: Marque pausas e ênfases. Salve em {{run.output_dir}}/03-anotar.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

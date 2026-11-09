@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "id": "oratoria-ministerio",
+  "name": "Oratória, Relações & Ministério",
+  "color": "#eab308",
+  "description": "Exegese, sermões, keynotes e negociação tática.",
+  "packs": [
+    "essenciais",
+    "estudos-escrituras",
+    "discursos-religiosos",
+    "preparacao-discursos",
+    "negociacao-tatica"
+  ],
+  "folders": [
+    "escrituras/topicos",
+    "discursos/finais",
+    "oratoria/keynotes",
+    "negociacao/preparacao"
+  ],
+  "readme": "# Oratória, Relações & Ministério\n\nEstudo das escrituras, preparação de discursos e negociação.",
+  "memory": "# MEMORY — Oratória, Relações & Ministério\n\n- Distinga texto, contexto e interpretação.\n- Discurso tem tempo e público definidos.\n- Negociação registra BATNA e limites.",
+  "router_policy": "COST_BENEFIT"
+}

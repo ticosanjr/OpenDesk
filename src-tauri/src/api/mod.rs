@@ -133,6 +133,14 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             post(starter_packs::preview_pack),
         )
         .route(
+            "/api/starter-packs/{id}/items",
+            get(starter_packs::list_items),
+        )
+        .route(
+            "/api/starter-packs/{id}/items/install",
+            post(starter_packs::install_item),
+        )
+        .route(
             "/api/starter-packs/{id}/install",
             post(starter_packs::install_pack),
         )

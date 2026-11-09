@@ -126,6 +126,24 @@ body {
   outline-color: color-mix(in srgb, var(--workspace-accent) 70%, transparent);
 }
 
+.accent-button {
+  background: var(--workspace-accent);
+  border: 1px solid color-mix(in srgb, var(--workspace-accent) 72%, black);
+}
+
+.accent-button:hover {
+  background: color-mix(in srgb, var(--workspace-accent) 84%, white);
+}
+
+.accent-button:active {
+  background: color-mix(in srgb, var(--workspace-accent) 84%, black);
+}
+
+.workspace-switch-on {
+  border-color: color-mix(in srgb, var(--workspace-accent) 58%, white);
+  background: color-mix(in srgb, var(--workspace-accent) 82%, transparent);
+}
+
 .cv-auto {
   content-visibility: auto;
   contain-intrinsic-size: 96px;

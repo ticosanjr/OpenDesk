@@ -1,0 +1,20 @@
+id: bulk-math
+name: Matemática de atacado
+description: Custo por unidade.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Comparar
+  mode: build
+  agent: pantry-auditor
+  effort: medium
+  prompt: Calcule custo por unidade. Salve em {{run.output_dir}}/01-comparar.md.
+- type: step
+  id: passo-2
+  name: Recomendar
+  mode: build
+  agent: route-optimizer
+  effort: medium
+  prompt: Considere validade e espaço. Salve em {{run.output_dir}}/02-recomendar.md.

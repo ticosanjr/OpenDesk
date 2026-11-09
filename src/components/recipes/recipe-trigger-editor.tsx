@@ -3,6 +3,7 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldHint } from "@/components/ui/field-hint";
 import { PathInput } from "@/components/ui/path-input";
+import { TimezoneSelect } from "@/components/ui/timezone-select";
 import { apiGet } from "@/lib/api";
 import { TRIGGER_TYPES, triggerDescription } from "@/lib/trigger-types";
 import type { CalendarSource } from "@/lib/types";
@@ -236,40 +237,121 @@ function CronFields({
   onChange: (value: Dictionary) => void;
 }) {
   const cron = String(config.cron ?? "0 8 * * *");
-  const preset = cron === "0 * * * *" ? "hourly" : cron.startsWith("0 ") ? "daily" : cron.startsWith("*/") ? "minutes" : "custom";
+  const parts = cron.trim().split(/\s+/);
+  const minute = parts[0] ?? "0";
+  const hour = parts[1] ?? "8";
+  const dayOfMonth = parts[2] ?? "*";
+  const month = parts[3] ?? "*";
+  const dayOfWeek = parts[4] ?? "*";
+  const frequency =
+    minute.startsWith("*/")
+      ? "minutes"
+      : hour === "*"
+        ? "hourly"
+        : dayOfMonth !== "*" && month === "*" && dayOfWeek === "*"
+          ? "monthly"
+          : dayOfWeek === "1-5"
+            ? "weekdays"
+            : dayOfWeek !== "*" && month === "*" && dayOfMonth === "*"
+              ? "weekly"
+              : month === "*" && dayOfWeek === "*"
+                ? "daily"
+                : "custom";
+  const time = `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
+
+  function setTime(value: string) {
+    const [nextHour = "8", nextMinute = "0"] = value.split(":");
+    onChange({ cron: `${Number(nextMinute)} ${Number(nextHour)} ${dayOfMonth} ${month} ${dayOfWeek}` });
+  }
+
+  function setFrequency(value: string) {
+    if (value === "hourly") onChange({ cron: "0 * * * *" });
+    else if (value === "daily") onChange({ cron: `${Number(minute)} ${Number(hour)} * * *` });
+    else if (value === "weekdays") onChange({ cron: `${Number(minute)} ${Number(hour)} * * 1-5` });
+    else if (value === "weekly") onChange({ cron: `${Number(minute)} ${Number(hour)} * * 1` });
+    else if (value === "monthly") onChange({ cron: `${Number(minute)} ${Number(hour)} 1 * *` });
+    else if (value === "minutes") onChange({ cron: "*/15 * * * *" });
+  }
+
   return (
     <>
       <LabeledField label="Frequência">
         <select
-          value={preset}
-          onChange={(event) => {
-            const value = event.target.value;
-            if (value === "hourly") onChange({ cron: "0 * * * *" });
-            else if (value === "daily") onChange({ cron: "0 8 * * *" });
-            else if (value === "minutes") onChange({ cron: "*/15 * * * *" });
-          }}
+          value={frequency}
+          onChange={(event) => setFrequency(event.target.value)}
           className={inputClass}
         >
-          <option value="hourly">A cada hora</option>
-          <option value="daily">Todos os dias às 8h</option>
           <option value="minutes">A cada 15 minutos</option>
-          <option value="custom">Personalizado</option>
+          <option value="hourly">A cada hora</option>
+          <option value="daily">Todos os dias</option>
+          <option value="weekdays">Dias úteis</option>
+          <option value="weekly">Semanal</option>
+          <option value="monthly">Mensal</option>
+          <option value="custom">Personalizado (avançado)</option>
         </select>
       </LabeledField>
-      <LabeledField label="Expressão cron">
-        <input
-          value={cron}
-          onChange={(event) => onChange({ cron: event.target.value })}
-          className={inputClass}
-          placeholder="0 8 * * *"
-        />
-      </LabeledField>
+      {frequency !== "minutes" && frequency !== "hourly" ? (
+        <LabeledField label="Horário">
+          <input
+            type="time"
+            value={time}
+            onChange={(event) => setTime(event.target.value)}
+            className={inputClass}
+          />
+        </LabeledField>
+      ) : null}
+      {frequency === "weekly" ? (
+        <LabeledField label="Dia da semana">
+          <select
+            value={dayOfWeek}
+            onChange={(event) =>
+              onChange({
+                cron: `${Number(minute)} ${Number(hour)} * * ${event.target.value}`,
+              })
+            }
+            className={inputClass}
+          >
+            <option value="1">Segunda</option>
+            <option value="2">Terça</option>
+            <option value="3">Quarta</option>
+            <option value="4">Quinta</option>
+            <option value="5">Sexta</option>
+            <option value="6">Sábado</option>
+            <option value="0">Domingo</option>
+          </select>
+        </LabeledField>
+      ) : null}
+      {frequency === "monthly" ? (
+        <LabeledField label="Dia do mês">
+          <input
+            type="number"
+            min={1}
+            max={31}
+            value={Number(dayOfMonth) || 1}
+            onChange={(event) =>
+              onChange({
+                cron: `${Number(minute)} ${Number(hour)} ${Number(event.target.value)} * *`,
+              })
+            }
+            className={inputClass}
+          />
+        </LabeledField>
+      ) : null}
+      {frequency === "custom" ? (
+        <LabeledField label="Expressão cron (avançado)">
+          <input
+            value={cron}
+            onChange={(event) => onChange({ cron: event.target.value })}
+            className={inputClass}
+            placeholder="0 8 * * *"
+          />
+        </LabeledField>
+      ) : null}
       <LabeledField label="Fuso horário">
-        <input
+        <TimezoneSelect
           value={String(config.timezone ?? DEFAULT_TIMEZONE)}
-          onChange={(event) => onChange({ timezone: event.target.value })}
+          onChange={(value) => onChange({ timezone: value })}
           className={inputClass}
-          placeholder={DEFAULT_TIMEZONE}
         />
       </LabeledField>
     </>

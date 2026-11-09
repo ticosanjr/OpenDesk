@@ -1,0 +1,36 @@
+id: study-topic
+name: Estudar tema
+description: Dossiê bíblico.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Cruzar referências
+  mode: build
+  agent: scripture-cross-referencer
+  effort: medium
+  prompt: Liste passagens correlatas. Salve em {{run.output_dir}}/01-cruzar-referências.md.
+- type: step
+  id: passo-2
+  name: Contextualizar
+  mode: build
+  agent: context-historian
+  effort: medium
+  prompt: Explique contexto e termos. Salve em {{run.output_dir}}/02-contextualizar.md.
+- type: step
+  id: passo-3
+  name: Sintetizar
+  mode: build
+  agent: theological-synthesizer
+  effort: medium
+  prompt: Resuma princípio e aplicação. Salve em {{run.output_dir}}/03-sintetizar.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

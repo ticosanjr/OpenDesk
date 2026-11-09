@@ -1,0 +1,20 @@
+id: audit-wiki
+name: Auditar wiki
+description: Órfãs e lacunas.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Varrer
+  mode: build
+  agent: lexicon-auditor
+  effort: medium
+  prompt: Encontre termos e órfãs. Salve em {{run.output_dir}}/01-varrer.md.
+- type: step
+  id: passo-2
+  name: Conectar
+  mode: build
+  agent: first-principles-distiller
+  effort: medium
+  prompt: Proponha links e nota raiz. Salve em {{run.output_dir}}/02-conectar.md.

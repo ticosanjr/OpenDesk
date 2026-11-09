@@ -1,0 +1,20 @@
+id: cbt-thought-record
+name: Registro de pensamento
+description: Registro estruturado.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Registrar
+  mode: build
+  agent: socratic-reflector
+  effort: medium
+  prompt: Colete evidências pró e contra. Salve em {{run.output_dir}}/01-registrar.md.
+- type: step
+  id: passo-2
+  name: Reenquadrar
+  mode: build
+  agent: demand-decompressor
+  effort: medium
+  prompt: Formule pensamento realista. Salve em {{run.output_dir}}/02-reenquadrar.md.

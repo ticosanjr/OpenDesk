@@ -1,0 +1,36 @@
+id: generate-mock-exam
+name: Gerar simulado
+description: Prova e gabarito.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Analisar padrão
+  mode: build
+  agent: exam-reverse-engineer
+  effort: medium
+  prompt: Extraia estilo e complexidade. Salve em {{run.output_dir}}/01-analisar-padrão.md.
+- type: step
+  id: passo-2
+  name: Gerar questões
+  mode: build
+  agent: exercise-generator
+  effort: medium
+  prompt: Crie simulado inédito. Salve em {{run.output_dir}}/02-gerar-questões.md.
+- type: step
+  id: passo-3
+  name: Revisar
+  mode: build
+  agent: flashcard-builder
+  effort: medium
+  prompt: Destaque termos para revisão. Salve em {{run.output_dir}}/03-revisar.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

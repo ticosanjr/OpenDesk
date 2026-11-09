@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "id": "afiliados-growth",
+  "version": "1.0.0",
+  "name": "Afiliados Growth",
+  "category": "commerce",
+  "description": "Ofertas, links, reviews comparativos e auditoria de comissões.",
+  "icon": "link",
+  "color": "#f59e0b",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "affiliate-scout.md",
+      "review-architect.md"
+    ],
+    "skills": [
+      "utm-tagger",
+      "commission-audit",
+      "comparison-matrix-builder",
+      "bridge-page-builder"
+    ],
+    "commands": [
+      "audit-offer.md",
+      "write-review.md"
+    ],
+    "recipes": [
+      "audit-offer.yaml",
+      "write-review.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "afiliados/ofertas",
+      "afiliados/reviews",
+      "afiliados/links"
+    ]
+  },
+  "examples": []
+}

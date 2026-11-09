@@ -75,6 +75,8 @@ export interface WorkspaceTemplate {
   router_policy: string;
   packs: string[];
   folders: string[];
+  readme?: string | null;
+  memory?: string | null;
 }
 
 export interface InstallResult {
@@ -85,4 +87,20 @@ export interface InstallResult {
   skipped_conflicts: number;
   routines: string[];
   folders: string[];
+}
+
+export interface PackItem {
+  kind: "agent" | "skill" | "command" | "recipe" | string;
+  id: string;
+  name: string;
+  description?: string | null;
+  content: string;
+  files: string[];
+}
+
+export interface ItemInstallResult {
+  kind: string;
+  id: string;
+  written: number;
+  skipped_conflicts: number;
 }

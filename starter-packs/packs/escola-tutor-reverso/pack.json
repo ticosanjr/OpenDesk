@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "escola-tutor-reverso",
+  "version": "1.0.0",
+  "name": "Escola & Tutor Reverso",
+  "category": "educacao",
+  "description": "Simulados, flashcards e engenharia reversa de provas.",
+  "icon": "graduation-cap",
+  "color": "#f59e0b",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "exam-reverse-engineer.md",
+      "exercise-generator.md",
+      "flashcard-builder.md"
+    ],
+    "skills": [
+      "math-problem-mutator",
+      "step-by-step-solver",
+      "anki-csv-formatter",
+      "summary-condenser"
+    ],
+    "commands": [
+      "generate-mock-exam.md",
+      "make-flashcards.md"
+    ],
+    "recipes": [
+      "generate-mock-exam.yaml",
+      "make-flashcards.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "escola/provas",
+      "escola/flashcards",
+      "escola/resumos"
+    ]
+  },
+  "examples": []
+}

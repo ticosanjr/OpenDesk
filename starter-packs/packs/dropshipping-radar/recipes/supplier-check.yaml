@@ -1,0 +1,20 @@
+id: supplier-check
+name: Checar fornecedor
+description: Scorecard e riscos.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Coletar sinais
+  mode: build
+  agent: supplier-vetter
+  effort: medium
+  prompt: Organize evidências de prazo, disputa e feedback. Salve em {{run.output_dir}}/01-coletar-sinais.md.
+- type: step
+  id: passo-2
+  name: Pontuar
+  mode: build
+  agent: unit-economics-auditor
+  effort: medium
+  prompt: Relacione risco operacional ao custo real. Salve em {{run.output_dir}}/02-pontuar.md.

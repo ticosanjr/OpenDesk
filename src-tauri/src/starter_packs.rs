@@ -148,6 +148,24 @@ pub struct PackDetail {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct PackItem {
+    pub kind: String,
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub content: String,
+    pub files: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ItemInstallResult {
+    pub kind: String,
+    pub id: String,
+    pub written: usize,
+    pub skipped_conflicts: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct PlanFile {
     pub path: String,
     pub kind: String,
@@ -702,6 +720,185 @@ pub async fn detail(
         installed_at: entry.map(|value| value.installed_at.clone()),
         update_available,
         health,
+    })
+}
+
+/// Lists the individual installable items of a pack. This is read from the
+/// embedded bundle, so the UI can inspect an item before installing anything.
+pub fn items(pack_id: &str) -> AppResult<Vec<PackItem>> {
+    let (manifest, _) = load_manifest(pack_id)?;
+    let mut items = Vec::new();
+
+    for name in &manifest.contents.agents {
+        let name = file_name(name)?;
+        let file = BUNDLE
+            .get_file(format!("packs/{}/agents/{name}", manifest.id))
+            .ok_or_else(|| AppError::BadRequest(format!("agente ausente: {name}")))?;
+        let content = std::str::from_utf8(file.contents())
+            .map_err(|_| AppError::BadRequest(format!("agente não é UTF-8: {name}")))?
+            .to_string();
+        let document = markdown::parse(&content)?;
+        let id = Path::new(&name)
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or(&name)
+            .to_string();
+        items.push(PackItem {
+            kind: "agent".into(),
+            id,
+            name: markdown::get_string(&document.frontmatter, "name")
+                .unwrap_or_else(|| name.clone()),
+            description: markdown::get_string(&document.frontmatter, "description"),
+            content,
+            files: Vec::new(),
+        });
+    }
+
+    for name in &manifest.contents.commands {
+        let name = file_name(name)?;
+        let file = BUNDLE
+            .get_file(format!("packs/{}/commands/{name}", manifest.id))
+            .ok_or_else(|| AppError::BadRequest(format!("comando ausente: {name}")))?;
+        let content = std::str::from_utf8(file.contents())
+            .map_err(|_| AppError::BadRequest(format!("comando não é UTF-8: {name}")))?
+            .to_string();
+        let document = markdown::parse(&content)?;
+        let id = Path::new(&name)
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or(&name)
+            .to_string();
+        items.push(PackItem {
+            kind: "command".into(),
+            id: id.clone(),
+            name: format!("/{id}"),
+            description: markdown::get_string(&document.frontmatter, "description"),
+            content,
+            files: Vec::new(),
+        });
+    }
+
+    for id in &manifest.contents.skills {
+        let id = validate_slug(id, false)?;
+        let base = format!("packs/{}/skills/{id}", manifest.id);
+        let file = BUNDLE
+            .get_file(format!("{base}/SKILL.md"))
+            .ok_or_else(|| AppError::BadRequest(format!("skill ausente: {id}")))?;
+        let content = std::str::from_utf8(file.contents())
+            .map_err(|_| AppError::BadRequest(format!("skill não é UTF-8: {id}")))?
+            .to_string();
+        let document = markdown::parse(&content)?;
+        let skill_dir = BUNDLE
+            .get_dir(&base)
+            .ok_or_else(|| AppError::BadRequest(format!("skill ausente: {id}")))?;
+        let mut files = Vec::new();
+        collect_dir(skill_dir, "", &mut files);
+        items.push(PackItem {
+            kind: "skill".into(),
+            id: id.clone(),
+            name: markdown::get_string(&document.frontmatter, "name").unwrap_or(id.clone()),
+            description: markdown::get_string(&document.frontmatter, "description"),
+            content,
+            files: files
+                .into_iter()
+                .map(|(path, _)| path.trim_start_matches('/').to_string())
+                .filter(|path| path != "SKILL.md")
+                .collect(),
+        });
+    }
+
+    for name in &manifest.contents.recipes {
+        let name = file_name(name)?;
+        let file = BUNDLE
+            .get_file(format!("packs/{}/recipes/{name}", manifest.id))
+            .ok_or_else(|| AppError::BadRequest(format!("receita ausente: {name}")))?;
+        let content = std::str::from_utf8(file.contents())
+            .map_err(|_| AppError::BadRequest(format!("receita não é UTF-8: {name}")))?
+            .to_string();
+        let recipe = recipe_parser::parse(&content)?;
+        items.push(PackItem {
+            kind: "recipe".into(),
+            id: recipe.id.clone(),
+            name: recipe.name.clone(),
+            description: recipe.description.clone(),
+            content,
+            files: Vec::new(),
+        });
+    }
+
+    Ok(items)
+}
+
+/// Installs one item from a pack. The pack itself is not marked as installed;
+/// item installs are intentionally independent.
+pub async fn install_item(
+    state: &Arc<AppState>,
+    pack_id: &str,
+    workspace_id: &str,
+    kind: &str,
+    id: &str,
+    overwrite: bool,
+) -> AppResult<ItemInstallResult> {
+    let workspace = workspaces::get(&state.db, workspace_id).await?;
+    let root = Path::new(&workspace.root_path);
+    let (manifest, dir) = load_manifest(pack_id)?;
+    let planned = planned_for(&manifest, dir)?;
+    let item_prefix = format!(".opencode/skills/{id}/");
+    let item_suffix = format!("/{id}.md");
+    let item_recipe_suffix = format!("/{id}.yaml");
+    let matching = planned
+        .iter()
+        .filter(|file| match kind {
+            "agent" | "command" => file.target.ends_with(&item_suffix),
+            "skill" => file.target.starts_with(&item_prefix),
+            "recipe" => file.target.ends_with(&item_recipe_suffix),
+            _ => false,
+        })
+        .collect::<Vec<_>>();
+    if matching.is_empty() {
+        return Err(AppError::NotFound(format!(
+            "item {kind} {id} no pacote {pack_id}"
+        )));
+    }
+
+    let mut written = 0;
+    let mut skipped_conflicts = 0;
+    let mut recipes_changed = false;
+    for file in matching {
+        if let Some(snapshot) = read_text(&root.join(&file.target))?
+            && snapshot.sha256 != file.sha256
+            && !overwrite
+        {
+            skipped_conflicts += 1;
+            continue;
+        }
+        let text = std::str::from_utf8(&file.bytes)
+            .map_err(|_| AppError::Internal(format!("arquivo não é UTF-8: {}", file.target)))?;
+        write_text_atomic(
+            &root.join(&file.target),
+            text,
+            None,
+            &state.paths.backups_dir,
+        )?;
+        if file.kind == "recipe" {
+            recipes_changed = true;
+        }
+        written += 1;
+    }
+    if recipes_changed {
+        recipe_store::sync_workspace(&state.db, workspace_id, root).await?;
+        crate::api::recipes::sync_all_recipe_trigger_sources(state).await?;
+    }
+    if written == 0 && skipped_conflicts > 0 {
+        return Err(AppError::Conflict(format!(
+            "{kind} {id} já existe com conteúdo diferente; confirme a substituição"
+        )));
+    }
+    Ok(ItemInstallResult {
+        kind: kind.to_string(),
+        id: id.to_string(),
+        written,
+        skipped_conflicts,
     })
 }
 
@@ -1630,6 +1827,54 @@ flow:
             .await
             .expect("uninstall");
         assert_eq!(removed.routines_removed, 1);
+    }
+
+    #[tokio::test]
+    async fn lists_and_installs_individual_pack_items() {
+        let (_temp, state, workspace_id) = test_state().await;
+        let items = items("essenciais").expect("items");
+        assert!(
+            items
+                .iter()
+                .any(|item| item.kind == "agent" && item.id == "assistente")
+        );
+        assert!(items.iter().any(|item| item.kind == "skill"));
+        assert!(items.iter().any(|item| item.kind == "command"));
+        assert!(items.iter().any(|item| item.kind == "recipe"));
+
+        install_item(
+            &state,
+            "essenciais",
+            &workspace_id,
+            "agent",
+            "assistente",
+            false,
+        )
+        .await
+        .expect("install agent");
+        let workspace = workspaces::get(&state.db, &workspace_id)
+            .await
+            .expect("workspace");
+        assert!(
+            Path::new(&workspace.root_path)
+                .join(".opencode/agents/assistente.md")
+                .is_file()
+        );
+        install_item(
+            &state,
+            "essenciais",
+            &workspace_id,
+            "skill",
+            "pesquisa-web",
+            false,
+        )
+        .await
+        .expect("install skill");
+        assert!(
+            Path::new(&workspace.root_path)
+                .join(".opencode/skills/pesquisa-web/SKILL.md")
+                .is_file()
+        );
     }
 
     #[tokio::test]

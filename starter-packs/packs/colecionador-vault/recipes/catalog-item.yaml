@@ -1,0 +1,20 @@
+id: catalog-item
+name: Catalogar item
+description: Ficha de acervo.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Avaliar estado
+  mode: build
+  agent: condition-grader
+  effort: medium
+  prompt: Documente conservação. Salve em {{run.output_dir}}/01-avaliar-estado.md.
+- type: step
+  id: passo-2
+  name: Registrar procedência
+  mode: build
+  agent: provenance-registrar
+  effort: medium
+  prompt: Preencha origem e custo. Salve em {{run.output_dir}}/02-registrar-procedência.md.

@@ -1,0 +1,36 @@
+id: clone-document
+name: Clonar documento
+description: Extração, mutação e revisão.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Extrair estrutura
+  mode: build
+  agent: structural-extractor
+  effort: medium
+  prompt: Retorne schema e seções invariantes. Salve em {{run.output_dir}}/01-extrair-estrutura.md.
+- type: step
+  id: passo-2
+  name: Mutar
+  mode: build
+  agent: document-mutator
+  effort: medium
+  prompt: Aplique novos dados preservando estilo. Salve em {{run.output_dir}}/02-mutar.md.
+- type: step
+  id: passo-3
+  name: Auditar vazamento
+  mode: build
+  agent: consistency-auditor
+  effort: medium
+  prompt: Acuse qualquer resíduo da entidade anterior. Salve em {{run.output_dir}}/03-auditar-vazamento.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

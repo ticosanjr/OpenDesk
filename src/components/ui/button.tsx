@@ -3,12 +3,12 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--workspace-accent)_60%,transparent)] disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
         default:
-          "bg-blue-500 text-white shadow-sm hover:bg-blue-400 active:bg-blue-600",
+          "accent-button text-white shadow-sm",
         secondary:
           "bg-zinc-800 text-zinc-100 hover:bg-zinc-700 border border-zinc-700/60",
         outline:

@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "id": "preparacao-discursos",
+  "version": "1.0.0",
+  "name": "Preparação de Discursos",
+  "category": "oratoria",
+  "description": "Keynotes, apresentações executivas e retórica clássica.",
+  "icon": "presentation",
+  "color": "#7c3aed",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "rhetoric-coach.md",
+      "audience-calibrator.md"
+    ],
+    "skills": [
+      "pacing-annotator",
+      "slide-cue-matcher",
+      "anecdote-condenser"
+    ],
+    "commands": [
+      "build-speech.md",
+      "annotate-delivery.md"
+    ],
+    "recipes": [
+      "build-speech.yaml",
+      "annotate-delivery.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "oratoria/keynotes",
+      "oratoria/cartoes",
+      "oratoria/notas"
+    ]
+  },
+  "examples": []
+}

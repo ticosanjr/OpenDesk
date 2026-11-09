@@ -1,0 +1,20 @@
+id: analyze-passage
+name: Analisar passagem
+description: Exegese curta.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Ler passagem
+  mode: build
+  agent: context-historian
+  effort: medium
+  prompt: Isole termos e contexto. Salve em {{run.output_dir}}/01-ler-passagem.md.
+- type: step
+  id: passo-2
+  name: Sintetizar
+  mode: build
+  agent: theological-synthesizer
+  effort: medium
+  prompt: Explique significado e aplicação. Salve em {{run.output_dir}}/02-sintetizar.md.

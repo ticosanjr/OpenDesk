@@ -1,0 +1,20 @@
+id: launch-debrief
+name: Debrief de lançamento
+description: Análise pós-evento.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Coletar métricas
+  mode: build
+  agent: debrief-analyst
+  effort: medium
+  prompt: Organize CPL, presença, conversão e recuperação. Salve em {{run.output_dir}}/01-coletar-métricas.md.
+- type: step
+  id: passo-2
+  name: Recomendar
+  mode: build
+  agent: launch-strategist
+  effort: medium
+  prompt: Liste ajustes para o próximo ciclo. Salve em {{run.output_dir}}/02-recomendar.md.

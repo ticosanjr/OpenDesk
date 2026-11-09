@@ -28,6 +28,11 @@ test("workspace color drives the theme and kanban retention persists", async ({
     getComputedStyle(element).getPropertyValue("--workspace-accent").trim(),
   );
   expect(accent.toLowerCase()).toBe("#ef4444");
+  const primary = await page
+    .getByRole("button", { name: /Nova tarefa/ })
+    .first()
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(primary).toBe("rgb(239, 68, 68)");
 
   const created = await request.post(
     `${auth.baseURL}/api/tasks?workspace_id=${workspace.id}`,
