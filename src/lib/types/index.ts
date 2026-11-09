@@ -9,3 +9,4 @@ export * from "./learning";
 export * from "./governance";
 export * from "./browser";
 export * from "./backup";
+export * from "./metrics";

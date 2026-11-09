@@ -1743,6 +1743,19 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - ADR 0041 documenta a decisão.
 - Testes: **319 Rust**, **124 Vitest** e **53 Playwright**.
 
+## 2026-11-09 — observabilidade e contract tests
+
+- Nova página **Observabilidade** com janelas de 7/30/90 dias.
+- Métricas derivadas de `task_runs` e `execution_queue`: sucesso, custo,
+  tokens, p50/p95/média de duração e espera na fila, falhas por código, série
+  diária e performance por agente.
+- Endpoint `GET /api/metrics`.
+- Harness opt-in `npm run contract:opencode` valida OpenCode V2 real (health,
+  meta, daemon, agentes, modelos e Studio).
+- Threat model documentado em `docs/security/threat-model.md`.
+- ADR 0042 documenta as métricas derivadas.
+- Testes: **322 Rust**, **127 Vitest** e **54 Playwright**.
+
 ## 2026-11-09 — release 0.31.0
 
 - Gate completo passou com **286 Rust**, **101 Vitest** e **43 Playwright**.

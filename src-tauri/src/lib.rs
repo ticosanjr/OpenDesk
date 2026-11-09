@@ -18,6 +18,7 @@ mod learning;
 mod mcp_bridge;
 mod mcp_config;
 mod media;
+mod metrics;
 mod opencode_client;
 mod paths;
 mod proposals;

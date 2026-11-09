@@ -45,6 +45,11 @@ const LearningPage = lazy(() =>
 const GovernancePage = lazy(() =>
   import("@/pages/GovernancePage").then((module) => ({ default: module.GovernancePage })),
 );
+const ObservabilityPage = lazy(() =>
+  import("@/pages/ObservabilityPage").then((module) => ({
+    default: module.ObservabilityPage,
+  })),
+);
 const RouterPage = lazy(() =>
   import("@/pages/RouterPage").then((module) => ({ default: module.RouterPage })),
 );
@@ -82,6 +87,7 @@ export default function App() {
           <Route path="studio" element={<StudioPage />} />
           <Route path="learning" element={<LearningPage />} />
           <Route path="governance" element={<GovernancePage />} />
+          <Route path="observability" element={<ObservabilityPage />} />
           <Route path="router" element={<RouterPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="settings" element={<SettingsPage />} />

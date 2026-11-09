@@ -43,6 +43,7 @@ const icons = {
   "/recipes": Workflow,
   "/studio": Wand2,
   "/governance": Network,
+  "/observability": Activity,
   "/learning": Brain,
   "/router": Route,
   "/integrations": Plug,

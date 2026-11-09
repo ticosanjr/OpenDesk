@@ -65,6 +65,7 @@ mod export;
 mod governance;
 mod io_bus;
 mod learning;
+mod metrics;
 mod resources;
 mod schedules;
 mod studio;

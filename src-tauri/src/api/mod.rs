@@ -20,6 +20,7 @@ pub mod integrations;
 pub mod io_bus;
 pub mod learning;
 pub mod meta;
+pub mod metrics;
 pub mod permissions;
 pub mod proposals;
 pub mod queue;
@@ -118,6 +119,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/models", get(models))
         .route("/api/agents", get(agents))
         .route("/api/dashboard", get(dashboard))
+        .route("/api/metrics", get(metrics::get))
         .route("/api/attention", get(attention::attention))
         .route("/api/attention/dismiss", post(attention::dismiss))
         .route("/api/starter-packs", get(starter_packs::list_packs))
