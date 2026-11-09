@@ -15,11 +15,12 @@ use std::{sync::Arc, time::Duration};
 
 pub async fn start(
     state: Arc<AppState>,
+    workspace_id: &str,
     recipe: Recipe,
     trigger: serde_json::Value,
     dry_run: bool,
 ) -> AppResult<store::RecipeRun> {
-    let index = store::get(&state.db, &recipe.id).await?;
+    let index = store::get(&state.db, workspace_id, &recipe.id).await?;
     if !index.is_enabled || !recipe.enabled {
         return Err(AppError::BadRequest("receita desabilitada".into()));
     }
@@ -106,9 +107,22 @@ pub async fn start(
             notify_email: None,
             export_to_gdocs: false,
             tags: vec![format!("recipe:{}", recipe.id)],
+            origin: Some("RECIPE".into()),
+            parent_task_id: None,
+            dedupe: None,
         },
     )
     .await?;
+    if task.deduplicated
+        && let Some(existing) = store::latest_run_for_task(&state.db, &task.id).await?
+    {
+        tracing::info!(
+            recipe_id = %recipe.id,
+            run_id = %existing.id,
+            "recipe run deduplicated"
+        );
+        return Ok(existing);
+    }
     tasks::set_output_dir(&state.db, &task.id, &output).await?;
     let run = store::create_run(
         &state.db,
@@ -243,12 +257,18 @@ async fn execute(
                     .iter()
                     .map(|path| parser::render(path, trigger, &run_vars, &outputs))
                     .collect::<AppResult<Vec<_>>>()?;
+                let next_step = flow.get(index + 1).and_then(|item| match item {
+                    FlowItem::Step(step) => Some(step.name.as_str()),
+                    FlowItem::Hitl(next) => Some(next.id.as_str()),
+                    FlowItem::Sink(sink) => sink.name.as_deref(),
+                });
                 let token = hitl::request(
                     state,
                     run,
                     &checkpoint,
                     &recipe.name,
                     &message,
+                    next_step,
                     &attachments,
                 )
                 .await?;
@@ -691,7 +711,7 @@ name: Dry\ntrigger:\n  type: MANUAL\n  config: {}\nsteps:\n  - id: s1\n    name:
             .await
             .expect("save");
         let recipe = crate::recipes::parser::parse(yaml).expect("parse");
-        let run = start(state.clone(), recipe, serde_json::json!({}), true)
+        let run = start(state.clone(), "ws-1", recipe, serde_json::json!({}), true)
             .await
             .expect("run");
         let mut status = run.status;

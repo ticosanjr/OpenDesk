@@ -80,7 +80,7 @@ pub async fn apply(state: &Arc<AppState>, proposal: &proposals::ConfigProposal) 
                 .and_then(|value| value.as_str())
                 .ok_or_else(|| AppError::BadRequest("recipe proposal sem id".into()))?;
             if proposal.action == "DELETE" {
-                let index = recipe_store::get(&state.db, id).await?;
+                let index = recipe_store::get(&state.db, &proposal.workspace_id, id).await?;
                 std::fs::remove_file(index.file_path)?;
                 recipe_store::sync_workspace(&state.db, &proposal.workspace_id, &root).await?;
                 let _ = crate::api::recipes::sync_all_recipe_trigger_sources(state).await;

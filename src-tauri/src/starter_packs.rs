@@ -1217,6 +1217,10 @@ pub async fn uninstall(
         }
     }
 
+    if removed > 0 {
+        // Keep the recipe index in step with files removed from disk.
+        let _ = crate::recipes::store::sync_workspace(&state.db, workspace_id, root).await;
+    }
     sqlx::query("DELETE FROM starter_pack_installs WHERE workspace_id = ? AND pack_id = ?")
         .bind(workspace_id)
         .bind(pack_id)
@@ -1598,7 +1602,7 @@ mod tests {
             root.join(".opencode/recipes/briefing-diario.yaml")
                 .is_file()
         );
-        crate::recipes::store::get(&state.db, "briefing-diario")
+        crate::recipes::store::get(&state.db, &workspace_id, "briefing-diario")
             .await
             .expect("recipe indexed");
 

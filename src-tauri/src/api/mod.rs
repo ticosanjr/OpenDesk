@@ -9,11 +9,13 @@ pub mod capture;
 pub mod chat;
 pub mod commands;
 pub mod cost;
+pub mod dedupe;
 pub mod engine;
 pub mod files;
 pub mod google;
 pub mod integrations;
 pub mod io_bus;
+pub mod learning;
 pub mod meta;
 pub mod permissions;
 pub mod proposals;
@@ -178,6 +180,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/workspaces/{id}/activate", post(activate_workspace))
         .route("/api/settings", get(list_settings))
+        .route("/api/settings/dedupe", get(dedupe::get).put(dedupe::put))
         .route("/api/settings/{key}", get(get_setting).put(put_setting))
         .route("/api/app/defaults", get(app_defaults))
         .route("/api/studio/agents", get(studio::list_agents))
@@ -381,6 +384,21 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             get(proposals::list).post(proposals::create),
         )
         .route("/api/proposals/{id}/resolve", post(proposals::resolve))
+        .route("/api/learning", get(learning::overview))
+        .route("/api/learning/settings", put(learning::update_settings))
+        .route("/api/learning/scan", post(learning::scan))
+        .route(
+            "/api/learning/lessons/{id}/dismiss",
+            post(learning::dismiss),
+        )
+        .route(
+            "/api/learning/lessons/{id}/promote",
+            post(learning::promote),
+        )
+        .route(
+            "/api/learning/lessons/{id}/remember",
+            post(learning::remember),
+        )
         .route("/api/artifacts", get(artifacts::list_artifacts))
         .route("/api/artifacts/pinned", get(artifacts::pinned_artifacts))
         .route("/api/artifacts/{id}", get(artifacts::get_artifact))

@@ -127,7 +127,7 @@ pub(super) async fn collect(
         if !recipe.is_enabled {
             continue;
         }
-        let Ok(yaml) = store::yaml_for(&state.db, &recipe.id).await else {
+        let Ok(yaml) = store::yaml_for(&state.db, workspace_id, &recipe.id).await else {
             continue;
         };
         let Ok(parsed) = parser::parse(&yaml) else {

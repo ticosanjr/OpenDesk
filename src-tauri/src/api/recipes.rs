@@ -30,9 +30,12 @@ pub async fn list(
 pub async fn get(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
+    Query(query): Query<RecipeQuery>,
 ) -> AppResult<Json<serde_json::Value>> {
-    let index = store::get(&state.db, &id).await?;
-    let yaml = store::yaml_for(&state.db, &id).await?;
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    let index = store::get(&state.db, &workspace_id, &id).await?;
+    let yaml = store::yaml_for(&state.db, &workspace_id, &id).await?;
     Ok(Json(serde_json::json!({ "recipe": index, "yaml": yaml })))
 }
 
@@ -47,12 +50,8 @@ pub async fn save(
     Query(query): Query<RecipeQuery>,
     Json(body): Json<SaveBody>,
 ) -> AppResult<Json<store::RecipeIndex>> {
-    let workspace_id = match store::get(&state.db, &id).await {
-        Ok(index) => index.workspace_id,
-        Err(_) => {
-            crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?
-        }
-    };
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
     let saved = store::save_yaml(&state.db, &workspace_id, &id, &body.yaml).await?;
     sync_recipe_trigger_sources(&state, &workspace_id, &id).await?;
     Ok(Json(saved))
@@ -66,11 +65,13 @@ pub struct EnabledBody {
 pub async fn set_enabled(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
+    Query(query): Query<RecipeQuery>,
     Json(body): Json<EnabledBody>,
 ) -> AppResult<Json<store::RecipeIndex>> {
-    let index = store::get(&state.db, &id).await?;
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
     Ok(Json(
-        store::set_enabled(&state.db, &index.workspace_id, &id, body.enabled).await?,
+        store::set_enabled(&state.db, &workspace_id, &id, body.enabled).await?,
     ))
 }
 
@@ -85,10 +86,13 @@ pub struct RunBody {
 pub async fn run(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
+    Query(query): Query<RecipeQuery>,
     Json(body): Json<RunBody>,
 ) -> AppResult<Json<store::RecipeRun>> {
-    let _index = store::get(&state.db, &id).await?;
-    let yaml = store::yaml_for(&state.db, &id).await?;
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    let _index = store::get(&state.db, &workspace_id, &id).await?;
+    let yaml = store::yaml_for(&state.db, &workspace_id, &id).await?;
     let recipe = parser::parse(&yaml)?;
     let trigger = if body.trigger_context.is_null() {
         serde_json::json!({ "manual": true })
@@ -96,7 +100,7 @@ pub async fn run(
         body.trigger_context
     };
     Ok(Json(
-        engine::start(state.clone(), recipe, trigger, body.dry_run).await?,
+        engine::start(state.clone(), &workspace_id, recipe, trigger, body.dry_run).await?,
     ))
 }
 
@@ -231,7 +235,7 @@ async fn sync_recipe_sources_inner(
     workspace_id: &str,
     recipe_id: &str,
 ) -> AppResult<bool> {
-    let yaml = store::yaml_for(&state.db, recipe_id).await?;
+    let yaml = store::yaml_for(&state.db, workspace_id, recipe_id).await?;
     let recipe = parser::parse(&yaml)?;
     let mut desired: Vec<(String, String, serde_json::Value)> = Vec::new();
     for (index, trigger) in recipe.triggers().into_iter().enumerate() {
@@ -340,9 +344,35 @@ pub async fn sync_all_recipe_trigger_sources(state: &Arc<AppState>) -> AppResult
     let mut changed = false;
     let mut known = std::collections::HashSet::new();
     for index in store::list_all(&state.db).await? {
-        known.insert(index.id.clone());
-        if sync_recipe_sources_inner(state, &index.workspace_id, &index.id).await? {
-            changed = true;
+        match sync_recipe_sources_inner(state, &index.workspace_id, &index.id).await {
+            Ok(did_change) => {
+                known.insert((index.workspace_id.clone(), index.id.clone()));
+                if did_change {
+                    changed = true;
+                }
+            }
+            Err(error) => {
+                // A recipe file may have been removed by an uninstall while its
+                // index row is still waiting for the watcher. Prune that
+                // workspace and keep syncing the rest instead of failing the
+                // whole boot/install.
+                tracing::warn!(
+                    workspace_id = %index.workspace_id,
+                    recipe_id = %index.id,
+                    error = %error,
+                    "skipping unreadable recipe during source sync"
+                );
+                if let Ok(workspace) =
+                    crate::db::workspaces::get(&state.db, &index.workspace_id).await
+                {
+                    let _ = store::sync_workspace(
+                        &state.db,
+                        &index.workspace_id,
+                        std::path::Path::new(&workspace.root_path),
+                    )
+                    .await;
+                }
+            }
         }
     }
     // Sources linked to recipes that no longer exist are removed.
@@ -358,7 +388,7 @@ pub async fn sync_all_recipe_trigger_sources(state: &Arc<AppState>) -> AppResult
                         .map(str::to_string)
                 });
             if let Some(recipe_id) = recipe_id
-                && !known.contains(&recipe_id)
+                && !known.contains(&(workspace.id.clone(), recipe_id))
             {
                 io_bus::delete_inbound(&state.db, &source.id).await?;
                 changed = true;

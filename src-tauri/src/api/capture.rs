@@ -89,6 +89,9 @@ pub async fn capture(
             notify_email: None,
             export_to_gdocs: false,
             tags: vec!["quick-capture".into()],
+            origin: Some("CAPTURE".into()),
+            parent_task_id: None,
+            dedupe: None,
         },
     )
     .await?;

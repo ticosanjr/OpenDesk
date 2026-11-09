@@ -74,7 +74,8 @@ const COLUMNS: &str = "r.id, r.queue_job_id, r.workspace_id, r.task_id, r.schedu
     r.agent_name, r.execution_mode, r.provider_id, r.model_id, r.effort_level, r.status, \
     r.tokens_input, r.tokens_output, r.tokens_reasoning, r.tokens_cache_read, r.tokens_cache_write, \
     r.estimated_cost_usd, r.pricing_snapshot_json, r.duration_ms, r.log_path, r.raw_stdout_log, \
-    r.summary_response, r.started_at, r.completed_at, t.title AS task_title";
+    r.summary_response, r.started_at, r.completed_at, r.error_code, r.error_message, \
+    r.error_hint, t.title AS task_title";
 
 pub async fn create(pool: &SqlitePool, input: CreateRunInput) -> AppResult<TaskRun> {
     let id = input.id;
@@ -380,6 +381,13 @@ mod tests {
         set_log_path(&pool, "run-1", "/tmp/new.jsonl")
             .await
             .expect("log");
+        set_error(&pool, "run-1", "timeout", "timed out", "hint")
+            .await
+            .expect("error");
+        let errored = get(&pool, "run-1").await.expect("get");
+        assert_eq!(errored.error_code.as_deref(), Some("timeout"));
+        assert_eq!(errored.error_message.as_deref(), Some("timed out"));
+        assert_eq!(errored.error_hint.as_deref(), Some("hint"));
         assert_eq!(list(&pool, "ws-1", None).await.expect("list").len(), 2);
         assert_eq!(count_for_task(&pool, "none").await.expect("count"), 0);
         assert!(

@@ -120,22 +120,21 @@ export function AgentPanel({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Watcher events refresh the list only. The editor draft is owned by the
+  // user: overwriting it here used to erase every keystroke while a run wrote
+  // files elsewhere in the workspace.
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const list = await apiGet<AgentFile[]>(`/api/studio/agents?${query}`);
       setAgents(list);
       setError(null);
-      setDraft((current) => {
-        if (!current || isNew) return current;
-        return list.find((agent) => agent.id === current.id) ?? current;
-      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setLoading(false);
     }
-  }, [query, isNew]);
+  }, [query]);
 
   useEffect(() => {
     void load();

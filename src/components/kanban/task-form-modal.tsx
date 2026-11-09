@@ -172,9 +172,13 @@ export function TaskFormModal({
           payload,
         );
         toast({
-          tone: "success",
-          title: "Tarefa criada",
-          description: `“${created.title}” entrou no Kanban.`,
+          tone: created.deduplicated ? "info" : "success",
+          title: created.deduplicated
+            ? "Tarefa idêntica já existe"
+            : "Tarefa criada",
+          description: created.deduplicated
+            ? "Reutilizando a tarefa ativa ou recente com os mesmos parâmetros."
+            : `“${created.title}” entrou no Kanban.`,
           href: links.task(created.id),
         });
         await onSaved(created, false);

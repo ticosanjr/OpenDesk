@@ -95,6 +95,9 @@ export function KanbanPage() {
   const [agentFilter, setAgentFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [view, setView] = useState<"board" | "list" | "queue">("board");
+  const [originFilter, setOriginFilter] = useState<"work" | "automations" | "all">(
+    "work",
+  );
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [visibility, setVisibility] = useState<TaskVisibility>(DEFAULT_VISIBILITY);
   const [visibilityOpen, setVisibilityOpen] = useState(false);
@@ -112,6 +115,9 @@ export function KanbanPage() {
   const filteredTasks = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const filtered = tasks.filter((task) => {
+      const origin = task.origin ?? "MANUAL";
+      if (originFilter === "work" && origin !== "MANUAL") return false;
+      if (originFilter === "automations" && origin === "MANUAL") return false;
       if (needle) {
         const haystack = `${task.title} ${task.description} ${task.tags_json} ${task.assigned_agent ?? ""}`.toLowerCase();
         if (!haystack.includes(needle)) return false;
@@ -121,7 +127,12 @@ export function KanbanPage() {
       return true;
     });
     return applyRetention(filtered, visibility);
-  }, [agentFilter, priorityFilter, query, tasks, visibility]);
+  }, [agentFilter, originFilter, priorityFilter, query, tasks, visibility]);
+
+  const originCounts = useMemo(() => {
+    const manual = tasks.filter((task) => (task.origin ?? "MANUAL") === "MANUAL").length;
+    return { manual, automations: tasks.length - manual };
+  }, [tasks]);
 
   const boardAgents = useMemo(
     () =>
@@ -183,6 +194,16 @@ export function KanbanPage() {
       setTaskDialogOpen(false);
     }
   }, [taskDialogOpen, setTaskDialogOpen]);
+
+  useEffect(() => {
+    const requested = searchParams.get("view");
+    if (requested === "queue" || requested === "board" || requested === "list") {
+      setView(requested);
+      const next = new URLSearchParams(searchParams);
+      next.delete("view");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Deep links from the dashboard: /kanban?task=<id>&run=<id>
   useEffect(() => {
@@ -417,6 +438,30 @@ export function KanbanPage() {
             </button>
           ))}
         </div>
+        {view !== "queue" ? (
+          <div className="flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5">
+            {([
+              ["work", `Trabalho · ${originCounts.manual}`],
+              ["automations", `Automações · ${originCounts.automations}`],
+              ["all", `Tudo · ${tasks.length}`],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setOriginFilter(value)}
+                aria-pressed={originFilter === value}
+                className={cn(
+                  "rounded-md px-2 py-1 text-[10px] transition-colors",
+                  originFilter === value
+                    ? "workspace-tab-active"
+                    : "text-zinc-500 hover:text-zinc-200",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {view !== "queue" ? (
           <>
             <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">

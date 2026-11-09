@@ -73,6 +73,9 @@ flow:
 export function RecipesPage() {
   const workspaceId = useAppStore((state) => state.activeWorkspaceId);
   const [params] = useSearchParams();
+  const workspaceQuery = workspaceId
+    ? `?workspace_id=${encodeURIComponent(workspaceId)}`
+    : "";
   const focusRecipe = params.get("recipe");
   const [recipes, setRecipes] = useState<RecipeIndex[]>([]);
   const [selected, setSelected] = useState<string | null>(focusRecipe);
@@ -141,7 +144,7 @@ export function RecipesPage() {
     if (!selected) return;
     let cancelled = false;
     setEditorLoading(true);
-    void apiGet<{ yaml: string }>(`/api/recipes/${encodeURIComponent(selected)}`)
+    void apiGet<{ yaml: string }>(`/api/recipes/${encodeURIComponent(selected)}${workspaceQuery}`)
       .then((value) => {
         if (!cancelled) setYaml(value.yaml);
       })
@@ -168,13 +171,13 @@ export function RecipesPage() {
   async function toggleRecipe(item: RecipeIndex) {
     setToggling(item.id);
     try {
-      await apiPost(`/api/recipes/${encodeURIComponent(item.id)}/enabled`, {
+      await apiPost(`/api/recipes/${encodeURIComponent(item.id)}/enabled${workspaceQuery}`, {
         enabled: !item.is_enabled,
       });
       await load();
       if (selected === item.id) {
         const value = await apiGet<{ yaml: string }>(
-          `/api/recipes/${encodeURIComponent(item.id)}`,
+          `/api/recipes/${encodeURIComponent(item.id)}${workspaceQuery}`,
         );
         setYaml(value.yaml);
       }
@@ -194,7 +197,7 @@ export function RecipesPage() {
     if (!recipe || !selected) return;
     setSaving(true);
     try {
-      await apiPut(`/api/recipes/${encodeURIComponent(selected)}`, { yaml });
+      await apiPut(`/api/recipes/${encodeURIComponent(selected)}${workspaceQuery}`, { yaml });
       await load();
       toast({ tone: "success", title: "Receita salva" });
     } catch (cause) {
@@ -208,7 +211,7 @@ export function RecipesPage() {
     const id = `receita-${Date.now().toString(36)}`;
     const text = DEFAULT_YAML.replace("nova-receita", id);
     try {
-      await apiPut(`/api/recipes/${id}`, { yaml: text });
+      await apiPut(`/api/recipes/${id}${workspaceQuery}`, { yaml: text });
       await load();
       setSelected(id);
       toast({ tone: "success", title: "Receita criada" });
@@ -242,7 +245,7 @@ export function RecipesPage() {
               .join("\n")}`
           : "";
       const text = [context.trim(), attachmentBlock].filter(Boolean).join("\n\n");
-      const run = await apiPost<RecipeRun>(`/api/recipes/${selected}/run`, {
+      const run = await apiPost<RecipeRun>(`/api/recipes/${selected}/run${workspaceQuery}`, {
         dry_run: dryRun,
         trigger_context: {
           manual: true,

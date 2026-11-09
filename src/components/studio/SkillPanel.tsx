@@ -14,6 +14,7 @@ import {
 } from "@/components/studio/StudioList";
 import { cn } from "@/lib/utils";
 import { confirmAction } from "@/store/confirm-store";
+import { slugifyWorkspace } from "@/lib/folder";
 
 function blankSkill(scope: StudioScope): SkillFile {
   return {
@@ -46,26 +47,25 @@ export function SkillPanel({
   const [skills, setSkills] = useState<SkillFile[]>([]);
   const [draft, setDraft] = useState<SkillFile | null>(null);
   const [isNew, setIsNew] = useState(false);
+  const [idTouched, setIdTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Refresh the list without touching the draft: filesystem events must never
+  // erase what the user is typing.
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const list = await apiGet<SkillFile[]>(`/api/studio/skills?${query}`);
       setSkills(list);
       setError(null);
-      setDraft((current) => {
-        if (!current || isNew) return current;
-        return list.find((skill) => skill.id === current.id) ?? current;
-      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setLoading(false);
     }
-  }, [query, isNew]);
+  }, [query]);
 
   useEffect(() => {
     void load();
@@ -160,11 +160,17 @@ export function SkillPanel({
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
-      <StudioList title="Skills" count={skills.length} onNew={() => {
-        setDraft(blankSkill(scope));
-        setIsNew(true);
-        setError(null);
-      }}>
+      <StudioList
+        title="Skills"
+        count={skills.length}
+        newLabel="Nova skill"
+        onNew={() => {
+          setDraft(blankSkill(scope));
+          setIsNew(true);
+          setIdTouched(false);
+          setError(null);
+        }}
+      >
         {loading && skills.length === 0 ? (
           <p className="px-3 py-6 text-center text-[10px] text-zinc-600">Carregando…</p>
         ) : skills.length === 0 ? (
@@ -182,6 +188,7 @@ export function SkillPanel({
               onClick={() => {
                 setDraft({ ...skill, files: skill.files.map((file) => ({ ...file })) });
                 setIsNew(false);
+                setIdTouched(false);
                 setError(null);
               }}
             />
@@ -230,7 +237,10 @@ export function SkillPanel({
                 <input
                   value={draft.id}
                   disabled={!isNew}
-                  onChange={(event) => setDraft({ ...draft, id: event.target.value })}
+                  onChange={(event) => {
+                    setIdTouched(true);
+                    setDraft({ ...draft, id: event.target.value });
+                  }}
                   placeholder="relatorio-executivo"
                   className={cn(inputClass, "font-mono disabled:opacity-60")}
                 />
@@ -238,7 +248,14 @@ export function SkillPanel({
               <StudioField label="Nome de exibição">
                 <input
                   value={draft.name ?? ""}
-                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                  onChange={(event) => {
+                    const name = event.target.value;
+                    const next = { ...draft, name };
+                    if (isNew && !idTouched) {
+                      next.id = slugifyWorkspace(name);
+                    }
+                    setDraft(next);
+                  }}
                   placeholder="Relatório Executivo"
                   className={inputClass}
                 />

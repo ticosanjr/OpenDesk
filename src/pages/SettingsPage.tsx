@@ -10,6 +10,7 @@ import {
   FolderPlus,
   HardDrive,
   Info,
+  ListChecks,
   Loader2,
   Save,
   Settings,
@@ -27,6 +28,7 @@ import { AboutCard } from "@/components/settings/AboutCard";
 import { NotificationCard } from "@/components/settings/NotificationCard";
 import { SectionTabs } from "@/components/ui/section-tabs";
 import { ToolsCard } from "@/components/settings/ToolsCard";
+import { QueueSettingsCard } from "@/components/settings/QueueSettingsCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiDelete, apiGet, apiPatch, apiPut } from "@/lib/api";
@@ -65,6 +67,7 @@ export function SettingsPage() {
     { id: "engine", label: "Engine", icon: Cpu },
     { id: "updates", label: "Atualizações", icon: Download },
     { id: "notifications", label: "Notificações", icon: Bell },
+    { id: "queue", label: "Fila", icon: ListChecks },
     { id: "workspaces", label: "Workspaces", icon: FolderOpen },
     { id: "tools", label: "Ferramentas", icon: Wrench },
     { id: "about", label: "Sobre", icon: Info },
@@ -151,6 +154,7 @@ export function SettingsPage() {
         </div>
       ) : null}
       {activeTab === "notifications" ? <NotificationCard /> : null}
+      {activeTab === "queue" ? <QueueSettingsCard /> : null}
       {activeTab === "tools" ? <ToolsCard /> : null}
 
       {activeTab === "general" ? (

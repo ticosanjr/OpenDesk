@@ -128,6 +128,9 @@ pub enum OpenDeskWsEvent {
         status: String,
         workspace_id: String,
     },
+    LearningUpdated {
+        workspace_id: String,
+    },
     RunFinished {
         run_id: String,
         task_id: Option<String>,

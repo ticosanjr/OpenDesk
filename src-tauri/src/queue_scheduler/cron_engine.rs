@@ -346,14 +346,17 @@ impl CronEngine {
             self.app.get().and_then(Weak::upgrade).ok_or_else(|| {
                 AppError::Internal("app state indisponível para a receita".into())
             })?;
-        let yaml = crate::recipes::store::yaml_for(&state.db, recipe_id).await?;
+        let yaml =
+            crate::recipes::store::yaml_for(&state.db, &schedule.workspace_id, recipe_id).await?;
         let recipe = crate::recipes::parser::parse(&yaml)?;
         let trigger = serde_json::json!({
             "routine_id": schedule.id,
             "routine_name": schedule.name,
             "scheduled_for": now.to_rfc3339(),
         });
-        let run = crate::recipes::engine::start(state, recipe, trigger, false).await?;
+        let run =
+            crate::recipes::engine::start(state, &schedule.workspace_id, recipe, trigger, false)
+                .await?;
         Ok(serde_json::json!({
             "run_id": run.id,
             "recipe_id": recipe_id,

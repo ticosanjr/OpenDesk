@@ -79,7 +79,7 @@ async fn scan_folder_triggers(
         if !index.is_enabled {
             continue;
         }
-        let Ok(yaml) = store::yaml_for(&state.db, &index.id).await else {
+        let Ok(yaml) = store::yaml_for(&state.db, &index.workspace_id, &index.id).await else {
             continue;
         };
         let Ok(recipe) = parser::parse(&yaml) else {
@@ -125,7 +125,14 @@ async fn scan_folder_triggers(
                     "file_name": file.file_name().and_then(|value| value.to_str()).unwrap_or("arquivo"),
                     "recipe_id": recipe.id,
                 });
-                let _ = engine::start(state.clone(), recipe.clone(), trigger, false).await;
+                let _ = engine::start(
+                    state.clone(),
+                    &index.workspace_id,
+                    recipe.clone(),
+                    trigger,
+                    false,
+                )
+                .await;
             }
         }
     }
@@ -139,7 +146,7 @@ async fn scan_calendar_triggers(state: &Arc<AppState>) -> AppResult<()> {
         if !index.is_enabled {
             continue;
         }
-        let Ok(yaml) = store::yaml_for(&state.db, &index.id).await else {
+        let Ok(yaml) = store::yaml_for(&state.db, &index.workspace_id, &index.id).await else {
             continue;
         };
         let Ok(recipe) = parser::parse(&yaml) else {
@@ -253,8 +260,14 @@ async fn scan_calendar_triggers(state: &Arc<AppState>) -> AppResult<()> {
                     "event_start": event.start_at,
                     "recipe_id": recipe.id,
                 });
-                if let Err(error) =
-                    engine::start(state.clone(), recipe.clone(), trigger, false).await
+                if let Err(error) = engine::start(
+                    state.clone(),
+                    &index.workspace_id,
+                    recipe.clone(),
+                    trigger,
+                    false,
+                )
+                .await
                 {
                     // Release the claim so a transient failure is retried.
                     let _ = db::calendar::release_trigger_fire(
@@ -278,7 +291,7 @@ async fn scan_cron_triggers(state: &Arc<AppState>) -> AppResult<()> {
         if !index.is_enabled {
             continue;
         }
-        let Ok(yaml) = store::yaml_for(&state.db, &index.id).await else {
+        let Ok(yaml) = store::yaml_for(&state.db, &index.workspace_id, &index.id).await else {
             continue;
         };
         let Ok(recipe) = parser::parse(&yaml) else {
@@ -305,7 +318,14 @@ async fn scan_cron_triggers(state: &Arc<AppState>) -> AppResult<()> {
                 "scheduled_for": next.to_rfc3339(),
                 "recipe_id": recipe.id,
             });
-            let _ = engine::start(state.clone(), recipe.clone(), trigger, false).await;
+            let _ = engine::start(
+                state.clone(),
+                &index.workspace_id,
+                recipe.clone(),
+                trigger,
+                false,
+            )
+            .await;
         }
     }
     Ok(())

@@ -529,6 +529,9 @@ mod tests {
                 notify_email: None,
                 export_to_gdocs: false,
                 tags: vec![],
+                origin: None,
+                parent_task_id: None,
+                dedupe: None,
             },
         )
         .await

@@ -78,14 +78,64 @@ const COLUMNS: &str = "q.id, q.workspace_id, q.task_id, q.schedule_id, q.session
     q.scheduled_for, q.output_dir, q.priority, q.status, q.retry_count, q.max_retries, q.error_message, \
     q.enqueued_at, q.started_at, q.finished_at, t.title AS task_title";
 
+fn enqueue_dedupe_key(input: &EnqueueInput) -> String {
+    // Prefer stable identity fields over the rendered prompt: the prompt
+    // contains an output directory that can change between identical attempts.
+    let identity = if let Some(task_id) = &input.task_id {
+        format!(
+            "task:{task_id}:{}",
+            input.session_id.as_deref().unwrap_or("")
+        )
+    } else if let Some(schedule_id) = &input.schedule_id {
+        format!(
+            "schedule:{schedule_id}:{}",
+            input.scheduled_for.as_deref().unwrap_or("")
+        )
+    } else {
+        input.prompt_payload.clone()
+    };
+    crate::dedupe::fingerprint(&[
+        &input.workspace_id,
+        &input.job_kind,
+        &input.resolved_mode,
+        &input.resolved_agent,
+        &input.resolved_model,
+        &input.resolved_effort,
+        &identity,
+    ])
+}
+
+async fn active_by_dedupe(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    dedupe_key: &str,
+) -> AppResult<Option<QueueJob>> {
+    let query = format!(
+        "SELECT {COLUMNS} FROM execution_queue q
+         LEFT JOIN tasks t ON t.id = q.task_id
+         WHERE q.workspace_id = ? AND q.dedupe_key = ?
+           AND q.status IN ('QUEUED', 'RUNNING')
+         ORDER BY q.enqueued_at DESC LIMIT 1"
+    );
+    Ok(sqlx::query_as::<_, QueueJob>(&query)
+        .bind(workspace_id)
+        .bind(dedupe_key)
+        .fetch_optional(pool)
+        .await?)
+}
+
 pub async fn enqueue(pool: &SqlitePool, input: EnqueueInput) -> AppResult<QueueJob> {
+    let dedupe_key = enqueue_dedupe_key(&input);
+    if let Some(existing) = active_by_dedupe(pool, &input.workspace_id, &dedupe_key).await? {
+        return Ok(existing);
+    }
     let id = Uuid::now_v7().to_string();
-    sqlx::query(
+    let insert = sqlx::query(
         "INSERT INTO execution_queue (
             id, workspace_id, task_id, schedule_id, session_id, concurrency_group,
             prompt_payload, resolved_mode, resolved_agent, resolved_model, resolved_effort,
-            job_kind, scheduled_for, output_dir, priority, max_retries
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            job_kind, scheduled_for, output_dir, priority, max_retries, dedupe_key
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&input.workspace_id)
@@ -103,8 +153,19 @@ pub async fn enqueue(pool: &SqlitePool, input: EnqueueInput) -> AppResult<QueueJ
     .bind(input.output_dir.as_deref())
     .bind(input.priority.clamp(1, 4))
     .bind(input.max_retries.max(0))
+    .bind(&dedupe_key)
     .execute(pool)
-    .await?;
+    .await;
+
+    if let Err(error) = insert {
+        if let sqlx::Error::Database(database) = &error
+            && database.message().contains("UNIQUE constraint failed")
+            && let Some(existing) = active_by_dedupe(pool, &input.workspace_id, &dedupe_key).await?
+        {
+            return Ok(existing);
+        }
+        return Err(error.into());
+    }
 
     get(pool, &id).await
 }
@@ -357,6 +418,25 @@ mod tests {
             priority: 2,
             max_retries: 1,
         }
+    }
+
+    #[tokio::test]
+    async fn enqueue_reuses_identical_active_jobs() {
+        let (_temp, pool) = setup().await;
+        let first = enqueue(&pool, input()).await.expect("first");
+        let duplicate = enqueue(&pool, input()).await.expect("duplicate");
+        assert_eq!(duplicate.id, first.id);
+
+        let mut other = input();
+        other.resolved_effort = "low".into();
+        let different = enqueue(&pool, other).await.expect("different");
+        assert_ne!(different.id, first.id);
+
+        finish(&pool, &first.id, "COMPLETED", None)
+            .await
+            .expect("finish");
+        let after = enqueue(&pool, input()).await.expect("after");
+        assert_ne!(after.id, first.id);
     }
 
     #[tokio::test]

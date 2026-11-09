@@ -22,9 +22,10 @@ pub async fn attention(
 ) -> AppResult<Json<serde_json::Value>> {
     let workspace_id =
         crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
-    let awaiting = sqlx::query_as::<_, (String, String, Option<String>, String)>(
-        "SELECT t.id, t.title, t.phase_status, t.updated_at FROM tasks t
+    let awaiting = sqlx::query_as::<_, (String, String, Option<String>, Option<String>, String)>(
+        "SELECT t.id, t.title, t.phase_status, t.plan_markdown, t.updated_at FROM tasks t
          WHERE t.workspace_id = ?
+           AND t.origin = 'MANUAL'
            AND (t.status = 'IN_REVIEW' OR t.phase_status = 'awaiting_approval')
            AND NOT EXISTS (
                SELECT 1 FROM alert_dismissals d
@@ -37,16 +38,25 @@ pub async fn attention(
     .fetch_all(&state.db)
     .await?
     .into_iter()
-    .map(|(id, title, phase_status, version)| {
+    .map(|(id, title, phase_status, plan, version)| {
+        let plan_excerpt = plan.map(|markdown| {
+            let trimmed = markdown.trim();
+            if trimmed.chars().count() > 600 {
+                format!("{}…", trimmed.chars().take(600).collect::<String>())
+            } else {
+                trimmed.to_string()
+            }
+        });
         serde_json::json!({
-            "id": id, "title": title, "phase_status": phase_status, "version": version
+            "id": id, "title": title, "phase_status": phase_status,
+            "plan_excerpt": plan_excerpt, "version": version
         })
     })
     .collect::<Vec<_>>();
 
     let blocked = sqlx::query_as::<_, (String, String, Option<String>, String)>(
         "SELECT t.id, t.title, t.blocked_reason, t.updated_at FROM tasks t
-         WHERE t.workspace_id = ? AND t.status = 'BLOCKED'
+         WHERE t.workspace_id = ? AND t.status = 'BLOCKED' AND t.origin = 'MANUAL'
            AND NOT EXISTS (
                SELECT 1 FROM alert_dismissals d
                WHERE d.workspace_id = t.workspace_id AND d.kind = 'BLOCKED'
@@ -79,6 +89,7 @@ pub async fn attention(
         "SELECT r.id, r.task_id, t.title, r.status, r.error_message, r.started_at
          FROM task_runs r LEFT JOIN tasks t ON t.id = r.task_id
          WHERE r.workspace_id = ? AND r.status = 'FAILED'
+           AND COALESCE(t.origin, 'MANUAL') = 'MANUAL'
            AND r.started_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-24 hours')
            AND NOT EXISTS (
                SELECT 1 FROM alert_dismissals d

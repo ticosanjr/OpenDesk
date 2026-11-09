@@ -21,6 +21,14 @@ export const PRIORITY_TONE: Record<number, "default" | "blue" | "yellow" | "red"
   4: "red",
 };
 
+export const ORIGIN_LABEL: Record<string, string> = {
+  MANUAL: "trabalho",
+  RECIPE: "receita",
+  IO_BUS: "io bus",
+  CAPTURE: "captura",
+  ROUTINE: "rotina",
+};
+
 export const EFFORT_TONE: Record<string, "default" | "blue" | "purple"> = {
   low: "default",
   medium: "blue",

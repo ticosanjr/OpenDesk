@@ -287,7 +287,8 @@ pub(crate) async fn execute_schedule_from_source(
             .recipe_id
             .as_deref()
             .ok_or_else(|| AppError::BadRequest("rotina sem receita vinculada".into()))?;
-        let yaml = crate::recipes::store::yaml_for(&state.db, recipe_id).await?;
+        let yaml =
+            crate::recipes::store::yaml_for(&state.db, &schedule.workspace_id, recipe_id).await?;
         let recipe = crate::recipes::parser::parse(&yaml)?;
         let trigger = serde_json::json!({
             "routine_id": schedule.id,
@@ -299,7 +300,15 @@ pub(crate) async fn execute_schedule_from_source(
             "attachments": event.attachments,
             "metadata": event.metadata,
         });
-        let run = match crate::recipes::engine::start(state.clone(), recipe, trigger, false).await {
+        let run = match crate::recipes::engine::start(
+            state.clone(),
+            &schedule.workspace_id,
+            recipe,
+            trigger,
+            false,
+        )
+        .await
+        {
             Ok(run) => run,
             Err(error) => {
                 let _ = schedules::mark_run(
@@ -349,7 +358,9 @@ pub(crate) async fn execute_signal_routines(
             let Some(recipe_id) = schedule.recipe_id.as_deref() else {
                 continue;
             };
-            let yaml = crate::recipes::store::yaml_for(&state.db, recipe_id).await?;
+            let yaml =
+                crate::recipes::store::yaml_for(&state.db, &schedule.workspace_id, recipe_id)
+                    .await?;
             let recipe = crate::recipes::parser::parse(&yaml)?;
             let trigger = serde_json::json!({
                 "routine_id": schedule.id,
@@ -357,8 +368,14 @@ pub(crate) async fn execute_signal_routines(
                 "signal_source": source_number,
                 "text": text,
             });
-            if let Err(error) =
-                crate::recipes::engine::start(state.clone(), recipe, trigger, false).await
+            if let Err(error) = crate::recipes::engine::start(
+                state.clone(),
+                &schedule.workspace_id,
+                recipe,
+                trigger,
+                false,
+            )
+            .await
             {
                 let _ = schedules::mark_run(
                     &state.db,
@@ -382,7 +399,9 @@ pub(crate) async fn execute_signal_routines(
         if !index.is_enabled || index.workspace_id != workspace_id {
             continue;
         }
-        let Ok(yaml) = crate::recipes::store::yaml_for(&state.db, &index.id).await else {
+        let Ok(yaml) =
+            crate::recipes::store::yaml_for(&state.db, &index.workspace_id, &index.id).await
+        else {
             continue;
         };
         let Ok(recipe) = crate::recipes::parser::parse(&yaml) else {
@@ -406,7 +425,14 @@ pub(crate) async fn execute_signal_routines(
                 "text": text,
                 "recipe_id": recipe.id,
             });
-            crate::recipes::engine::start(state.clone(), recipe.clone(), context, false).await?;
+            crate::recipes::engine::start(
+                state.clone(),
+                &index.workspace_id,
+                recipe.clone(),
+                context,
+                false,
+            )
+            .await?;
             return Ok(true);
         }
     }
@@ -477,11 +503,13 @@ pub async fn dry_run(
 
     if schedule.target_kind == "RECIPE" {
         let recipe = match schedule.recipe_id.as_deref() {
-            Some(recipe_id) => crate::recipes::store::yaml_for(&state.db, recipe_id)
-                .await
-                .ok()
-                .and_then(|yaml| crate::recipes::parser::parse(&yaml).ok())
-                .is_some(),
+            Some(recipe_id) => {
+                crate::recipes::store::yaml_for(&state.db, &schedule.workspace_id, recipe_id)
+                    .await
+                    .ok()
+                    .and_then(|yaml| crate::recipes::parser::parse(&yaml).ok())
+                    .is_some()
+            }
             None => false,
         };
         checks.push(DryRunCheck {

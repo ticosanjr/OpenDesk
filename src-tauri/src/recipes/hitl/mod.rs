@@ -57,17 +57,33 @@ pub async fn request(
     checkpoint: &HitlCheckpoint,
     title: &str,
     message: &str,
+    next_step: Option<&str>,
     attachments: &[String],
 ) -> AppResult<String> {
     let token = unique_token(&state.db).await?;
     let expires_at =
         (Utc::now() + Duration::minutes(checkpoint.timeout_minutes.clamp(1, 10080))).to_rfc3339();
+    let context = serde_json::json!({
+        "recipe_name": title,
+        "recipe_run_id": run.id,
+        "task_id": run.task_id,
+        "checkpoint_id": checkpoint.id,
+        "interaction_type": checkpoint.interaction_type,
+        "on_timeout": checkpoint.on_timeout,
+        "timeout_minutes": checkpoint.timeout_minutes,
+        "channels": checkpoint.channels,
+        "attachments": attachments,
+        "next_step": next_step,
+    });
     store::create_hitl(
         &state.db,
         &token,
         run,
         &checkpoint.id,
         &checkpoint.interaction_type,
+        title,
+        message,
+        &context,
         &checkpoint.options,
         &checkpoint.on_timeout,
         &expires_at,

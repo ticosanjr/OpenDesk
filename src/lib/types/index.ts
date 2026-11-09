@@ -5,3 +5,4 @@ export * from "./engine";
 export * from "./studio";
 export * from "./calendar";
 export * from "./chat";
+export * from "./learning";

@@ -194,14 +194,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
     });
 
     if (activeWorkspaceId) {
-      try {
-        const dashboard = await apiGet<DashboardStats>(
+      const [dashboardResult, queueResult] = await Promise.allSettled([
+        apiGet<DashboardStats>(
           `/api/dashboard?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
-        );
-        set({ dashboard });
-      } catch {
-        // Keep the workspace list and retry the dashboard on the next refresh.
+        ),
+        apiGet<QueueJob[]>(
+          `/api/queue?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+        ),
+      ]);
+      if (dashboardResult.status === "fulfilled") {
+        set({ dashboard: dashboardResult.value });
       }
+      if (queueResult.status === "fulfilled") {
+        set({ queue: queueResult.value });
+      }
+    } else {
+      set({ queue: [] });
     }
   },
 
@@ -213,10 +221,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
         item.id === workspace.id ? workspace : item,
       ),
     }));
-    const dashboard = await apiGet<DashboardStats>(
-      `/api/dashboard?workspace_id=${encodeURIComponent(workspace.id)}`,
-    );
-    set({ dashboard });
+    const [dashboard, queue] = await Promise.all([
+      apiGet<DashboardStats>(
+        `/api/dashboard?workspace_id=${encodeURIComponent(workspace.id)}`,
+      ),
+      apiGet<QueueJob[]>(
+        `/api/queue?workspace_id=${encodeURIComponent(workspace.id)}`,
+      ).catch(() => [] as QueueJob[]),
+    ]);
+    set({ dashboard, queue });
   },
 
   createWorkspace: async (input: CreateWorkspaceInput) => {
@@ -224,6 +237,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((state) => ({
       workspaces: [workspace, ...state.workspaces],
       activeWorkspaceId: workspace.id,
+      queue: [],
     }));
     return workspace;
   },
@@ -295,8 +309,19 @@ export function handleEvent(event: WsEvent) {
       useAppStore.setState({ daemon: event.payload as DaemonStatus });
       break;
     case "QueueUpdated": {
-      const payload = event.payload as { jobs?: QueueJob[] };
-      useAppStore.setState({ queue: payload.jobs ?? [] });
+      const payload = event.payload as {
+        workspace_id?: string;
+        jobs?: QueueJob[];
+      };
+      // Queue events are broadcast per workspace. Applying another workspace's
+      // history made the sidebar badge show a number that did not belong to the
+      // active board.
+      if (
+        !payload.workspace_id ||
+        payload.workspace_id === useAppStore.getState().activeWorkspaceId
+      ) {
+        useAppStore.setState({ queue: payload.jobs ?? [] });
+      }
       break;
     }
     case "FsSyncTriggered": {

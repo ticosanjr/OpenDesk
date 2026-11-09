@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import {
   Activity,
   Archive,
+  Brain,
   CalendarClock,
   CalendarDays,
   FolderTree,
@@ -22,6 +23,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { queueBadgeLabel, queueCounts } from "@/lib/queue";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { StatusDot, statusTone } from "@/components/ui/status-dot";
@@ -60,6 +62,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
   {
     label: "Governança",
     items: [
+      { to: "/learning", label: "Aprendizado", icon: Brain },
       { to: "/router", label: "Roteador & Custos", icon: Route },
       { to: "/integrations", label: "Integrações", icon: Plug },
       { to: "/settings", label: "Configurações", icon: Settings },
@@ -75,6 +78,8 @@ export function Sidebar() {
   const daemon = useAppStore((state) => state.daemon);
   const connected = useAppStore((state) => state.connected);
   const queue = useAppStore((state) => state.queue);
+  const counts = queueCounts(queue);
+  const badge = queueBadgeLabel(counts);
 
   return (
     <aside
@@ -148,10 +153,14 @@ export function Sidebar() {
                 ws
               </span>
             </div>
-            {queue.length > 0 ? (
-              <div className="mt-2">
-                <Badge variant="blue">{queue.length} na fila</Badge>
-              </div>
+            {badge ? (
+              <Link
+                to="/kanban?view=queue"
+                className="mt-2 inline-flex"
+                title={badge}
+              >
+                <Badge variant="blue">{badge}</Badge>
+              </Link>
             ) : null}
           </div>
         ) : null}

@@ -5,8 +5,28 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{FromRow, SqlitePool};
-use std::path::Path;
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::{Arc, Mutex, OnceLock},
+};
+use tokio::sync::Mutex as AsyncMutex;
 use uuid::Uuid;
+
+/// Serialises reconciliation per workspace. Without it, a watcher sync that
+/// scanned the folder before a pack installed recipes could prune the rows the
+/// install had just written.
+fn sync_lock(workspace_id: &str) -> Arc<AsyncMutex<()>> {
+    static LOCKS: OnceLock<Mutex<HashMap<String, Arc<AsyncMutex<()>>>>> = OnceLock::new();
+    let locks = LOCKS.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut guard = locks
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    guard
+        .entry(workspace_id.to_string())
+        .or_insert_with(|| Arc::new(AsyncMutex::new(())))
+        .clone()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct RecipeIndex {
@@ -47,6 +67,9 @@ pub struct HitlRequest {
     pub workspace_id: String,
     pub checkpoint_id: String,
     pub interaction_type: String,
+    pub title: Option<String>,
+    pub question_markdown: Option<String>,
+    pub context_json: String,
     pub options_json: String,
     pub status: String,
     pub on_timeout: String,
@@ -66,8 +89,9 @@ const RUN_COLUMNS: &str = "id, recipe_id, workspace_id, task_id, status, current
     trigger_context_json, step_outputs_json, output_dir_path, dry_run, error_message, \
     started_at, completed_at";
 const HITL_COLUMNS: &str = "token, recipe_run_id, workspace_id, checkpoint_id, interaction_type, \
-    options_json, status, on_timeout, dispatched_channels_json, resolved_by_channel, resolved_by_sender, \
-    resolution_type, resolution_payload, expires_at, created_at, resolved_at";
+    title, question_markdown, context_json, options_json, status, on_timeout, \
+    dispatched_channels_json, resolved_by_channel, resolved_by_sender, resolution_type, \
+    resolution_payload, expires_at, created_at, resolved_at";
 
 fn sha256(text: &str) -> String {
     let mut hasher = Sha256::new();
@@ -84,6 +108,8 @@ pub async fn sync_workspace(
     workspace_id: &str,
     root: &Path,
 ) -> AppResult<usize> {
+    let lock = sync_lock(workspace_id);
+    let _guard = lock.lock().await;
     let dir = root.join(".opencode").join("recipes");
     std::fs::create_dir_all(&dir)?;
     let mut seen = Vec::new();
@@ -107,8 +133,7 @@ pub async fn sync_workspace(
                             id, workspace_id, name, file_path, content_sha256, trigger_type,
                             is_enabled, last_error
                          ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
-                         ON CONFLICT(id) DO UPDATE SET
-                            workspace_id = excluded.workspace_id,
+                         ON CONFLICT(workspace_id, id) DO UPDATE SET
                             name = excluded.name,
                             file_path = excluded.file_path,
                             content_sha256 = excluded.content_sha256,
@@ -138,7 +163,8 @@ pub async fn sync_workspace(
     let indexes = list(pool, workspace_id).await?;
     for index in indexes {
         if !seen.contains(&index.id) {
-            sqlx::query("DELETE FROM recipes_index WHERE id = ?")
+            sqlx::query("DELETE FROM recipes_index WHERE workspace_id = ? AND id = ?")
+                .bind(workspace_id)
                 .bind(&index.id)
                 .execute(pool)
                 .await?;
@@ -163,17 +189,19 @@ pub async fn list_all(pool: &SqlitePool) -> AppResult<Vec<RecipeIndex>> {
         .await?)
 }
 
-pub async fn get(pool: &SqlitePool, id: &str) -> AppResult<RecipeIndex> {
-    let query = format!("SELECT {RECIPE_COLUMNS} FROM recipes_index WHERE id = ?");
+pub async fn get(pool: &SqlitePool, workspace_id: &str, id: &str) -> AppResult<RecipeIndex> {
+    let query =
+        format!("SELECT {RECIPE_COLUMNS} FROM recipes_index WHERE workspace_id = ? AND id = ?");
     sqlx::query_as::<_, RecipeIndex>(&query)
+        .bind(workspace_id)
         .bind(id)
         .fetch_optional(pool)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("recipe {id}")))
 }
 
-pub async fn yaml_for(pool: &SqlitePool, id: &str) -> AppResult<String> {
-    let index = get(pool, id).await?;
+pub async fn yaml_for(pool: &SqlitePool, workspace_id: &str, id: &str) -> AppResult<String> {
+    let index = get(pool, workspace_id, id).await?;
     Ok(std::fs::read_to_string(index.file_path)?)
 }
 
@@ -219,7 +247,7 @@ pub async fn set_enabled(
     id: &str,
     enabled: bool,
 ) -> AppResult<RecipeIndex> {
-    let yaml = yaml_for(pool, id).await?;
+    let yaml = yaml_for(pool, workspace_id, id).await?;
     let updated = set_yaml_enabled(&yaml, enabled);
     save_yaml(pool, workspace_id, id, &updated).await
 }
@@ -250,7 +278,7 @@ pub async fn save_yaml(
     std::fs::write(&path, yaml)?;
     crate::config_sync::watcher::expect_write(&path, Some(sha256(yaml)));
     sync_workspace(pool, workspace_id, Path::new(&root)).await?;
-    get(pool, id).await
+    get(pool, workspace_id, id).await
 }
 
 pub async fn create_run(
@@ -280,12 +308,24 @@ pub async fn create_run(
     .await?;
     sqlx::query(
         "UPDATE recipes_index SET total_runs = total_runs + 1,
-            last_run_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+            last_run_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE workspace_id = ? AND id = ?",
     )
+    .bind(workspace_id)
     .bind(&recipe.id)
     .execute(pool)
     .await?;
     get_run(pool, &id).await
+}
+
+pub async fn latest_run_for_task(pool: &SqlitePool, task_id: &str) -> AppResult<Option<RecipeRun>> {
+    let query = format!(
+        "SELECT {RUN_COLUMNS} FROM recipe_runs WHERE task_id = ? ORDER BY started_at DESC LIMIT 1"
+    );
+    Ok(sqlx::query_as::<_, RecipeRun>(&query)
+        .bind(task_id)
+        .fetch_optional(pool)
+        .await?)
 }
 
 pub async fn get_run(pool: &SqlitePool, id: &str) -> AppResult<RecipeRun> {
@@ -346,6 +386,9 @@ pub async fn create_hitl(
     run: &RecipeRun,
     checkpoint_id: &str,
     interaction_type: &str,
+    title: &str,
+    question: &str,
+    context: &serde_json::Value,
     options: &[String],
     on_timeout: &str,
     expires_at: &str,
@@ -353,14 +396,17 @@ pub async fn create_hitl(
     sqlx::query(
         "INSERT INTO hitl_requests (
             token, recipe_run_id, workspace_id, checkpoint_id, interaction_type,
-            options_json, on_timeout, expires_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            title, question_markdown, context_json, options_json, on_timeout, expires_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(token)
     .bind(&run.id)
     .bind(&run.workspace_id)
     .bind(checkpoint_id)
     .bind(interaction_type)
+    .bind(title)
+    .bind(question)
+    .bind(context.to_string())
     .bind(serde_json::to_string(options).unwrap_or_else(|_| "[]".into()))
     .bind(on_timeout)
     .bind(expires_at)
@@ -488,6 +534,9 @@ mod tests {
             &run,
             "h1",
             "BINARY_GATE",
+            "Receita teste",
+            "Aprovar o checkpoint?",
+            &serde_json::json!({ "recipe_name": "Receita teste" }),
             &[],
             "PAUSE_AND_ALERT",
             "2999-01-01T00:00:00Z",
@@ -495,6 +544,16 @@ mod tests {
         .await
         .expect("hitl");
         assert_eq!(hitl.status, "PENDING");
+        assert_eq!(hitl.title.as_deref(), Some("Receita teste"));
+        assert_eq!(
+            hitl.question_markdown.as_deref(),
+            Some("Aprovar o checkpoint?")
+        );
+        assert!(
+            hitl.context_json.contains("Receita teste"),
+            "context: {}",
+            hitl.context_json
+        );
         dispatch_channel(&pool, "8F2A", "SIGNAL", "ts-1")
             .await
             .expect("dispatch");
@@ -510,6 +569,78 @@ mod tests {
                 .expect("second")
                 .is_none()
         );
+    }
+
+    #[tokio::test]
+    async fn same_recipe_id_is_scoped_per_workspace() {
+        let temp = TempDir::new().expect("temp");
+        let pool = crate::db::init(&temp.path().join("r.db"))
+            .await
+            .expect("db");
+        for workspace in ["ws-1", "ws-2"] {
+            let root = temp.path().join(workspace);
+            std::fs::create_dir_all(root.join(".opencode/recipes")).expect("dir");
+            sqlx::query("INSERT INTO workspaces (id, name, root_path) VALUES (?, ?, ?)")
+                .bind(workspace)
+                .bind(workspace)
+                .bind(root.to_string_lossy().to_string())
+                .execute(&pool)
+                .await
+                .expect("ws");
+            std::fs::write(
+                root.join(".opencode/recipes/shared.yaml"),
+                "id: shared\nname: Compartilhada\ntrigger:\n  type: MANUAL\n  config: {}\nsteps:\n  - id: s1\n    name: Um\n    prompt: oi\n",
+            )
+            .expect("yaml");
+            sync_workspace(&pool, workspace, &root).await.expect("sync");
+        }
+
+        let first = list(&pool, "ws-1").await.expect("list 1");
+        let second = list(&pool, "ws-2").await.expect("list 2");
+        assert_eq!(first.len(), 1);
+        assert_eq!(second.len(), 1);
+        assert_ne!(first[0].file_path, second[0].file_path);
+        assert!(first[0].file_path.contains("ws-1"));
+        assert!(
+            get(&pool, "ws-1", "shared").await.is_ok(),
+            "each workspace keeps its own shared id"
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_reconciliation_keeps_all_recipes() {
+        let temp = TempDir::new().expect("temp");
+        let pool = crate::db::init(&temp.path().join("r.db"))
+            .await
+            .expect("db");
+        sqlx::query("INSERT INTO workspaces (id, name, root_path) VALUES ('ws-1', 'WS', ?)")
+            .bind(temp.path().to_string_lossy().to_string())
+            .execute(&pool)
+            .await
+            .expect("ws");
+        let dir = temp.path().join(".opencode/recipes");
+        std::fs::create_dir_all(&dir).expect("dir");
+        for id in ["um", "dois", "tres"] {
+            std::fs::write(
+                dir.join(format!("{id}.yaml")),
+                format!(
+                    "id: {id}\nname: {id}\ntrigger:\n  type: MANUAL\n  config: {{}}\nsteps:\n  - id: s1\n    name: Um\n    prompt: oi\n"
+                ),
+            )
+            .expect("yaml");
+        }
+        let mut tasks = Vec::new();
+        for _ in 0..8 {
+            let pool = pool.clone();
+            let root = temp.path().to_path_buf();
+            tasks.push(tokio::spawn(async move {
+                sync_workspace(&pool, "ws-1", &root).await
+            }));
+        }
+        for task in tasks {
+            task.await.expect("join").expect("sync");
+        }
+        assert_eq!(list(&pool, "ws-1").await.expect("list").len(), 3);
     }
 
     #[test]

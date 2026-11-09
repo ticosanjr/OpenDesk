@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Activity,
   Archive,
+  Brain,
   CalendarClock,
   CalendarDays,
   FolderTree,
@@ -40,6 +41,7 @@ const icons = {
   "/routines": CalendarClock,
   "/recipes": Workflow,
   "/studio": Wand2,
+  "/learning": Brain,
   "/router": Route,
   "/integrations": Plug,
   "/settings": Settings,

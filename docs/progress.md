@@ -1618,6 +1618,66 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   timezone; expressão crua só aparece em “Personalizado (avançado)”.
 - Testes: **104 Vitest**; E2E direcionado de workspace, rotinas e receitas verde.
 
+## 2026-11-09 — loop de aprendizado leve
+
+- Novo módulo `learning` extrai lições determinísticas de runs concluídos, sem
+  embeddings, worker próprio ou dependências novas.
+- Falhas são agrupadas por código classificado + agente + modelo + mensagem
+  normalizada; sucessos são opcionais e agrupam agente + modelo.
+- Captura idempotente por `learning_run_captures`: cada run é observado uma vez,
+  então varreduras manuais não inflam ocorrências.
+- Promover uma lição cria uma proposta `SKILL` no fluxo HITL existente; o arquivo
+  só é gravado em `.opencode/skills` após aprovação humana.
+- Memorizar grava um bloco curto e marcado em `.opencode/MEMORY.md` com escrita
+  atômica, backup e marca idempotente por fingerprint.
+- Evidência guarda apenas erro truncado, agente, modelo, duração e custo — nunca
+  prompt completo ou segredo.
+- Corrigido `db::runs`: as consultas de run agora selecionam código, mensagem e
+  dica de erro; antes os campos voltavam vazios para a API e para o aprendizado.
+- Corrigido o índice de receitas: a chave virou `(workspace_id, id)`. O mesmo
+  pacote em dois workspaces não move mais receitas entre eles nem depende da
+  ordem do sync.
+- Reconciliação de receitas serializada por workspace, impedindo que o watcher
+  apague linhas recém-instaladas por um pacote.
+- `schedules.recipe_id` perdeu a FK de coluna única, incompatível com a nova
+  chave composta; o vínculo continua validado pela rotina e pelo workspace.
+- Sync de fontes de receita ficou resiliente a receitas removidas no meio do
+  caminho: registra aviso, reconcilia o workspace e continua os demais.
+- API: `GET /api/learning`, `PUT /api/learning/settings`,
+  `POST /api/learning/scan`, `POST /api/learning/lessons/{id}/dismiss`,
+  `POST /api/learning/lessons/{id}/promote` e
+  `POST /api/learning/lessons/{id}/remember`.
+- Nova página **Aprendizado** em Governança: estatísticas de 30 dias, filtros,
+  captura ligável/desligável, mínimo de ocorrências, promoção automática opcional
+  e aprovação/rejeição de propostas.
+- ADRs 0034 (aprendizado) e 0035 (chave de receita por workspace) documentam as
+  decisões.
+- Testes: **296 Rust**, **109 Vitest** e **45 Playwright**.
+
+## 2026-11-09 — fila, Kanban, dedupe, Studio e HITL
+
+- Badge da fila conta apenas `QUEUED`/`RUNNING` do workspace ativo e abre a aba
+  de fila; antes somava histórico de todos os status e podia mostrar jobs de
+  outro workspace.
+- Tarefas ganharam `origin`, `parent_task_id` e `dedupe_key`. Kanban separa
+  **Trabalho** de **Automações**; o Attention Card ignora automações.
+- Execuções de receita, I/O bus e captura continuam visíveis na aba de
+  automações, nas receitas e em Execuções, com badge de origem.
+- Deduplicação de tarefas e jobs com fingerprint SHA-256, índice único parcial,
+  reutilização de tarefa ativa e carência configurável (padrão 5 min).
+- Nova aba Configurações → Fila para ativar/desativar e ajustar a carência.
+- Receitas e I/O bus respeitam tarefas deduplicadas e não criam runs/duplicatas.
+- Studio: eventos de filesystem atualizam a lista, mas nunca sobrescrevem o
+  rascunho; o texto digitado para de desaparecer.
+- Skill nova gera slug automático a partir do nome e o botão passa a se chamar
+  “Nova skill”.
+- HITL persiste título, pergunta renderizada e contexto; o card mostra a
+  pergunta, próximas consequências e ações por tipo.
+- Aprovação de plano mostra trecho do plano; permissões explicam o efeito de
+  cada decisão.
+- ADRs 0036 (origem/dedupe) e 0037 (HITL) documentam as decisões.
+- Testes: **303 Rust**, **116 Vitest** e **49 Playwright**.
+
 ## 2026-11-09 — release 0.31.0
 
 - Gate completo passou com **286 Rust**, **101 Vitest** e **43 Playwright**.

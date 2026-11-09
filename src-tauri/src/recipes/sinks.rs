@@ -44,7 +44,7 @@ async fn execute_one_at(
         .await
         .ok()
         .and_then(|runs| runs.first().cloned());
-    let title = crate::recipes::store::get(&state.db, &run.recipe_id)
+    let title = crate::recipes::store::get(&state.db, &run.workspace_id, &run.recipe_id)
         .await
         .map(|index| index.name)
         .unwrap_or_else(|_| "Receita".into());

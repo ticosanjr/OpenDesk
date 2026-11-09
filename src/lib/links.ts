@@ -15,6 +15,11 @@ export const links = {
     if (workspaceId) params.set("workspace_id", workspaceId);
     return `/studio?${params.toString()}`;
   },
+  skill: (id: string, scope = "workspace", workspaceId?: string | null) => {
+    const params = new URLSearchParams({ kind: "skill", id, scope });
+    if (workspaceId) params.set("workspace_id", workspaceId);
+    return `/studio?${params.toString()}`;
+  },
   file: (path: string) => `/files?path=${encodeURIComponent(path)}`,
   settings: (
     section:

@@ -305,6 +305,9 @@ mod tests {
                 notify_email: None,
                 export_to_gdocs: false,
                 tags: Vec::new(),
+                origin: None,
+                parent_task_id: None,
+                dedupe: None,
             },
         )
         .await
@@ -360,6 +363,9 @@ mod tests {
                 notify_email: None,
                 export_to_gdocs: false,
                 tags: Vec::new(),
+                origin: None,
+                parent_task_id: None,
+                dedupe: None,
             },
         )
         .await

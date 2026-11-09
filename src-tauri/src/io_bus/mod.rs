@@ -70,7 +70,8 @@ pub async fn ingest(
     if let Ok(config) = serde_json::from_str::<serde_json::Value>(&source.config_json)
         && let Some(recipe_id) = config.get("recipe_id").and_then(|value| value.as_str())
     {
-        let yaml = crate::recipes::store::yaml_for(&state.db, recipe_id).await?;
+        let yaml =
+            crate::recipes::store::yaml_for(&state.db, &source.workspace_id, recipe_id).await?;
         let recipe = crate::recipes::parser::parse(&yaml)?;
         let trigger = serde_json::json!({
             "source_id": source.id,
@@ -80,7 +81,14 @@ pub async fn ingest(
             "attachments": event.attachments,
             "metadata": event.metadata,
         });
-        let run = crate::recipes::engine::start(state.clone(), recipe, trigger, false).await?;
+        let run = crate::recipes::engine::start(
+            state.clone(),
+            &source.workspace_id,
+            recipe,
+            trigger,
+            false,
+        )
+        .await?;
         if let Some(task_id) = run.task_id {
             return Ok(Some(tasks::get(&state.db, &task_id).await?));
         }
@@ -130,9 +138,16 @@ pub async fn ingest(
             notify_email: None,
             export_to_gdocs: false,
             tags,
+            origin: Some("IO_BUS".into()),
+            parent_task_id: None,
+            dedupe: None,
         },
     )
     .await?;
+    if task.deduplicated {
+        let _ = db::io_bus::mark_inbound(&state.db, &source.id, "DEDUPLICATED", None).await;
+        return Ok(Some(task));
+    }
 
     if source.target_agent.is_some() {
         let _ = tasks::update(

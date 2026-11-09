@@ -180,7 +180,7 @@ mod migration_tests {
                 .fetch_all(&pool)
                 .await
                 .unwrap();
-        assert_eq!(rows.last().unwrap().0, 23, "rows: {rows:?}");
+        assert_eq!(rows.last().unwrap().0, 28, "rows: {rows:?}");
         let calendar_table: Option<(String,)> = sqlx::query_as(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'calendar_events'",
         )
@@ -188,6 +188,37 @@ mod migration_tests {
         .await
         .unwrap();
         assert!(calendar_table.is_some(), "calendar_events table");
+        let learning_table: Option<(String,)> = sqlx::query_as(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'learning_lessons'",
+        )
+        .fetch_optional(&pool)
+        .await
+        .unwrap();
+        assert!(learning_table.is_some(), "learning_lessons table");
+        let recipe_keys: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM pragma_table_info('recipes_index') WHERE pk > 0",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            recipe_keys, 2,
+            "recipes_index must be keyed by workspace + id"
+        );
+        let task_origin: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name = 'origin'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(task_origin, 1, "tasks.origin column");
+        let hitl_question: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM pragma_table_info('hitl_requests') WHERE name = 'question_markdown'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(hitl_question, 1, "hitl question column");
         let cols: Vec<(String,)> =
             sqlx::query_as("SELECT name FROM pragma_table_info('execution_queue')")
                 .fetch_all(&pool)

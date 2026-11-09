@@ -601,6 +601,15 @@ impl QueueManager {
             }
         }
 
+        // Learning runs after error classification so lessons include the final
+        // code/hint. It is best-effort and never blocks settlement.
+        if let Ok(Some(lesson)) = crate::learning::capture_run(&self.pool, &run_id).await {
+            tracing::debug!(lesson_id = %lesson.id, "learning lesson captured");
+            self.events.publish(OpenDeskWsEvent::LearningUpdated {
+                workspace_id: job.workspace_id.clone(),
+            });
+        }
+
         settlement::settle_queue(&self.pool, &self.events, &job, &outcome).await;
 
         if let Some(task) = &task {

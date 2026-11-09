@@ -21,6 +21,9 @@ describe("entity links", () => {
     expect(links.agent("build", "workspace", "ws 1")).toBe(
       "/studio?kind=agent&id=build&scope=workspace&workspace_id=ws+1",
     );
+    expect(links.skill("learned-failure-1", "workspace", "ws 1")).toBe(
+      "/studio?kind=skill&id=learned-failure-1&scope=workspace&workspace_id=ws+1",
+    );
     expect(links.settings("engine")).toBe("/settings?section=engine");
     expect(links.settings("notifications")).toBe("/settings?section=notifications");
     expect(links.integration("google")).toBe("/integrations?section=google");

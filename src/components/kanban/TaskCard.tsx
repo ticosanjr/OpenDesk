@@ -16,7 +16,12 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { WorkingIndicator } from "@/components/ui/working-indicator";
 import { links } from "@/lib/links";
 import { relativeTime } from "@/lib/format";
-import { EFFORT_TONE, PRIORITY_LABEL, PRIORITY_TONE } from "@/lib/task-ui";
+import {
+  EFFORT_TONE,
+  ORIGIN_LABEL,
+  PRIORITY_LABEL,
+  PRIORITY_TONE,
+} from "@/lib/task-ui";
 import {
   isTaskAwaitingApproval,
   isTaskFailed,
@@ -74,6 +79,11 @@ export function TaskCard({
     <Badge key="effort" variant={EFFORT_TONE[task.effort_level] ?? "default"}>
       {task.effort_level}
     </Badge>,
+    task.origin && task.origin !== "MANUAL" ? (
+      <Badge key="origin" variant="purple">
+        {ORIGIN_LABEL[task.origin] ?? task.origin}
+      </Badge>
+    ) : null,
     pinned > 0 ? (
       <Badge key="pinned" variant="yellow">
         <Star size={9} fill="currentColor" />
