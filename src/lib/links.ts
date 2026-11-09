@@ -27,6 +27,8 @@ export const links = {
       | "engine"
       | "updates"
       | "notifications"
+      | "queue"
+      | "backups"
       | "tools"
       | "about"
       | "workspaces" = "general",

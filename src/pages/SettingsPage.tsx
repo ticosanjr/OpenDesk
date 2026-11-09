@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
+  Archive,
   Bell,
   Check,
   Cpu,
@@ -29,6 +30,7 @@ import { NotificationCard } from "@/components/settings/NotificationCard";
 import { SectionTabs } from "@/components/ui/section-tabs";
 import { ToolsCard } from "@/components/settings/ToolsCard";
 import { QueueSettingsCard } from "@/components/settings/QueueSettingsCard";
+import { BackupsCard } from "@/components/settings/BackupsCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiDelete, apiGet, apiPatch, apiPut } from "@/lib/api";
@@ -68,6 +70,7 @@ export function SettingsPage() {
     { id: "updates", label: "Atualizações", icon: Download },
     { id: "notifications", label: "Notificações", icon: Bell },
     { id: "queue", label: "Fila", icon: ListChecks },
+    { id: "backups", label: "Backups", icon: Archive },
     { id: "workspaces", label: "Workspaces", icon: FolderOpen },
     { id: "tools", label: "Ferramentas", icon: Wrench },
     { id: "about", label: "Sobre", icon: Info },
@@ -155,6 +158,7 @@ export function SettingsPage() {
       ) : null}
       {activeTab === "notifications" ? <NotificationCard /> : null}
       {activeTab === "queue" ? <QueueSettingsCard /> : null}
+      {activeTab === "backups" ? <BackupsCard /> : null}
       {activeTab === "tools" ? <ToolsCard /> : null}
 
       {activeTab === "general" ? (

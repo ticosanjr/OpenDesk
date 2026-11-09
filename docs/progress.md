@@ -1728,6 +1728,21 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - ADR 0040 documenta a decisão.
 - Testes: **316 Rust**, **124 Vitest** e **52 Playwright**.
 
+## 2026-11-09 — backup completo do workspace
+
+- Novo módulo `backup` cria ZIP do workspace com manifesto, contagem, bytes e
+  SHA-256.
+- Exclui `.git`, `node_modules`, `target`, `dist`, caches e ambientes virtuais.
+- Restauração cria um novo workspace, exige destino vazio/inexistente e nunca
+  sobrescreve o atual.
+- Proteções: zip-slip, symlinks, caminhos absolutos, limite de 2 GiB e 100 mil
+  arquivos; hash verificado antes de extrair.
+- API `/api/backups` com list/create/download/restore/delete.
+- Nova aba **Configurações → Backups**.
+- CLI `opendesk backups list/create/restore/download/delete`.
+- ADR 0041 documenta a decisão.
+- Testes: **319 Rust**, **124 Vitest** e **53 Playwright**.
+
 ## 2026-11-09 — release 0.31.0
 
 - Gate completo passou com **286 Rust**, **101 Vitest** e **43 Playwright**.

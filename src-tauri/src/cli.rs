@@ -20,6 +20,11 @@ Uso:
   opendesk runs list [--workspace <id>] [--limit <n>] [--json]
   opendesk runs show <run-id> [--json]
   opendesk queue list [--workspace <id>] [--json]
+  opendesk backups list [--workspace <id>] [--json]
+  opendesk backups create [--workspace <id>] [--json]
+  opendesk backups restore <backup-id> --path <diretório> [--name <nome>]
+  opendesk backups download <backup-id> --out <arquivo>
+  opendesk backups delete <backup-id>
   opendesk export <run-id> [--format md|html|json] [--out <arquivo>]
 
 O servidor local precisa estar rodando (app desktop ou --headless).";
@@ -409,6 +414,150 @@ async fn execute(args: Args) -> Result<()> {
                     );
                 }
             }
+        }
+        ("backups", Some("list")) => {
+            let backups = call(
+                &client,
+                &endpoint,
+                Method::GET,
+                &format!("/api/backups{}", workspace_query(&args)),
+                None,
+            )
+            .await?;
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&backups)?);
+            } else if let Some(list) = backups.as_array() {
+                for backup in list {
+                    println!(
+                        "{:<8} {:<22} {:>10}  {}",
+                        shorten(backup.get("id").and_then(Value::as_str).unwrap_or("?")),
+                        backup
+                            .get("created_at")
+                            .and_then(Value::as_str)
+                            .unwrap_or("?"),
+                        format!(
+                            "{:.1} MB",
+                            backup
+                                .get("size_bytes")
+                                .and_then(Value::as_u64)
+                                .unwrap_or(0) as f64
+                                / 1_048_576.0
+                        ),
+                        backup
+                            .get("workspace_name")
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                    );
+                }
+            }
+        }
+        ("backups", Some("create")) => {
+            let backup = call(
+                &client,
+                &endpoint,
+                Method::POST,
+                &format!("/api/backups{}", workspace_query(&args)),
+                None,
+            )
+            .await?;
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&backup)?);
+            } else {
+                println!(
+                    "{}  {}  {} arquivos",
+                    shorten(backup.get("id").and_then(Value::as_str).unwrap_or("?")),
+                    backup
+                        .get("file_name")
+                        .and_then(Value::as_str)
+                        .unwrap_or("?"),
+                    backup.get("files").and_then(Value::as_u64).unwrap_or(0)
+                );
+            }
+        }
+        ("backups", Some("restore")) => {
+            let id = args.positionals.get(2).ok_or_else(|| {
+                anyhow!("uso: opendesk backups restore <backup-id> --path <diretório>")
+            })?;
+            let target = args
+                .flags
+                .get("path")
+                .ok_or_else(|| anyhow!("--path é obrigatório"))?;
+            let result = call(
+                &client,
+                &endpoint,
+                Method::POST,
+                &format!("/api/backups/{id}/restore{}", workspace_query(&args)),
+                Some(json!({
+                    "target_path": target,
+                    "name": args.flags.get("name").cloned(),
+                })),
+            )
+            .await?;
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&result)?);
+            } else {
+                println!(
+                    "workspace {}  {}  {}",
+                    shorten(result.get("id").and_then(Value::as_str).unwrap_or("?")),
+                    result.get("name").and_then(Value::as_str).unwrap_or("?"),
+                    result
+                        .get("root_path")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                );
+            }
+        }
+        ("backups", Some("download")) => {
+            let id = args.positionals.get(2).ok_or_else(|| {
+                anyhow!("uso: opendesk backups download <backup-id> --out <arquivo>")
+            })?;
+            let output = args
+                .flags
+                .get("out")
+                .ok_or_else(|| anyhow!("--out é obrigatório"))?;
+            let response = client
+                .get(format!(
+                    "http://127.0.0.1:{}/api/backups/{id}/download{}",
+                    endpoint.port,
+                    workspace_query(&args)
+                ))
+                .bearer_auth(&endpoint.token)
+                .send()
+                .await
+                .context("falha ao baixar backup")?;
+            let status = response.status();
+            if !status.is_success() {
+                let text = response.text().await.unwrap_or_default();
+                let message = serde_json::from_str::<Value>(&text)
+                    .ok()
+                    .and_then(|value| {
+                        value
+                            .get("message")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    })
+                    .unwrap_or(text);
+                return Err(anyhow!("API {}: {}", status.as_u16(), message));
+            }
+            let bytes = response.bytes().await.context("falha ao ler backup")?;
+            std::fs::write(output, &bytes)
+                .with_context(|| format!("não foi possível gravar {output}"))?;
+            println!("{output}");
+        }
+        ("backups", Some("delete")) => {
+            let id = args
+                .positionals
+                .get(2)
+                .ok_or_else(|| anyhow!("uso: opendesk backups delete <backup-id>"))?;
+            call(
+                &client,
+                &endpoint,
+                Method::DELETE,
+                &format!("/api/backups/{id}{}", workspace_query(&args)),
+                None,
+            )
+            .await?;
+            println!("backup {id} removido");
         }
         ("export", _) => {
             let id = args.positionals.get(1).ok_or_else(|| {

@@ -2,6 +2,7 @@ pub mod about;
 pub mod artifacts;
 pub mod attachments;
 pub mod attention;
+pub mod backups;
 pub mod blueprints;
 pub mod browse;
 pub mod budget;
@@ -387,6 +388,10 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             get(proposals::list).post(proposals::create),
         )
         .route("/api/proposals/{id}/resolve", post(proposals::resolve))
+        .route("/api/backups", get(backups::list).post(backups::create))
+        .route("/api/backups/{id}/download", get(backups::download))
+        .route("/api/backups/{id}/restore", post(backups::restore))
+        .route("/api/backups/{id}", axum::routing::delete(backups::delete))
         .route("/api/browse/status", get(browse::status))
         .route("/api/browse/enable", post(browse::enable))
         .route("/api/browse/disable", post(browse::disable))

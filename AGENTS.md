@@ -103,7 +103,8 @@ trabalho e automações no Kanban, deduplicação de tarefas/jobs com carência
 configurável, HITL com pergunta e consequências explícitas, e governança de
 agentes com organograma, metas, budgets, quota, performance, delegação HITL e
 heartbeat opt-in, CLI headless, export de sessão em Markdown/HTML/JSON e
-integração com OpenCode Browse para tarefas de navegação web.
+integração com OpenCode Browse para tarefas de navegação web e backup/restore
+completo do workspace em ZIP.
 Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
 Fábrica de Capacidades default (`meta-forge`).
 Próxima frente: assinatura de updates, cobertura Rust ≥80%, Windows/macOS e

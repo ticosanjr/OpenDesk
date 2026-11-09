@@ -6,7 +6,15 @@ fn main() {
     if cli_args.first().is_some_and(|argument| {
         matches!(
             argument.as_str(),
-            "status" | "workspaces" | "tasks" | "runs" | "queue" | "export" | "--help" | "-h"
+            "status"
+                | "workspaces"
+                | "tasks"
+                | "runs"
+                | "queue"
+                | "backups"
+                | "export"
+                | "--help"
+                | "-h"
         )
     }) {
         opendesk_lib::run_cli(cli_args);
