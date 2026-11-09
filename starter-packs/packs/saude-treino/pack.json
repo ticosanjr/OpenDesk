@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "saude-treino",
+  "version": "1.0.0",
+  "name": "Saúde & Treino",
+  "category": "vida",
+  "description": "Treino, progressão, hábitos e recuperação.",
+  "icon": "heart-pulse",
+  "color": "#f472b6",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "coach-bem-estar.md",
+      "organizador-rotina.md"
+    ],
+    "skills": [
+      "habitos",
+      "sono",
+      "alimentacao-basica",
+      "disclaimer-saude"
+    ],
+    "commands": [
+      "plano-bem-estar.md",
+      "rotina.md"
+    ],
+    "recipes": [
+      "plano-bem-estar.yaml",
+      "revisao-semanal.yaml"
+    ],
+    "routines": [
+      "revisao-semanal-rotina.json"
+    ],
+    "folders": [
+      "bem-estar/input",
+      "bem-estar/output"
+    ]
+  },
+  "examples": []
+}

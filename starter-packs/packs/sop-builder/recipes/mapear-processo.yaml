@@ -1,0 +1,20 @@
+id: mapear-processo
+name: Mapear processo
+description: Gera fluxograma e pontos de automação.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Mapear
+  mode: build
+  agent: process-interviewer
+  effort: medium
+  prompt: Converta o processo em Mermaid. Salve em {{run.output_dir}}/01-mapear.md.
+- type: step
+  id: passo-2
+  name: Revisar
+  mode: build
+  agent: tech-writer
+  effort: medium
+  prompt: Aponte gargalos, riscos e automações. Salve em {{run.output_dir}}/02-revisar.md.

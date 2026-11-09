@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "id": "financas-fiscal",
+  "name": "Finanças & Fiscal",
+  "description": "Conciliação contábil, tributos, notas fiscais, compras e auditoria.",
+  "color": "#f59e0b",
+  "router_policy": "COST_BENEFIT",
+  "packs": [
+    "essenciais",
+    "notas-fiscais",
+    "contabilidade-pj",
+    "compras-orcamentos",
+    "auditoria-financeira"
+  ],
+  "folders": [
+    "entradas-nfs",
+    "extratos",
+    "fechamentos",
+    "comprovantes",
+    "relatorios"
+  ],
+  "readme": "# Finanças & Fiscal\n\nNotas, conciliação, compras, auditoria e fechamento.",
+  "memory": "# MEMORY — Finanças & Fiscal\n\n- Toda conclusão financeira é evidência + revisão humana.\n- Divergências vão para relatorios/.\n- Não transmita obrigações nem pague contas."
+}

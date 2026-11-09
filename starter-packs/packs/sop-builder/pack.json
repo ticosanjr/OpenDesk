@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "id": "sop-builder",
+  "version": "1.0.0",
+  "name": "SOP Builder",
+  "category": "operacoes",
+  "description": "Transforma processos brutos em SOPs reproduzíveis, checklists e diagramas Mermaid.",
+  "icon": "workflow",
+  "color": "#0ea5e9",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "process-interviewer.md",
+      "tech-writer.md"
+    ],
+    "skills": [
+      "mermaid-flowchart-gen",
+      "step-by-step-formatter",
+      "checklist-builder"
+    ],
+    "commands": [
+      "create-sop.md",
+      "map-workflow.md"
+    ],
+    "recipes": [
+      "criar-sop.yaml",
+      "mapear-processo.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "processos",
+      "processos/sop",
+      "processos/diagramas"
+    ]
+  },
+  "examples": []
+}

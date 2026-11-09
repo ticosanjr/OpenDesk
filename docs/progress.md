@@ -1553,11 +1553,43 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - O diálogo do Topbar agora unifica **Em branco**, **Template** e **Existente**.
   Templates com pacotes/pastas podem ser criados sem passar pela página Pacotes.
 - `RunExecution` extraiu `plan_run` e `record_artifacts` do `execute_job`, com
-  teste do plano e da proveniência.
+  teste do plano e da proveniência; `queue_manager` caiu de 941 para 786 linhas.
+- `TaskState` centraliza running, aprovação, bloqueio, falha e terminal; cards,
+  detalhes, formulário e notificações usam a mesma projeção.
+- Propostas de agent/skill/command usam `StudioItem` para remoção.
+- `PacksPage` caiu de 897 para 569 linhas com `PackInstallModal`,
+  `WorkspaceTemplateModal` e tipos compartilhados em `pack-types`.
+- A agenda do calendário foi separada em `calendar_agenda.rs`; `calendar.rs`
+  caiu de 768 para 522 linhas e a coleta de eventos/rotinas/receitas/runs/fila
+  ficou isolada.
+- `record_artifacts` ganhou teste de deduplicação entre diffs e writes.
 - O catálogo externo só mostra “Usar template recomendado” quando o template
   existe no backend, eliminando lookup silencioso.
-- Testes: **285 Rust**, **98 Vitest**; Playwright direcionado de workspace e
+- Testes: **286 Rust**, **101 Vitest**; Playwright direcionado de workspace e
   pacotes verde (6 testes).
+
+## 2026-11-09 — catálogo por formatos operacionais
+
+- Catálogo reorganizado em 8 categorias e **29 packs**: Base, Meta, Operações,
+  Finanças, GTM, Conteúdo, Inteligência e Vida.
+- Os 7 workspaces prontos agora refletem os formatos operacionais:
+  `operacoes-backoffice`, `financas-fiscal`, `gtm-clientes`, `conteudo-midia`,
+  `inteligencia-pesquisa`, `fabrica-capacidades` e `vida-casa`.
+- Packs renomeados para a linguagem operacional: `vendas-pipeline`,
+  `pos-vendas-cs`, `suporte-atendimento`, `lancamento-gtm`, `youtube-pipeline`,
+  `blog-seo`, `wiki-segundo-cerebro`, `financas-casa`, `saude-treino` e
+  `viagens-planner`.
+- Novos packs: `sop-builder`, `compras-orcamentos`, `auditoria-financeira` e
+  `agent-evaluator`, com agentes, skills, comandos, receitas e rotinas.
+- Templates antigos foram substituídos pelas pastas operacionais propostas;
+  o catálogo foi validado contra os diretórios e arquivos reais.
+- Testes de starter packs, typecheck, Vitest e E2E de pacotes/workspace verdes.
+
+## 2026-11-09 — release 0.31.0
+
+- Gate completo passou com **286 Rust**, **101 Vitest** e **43 Playwright**.
+- Cobertura Rust: **62,09% global** e **68,60% core**.
+- Versão 0.31.0 publicada com artefatos locais, tag e GitHub Release.
 
 ## 2026-11-09 — release 0.30.0
 

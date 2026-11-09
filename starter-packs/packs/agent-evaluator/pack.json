@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "id": "agent-evaluator",
+  "version": "1.0.0",
+  "name": "Agent Evaluator",
+  "category": "meta",
+  "description": "Cria suítes de avaliação, rubricas e comparações de modelos para agentes e skills.",
+  "icon": "flask-conical",
+  "color": "#8b5cf6",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "eval-designer.md",
+      "model-judge.md"
+    ],
+    "skills": [
+      "eval-suite-builder",
+      "rubric-designer",
+      "regression-runner",
+      "model-comparator"
+    ],
+    "commands": [
+      "design-eval.md",
+      "compare-models.md"
+    ],
+    "recipes": [
+      "desenhar-eval.yaml",
+      "comparar-modelos.yaml"
+    ],
+    "routines": [
+      "avaliacao-semanal.json"
+    ],
+    "folders": [
+      "evals/suites",
+      "evals/resultados",
+      "evals/rubricas"
+    ]
+  },
+  "examples": []
+}

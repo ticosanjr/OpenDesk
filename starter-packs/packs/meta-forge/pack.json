@@ -3,12 +3,15 @@
   "id": "meta-forge",
   "version": "1.0.0",
   "name": "Fábrica de Capacidades",
-  "category": "base",
+  "category": "meta",
   "description": "Cria, avalia e melhora skills, agentes e comandos com metodologia eval-driven.",
   "icon": "hammer",
   "color": "#8b5cf6",
   "recommended": true,
-  "requires": { "tools": [], "integrations": [] },
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
   "contents": {
     "agents": [
       "arquiteto-capacidades.md",
@@ -39,7 +42,9 @@
       "melhorar-capacidade.yaml",
       "auditar-capacidades.yaml"
     ],
-    "routines": ["auditoria-semanal.json"],
+    "routines": [
+      "auditoria-semanal.json"
+    ],
     "folders": [
       "capabilities/skills",
       "capabilities/agents",
@@ -50,8 +55,17 @@
     ]
   },
   "examples": [
-    { "title": "Criar uma skill nova", "command": "/criar-skill" },
-    { "title": "Criar um agente especialista", "command": "/criar-agente" },
-    { "title": "Avaliar uma capacidade existente", "command": "/avaliar-capacidade" }
+    {
+      "title": "Criar uma skill nova",
+      "command": "/criar-skill"
+    },
+    {
+      "title": "Criar um agente especialista",
+      "command": "/criar-agente"
+    },
+    {
+      "title": "Avaliar uma capacidade existente",
+      "command": "/avaliar-capacidade"
+    }
   ]
 }

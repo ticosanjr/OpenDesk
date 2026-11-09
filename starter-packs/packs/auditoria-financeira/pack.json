@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "id": "auditoria-financeira",
+  "version": "1.0.0",
+  "name": "Auditoria Financeira",
+  "category": "financas",
+  "description": "Amostragem, detecção de anomalias e relatório de auditoria sobre lançamentos e comprovantes.",
+  "icon": "shield-check",
+  "color": "#ef4444",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "financial-auditor.md",
+      "evidence-checker.md"
+    ],
+    "skills": [
+      "ledger-auditor",
+      "anomaly-detector",
+      "sampling-planner",
+      "audit-report"
+    ],
+    "commands": [
+      "audit-ledger.md",
+      "sampling-plan.md"
+    ],
+    "recipes": [
+      "auditar-lancamentos.yaml",
+      "plano-amostragem.yaml"
+    ],
+    "routines": [
+      "auditoria-mensal.json"
+    ],
+    "folders": [
+      "auditoria/lancamentos",
+      "auditoria/amostras",
+      "auditoria/relatorios"
+    ]
+  },
+  "examples": []
+}

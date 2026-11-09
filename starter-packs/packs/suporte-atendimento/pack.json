@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "id": "suporte-atendimento",
+  "version": "1.0.0",
+  "name": "Suporte & Atendimento",
+  "category": "gtm",
+  "description": "Triagem de tickets, respostas e escalonamento.",
+  "icon": "headset",
+  "color": "#3b82f6",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "agente-suporte.md",
+      "analista-reclamacoes.md"
+    ],
+    "skills": [
+      "triagem-suporte",
+      "resposta-empatica",
+      "base-conhecimento",
+      "escalonamento"
+    ],
+    "commands": [
+      "triar-suporte.md",
+      "responder-cliente.md"
+    ],
+    "recipes": [
+      "triagem-suporte.yaml",
+      "resposta-cliente.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "suporte/tickets",
+      "suporte/base-conhecimento"
+    ]
+  },
+  "examples": []
+}

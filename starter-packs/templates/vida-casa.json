@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "id": "vida-casa",
+  "name": "Vida Pessoal & Casa",
+  "description": "Gestão patrimonial, logística familiar, saúde e manutenção doméstica.",
+  "color": "#14b8a6",
+  "router_policy": "COST_BENEFIT",
+  "packs": [
+    "essenciais",
+    "financas-casa",
+    "saude-treino",
+    "viagens-planner",
+    "imobiliario"
+  ],
+  "folders": [
+    "casa-contas",
+    "saude-rotina",
+    "viagens",
+    "patrimonio"
+  ],
+  "readme": "# Vida Pessoal & Casa\n\nFinanças pessoais, saúde, viagens e imóveis.",
+  "memory": "# MEMORY — Vida Pessoal & Casa\n\n- Dados financeiros e de saúde são sensíveis.\n- Planejamento é revisado antes de decisões.\n- Nada é enviado a terceiros sem aprovação."
+}

@@ -3,7 +3,7 @@
   "id": "juridico",
   "version": "1.0.0",
   "name": "Jurídico",
-  "category": "escritorio",
+  "category": "operacoes",
   "description": "Análise de contratos, riscos e resumos com revisão humana.",
   "icon": "scale",
   "color": "#7c3aed",

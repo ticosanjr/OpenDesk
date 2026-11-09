@@ -273,4 +273,82 @@ mod tests {
         assert!(plan.log_path.ends_with(format!("{}.jsonl", plan.run_id)));
         assert!(plan.output_dir.ends_with("tarefa"));
     }
+
+    #[tokio::test]
+    async fn records_diffs_and_writes_once() {
+        use crate::opencode_client::rest_client::FileDiff;
+        use crate::opencode_client::session_runner::{FileWrite, RunStatus};
+
+        let context = crate::test_support::context().await;
+        crate::db::runs::create(
+            &context.state.db,
+            crate::db::runs::CreateRunInput {
+                id: "run-artifacts".into(),
+                queue_job_id: None,
+                workspace_id: context.workspace_id.clone(),
+                task_id: None,
+                schedule_id: None,
+                parent_run_id: None,
+                phase: Some("build".into()),
+                agent_name: "build".into(),
+                execution_mode: "BUILD_DIRECT".into(),
+                provider_id: Some("opencode-go".into()),
+                model_id: "glm-5.3".into(),
+                effort_level: "low".into(),
+                pricing_snapshot_json: None,
+                log_path: None,
+            },
+        )
+        .await
+        .expect("run");
+        std::fs::write(context.workspace_root.join("a.md"), "a").expect("a");
+        std::fs::write(context.workspace_root.join("b.txt"), "b").expect("b");
+        let mut job = job();
+        job.workspace_id = context.workspace_id.clone();
+        let outcome = RunOutcome {
+            status: RunStatus::Success,
+            session_id: "session".into(),
+            usage: crate::db::runs::RunUsage::default(),
+            summary: None,
+            diffs: vec![FileDiff {
+                file: "a.md".into(),
+                patch: "+a".into(),
+                additions: 1,
+                deletions: 0,
+                status: "added".into(),
+            }],
+            writes: vec![
+                FileWrite {
+                    path: "b.txt".into(),
+                    action: "MODIFIED".into(),
+                    diff_patch: None,
+                },
+                FileWrite {
+                    path: "a.md".into(),
+                    action: "MODIFIED".into(),
+                    diff_patch: None,
+                },
+            ],
+            error: None,
+            log_tail: None,
+            permissions: Vec::new(),
+        };
+        record_artifacts(
+            &context.state.db,
+            &context.state.events,
+            &job,
+            "run-artifacts",
+            "teste",
+            &context.workspace_root,
+            &outcome,
+        )
+        .await;
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM artifacts_provenance WHERE run_id = 'run-artifacts'",
+        )
+        .fetch_one(&context.state.db)
+        .await
+        .expect("count");
+        assert_eq!(count, 2);
+    }
 }

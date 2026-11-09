@@ -1,0 +1,29 @@
+id: auditar-lancamentos
+name: Auditar lançamentos
+description: Cruza lançamentos e evidências.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Auditar
+  mode: build
+  agent: financial-auditor
+  effort: medium
+  prompt: Liste divergências e evidências faltantes. Salve em {{run.output_dir}}/01-auditar.md.
+- type: step
+  id: passo-2
+  name: Classificar
+  mode: build
+  agent: evidence-checker
+  effort: medium
+  prompt: Classifique risco e recomendação. Salve em {{run.output_dir}}/02-classificar.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

@@ -1,0 +1,20 @@
+id: gerar-ordem-compra
+name: Gerar ordem de compra
+description: Emite OC a partir da cotação aprovada.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Preparar OC
+  mode: build
+  agent: procurement-agent
+  effort: medium
+  prompt: Monte a ordem com dados do fornecedor. Salve em {{run.output_dir}}/01-preparar-oc.md.
+- type: step
+  id: passo-2
+  name: Auditar
+  mode: build
+  agent: quote-auditor
+  effort: medium
+  prompt: Confira totais, prazo e aprovação. Salve em {{run.output_dir}}/02-auditar.md.

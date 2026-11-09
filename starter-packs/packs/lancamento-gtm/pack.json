@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "id": "lancamento-gtm",
+  "version": "1.0.0",
+  "name": "Lançamento GTM",
+  "category": "gtm",
+  "description": "Posicionamento, canais, cronograma e campanha.",
+  "icon": "rocket",
+  "color": "#f59e0b",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "gerente-lancamento.md",
+      "copy-lancamento.md"
+    ],
+    "skills": [
+      "go-to-market",
+      "mensagens-produto",
+      "plano-lancamento",
+      "metricas"
+    ],
+    "commands": [
+      "plano-lancamento.md",
+      "mensagens.md"
+    ],
+    "recipes": [
+      "plano-lancamento.yaml",
+      "kit-lancamento.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "produto/lancamentos"
+    ]
+  },
+  "examples": []
+}

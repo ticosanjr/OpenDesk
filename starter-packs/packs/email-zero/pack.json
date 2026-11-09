@@ -3,7 +3,7 @@
   "id": "email-zero",
   "version": "1.0.0",
   "name": "Email Zero",
-  "category": "produtividade",
+  "category": "operacoes",
   "description": "Triagem, classificação e rascunhos de resposta; envio sempre com aprovação.",
   "icon": "mail",
   "color": "#6366f1",

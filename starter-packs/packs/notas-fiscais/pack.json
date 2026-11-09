@@ -3,7 +3,7 @@
   "id": "notas-fiscais",
   "version": "1.0.0",
   "name": "Notas Fiscais",
-  "category": "escritorio",
+  "category": "financas",
   "description": "Conferência de notas, organização fiscal e resumo mensal.",
   "icon": "receipt",
   "color": "#eab308",

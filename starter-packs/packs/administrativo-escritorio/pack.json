@@ -3,7 +3,7 @@
   "id": "administrativo-escritorio",
   "version": "1.0.0",
   "name": "Administrativo",
-  "category": "escritorio",
+  "category": "operacoes",
   "description": "Memorandos, comunicados, organização de arquivos e planilhas.",
   "icon": "clipboard-list",
   "color": "#64748b",

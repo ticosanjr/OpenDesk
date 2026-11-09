@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "id": "gtm-clientes",
+  "name": "Go-to-Market & Clientes",
+  "description": "Ciclo completo de vendas, pós-vendas, retenção, suporte e campanhas.",
+  "color": "#22c55e",
+  "router_policy": "COST_BENEFIT",
+  "packs": [
+    "essenciais",
+    "vendas-pipeline",
+    "pos-vendas-cs",
+    "suporte-atendimento",
+    "lancamento-gtm"
+  ],
+  "folders": [
+    "leads",
+    "propostas",
+    "clientes",
+    "suporte-tickets",
+    "lancamentos"
+  ],
+  "readme": "# Go-to-Market & Clientes\n\nPipeline, pós-vendas, suporte e lançamento.",
+  "memory": "# MEMORY — Go-to-Market & Clientes\n\n- Proposta sempre nasce de dor e evidência.\n- Suporte registra reprodução e SLA.\n- Campanhas têm dono e cronograma."
+}

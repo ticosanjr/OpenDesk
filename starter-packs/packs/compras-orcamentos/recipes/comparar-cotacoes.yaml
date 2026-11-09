@@ -1,0 +1,29 @@
+id: comparar-cotacoes
+name: Comparar cotações
+description: Normaliza e compara propostas.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Normalizar
+  mode: build
+  agent: quote-auditor
+  effort: medium
+  prompt: Extraia preço, prazo, frete, garantia e impostos. Salve em {{run.output_dir}}/01-normalizar.md.
+- type: step
+  id: passo-2
+  name: Recomendar
+  mode: build
+  agent: procurement-agent
+  effort: medium
+  prompt: Recomende com riscos e pontos de negociação. Salve em {{run.output_dir}}/02-recomendar.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

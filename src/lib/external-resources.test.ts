@@ -18,7 +18,7 @@ describe("external resources", () => {
       EXTERNAL_RESOURCES.map((resource) => resource.templateId).filter(Boolean),
     );
     expect(templates.has("fabrica-capacidades")).toBe(true);
-    expect(templates.has("empresa")).toBe(true);
-    expect(templates.has("conteudo")).toBe(true);
+    expect(templates.has("gtm-clientes")).toBe(true);
+    expect(templates.has("conteudo-midia")).toBe(true);
   });
 });

@@ -1,76 +1,85 @@
 {
-  "schema": 1,
+  "schema": 2,
   "categories": [
     {
       "id": "base",
       "name": "Base",
-      "description": "Fundamentos para qualquer workspace."
+      "description": "Utilitários transversais para qualquer workspace."
     },
     {
-      "id": "pesquisa",
-      "name": "Pesquisa e conhecimento",
-      "description": "Investigar, estudar e organizar conhecimento."
+      "id": "meta",
+      "name": "Meta & Avaliação",
+      "description": "Criar, testar e comparar agentes, skills, comandos e modelos."
     },
     {
-      "id": "negocios",
-      "name": "Negócios",
-      "description": "Vendas, lançamento, imóveis e operação."
+      "id": "operacoes",
+      "name": "Operações & Backoffice",
+      "description": "E-mail, reuniões, RH, jurídico, administrativo e SOPs."
     },
     {
-      "id": "casa",
-      "name": "Casa e vida",
-      "description": "Finanças, saúde, viagens e rotina."
+      "id": "financas",
+      "name": "Finanças & Fiscal",
+      "description": "Notas, conciliação, compras, auditoria e fechamento."
+    },
+    {
+      "id": "gtm",
+      "name": "Go-to-Market & Clientes",
+      "description": "Pipeline, pós-vendas, suporte e lançamento."
     },
     {
       "id": "conteudo",
-      "name": "Conteúdo",
-      "description": "Blog, livros, YouTube e notícias."
+      "name": "Conteúdo & Mídia",
+      "description": "YouTube, blog, títulos, notícias e livros."
     },
     {
-      "id": "produtividade",
-      "name": "Produtividade",
-      "description": "E-mail, reuniões e rotina."
+      "id": "inteligencia",
+      "name": "Inteligência & Pesquisa",
+      "description": "Pesquisa profunda, wiki atômica e estudos."
     },
     {
-      "id": "escritorio",
-      "name": "Escritório",
-      "description": "RH, administrativo, pós-vendas, fiscal, jurídico e suporte."
+      "id": "vida",
+      "name": "Vida & Casa",
+      "description": "Finanças pessoais, saúde, viagens e imóveis."
     }
   ],
   "packs": [
-    "meta-forge",
     "essenciais",
-    "deep-research",
-    "wiki-karpathy",
-    "estudos-tutor",
-    "contabilidade-pj",
-    "casa-financas",
+    "meta-forge",
+    "agent-evaluator",
     "email-zero",
     "reunioes",
-    "blog-writer",
-    "book-writer",
-    "youtube-scripts",
-    "noticias-radar",
-    "titulos-thumbs",
-    "vendas-pre-vendas",
-    "rh-recrutamento",
     "administrativo-escritorio",
-    "pos-vendas",
-    "notas-fiscais",
+    "rh-recrutamento",
     "juridico",
-    "saude-bem-estar",
-    "viagens",
-    "suporte-cliente",
-    "lancamento-produto",
+    "sop-builder",
+    "notas-fiscais",
+    "contabilidade-pj",
+    "compras-orcamentos",
+    "auditoria-financeira",
+    "vendas-pipeline",
+    "pos-vendas-cs",
+    "suporte-atendimento",
+    "lancamento-gtm",
+    "youtube-pipeline",
+    "titulos-thumbs",
+    "blog-seo",
+    "book-writer",
+    "noticias-radar",
+    "deep-research",
+    "wiki-segundo-cerebro",
+    "estudos-tutor",
+    "financas-casa",
+    "saude-treino",
+    "viagens-planner",
     "imobiliario"
   ],
   "templates": [
-    "pessoal-casa",
-    "conteudo",
-    "empresa",
-    "pesquisa-wiki",
-    "comercial",
-    "escritorio",
-    "fabrica-capacidades"
+    "operacoes-backoffice",
+    "financas-fiscal",
+    "gtm-clientes",
+    "conteudo-midia",
+    "inteligencia-pesquisa",
+    "fabrica-capacidades",
+    "vida-casa"
   ]
 }

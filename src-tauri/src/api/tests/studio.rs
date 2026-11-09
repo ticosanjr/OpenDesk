@@ -119,7 +119,7 @@ async fn workspace_template_creates_workspace_and_installs_packs() {
         Method::POST,
         "/api/starter-packs/templates/create",
         Some(json!({
-            "template_id": "conteudo",
+            "template_id": "conteudo-midia",
             "name": "Conteúdo API",
             "root_path": root.to_string_lossy(),
             "color": "#8b5cf6"
@@ -128,7 +128,7 @@ async fn workspace_template_creates_workspace_and_installs_packs() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(result["errors"].as_array().unwrap().len(), 0);
-    assert_eq!(result["installed"].as_array().unwrap().len(), 5);
+    assert_eq!(result["installed"].as_array().unwrap().len(), 6);
     assert!(
         root.join(".opencode/agents/roteirista-youtube.md")
             .is_file()

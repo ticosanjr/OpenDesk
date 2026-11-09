@@ -1,0 +1,20 @@
+id: plano-amostragem
+name: Plano de amostragem
+description: Define amostra e critérios.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Planejar
+  mode: build
+  agent: financial-auditor
+  effort: medium
+  prompt: Defina população, tamanho e método. Salve em {{run.output_dir}}/01-planejar.md.
+- type: step
+  id: passo-2
+  name: Documentar
+  mode: build
+  agent: financial-auditor
+  effort: medium
+  prompt: Explique critérios e limitações. Salve em {{run.output_dir}}/02-documentar.md.

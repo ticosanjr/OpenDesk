@@ -3,7 +3,7 @@
   "id": "contabilidade-pj",
   "version": "1.0.0",
   "name": "Contabilidade PJ",
-  "category": "negocios",
+  "category": "financas",
   "description": "Fechamento mensal, conciliação e calendário de obrigações com revisão humana.",
   "icon": "calculator",
   "color": "#10b981",

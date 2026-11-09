@@ -1,0 +1,20 @@
+id: comparar-modelos
+name: Comparar modelos
+description: Compara modelos com evidência.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Comparar
+  mode: build
+  agent: model-judge
+  effort: medium
+  prompt: Aplique rubrica e registre evidências. Salve em {{run.output_dir}}/01-comparar.md.
+- type: step
+  id: passo-2
+  name: Relatar
+  mode: build
+  agent: eval-designer
+  effort: medium
+  prompt: Resuma trade-offs e recomendação. Salve em {{run.output_dir}}/02-relatar.md.

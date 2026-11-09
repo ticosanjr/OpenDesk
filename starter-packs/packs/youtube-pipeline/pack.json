@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "id": "youtube-pipeline",
+  "version": "1.0.0",
+  "name": "YouTube Pipeline",
+  "category": "conteudo",
+  "description": "Pesquisa, roteiro, B-roll e metadados.",
+  "icon": "clapperboard",
+  "color": "#ef4444",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "roteirista-youtube.md",
+      "pesquisador-viral.md",
+      "diretor-thumb.md"
+    ],
+    "skills": [
+      "retencao-youtube",
+      "ganchos",
+      "storytelling",
+      "brief-thumb",
+      "titulos"
+    ],
+    "commands": [
+      "roteiro.md",
+      "titulos.md",
+      "thumb.md"
+    ],
+    "recipes": [
+      "roteiro-youtube.yaml",
+      "pacote-video.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "content/youtube/input",
+      "content/youtube/output"
+    ]
+  },
+  "examples": [
+    {
+      "title": "Roteiro de 8 minutos",
+      "recipe": "roteiro-youtube"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "id": "inteligencia-pesquisa",
+  "name": "Inteligência & Pesquisa",
+  "description": "Pesquisa aprofundada, wiki atômica e trilhas de estudo.",
+  "color": "#06b6d4",
+  "router_policy": "COST_BENEFIT",
+  "packs": [
+    "essenciais",
+    "deep-research",
+    "wiki-segundo-cerebro",
+    "estudos-tutor"
+  ],
+  "folders": [
+    "fontes",
+    "relatorios-pesquisa",
+    "wiki-notas",
+    "estudos-trilhas"
+  ],
+  "readme": "# Inteligência & Pesquisa\n\nPesquisa profunda, wiki e estudos.",
+  "memory": "# MEMORY — Inteligência & Pesquisa\n\n- Toda afirmação relevante tem fonte.\n- Notas são atômicas e bidirecionais.\n- Estudo tem métrica de retenção."
+}

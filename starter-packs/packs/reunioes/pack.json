@@ -3,7 +3,7 @@
   "id": "reunioes",
   "version": "1.0.0",
   "name": "Reuniões",
-  "category": "produtividade",
+  "category": "operacoes",
   "description": "Ata, decisões e action items a partir de transcrição ou áudio.",
   "icon": "users",
   "color": "#f97316",

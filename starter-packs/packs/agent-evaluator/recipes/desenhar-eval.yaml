@@ -1,0 +1,29 @@
+id: desenhar-eval
+name: Desenhar avaliação
+description: Cria suíte e rubrica.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Desenhar
+  mode: build
+  agent: eval-designer
+  effort: medium
+  prompt: Crie casos e rubrica. Salve em {{run.output_dir}}/01-desenhar.md.
+- type: step
+  id: passo-2
+  name: Validar
+  mode: build
+  agent: model-judge
+  effort: medium
+  prompt: Teste observabilidade e reprodutibilidade. Salve em {{run.output_dir}}/02-validar.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

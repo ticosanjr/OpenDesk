@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "id": "conteudo-midia",
+  "name": "Conteúdo & Mídia",
+  "description": "Produção editorial, canais digitais, roteiros, artigos e publicação.",
+  "color": "#8b5cf6",
+  "router_policy": "COST_BENEFIT",
+  "packs": [
+    "essenciais",
+    "youtube-pipeline",
+    "blog-seo",
+    "titulos-thumbs",
+    "noticias-radar",
+    "book-writer"
+  ],
+  "folders": [
+    "ideias",
+    "roteiros",
+    "assets-thumbs",
+    "artigos",
+    "radar-pautas"
+  ],
+  "readme": "# Conteúdo & Mídia\n\nYouTube, blog, títulos, notícias e livros.",
+  "memory": "# MEMORY — Conteúdo & Mídia\n\n- Roteiro é thumbnail-first.\n- Artigo tem intenção de busca e fontes.\n- Toda publicação passa por revisão."
+}

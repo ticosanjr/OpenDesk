@@ -1,126 +1,35 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   Boxes,
   CheckCircle2,
-  Download,
   FolderPlus,
   Package,
   RefreshCw,
   Search,
   Sparkles,
-  Trash2,
-  TriangleAlert,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CountPill } from "@/components/ui/count-pill";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconLabel } from "@/components/ui/icon-label";
 import { LoadingState } from "@/components/ui/loading-state";
-import { Modal } from "@/components/ui/modal";
-import { PathInput } from "@/components/ui/path-input";
 import { ExternalResources } from "@/components/packs/ExternalResources";
+import { PackInstallModal } from "@/components/packs/PackInstallModal";
+import { WorkspaceTemplateModal } from "@/components/packs/WorkspaceTemplateModal";
+import type {
+  Category,
+  InstallPlan,
+  InstallResult,
+  PackSummary,
+  WorkspaceTemplate,
+} from "@/components/packs/pack-types";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
 import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
-import {
-  fieldInputClass as inputClass,
-  fieldLabelClass as labelClass,
-} from "@/lib/ui-classes";
-
-interface PackCounts {
-  agents: number;
-  skills: number;
-  commands: number;
-  recipes: number;
-  routines: number;
-}
-
-interface PackRequires {
-  tools: string[];
-  integrations: string[];
-}
-
-interface PackHealth {
-  status: "installed" | "modified" | "partial" | string;
-  missing_files: number;
-  modified_files: number;
-  missing_routines: number;
-}
-
-interface PackSummary {
-  id: string;
-  version: string;
-  name: string;
-  category: string;
-  description: string;
-  icon: string;
-  color: string;
-  recommended: boolean;
-  requires: PackRequires;
-  counts: PackCounts;
-  installed: boolean;
-  installed_version?: string | null;
-  installed_at?: string | null;
-  update_available: boolean;
-  health: PackHealth;
-}
-
-interface Category {
-  id: string;
-  name: string;
-  description: string;
-}
-
-interface PlanFile {
-  path: string;
-  kind: string;
-  status: "create" | "identical" | "conflict" | string;
-  sha256: string;
-}
-
-interface PlanRoutine {
-  file: string;
-  name: string;
-  trigger_type: string;
-  recipe_id?: string | null;
-}
-
-interface InstallPlan {
-  pack_id: string;
-  version: string;
-  files: PlanFile[];
-  routines: PlanRoutine[];
-  folders: string[];
-  requires: PackRequires;
-  conflicts: number;
-}
-
-interface WorkspaceTemplate {
-  schema: number;
-  id: string;
-  name: string;
-  description: string;
-  color: string;
-  router_policy: string;
-  packs: string[];
-  folders: string[];
-}
-
-interface InstallResult {
-  pack_id: string;
-  version: string;
-  written: number;
-  skipped: number;
-  skipped_conflicts: number;
-  routines: string[];
-  folders: string[];
-}
 
 const ONBOARDING_KEY = "opendesk.starter-packs.onboarding-dismissed";
 
@@ -572,280 +481,43 @@ export function PacksPage() {
         </div>
       )}
 
-      <Modal
-        open={selected !== null}
+      <PackInstallModal
+        selected={selected}
+        plan={plan}
+        planLoading={planLoading}
+        installing={installing}
+        removing={removing}
+        overwritePaths={overwritePaths}
+        activeWorkspaceId={activeWorkspaceId}
         onClose={() => {
           setSelected(null);
           setPlan(null);
         }}
-        title={selected?.name ?? "Pacote"}
-        description={selected?.description}
-        className="max-w-2xl"
-      >
-        {selected ? (
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="default">{selected.counts.agents} agentes</Badge>
-              <Badge variant="default">{selected.counts.skills} skills</Badge>
-              <Badge variant="default">{selected.counts.commands} comandos</Badge>
-              <Badge variant="default">{selected.counts.recipes} receitas</Badge>
-              <Badge variant="default">{selected.counts.routines} rotinas</Badge>
-              {selected.installed ? (
-                <Badge
-                  variant={
-                    selected.health.status === "partial"
-                      ? "red"
-                      : selected.update_available
-                        ? "yellow"
-                        : selected.health.status === "modified"
-                          ? "purple"
-                          : "green"
-                  }
-                >
-                  {selected.health.status === "partial"
-                    ? "parcial"
-                    : selected.update_available
-                      ? "atualização"
-                      : selected.health.status === "modified"
-                        ? "personalizado"
-                        : "instalado"}
-                </Badge>
-              ) : null}
-            </div>
-            {selected.installed && selected.update_available ? (
-              <p className="text-[10px] text-amber-200">
-                Versão instalada {selected.installed_version ?? "?"}; disponível{" "}
-                {selected.version}.
-              </p>
-            ) : null}
-            {selected.health.status === "partial" ? (
-              <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-200">
-                Faltam {selected.health.missing_files} arquivo(s) e{" "}
-                {selected.health.missing_routines} rotina(s). Use “Reparar” para
-                recriar o que falta; arquivos personalizados aparecem como
-                conflito e exigem confirmação.
-              </p>
-            ) : null}
+        onToggleOverwrite={(path, checked) =>
+          setOverwritePaths((current) => {
+            const next = new Set(current);
+            if (checked) next.add(path);
+            else next.delete(path);
+            return next;
+          })
+        }
+        onInstall={() => void installPack()}
+        onRemove={() => void removePack()}
+      />
 
-            {selected.requires.tools.length || selected.requires.integrations.length ? (
-              <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.05] px-3 py-2 text-[10px] text-amber-200">
-                <strong>Requisitos:</strong>{" "}
-                {[...selected.requires.tools, ...selected.requires.integrations].join(", ")}
-              </div>
-            ) : null}
-
-            {!activeWorkspaceId ? (
-              <p className="rounded-lg border border-zinc-800 px-3 py-2 text-[10px] text-zinc-500">
-                Selecione um workspace ativo para adicionar este pacote.
-              </p>
-            ) : planLoading ? (
-              <LoadingState compact label="Calculando arquivos e conflitos…" />
-            ) : plan ? (
-              <>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-lg border border-zinc-800 px-2 py-1.5">
-                    <CountPill value={plan.files.filter((file) => file.status === "create").length} tone="green" />
-                    <p className="mt-1 text-[9px] text-zinc-500">novos</p>
-                  </div>
-                  <div className="rounded-lg border border-zinc-800 px-2 py-1.5">
-                    <CountPill value={plan.files.filter((file) => file.status === "identical").length} />
-                    <p className="mt-1 text-[9px] text-zinc-500">iguais</p>
-                  </div>
-                  <div className="rounded-lg border border-zinc-800 px-2 py-1.5">
-                    <CountPill value={plan.conflicts} tone={plan.conflicts ? "red" : "default"} />
-                    <p className="mt-1 text-[9px] text-zinc-500">conflitos</p>
-                  </div>
-                </div>
-                {plan.conflicts > 0 ? (
-                  <>
-                    <p className="flex items-start gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-200">
-                      <TriangleAlert size={12} className="mt-0.5 shrink-0" />
-                      Marque os arquivos que podem ser substituídos. Os não marcados
-                      serão mantidos como estão; substituições fazem backup.
-                    </p>
-                    <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-zinc-800/70 p-2">
-                      {plan.files
-                        .filter((file) => file.status === "conflict")
-                        .map((file) => (
-                          <label
-                            key={file.path}
-                            className="flex items-center gap-2 text-[10px] text-zinc-300"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={overwritePaths.has(file.path)}
-                              onChange={(event) =>
-                                setOverwritePaths((current) => {
-                                  const next = new Set(current);
-                                  if (event.target.checked) next.add(file.path);
-                                  else next.delete(file.path);
-                                  return next;
-                                })
-                              }
-                              className="accent-blue-500"
-                            />
-                            <span className="truncate font-mono text-[9px]">
-                              {file.path}
-                            </span>
-                          </label>
-                        ))}
-                    </div>
-                  </>
-                ) : null}
-                {plan.routines.length > 0 ? (
-                  <p className="text-[10px] text-zinc-500">
-                    {plan.routines.length} rotina(s) serão criadas <strong>inativas</strong>.
-                  </p>
-                ) : null}
-                <div className="max-h-40 overflow-y-auto rounded-lg border border-zinc-800/70">
-                  {plan.files.slice(0, 80).map((file) => (
-                    <div
-                      key={file.path}
-                      className="flex items-center gap-2 border-b border-zinc-800/50 px-2.5 py-1 last:border-0"
-                    >
-                      <span className="min-w-0 flex-1 truncate font-mono text-[9px] text-zinc-400">
-                        {file.path}
-                      </span>
-                      <Badge
-                        variant={
-                          file.status === "conflict"
-                            ? "red"
-                            : file.status === "identical"
-                              ? "default"
-                              : "green"
-                        }
-                      >
-                        {file.status}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : null}
-
-            <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-800/70 pt-3">
-              {selected.installed ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-red-500/30 text-red-300"
-                  onClick={() => void removePack()}
-                  disabled={removing}
-                >
-                  <IconLabel icon={<Trash2 size={13} />}>Remover</IconLabel>
-                </Button>
-              ) : null}
-              <Button
-                size="sm"
-                onClick={() => void installPack()}
-                disabled={!activeWorkspaceId || installing || !plan}
-              >
-                <IconLabel
-                  icon={
-                    installing ? (
-                      <RefreshCw size={13} className="animate-spin" />
-                    ) : (
-                      <Download size={13} />
-                    )
-                  }
-                >
-                  {selected.health.status === "partial"
-                    ? "Reparar"
-                    : selected.update_available
-                      ? "Atualizar"
-                      : selected.installed
-                        ? "Reinstalar"
-                        : "Adicionar ao workspace"}
-                </IconLabel>
-              </Button>
-            </div>
-            {selected.installed ? (
-              <div className="flex flex-wrap gap-2 text-[10px] text-zinc-500">
-                <Link to="/studio" className="hover:text-zinc-200">
-                  ver agentes
-                </Link>
-                <Link to="/recipes" className="hover:text-zinc-200">
-                  ver receitas
-                </Link>
-                <Link to="/routines" className="hover:text-zinc-200">
-                  ver rotinas
-                </Link>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </Modal>
-
-      <Modal
-        open={templateOpen !== null}
+      <WorkspaceTemplateModal
+        template={templateOpen}
+        name={templateName}
+        root={templateRoot}
+        color={templateColor}
+        creating={creatingTemplate}
+        errors={templateErrors}
+        onName={setTemplateName}
+        onRoot={setTemplateRoot}
+        onColor={setTemplateColor}
+        onCreate={() => void createTemplate()}
         onClose={() => setTemplateOpen(null)}
-        title={templateOpen ? `Criar workspace: ${templateOpen.name}` : "Novo workspace"}
-        description={templateOpen?.description}
-        className="max-w-lg"
-      >
-        {templateOpen ? (
-          <div className="space-y-3">
-            <label className="block">
-              <span className={labelClass}>Nome do workspace</span>
-              <input
-                value={templateName}
-                onChange={(event) => setTemplateName(event.target.value)}
-                className={inputClass}
-              />
-            </label>
-            <label className="block">
-              <span className={labelClass}>Pasta</span>
-              <PathInput
-                value={templateRoot}
-                onChange={setTemplateRoot}
-                title="Escolher pasta do novo workspace"
-                placeholder="vazio usa OpenDesk Workareas/<nome>"
-                hint="A pasta precisa estar fora de /tmp. O OpenDesk cria a estrutura .opencode nela."
-              />
-            </label>
-            <label className="block">
-              <span className={labelClass}>Cor</span>
-              <input
-                type="color"
-                value={templateColor}
-                onChange={(event) => setTemplateColor(event.target.value)}
-                className="h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-1"
-              />
-            </label>
-            <p className="text-[10px] leading-snug text-zinc-500">
-              Pacotes: {templateOpen.packs.join(", ")}. Rotinas entram inativas.
-            </p>
-            {templateErrors.length > 0 ? (
-              <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-200">
-                <p className="font-semibold">Instalação parcial</p>
-                <ul className="mt-1 list-disc space-y-0.5 pl-4">
-                  {templateErrors.map((error) => (
-                    <li key={error}>{error}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-            <div className="flex justify-end gap-2 border-t border-zinc-800/70 pt-3">
-              <Button variant="ghost" size="sm" onClick={() => setTemplateOpen(null)}>
-                Cancelar
-              </Button>
-              <Button size="sm" onClick={() => void createTemplate()} disabled={creatingTemplate}>
-                <IconLabel
-                  icon={
-                    creatingTemplate ? (
-                      <RefreshCw size={13} className="animate-spin" />
-                    ) : (
-                      <FolderPlus size={13} />
-                    )
-                  }
-                >
-                  Criar workspace
-                </IconLabel>
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
+      />
 
       <p className="flex items-center gap-1.5 text-[10px] text-zinc-600">
         <CheckCircle2 size={11} />

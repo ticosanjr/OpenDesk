@@ -98,7 +98,7 @@ export const EXTERNAL_RESOURCES: ExternalResource[] = [
     focus: "Personas, system instructions e prompts comunitários.",
     usage: "Adapte o prompt ao seu agente; não cole instruções sem revisar.",
     tags: ["prompts", "personas", "instruções"],
-    templateId: "conteudo",
+    templateId: "conteudo-midia",
   },
   {
     id: "promptbase",
@@ -108,7 +108,7 @@ export const EXTERNAL_RESOURCES: ExternalResource[] = [
     focus: "Prompts especializados e comandos reutilizáveis.",
     usage: "Use como inspiração para comandos e system prompts.",
     tags: ["prompts", "comandos"],
-    templateId: "conteudo",
+    templateId: "conteudo-midia",
   },
   {
     id: "smithery",
@@ -178,7 +178,7 @@ export const EXTERNAL_RESOURCES: ExternalResource[] = [
     focus: "250+ integrações com autenticação OAuth gerenciada.",
     usage: "Use `npx composio-mcp` e conecte Linear, GitHub, Slack e outros.",
     tags: ["MCP", "OAuth", "integrações"],
-    templateId: "empresa",
+    templateId: "gtm-clientes",
   },
   {
     id: "docker-mcp",
@@ -208,7 +208,7 @@ export const EXTERNAL_RESOURCES: ExternalResource[] = [
     focus: "Templates visuais de agentes, fluxos RAG e pacotes .yml.",
     usage: "Use como blueprint conceitual para receitas e fluxos multi-step.",
     tags: ["workflows", "RAG", "templates"],
-    templateId: "empresa",
+    templateId: "operacoes-backoffice",
   },
   {
     id: "n8n",
@@ -218,6 +218,6 @@ export const EXTERNAL_RESOURCES: ExternalResource[] = [
     focus: "Blueprints JSON de workflows multi-step, subagentes e webhooks.",
     usage: "Adapte o desenho para receitas com gatilhos, HITL e sinks.",
     tags: ["workflows", "webhooks", "JSON"],
-    templateId: "empresa",
+    templateId: "operacoes-backoffice",
   },
 ];

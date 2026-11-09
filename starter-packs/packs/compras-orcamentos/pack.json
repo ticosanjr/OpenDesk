@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "id": "compras-orcamentos",
+  "version": "1.0.0",
+  "name": "Compras & Orçamentos",
+  "category": "financas",
+  "description": "Requisições, comparação de cotações, rating de fornecedores e ordens de compra.",
+  "icon": "shopping-cart",
+  "color": "#f59e0b",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [
+      "procurement-agent.md",
+      "quote-auditor.md"
+    ],
+    "skills": [
+      "quote-matrix-builder",
+      "po-generator",
+      "supplier-rater"
+    ],
+    "commands": [
+      "compare-quotes.md",
+      "generate-po.md"
+    ],
+    "recipes": [
+      "comparar-cotacoes.yaml",
+      "gerar-ordem-compra.yaml"
+    ],
+    "routines": [],
+    "folders": [
+      "compras/requisicoes",
+      "compras/cotacoes",
+      "compras/ordens"
+    ]
+  },
+  "examples": []
+}

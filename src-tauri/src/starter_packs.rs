@@ -1430,10 +1430,10 @@ mod tests {
     #[tokio::test]
     async fn reinstalling_a_pack_does_not_duplicate_routines() {
         let (_temp, state, workspace_id) = test_state().await;
-        let first = install(&state, "wiki-karpathy", &workspace_id, &[], false)
+        let first = install(&state, "wiki-segundo-cerebro", &workspace_id, &[], false)
             .await
             .expect("first install");
-        let second = install(&state, "wiki-karpathy", &workspace_id, &[], false)
+        let second = install(&state, "wiki-segundo-cerebro", &workspace_id, &[], false)
             .await
             .expect("second install");
         assert_eq!(first.routines, second.routines);
@@ -1584,7 +1584,7 @@ flow:
     #[tokio::test]
     async fn reinstall_reuses_a_routine_kept_by_uninstall() {
         let (_temp, state, workspace_id) = test_state().await;
-        let first = install(&state, "wiki-karpathy", &workspace_id, &[], false)
+        let first = install(&state, "wiki-segundo-cerebro", &workspace_id, &[], false)
             .await
             .expect("install");
         let routine_id = first.routines[0].clone();
@@ -1596,12 +1596,12 @@ flow:
         )
         .await
         .expect("mark run");
-        let removed = uninstall(&state, "wiki-karpathy", &workspace_id)
+        let removed = uninstall(&state, "wiki-segundo-cerebro", &workspace_id)
             .await
             .expect("uninstall");
         assert_eq!(removed.routines_kept, vec![routine_id.clone()]);
 
-        let again = install(&state, "wiki-karpathy", &workspace_id, &[], false)
+        let again = install(&state, "wiki-segundo-cerebro", &workspace_id, &[], false)
             .await
             .expect("reinstall");
         assert_eq!(again.routines, vec![routine_id]);
@@ -1617,7 +1617,7 @@ flow:
     #[tokio::test]
     async fn installs_routines_inactive_and_removes_them() {
         let (_temp, state, workspace_id) = test_state().await;
-        let result = install(&state, "wiki-karpathy", &workspace_id, &[], false)
+        let result = install(&state, "wiki-segundo-cerebro", &workspace_id, &[], false)
             .await
             .expect("install");
         assert_eq!(result.routines.len(), 1);
@@ -1626,7 +1626,7 @@ flow:
             .expect("routine");
         assert!(!routine.is_active);
         assert_eq!(routine.target_kind, "RECIPE");
-        let removed = uninstall(&state, "wiki-karpathy", &workspace_id)
+        let removed = uninstall(&state, "wiki-segundo-cerebro", &workspace_id)
             .await
             .expect("uninstall");
         assert_eq!(removed.routines_removed, 1);
@@ -1638,7 +1638,7 @@ flow:
         let root = temp.path().join("template-workspace");
         let result = create_from_template(
             &state,
-            "conteudo",
+            "conteudo-midia",
             Some("Conteúdo Teste"),
             Some(root.to_string_lossy().as_ref()),
             Some("#8b5cf6"),
@@ -1648,7 +1648,7 @@ flow:
         assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
         assert_eq!(
             result.installed.len(),
-            5,
+            6,
             "installed: {:?}",
             result.installed
         );
@@ -1657,7 +1657,7 @@ flow:
             root.join(".opencode/agents/roteirista-youtube.md")
                 .is_file()
         );
-        assert!(root.join("content/youtube/input").is_dir());
+        assert!(root.join("roteiros").is_dir());
     }
 
     #[test]

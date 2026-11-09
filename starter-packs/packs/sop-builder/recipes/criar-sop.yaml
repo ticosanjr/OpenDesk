@@ -1,0 +1,29 @@
+id: criar-sop
+name: Criar SOP
+description: Converte anotações em SOP revisado.
+enabled: true
+triggers: []
+flow:
+- type: step
+  id: passo-1
+  name: Entrevistar
+  mode: build
+  agent: process-interviewer
+  effort: medium
+  prompt: Liste entradas, decisões, exceções e saídas. Salve em {{run.output_dir}}/01-entrevistar.md.
+- type: step
+  id: passo-2
+  name: Escrever SOP
+  mode: build
+  agent: tech-writer
+  effort: medium
+  prompt: Redija o SOP completo com critérios de aceite. Salve em {{run.output_dir}}/02-escrever-sop.md.
+- type: hitl
+  id: checkpoint-final
+  name: Revisão humana
+  interaction_type: APPROVAL_WITH_FEEDBACK
+  channels:
+  - DESKTOP_UI
+  timeout_minutes: 240
+  on_timeout: PAUSE_AND_ALERT
+  prompt_template: Revise o resultado antes de concluir?

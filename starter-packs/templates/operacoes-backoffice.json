@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "id": "operacoes-backoffice",
+  "name": "Operações & Backoffice",
+  "description": "Gestão diária, rotinas administrativas, RH, jurídico e governança interna.",
+  "color": "#0ea5e9",
+  "router_policy": "COST_BENEFIT",
+  "packs": [
+    "essenciais",
+    "email-zero",
+    "reunioes",
+    "administrativo-escritorio",
+    "rh-recrutamento",
+    "juridico",
+    "sop-builder"
+  ],
+  "folders": [
+    "inbox",
+    "administrativo",
+    "rh",
+    "juridico",
+    "reunioes",
+    "processos"
+  ],
+  "readme": "# Operações & Backoffice\n\nE-mail, reuniões, administrativo, RH, jurídico e SOPs.",
+  "memory": "# MEMORY — Operações & Backoffice\n\n- Triagem e despacho entram por inbox/e-mail.\n- Processos críticos vivem em processos/.\n- Ações externas exigem aprovação humana."
+}
