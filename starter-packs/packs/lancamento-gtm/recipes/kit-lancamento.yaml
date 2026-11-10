@@ -1,7 +1,7 @@
 id: kit-lancamento
 name: Kit de lançamento
 description: Mensagens e FAQ.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

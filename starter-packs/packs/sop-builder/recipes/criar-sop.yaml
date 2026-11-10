@@ -1,7 +1,7 @@
 id: criar-sop
 name: Criar SOP
 description: Converte anotações em SOP revisado.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

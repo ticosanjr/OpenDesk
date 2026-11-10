@@ -1,7 +1,7 @@
 id: email-sequence
 name: Sequência de e-mails
 description: 5 e-mails de venda.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

@@ -1,7 +1,7 @@
 id: criar-comando-alto-nivel
 name: Criar comando de alto nível
 description: Projeta interface, validação e exemplos antes de publicar um comando.
-enabled: true
+enabled: false
 triggers: []
 flow:
   - type: step

@@ -107,6 +107,13 @@ flow:
 `,
   );
 
+  // New recipes start disabled; enable explicitly for this run-path test.
+  const enabled = await request.post(
+    `${auth.baseURL}/api/recipes/${id}/enabled?workspace_id=${workspace.id}`,
+    { headers: auth.headers, data: { enabled: true } },
+  );
+  expect(enabled.ok()).toBeTruthy();
+
   await page.goto("/#/recipes");
   await expect(page.getByText("Receita Contexto").first()).toBeVisible();
   await page.getByRole("button", { name: /Dry-run/ }).click();

@@ -1,7 +1,7 @@
 id: mapear-processo
 name: Mapear processo
 description: Gera fluxograma e pontos de automação.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

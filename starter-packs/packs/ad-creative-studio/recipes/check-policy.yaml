@@ -1,7 +1,7 @@
 id: check-policy
 name: Checar política
 description: Riscos de bloqueio.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

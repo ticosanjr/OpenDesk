@@ -214,36 +214,43 @@ pub async fn resolve(
     }
 }
 
-/// Make the OpenDesk configuration MCP available to every workspace.
+/// Make the OpenDesk MCP bridges available to every workspace:
+/// `opendesk-config` for approval-gated configuration proposals and
+/// `opendesk-control` for day-to-day tasks, routines, recipes and queue.
 pub async fn ensure_workspace_bridge(state: &AppState, workspace_id: &str) -> AppResult<()> {
     let workspace = workspaces::get(&state.db, workspace_id).await?;
     let paths = StudioPaths::new(Some(std::path::PathBuf::from(&workspace.root_path)));
     let config_path = paths.config_path("workspace")?;
     let executable = crate::api::google::stable_executable()?;
-    let server = serde_json::json!({
-        "type": "local",
-        "command": [executable.to_string_lossy(), "mcp-config"],
-        "environment": {
-            "OPENDESK_WORKSPACE_ID": workspace_id,
-            "OPENDESK_DATA_DIR": state.paths.data_dir.to_string_lossy(),
-            "OPENDESK_CONFIG_DIR": state.paths.config_dir.to_string_lossy(),
-        },
-        "disabled": false
-    });
-    jsonc_editor::upsert_mcp_server(
-        &config_path,
-        "opendesk-config",
-        &server,
-        None,
-        &state.paths.backups_dir,
-    )?;
+    for (name, subcommand) in [
+        ("opendesk-config", "mcp-config"),
+        ("opendesk-control", "mcp-control"),
+    ] {
+        let server = serde_json::json!({
+            "type": "local",
+            "command": [executable.to_string_lossy(), subcommand],
+            "environment": {
+                "OPENDESK_WORKSPACE_ID": workspace_id,
+                "OPENDESK_DATA_DIR": state.paths.data_dir.to_string_lossy(),
+                "OPENDESK_CONFIG_DIR": state.paths.config_dir.to_string_lossy(),
+            },
+            "disabled": false
+        });
+        jsonc_editor::upsert_mcp_server(
+            &config_path,
+            name,
+            &server,
+            None,
+            &state.paths.backups_dir,
+        )?;
+    }
     Ok(())
 }
 
 pub async fn ensure_all(state: &Arc<AppState>) -> AppResult<()> {
     for workspace in workspaces::list(&state.db).await? {
         if let Err(error) = ensure_workspace_bridge(state, &workspace.id).await {
-            tracing::warn!(workspace = %workspace.id, error = %error, "config MCP bridge not registered");
+            tracing::warn!(workspace = %workspace.id, error = %error, "MCP bridges not registered");
         }
     }
     Ok(())

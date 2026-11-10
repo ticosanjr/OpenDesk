@@ -1,7 +1,7 @@
 id: comparar-modelos
 name: Comparar modelos
 description: Compara modelos com evidência.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

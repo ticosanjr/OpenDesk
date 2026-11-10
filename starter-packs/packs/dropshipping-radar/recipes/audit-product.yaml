@@ -1,7 +1,7 @@
 id: audit-product
 name: Auditar produto
 description: Ficha financeira e riscos de fornecedor.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

@@ -1,7 +1,7 @@
 id: atualizar-post
 name: Atualizar post
 description: Revisa e atualiza um artigo existente.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

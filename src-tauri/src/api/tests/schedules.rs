@@ -74,6 +74,7 @@ async fn schedule_lifecycle_preview_toggle_and_runs() {
     .await;
     assert_eq!(status, StatusCode::OK);
     let id = created["id"].as_str().expect("schedule id").to_string();
+    assert_eq!(created["is_active"], false, "new routines start paused");
     assert!(created["next_run_at"].is_string());
 
     let (status, list) = call(&ctx, Method::GET, "/api/schedules", None).await;
@@ -93,6 +94,16 @@ async fn schedule_lifecycle_preview_toggle_and_runs() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(updated["description"], "fechamento mensal");
+
+    let (status, activated) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/schedules/{id}/active"),
+        Some(json!({ "active": true })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(activated["is_active"], true);
 
     let (status, toggled) = call(
         &ctx,

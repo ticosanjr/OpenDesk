@@ -1,7 +1,7 @@
 id: auditar-lancamentos
 name: Auditar lançamentos
 description: Cruza lançamentos e evidências.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

@@ -1,7 +1,7 @@
 id: clone-document
 name: Clonar documento
 description: Extração, mutação e revisão.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

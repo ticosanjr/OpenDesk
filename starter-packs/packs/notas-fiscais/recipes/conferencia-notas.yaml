@@ -1,7 +1,7 @@
 id: conferencia-notas
 name: Conferência de notas
 description: Extração, conferência e revisão.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

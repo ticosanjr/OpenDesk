@@ -1,7 +1,7 @@
 id: annotate-delivery
 name: Anotar entrega
 description: Cartões de oratória.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

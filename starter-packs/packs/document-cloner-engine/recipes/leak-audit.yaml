@@ -1,7 +1,7 @@
 id: leak-audit
 name: Auditar vazamento
 description: Comparação de documentos.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

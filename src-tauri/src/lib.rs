@@ -14,10 +14,12 @@ mod error;
 mod events;
 mod governance;
 mod integrations;
+mod internal_api;
 mod io_bus;
 mod learning;
 mod mcp_bridge;
 mod mcp_config;
+mod mcp_control;
 mod media;
 mod metrics;
 mod opencode_client;
@@ -380,6 +382,17 @@ pub fn run_mcp_config() {
     let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
     if let Err(error) = runtime.block_on(mcp_config::run_stdio()) {
         eprintln!("OpenDesk config MCP bridge failed: {error:#}");
+        std::process::exit(1);
+    }
+}
+
+/// MCP server over stdio used by OpenCode's `mcp.servers.opendesk-control`.
+/// It talks to the local API so queueing, validation, events and audit stay in
+/// the backend. Stdout is reserved for JSON-RPC frames.
+pub fn run_mcp_control() {
+    let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+    if let Err(error) = runtime.block_on(mcp_control::run_stdio()) {
+        eprintln!("OpenDesk control MCP bridge failed: {error:#}");
         std::process::exit(1);
     }
 }

@@ -1,7 +1,7 @@
 id: generate-mock-exam
 name: Gerar simulado
 description: Prova e gabarito.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

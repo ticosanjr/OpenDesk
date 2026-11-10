@@ -1,7 +1,7 @@
 id: supplier-check
 name: Checar fornecedor
 description: Scorecard e riscos.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

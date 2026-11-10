@@ -1,7 +1,7 @@
 id: roleplay-negotiation
 name: Simular negociação
 description: Roleplay.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

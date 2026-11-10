@@ -1,7 +1,7 @@
 id: melhorar-capacidade
 name: Melhorar capacidade
 description: Corrige uma capacidade a partir de falhas observadas e regression.
-enabled: true
+enabled: false
 triggers: []
 flow:
   - type: step

@@ -1,7 +1,7 @@
 id: calendario-obrigacoes
 name: Calendário de obrigações
 description: Lista prazos e pendências.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

@@ -1,7 +1,7 @@
 id: ata-de-reuniao
 name: Ata de reunião
 description: Transcrição para ata e ações.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

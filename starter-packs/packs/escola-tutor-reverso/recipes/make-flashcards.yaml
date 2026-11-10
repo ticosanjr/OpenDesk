@@ -1,7 +1,7 @@
 id: make-flashcards
 name: Criar flashcards
 description: CSV para Anki.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

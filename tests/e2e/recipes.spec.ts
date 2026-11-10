@@ -38,6 +38,11 @@ sinks: []
   expect(saved.ok()).toBeTruthy();
   const index = (await saved.json()) as { id: string; name: string };
   expect(index.name).toBe("Receita E2E");
+  const enabled = await request.post(
+    `${auth.baseURL}/api/recipes/receita-e2e/enabled?workspace_id=${workspaceId}`,
+    { headers: auth.headers, data: { enabled: true } },
+  );
+  expect(enabled.ok()).toBeTruthy();
 
   const list = await request.get(
     `${auth.baseURL}/api/recipes?workspace_id=${workspaceId}`,

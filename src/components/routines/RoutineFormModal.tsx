@@ -328,7 +328,8 @@ export function CreateScheduleModal({
         safe_readonly_mode: safeReadonly,
         sync_to_google_docs: schedule?.sync_to_google_docs ?? false,
         sync_to_google_calendar: schedule?.sync_to_google_calendar ?? false,
-        is_active: schedule?.is_active ?? true,
+        // New routines always start paused; activation is explicit.
+        is_active: schedule?.is_active ?? false,
       };
       let scheduleId = schedule?.id;
       if (schedule) {
@@ -363,7 +364,7 @@ export function CreateScheduleModal({
       open={open}
       onClose={cancel}
       title={schedule ? "Editar rotina" : "Nova rotina"}
-      description="A rotina pertence ao workspace ativo. Mude de workspace na barra superior para gerenciar as rotinas de outro workspace."
+      description="A rotina pertence ao workspace ativo. Mude de workspace na barra superior para gerenciar as rotinas de outro workspace. Toda rotina nova nasce desligada; ative quando revisar."
       className="max-w-3xl"
     >
       <div className="space-y-3">

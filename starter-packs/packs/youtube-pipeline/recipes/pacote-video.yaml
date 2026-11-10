@@ -1,7 +1,7 @@
 id: pacote-video
 name: Pacote de vídeo
 description: Títulos, thumb e descrição.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

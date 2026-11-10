@@ -82,7 +82,9 @@ pub struct CreateScheduleInput {
     pub sync_to_google_docs: bool,
     #[serde(default)]
     pub sync_to_google_calendar: bool,
-    #[serde(default = "default_true")]
+    /// Kept for API compatibility, but `create` always stores `false`.
+    /// Activation is an explicit action (`set_active`).
+    #[serde(default)]
     pub is_active: bool,
 }
 
@@ -278,6 +280,8 @@ pub async fn create(pool: &SqlitePool, input: CreateScheduleInput) -> AppResult<
             "cron_expression is required for CRON routines".into(),
         ));
     }
+    // Accepted for API compatibility; new routines always start paused.
+    let _requested_active = input.is_active;
     let misfire_policy = input.misfire_policy.trim().to_uppercase();
     if !matches!(misfire_policy.as_str(), "RUN_IMMEDIATELY" | "SKIP_TO_NEXT") {
         return Err(AppError::BadRequest(format!(
@@ -336,7 +340,9 @@ pub async fn create(pool: &SqlitePool, input: CreateScheduleInput) -> AppResult<
     .bind(input.safe_readonly_mode)
     .bind(input.sync_to_google_docs)
     .bind(input.sync_to_google_calendar)
-    .bind(input.is_active)
+    // Every routine starts paused. Enabling goes through an explicit
+    // set_active call so agents never schedule new work silently.
+    .bind(false)
     .execute(pool)
     .await?;
 
@@ -559,8 +565,14 @@ mod tests {
         let (_temp, pool) = setup().await;
         let schedule = create(&pool, input()).await.expect("create");
         assert_eq!(schedule.router_policy, "COST_BENEFIT");
-        assert!(schedule.is_active);
+        assert!(!schedule.is_active, "new routines always start paused");
         assert_eq!(list(&pool, "ws-1").await.expect("list").len(), 1);
+        assert!(active(&pool).await.expect("active").is_empty());
+
+        let enabled = set_active(&pool, &schedule.id, true)
+            .await
+            .expect("activate");
+        assert!(enabled.is_active);
         assert_eq!(active(&pool).await.expect("active").len(), 1);
 
         let updated = update(

@@ -1,7 +1,7 @@
 id: detecta-assinaturas
 name: Detectar assinaturas
 description: Encontra cobranças recorrentes.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

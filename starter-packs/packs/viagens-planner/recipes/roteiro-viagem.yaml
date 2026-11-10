@@ -1,7 +1,7 @@
 id: roteiro-viagem
 name: Roteiro de viagem
 description: Roteiro e orçamento.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

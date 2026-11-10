@@ -1,7 +1,7 @@
 id: prep-negotiation
 name: Preparar negociação
 description: Folha tática.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

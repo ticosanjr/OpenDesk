@@ -1,7 +1,7 @@
 id: briefing-diario
 name: Briefing diário
 description: Organiza entradas do dia em um briefing curto.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

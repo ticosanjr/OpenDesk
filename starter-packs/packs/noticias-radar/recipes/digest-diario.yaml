@@ -1,7 +1,7 @@
 id: digest-diario
 name: Digest diário
 description: Top notícias com contexto.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

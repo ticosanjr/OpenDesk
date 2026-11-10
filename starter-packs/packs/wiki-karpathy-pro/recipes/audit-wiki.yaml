@@ -1,7 +1,7 @@
 id: audit-wiki
 name: Auditar wiki
 description: Órfãs e lacunas.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

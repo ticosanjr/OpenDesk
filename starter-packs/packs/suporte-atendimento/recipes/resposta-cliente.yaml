@@ -1,7 +1,7 @@
 id: resposta-cliente
 name: Resposta ao cliente
 description: Rascunho com revisão.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

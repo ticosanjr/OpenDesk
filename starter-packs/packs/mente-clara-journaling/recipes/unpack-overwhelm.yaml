@@ -1,7 +1,7 @@
 id: unpack-overwhelm
 name: Desempacotar sobrecarga
 description: Fato, projeção e ação.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

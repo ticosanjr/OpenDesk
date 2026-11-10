@@ -1,7 +1,7 @@
 id: launch-plan
 name: Planejar lançamento
 description: Cronograma e CPLs.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

@@ -1,7 +1,7 @@
 id: avaliar-capacidade
 name: Avaliar capacidade
 description: Produz suíte, resultados e leitura de transcrições de uma capacidade.
-enabled: true
+enabled: false
 triggers: []
 flow:
   - type: step

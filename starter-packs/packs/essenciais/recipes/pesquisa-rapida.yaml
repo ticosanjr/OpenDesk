@@ -1,7 +1,7 @@
 id: pesquisa-rapida
 name: Pesquisa rápida
 description: Resposta curta com fontes e nível de confiança.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

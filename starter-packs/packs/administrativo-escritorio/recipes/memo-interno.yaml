@@ -1,7 +1,7 @@
 id: memo-interno
 name: Memo interno
 description: Comunicado curto e acionável.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

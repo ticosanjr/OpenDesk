@@ -710,6 +710,11 @@ name: Dry\ntrigger:\n  type: MANUAL\n  config: {}\nsteps:\n  - id: s1\n    name:
         store::save_yaml(&state.db, "ws-1", "dry", yaml)
             .await
             .expect("save");
+        // New recipes start disabled; this test exercises the run path, so it
+        // performs the explicit activation a human would do after review.
+        store::set_enabled(&state.db, "ws-1", "dry", true)
+            .await
+            .expect("enable");
         let recipe = crate::recipes::parser::parse(yaml).expect("parse");
         let run = start(state.clone(), "ws-1", recipe, serde_json::json!({}), true)
             .await

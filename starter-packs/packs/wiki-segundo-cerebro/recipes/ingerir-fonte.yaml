@@ -1,7 +1,7 @@
 id: ingerir-fonte
 name: Ingerir fonte
 description: Fonte para notas atômicas e índice.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

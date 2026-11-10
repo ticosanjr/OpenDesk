@@ -1,7 +1,7 @@
 id: descricao-vaga
 name: Descrição de vaga
 description: Vaga com matriz de avaliação.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

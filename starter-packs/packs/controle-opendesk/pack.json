@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "controle-opendesk",
+  "version": "1.0.0",
+  "name": "Controle OpenDesk",
+  "category": "base",
+  "description": "Ferramentas para agentes operarem tarefas, rotinas, receitas, fila e atenção do OpenDesk com segurança.",
+  "icon": "sliders",
+  "color": "#0ea5e9",
+  "recommended": true,
+  "requires": {
+    "tools": [],
+    "integrations": []
+  },
+  "contents": {
+    "agents": [],
+    "skills": ["operacao-opendesk"],
+    "commands": [
+      "opendesk-status.md",
+      "opendesk-tarefa.md",
+      "opendesk-rotina.md",
+      "opendesk-receita.md",
+      "opendesk-executar.md"
+    ],
+    "recipes": [],
+    "routines": [],
+    "folders": []
+  },
+  "examples": [
+    {
+      "title": "Ver o estado operacional",
+      "command": "/opendesk-status"
+    },
+    {
+      "title": "Criar uma tarefa durável",
+      "command": "/opendesk-tarefa"
+    },
+    {
+      "title": "Criar uma rotina desligada",
+      "command": "/opendesk-rotina"
+    }
+  ]
+}

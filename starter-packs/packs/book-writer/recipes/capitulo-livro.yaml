@@ -1,7 +1,7 @@
 id: capitulo-livro
 name: Capítulo de livro
 description: Capítulo com checagem de continuidade.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

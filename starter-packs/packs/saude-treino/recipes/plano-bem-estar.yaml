@@ -1,7 +1,7 @@
 id: plano-bem-estar
 name: Plano de bem-estar
 description: Hábitos e rotina.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

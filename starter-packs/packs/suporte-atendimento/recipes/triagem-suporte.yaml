@@ -1,7 +1,7 @@
 id: triagem-suporte
 name: Triagem de suporte
 description: Classificação e prioridades.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

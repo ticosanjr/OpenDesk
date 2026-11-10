@@ -275,8 +275,16 @@ pub async fn save_yaml(
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(&path, yaml)?;
-    crate::config_sync::watcher::expect_write(&path, Some(sha256(yaml)));
+    // New recipes always start disabled so triggers and routines cannot fire
+    // before a human reviews the flow. Editing an existing file preserves the
+    // current enabled flag; set_enabled is the explicit toggle.
+    let content = if path.exists() {
+        yaml.to_string()
+    } else {
+        set_yaml_enabled(yaml, false)
+    };
+    std::fs::write(&path, &content)?;
+    crate::config_sync::watcher::expect_write(&path, Some(sha256(&content)));
     sync_workspace(pool, workspace_id, Path::new(&root)).await?;
     get(pool, workspace_id, id).await
 }
@@ -641,6 +649,35 @@ mod tests {
             task.await.expect("join").expect("sync");
         }
         assert_eq!(list(&pool, "ws-1").await.expect("list").len(), 3);
+    }
+
+    #[tokio::test]
+    async fn new_recipes_start_disabled_and_edits_preserve_the_flag() {
+        let temp = TempDir::new().expect("temp");
+        let pool = crate::db::init(&temp.path().join("r.db"))
+            .await
+            .expect("db");
+        sqlx::query("INSERT INTO workspaces (id, name, root_path) VALUES ('ws-1', 'WS', ?)")
+            .bind(temp.path().to_string_lossy().to_string())
+            .execute(&pool)
+            .await
+            .expect("ws");
+        let yaml = "id: nova\nname: Nova\nenabled: true\ntriggers: []\nflow:\n  - type: step\n    id: s1\n    name: Um\n    prompt: oi\n";
+        let index = save_yaml(&pool, "ws-1", "nova", yaml).await.expect("save");
+        assert!(!index.is_enabled, "new recipes must start disabled");
+        let stored = yaml_for(&pool, "ws-1", "nova").await.expect("yaml");
+        assert!(stored.contains("enabled: false"), "{stored}");
+
+        let enabled = set_enabled(&pool, "ws-1", "nova", true)
+            .await
+            .expect("enable");
+        assert!(enabled.is_enabled);
+
+        let edited = yaml.replace("Nova", "Nova editada");
+        let saved = save_yaml(&pool, "ws-1", "nova", &edited)
+            .await
+            .expect("edit");
+        assert!(saved.is_enabled, "editing must preserve the enabled flag");
     }
 
     #[test]

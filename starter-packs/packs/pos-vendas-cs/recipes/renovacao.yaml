@@ -1,7 +1,7 @@
 id: renovacao
 name: Renovação
 description: Proposta de valor da renovação.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

@@ -1,7 +1,7 @@
 id: bulk-math
 name: Matemática de atacado
 description: Custo por unidade.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

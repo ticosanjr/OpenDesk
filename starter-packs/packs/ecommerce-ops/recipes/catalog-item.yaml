@@ -1,7 +1,7 @@
 id: catalog-item
 name: Criar ficha de catálogo
 description: Ficha técnica e SEO.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

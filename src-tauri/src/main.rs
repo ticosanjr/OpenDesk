@@ -24,6 +24,8 @@ fn main() {
         opendesk_lib::run_doctor(json, fix_daemons);
     } else if std::env::args().any(|argument| argument == "mcp-config") {
         opendesk_lib::run_mcp_config();
+    } else if std::env::args().any(|argument| argument == "mcp-control") {
+        opendesk_lib::run_mcp_control();
     } else if std::env::args().any(|argument| argument == "mcp-google") {
         opendesk_lib::run_mcp_google();
     } else if std::env::args().any(|argument| argument == "--headless") {

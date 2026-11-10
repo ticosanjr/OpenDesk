@@ -1,7 +1,7 @@
 id: blog-post-completo
 name: Post de blog completo
 description: Pauta, outline, draft e edição.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

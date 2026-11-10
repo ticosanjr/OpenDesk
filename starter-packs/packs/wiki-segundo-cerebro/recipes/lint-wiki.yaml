@@ -1,7 +1,7 @@
 id: lint-wiki
 name: Lint da wiki
 description: Relatório de saúde do conhecimento.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

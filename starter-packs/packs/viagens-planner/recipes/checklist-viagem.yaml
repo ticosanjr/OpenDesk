@@ -1,7 +1,7 @@
 id: checklist-viagem
 name: Checklist de viagem
 description: Documentos e bagagem.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

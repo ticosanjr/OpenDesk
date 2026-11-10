@@ -1,7 +1,7 @@
 id: gerar-ordem-compra
 name: Gerar ordem de compra
 description: Emite OC a partir da cotação aprovada.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

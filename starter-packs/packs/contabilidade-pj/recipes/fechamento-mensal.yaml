@@ -1,7 +1,7 @@
 id: fechamento-mensal
 name: Fechamento mensal
 description: Fechamento com checklist e revisão.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

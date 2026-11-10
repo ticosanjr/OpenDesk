@@ -1,7 +1,7 @@
 id: criar-agente-alto-nivel
 name: Criar agente de alto nível
 description: Define papel, ferramentas, paradas e evals antes de publicar um agente.
-enabled: true
+enabled: false
 triggers: []
 flow:
   - type: step

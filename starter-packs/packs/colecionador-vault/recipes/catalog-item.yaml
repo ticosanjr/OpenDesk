@@ -1,7 +1,7 @@
 id: catalog-item
 name: Catalogar item
 description: Ficha de acervo.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

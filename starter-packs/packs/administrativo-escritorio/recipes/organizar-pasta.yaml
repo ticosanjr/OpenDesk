@@ -1,7 +1,7 @@
 id: organizar-pasta
 name: Organizar pasta
 description: Plano de organização com revisão.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

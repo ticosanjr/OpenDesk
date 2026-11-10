@@ -641,8 +641,9 @@ export function PacksPage() {
 
       <p className="flex items-center gap-1.5 text-[10px] text-zinc-600">
         <CheckCircle2 size={11} />
-        Nada é instalado automaticamente. Remover um pacote não apaga arquivos que
-        você modificou.
+        O pacote Controle OpenDesk é instalado automaticamente em novos workspaces;
+        os demais são opcionais. Remover um pacote não apaga arquivos que você
+        modificou.
       </p>
     </PageBody>
   );

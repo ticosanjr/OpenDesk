@@ -1,7 +1,7 @@
 id: source-audit
 name: Auditoria de fontes
 description: Revisa a base probatória de um documento.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

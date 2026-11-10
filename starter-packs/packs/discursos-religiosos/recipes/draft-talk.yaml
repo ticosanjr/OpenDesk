@@ -1,7 +1,7 @@
 id: draft-talk
 name: Escrever discurso
 description: Mensagem completa.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

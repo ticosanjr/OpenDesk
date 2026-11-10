@@ -1,7 +1,7 @@
 id: proposta-imobiliaria
 name: Proposta imobiliária
 description: Proposta com revisão.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

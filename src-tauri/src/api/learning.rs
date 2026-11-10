@@ -126,7 +126,9 @@ pub async fn promote(
 ) -> crate::error::AppResult<Json<proposals::ConfigProposal>> {
     let workspace_id =
         crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
-    let requested_by = body.and_then(|Json(body)| body.requested_by);
+    let requested_by = body
+        .and_then(|Json(body)| body.requested_by)
+        .or_else(|| Some("learning".into()));
     let proposal =
         learning::promote(&state.db, &workspace_id, &id, requested_by.as_deref()).await?;
     state.events.publish(OpenDeskWsEvent::LearningUpdated {

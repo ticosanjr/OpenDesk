@@ -1,7 +1,7 @@
 id: comparar-cotacoes
 name: Comparar cotações
 description: Normaliza e compara propostas.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

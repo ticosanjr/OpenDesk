@@ -1,7 +1,7 @@
 id: qualificacao-lead
 name: Qualificação de lead
 description: Score e próximas perguntas.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

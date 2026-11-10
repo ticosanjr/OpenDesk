@@ -1,7 +1,7 @@
 id: deep-research-report
 name: Relatório de deep research
 description: Pesquisa completa com revisão humana.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

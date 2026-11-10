@@ -1,7 +1,7 @@
 id: revisao-mensal-casa
 name: Revisão mensal da casa
 description: Orçamento, assinaturas e metas.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

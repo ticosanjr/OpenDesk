@@ -1,7 +1,7 @@
 id: pacote-titulos-thumbs
 name: Pacote de títulos e thumbs
 description: Opções e briefs para teste.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

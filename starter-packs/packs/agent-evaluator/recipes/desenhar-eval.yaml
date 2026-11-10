@@ -1,7 +1,7 @@
 id: desenhar-eval
 name: Desenhar avaliação
 description: Cria suíte e rubrica.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

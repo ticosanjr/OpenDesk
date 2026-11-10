@@ -1,7 +1,7 @@
 id: plano-lancamento
 name: Plano de lançamento
 description: GTM completo.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

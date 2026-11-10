@@ -1,7 +1,7 @@
 id: collection-summary
 name: Resumo da coleção
 description: Valor e seguro.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

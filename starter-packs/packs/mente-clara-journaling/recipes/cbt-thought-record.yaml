@@ -1,7 +1,7 @@
 id: cbt-thought-record
 name: Registro de pensamento
 description: Registro estruturado.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

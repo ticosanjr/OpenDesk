@@ -1,7 +1,7 @@
 id: study-topic
 name: Estudar tema
 description: Dossiê bíblico.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

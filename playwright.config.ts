@@ -13,6 +13,7 @@ const e2eEnv = {
   XDG_CACHE_HOME: `${e2eDir}/cache`,
   OPENDESK_API_PORT: "4317",
   OPENDESK_SKIP_DAEMON: "1",
+  OPENDESK_E2E: "1",
   OPENDESK_ALLOW_TEMP_WORKSPACES: "1",
   OPENDESK_WORKSPACES_ROOT: `${e2eDir}/workspaces-root`,
   RUST_LOG: "opendesk=info",

@@ -1,7 +1,7 @@
 id: auditoria-livro
 name: Auditoria do livro
 description: Revisão macro de arco e continuidade.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

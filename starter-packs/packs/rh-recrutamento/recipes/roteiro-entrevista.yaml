@@ -1,7 +1,7 @@
 id: roteiro-entrevista
 name: Roteiro de entrevista
 description: Perguntas e rubrica.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

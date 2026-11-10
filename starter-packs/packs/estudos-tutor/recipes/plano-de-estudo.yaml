@@ -1,7 +1,7 @@
 id: plano-de-estudo
 name: Plano de estudo
 description: Plano de 4 semanas com prática.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

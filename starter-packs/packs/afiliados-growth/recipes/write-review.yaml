@@ -1,7 +1,7 @@
 id: write-review
 name: Escrever review
 description: Review comparativo.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

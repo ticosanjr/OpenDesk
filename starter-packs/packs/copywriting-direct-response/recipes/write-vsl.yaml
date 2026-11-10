@@ -1,7 +1,7 @@
 id: write-vsl
 name: Escrever VSL
 description: VSL completa.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

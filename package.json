@@ -1,7 +1,7 @@
 {
   "name": "opendesk",
   "private": true,
-  "version": "0.40.0",
+  "version": "0.42.0",
   "description": "Visual governance, automation and observability for OpenCode",
   "type": "module",
   "scripts": {
@@ -19,7 +19,8 @@
     "clean": "bash scripts/clean.sh",
     "clean:deep": "bash scripts/clean.sh --deep",
     "check:changed": "bash scripts/check-changed.sh",
-    "contract:opencode": "scripts/contract-opencode.sh"
+    "contract:opencode": "scripts/contract-opencode.sh",
+    "test:features": "scripts/test-features.sh"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

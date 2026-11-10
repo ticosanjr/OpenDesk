@@ -1,7 +1,7 @@
 id: proposta-comercial
 name: Proposta comercial
 description: Proposta com escopo e revisão.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

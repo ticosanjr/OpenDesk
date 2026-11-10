@@ -1,7 +1,7 @@
 id: radar-semanal
 name: Radar semanal
 description: Tendências da semana.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

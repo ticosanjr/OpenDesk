@@ -1,7 +1,7 @@
 id: triagem-curriculos
 name: Triagem de currículos
 description: Triagem com evidência e revisão.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

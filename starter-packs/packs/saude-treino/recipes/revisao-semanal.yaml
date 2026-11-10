@@ -1,7 +1,7 @@
 id: revisao-semanal
 name: Revisão semanal
 description: Ajuste de rotina.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

@@ -26,6 +26,13 @@ test("calendar creates, edits, filters and deletes local events", async ({
     },
   });
   expect(schedule.ok()).toBeTruthy();
+  const scheduleId = ((await schedule.json()) as { id: string }).id;
+  // New routines start paused; the calendar only shows explicitly activated ones.
+  const activated = await request.post(
+    `${auth.baseURL}/api/schedules/${scheduleId}/active`,
+    { headers: auth.headers, data: { active: true } },
+  );
+  expect(activated.ok()).toBeTruthy();
 
   const recipe = await request.put(
     `${auth.baseURL}/api/recipes/receita-calendario?workspace_id=${workspace.id}`,
@@ -50,6 +57,11 @@ flow:
     },
   );
   expect(recipe.ok()).toBeTruthy();
+  const recipeEnabled = await request.post(
+    `${auth.baseURL}/api/recipes/receita-calendario/enabled?workspace_id=${workspace.id}`,
+    { headers: auth.headers, data: { enabled: true } },
+  );
+  expect(recipeEnabled.ok()).toBeTruthy();
 
   await page.goto("/#/calendar");
   await expect(page.getByRole("heading", { name: "Calendário" })).toBeVisible();

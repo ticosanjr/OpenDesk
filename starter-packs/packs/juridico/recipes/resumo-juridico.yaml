@@ -1,7 +1,7 @@
 id: resumo-juridico
 name: Resumo jurídico
 description: Resumo para decisão.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

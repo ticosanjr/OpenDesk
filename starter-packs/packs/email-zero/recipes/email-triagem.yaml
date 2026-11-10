@@ -1,7 +1,7 @@
 id: email-triagem
 name: Triagem de e-mail
 description: Classifica e prepara rascunhos.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

@@ -1,7 +1,7 @@
 id: onboarding-cliente
 name: Onboarding de cliente
 description: Plano dos primeiros 60 dias.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

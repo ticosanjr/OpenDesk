@@ -1,7 +1,7 @@
 id: analise-contrato
 name: Análise de contrato
 description: Mapa, riscos e revisão.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

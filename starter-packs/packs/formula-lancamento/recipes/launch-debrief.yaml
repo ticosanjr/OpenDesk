@@ -1,7 +1,7 @@
 id: launch-debrief
 name: Debrief de lançamento
 description: Análise pós-evento.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

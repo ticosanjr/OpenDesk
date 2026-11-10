@@ -1,7 +1,7 @@
 id: revisao-espacada
 name: Revisão espaçada
 description: Perguntas e rubrica da semana.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

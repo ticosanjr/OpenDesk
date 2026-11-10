@@ -1,7 +1,7 @@
 id: criar-skill-alto-nivel
 name: Criar skill de alto nível
 description: Pesquisa, avalia, escreve e revisa uma skill antes de publicar.
-enabled: true
+enabled: false
 triggers: []
 flow:
   - type: step

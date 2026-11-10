@@ -1,7 +1,7 @@
 id: audit-deliveries
 name: Auditar entregas
 description: Atrasos e gargalos.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

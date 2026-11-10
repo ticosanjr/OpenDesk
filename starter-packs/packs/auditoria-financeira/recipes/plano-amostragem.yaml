@@ -1,7 +1,7 @@
 id: plano-amostragem
 name: Plano de amostragem
 description: Define amostra e critérios.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

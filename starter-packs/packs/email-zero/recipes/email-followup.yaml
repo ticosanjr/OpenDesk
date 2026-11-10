@@ -1,7 +1,7 @@
 id: email-followup
 name: Follow-up de e-mail
 description: Cobra respostas pendentes.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

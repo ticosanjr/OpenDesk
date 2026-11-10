@@ -1,7 +1,7 @@
 id: roteiro-youtube
 name: Roteiro de YouTube
 description: Pesquisa, outline, roteiro e pacote.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

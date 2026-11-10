@@ -1,7 +1,7 @@
 id: plano-retencao
 name: Plano de retenção
 description: Risco e recuperação.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

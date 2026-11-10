@@ -56,7 +56,7 @@ interface RecipeRun {
 
 const DEFAULT_YAML = `id: nova-receita
 name: Nova receita
-enabled: true
+enabled: false
 triggers: []
 flow:
   - type: step
@@ -276,7 +276,7 @@ export function RecipesPage() {
       <PageHeader
         eyebrow="workflows declarativos"
         title="Receitas"
-        description="Monte o fluxo visualmente, use zero ou vários gatilhos e combine etapas, checkpoints e saídas na ordem que fizer sentido."
+        description="Monte o fluxo visualmente, use zero ou vários gatilhos e combine etapas, checkpoints e saídas na ordem que fizer sentido. Novas receitas nascem desligadas; ative depois de revisar."
         actions={
           <>
             <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>

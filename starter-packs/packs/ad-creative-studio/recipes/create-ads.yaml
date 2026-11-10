@@ -1,7 +1,7 @@
 id: create-ads
 name: Criar anúncios
 description: Matriz de criativos.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

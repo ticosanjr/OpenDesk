@@ -58,6 +58,7 @@
     }
   ],
   "packs": [
+    "controle-opendesk",
     "essenciais",
     "meta-forge",
     "agent-evaluator",

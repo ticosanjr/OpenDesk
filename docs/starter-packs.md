@@ -1,8 +1,14 @@
 # Pacotes iniciais (Starter Packs)
 
 Pacotes são conjuntos opcionais de agentes, skills, comandos, receitas,
-rotinas e pastas. Nada é aplicado automaticamente: o usuário escolhe na página
-**Pacotes** ou cria um workspace a partir de um template.
+rotinas e pastas. O usuário escolhe na página **Pacotes** ou cria um workspace
+a partir de um template.
+
+Exceção deliberada (ADR 0044): o pacote base `controle-opendesk` é instalado
+automaticamente em **novos** workspaces. Ele adiciona a skill e os comandos que
+ensinam os agentes a usar o MCP `opendesk-control`. A instalação não sobrescreve
+arquivos existentes. Workspaces existentes recebem o MCP no boot, mas não o
+conteúdo do pacote automaticamente.
 
 ## Garantias
 
@@ -13,7 +19,8 @@ rotinas e pastas. Nada é aplicado automaticamente: o usuário escolhe na págin
   e o pacote aparece como `personalizado`.
 - Pacotes instalados mostram `atualização` quando a versão do bundle é maior.
 - Remoção apaga apenas arquivos cujo checksum ainda é o instalado.
-- Rotinas entram **inativas**.
+- Rotinas entram **inativas** e receitas entram **desligadas**; ativação é
+  sempre explícita.
 - Receitas com efeito externo (e-mail, publicação, envio) terminam em HITL.
 - Nenhum pacote grava modelo fixo, senha ou token.
 
@@ -21,7 +28,7 @@ rotinas e pastas. Nada é aplicado automaticamente: o usuário escolhe na págin
 
 | Categoria | Pacotes |
 |---|---|
-| Base | `meta-forge`, `essenciais` |
+| Base | `controle-opendesk`, `meta-forge`, `essenciais` |
 | Pesquisa | `deep-research`, `wiki-karpathy`, `estudos-tutor` |
 | Negócios | `vendas-pre-vendas`, `pos-vendas`, `lancamento-produto`, `imobiliario`, `contabilidade-pj` |
 | Escritório | `rh-recrutamento`, `administrativo-escritorio`, `notas-fiscais`, `juridico`, `suporte-cliente` |

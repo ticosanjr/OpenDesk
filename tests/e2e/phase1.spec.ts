@@ -42,38 +42,46 @@ test("phase 1 switches, explicit model and advanced options", async ({
   );
   expect(recipe.ok()).toBeTruthy();
 
-  // Routine quick switch.
+  // New routines start paused. The switch is the explicit activation path.
   await page.goto("/#/routines");
-  const routineSwitch = page.getByRole("switch", {
-    name: "Desativar rotina Rotina Fase 1",
-  });
-  await expect(routineSwitch).toBeVisible();
-  await routineSwitch.click();
   await expect(
     page.getByRole("switch", { name: "Ativar rotina Rotina Fase 1" }),
   ).toBeVisible();
+  await page
+    .getByRole("switch", { name: "Ativar rotina Rotina Fase 1" })
+    .click();
+  await expect(
+    page.getByRole("switch", { name: "Desativar rotina Rotina Fase 1" }),
+  ).toBeVisible();
   await page.reload();
   await expect(
-    page.getByRole("switch", { name: "Ativar rotina Rotina Fase 1" }),
+    page.getByRole("switch", { name: "Desativar rotina Rotina Fase 1" }),
   ).toBeVisible();
   const routines = (await (
     await request.get(`${auth.baseURL}/api/schedules`, { headers: auth.headers })
   ).json()) as Array<{ id: string; is_active: boolean }>;
-  expect(routines.find((item) => item.id === scheduleId)?.is_active).toBe(false);
+  expect(routines.find((item) => item.id === scheduleId)?.is_active).toBe(true);
+  await page
+    .getByRole("switch", { name: "Desativar rotina Rotina Fase 1" })
+    .click();
+  await expect(
+    page.getByRole("switch", { name: "Ativar rotina Rotina Fase 1" }),
+  ).toBeVisible();
 
-  // Recipe quick switch.
+  // New recipes also start disabled; toggling is explicit.
   await page.goto("/#/recipes");
-  const recipeSwitch = page.getByRole("switch", {
-    name: "Desativar receita Receita Fase 1",
-  });
-  await expect(recipeSwitch).toBeVisible();
-  await recipeSwitch.click();
   await expect(
     page.getByRole("switch", { name: "Ativar receita Receita Fase 1" }),
   ).toBeVisible();
+  await page
+    .getByRole("switch", { name: "Ativar receita Receita Fase 1" })
+    .click();
+  await expect(
+    page.getByRole("switch", { name: "Desativar receita Receita Fase 1" }),
+  ).toBeVisible();
   await page.reload();
   await expect(
-    page.getByRole("switch", { name: "Ativar receita Receita Fase 1" }),
+    page.getByRole("switch", { name: "Desativar receita Receita Fase 1" }),
   ).toBeVisible();
   const recipes = (await (
     await request.get(`${auth.baseURL}/api/recipes?workspace_id=${workspace.id}`, {
@@ -82,7 +90,13 @@ test("phase 1 switches, explicit model and advanced options", async ({
   ).json()) as { recipes: Array<{ id: string; is_enabled: boolean }> };
   expect(
     recipes.recipes.find((item) => item.id === "receita-fase1")?.is_enabled,
-  ).toBe(false);
+  ).toBe(true);
+  await page
+    .getByRole("switch", { name: "Desativar receita Receita Fase 1" })
+    .click();
+  await expect(
+    page.getByRole("switch", { name: "Ativar receita Receita Fase 1" }),
+  ).toBeVisible();
 
   // Task modal keeps advanced fields collapsed by default.
   await page.goto("/#/kanban");

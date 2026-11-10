@@ -12,7 +12,7 @@ vi.mock("@/store/toast-store", () => ({
   toast: vi.fn(),
 }));
 
-import { apiGet, apiPost } from "@/lib/api";
+import { apiGet, apiPost, apiPut } from "@/lib/api";
 import { RecipesPage } from "./RecipesPage";
 import { useAppStore } from "@/store/app-store";
 
@@ -93,5 +93,21 @@ describe("RecipesPage", () => {
         },
       ),
     );
+  });
+
+  it("creates new recipes disabled so triggers cannot fire before review", async () => {
+    render(
+      <MemoryRouter>
+        <RecipesPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Receita E2E")).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Nova receita/ }));
+    await waitFor(() => expect(apiPut).toHaveBeenCalled());
+    const call = vi.mocked(apiPut).mock.calls.at(-1);
+    expect(call?.[0]).toMatch(/^\/api\/recipes\/receita-/);
+    expect((call?.[1] as { yaml: string }).yaml).toContain("enabled: false");
   });
 });

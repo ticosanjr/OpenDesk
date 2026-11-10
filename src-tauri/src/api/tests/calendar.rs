@@ -144,7 +144,7 @@ async fn calendar_agenda_unifies_routines_recipes_and_runs() {
     let ctx = test_support::context().await;
     let query = format!("workspace_id={}", ctx.workspace_id);
 
-    let (status, _) = call(
+    let (status, routine) = call(
         &ctx,
         Method::POST,
         "/api/schedules",
@@ -159,6 +159,17 @@ async fn calendar_agenda_unifies_routines_recipes_and_runs() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
+    assert_eq!(routine["is_active"], false);
+    let routine_id = routine["id"].as_str().expect("routine id");
+    let (status, activated) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/schedules/{routine_id}/active"),
+        Some(json!({ "active": true })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(activated["is_active"], true);
 
     let recipes_dir = ctx.workspace_root.join(".opencode/recipes");
     std::fs::create_dir_all(&recipes_dir).expect("recipes dir");

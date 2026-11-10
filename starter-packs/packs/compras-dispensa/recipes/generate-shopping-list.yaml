@@ -1,7 +1,7 @@
 id: generate-shopping-list
 name: Gerar lista de compras
 description: Lista por corredor.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

@@ -1,7 +1,7 @@
 id: build-speech
 name: Construir discurso
 description: Keynote em 3 atos.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

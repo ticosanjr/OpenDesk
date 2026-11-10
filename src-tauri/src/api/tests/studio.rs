@@ -128,7 +128,14 @@ async fn workspace_template_creates_workspace_and_installs_packs() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(result["errors"].as_array().unwrap().len(), 0);
-    assert_eq!(result["installed"].as_array().unwrap().len(), 6);
+    assert_eq!(result["installed"].as_array().unwrap().len(), 7);
+    assert!(
+        result["installed"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|pack| pack == "controle-opendesk")
+    );
     assert!(
         root.join(".opencode/agents/roteirista-youtube.md")
             .is_file()
@@ -598,4 +605,49 @@ async fn studio_mcp_config_can_be_written_listed_and_deleted() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn creating_a_workspace_installs_the_control_pack_and_mcps() {
+    let ctx = test_support::context().await;
+    let root = ctx.temp.path().join("workspace-control");
+    let (status, workspace) = call(
+        &ctx,
+        Method::POST,
+        "/api/workspaces",
+        Some(json!({
+            "name": "Controle",
+            "root_path": root.to_string_lossy(),
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{workspace}");
+    let workspace_id = workspace["id"].as_str().expect("workspace id");
+
+    assert!(
+        root.join(".opencode/skills/operacao-opendesk/SKILL.md")
+            .is_file()
+    );
+    assert!(root.join(".opencode/commands/opendesk-tarefa.md").is_file());
+
+    let config = std::fs::read_to_string(root.join("opencode.jsonc")).expect("opencode.jsonc");
+    assert!(config.contains("\"opendesk-config\""), "{config}");
+    assert!(config.contains("\"opendesk-control\""), "{config}");
+    assert!(config.contains("mcp-control"), "{config}");
+
+    let (status, packs) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/starter-packs?workspace_id={workspace_id}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        packs["packs"]
+            .as_array()
+            .is_some_and(|items| items.iter().any(|pack| {
+                pack["id"] == crate::starter_packs::BASE_PACK_ID && pack["installed"] == true
+            }))
+    );
 }

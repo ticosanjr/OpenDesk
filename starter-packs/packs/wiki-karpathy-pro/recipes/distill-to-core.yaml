@@ -1,7 +1,7 @@
 id: distill-to-core
 name: Destilar para o núcleo
 description: Nota atômica.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

@@ -1,7 +1,7 @@
 id: log-receipt
 name: Registrar cupom
 description: OCR e categorias.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

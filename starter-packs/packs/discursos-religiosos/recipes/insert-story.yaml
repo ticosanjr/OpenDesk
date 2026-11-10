@@ -1,7 +1,7 @@
 id: insert-story
 name: Inserir história
 description: Analogia pastoral.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

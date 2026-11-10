@@ -1,7 +1,7 @@
 id: analyze-passage
 name: Analisar passagem
 description: Exegese curta.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

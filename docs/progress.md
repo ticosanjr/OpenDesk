@@ -1782,6 +1782,18 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   verdes.
 - Testes: **326 Rust**, **127 Vitest** e **55 Playwright**.
 
+## 2026-11-09 — refatoração de backend e consolidação
+
+- Handlers de sistema/health/meta/dashboard/workspaces/settings e middlewares
+  movidos de `api/mod.rs` para `api/core.rs`; roteador caiu de 863 para 538
+  linhas.
+- Testes de starter packs extraídos para `starter_packs_tests.rs`;
+  `starter_packs.rs` caiu de 1939 para 1476 linhas.
+- Consolidação: `GovernancePage` 1322→407, `AttentionCard` 867→518,
+  `db/tasks.rs` 968→853 e dedupe em `db/task_dedupe.rs`.
+- Sem mudanças de contrato/comportamento.
+- Testes: **326 Rust**, **127 Vitest** e **55 Playwright**.
+
 ## 2026-11-09 — release 0.31.0
 
 - Gate completo passou com **286 Rust**, **101 Vitest** e **43 Playwright**.
@@ -1793,3 +1805,36 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Gate completo passou com **285 Rust**, **101 Vitest** e **43 Playwright**.
 - Cobertura Rust: **61,74% global** e **68,04% core**.
 - Versão 0.30.0 publicada com artefatos locais, tag e GitHub Release.
+
+## 2026-11-10 — suíte funcional de features
+
+- Manifesto `tests/e2e/features.ts` com 64 capacidades e ao menos um teste de
+  UI por capacidade.
+- Endpoint `POST /api/test/seed` (somente com `OPENDESK_E2E=1`) para semear
+  tarefas, runs, artefatos, HITL, propostas e permissões.
+- Fixture de empresa realista em `tests/e2e/fixtures/company.ts` e SMTP local
+  falso em `tests/e2e/fixtures/smtp.ts`; contratos externos reais continuam
+  opt-in.
+- `npm run test:features` roda a suíte completa sob demanda e
+  `scripts/feature-coverage.mjs` exige ≥95% do manifesto. A suíte fica fora do
+  gate normal e não roda a cada mudança.
+- Cobertura funcional: **64/64 (100%)** com **65 testes Playwright**.
+- Correção real: promoção de lição do Aprendizado grava
+  `requested_by = "learning"` por padrão.
+- Testes: **326 Rust**, **127 Vitest** e **65 Playwright**.
+
+## 2026-11-10 — release 0.42.0
+
+- MCP `opendesk-control` (stdio + API local) para tarefas, execuções, rotinas,
+  receitas, fila, artefatos e leitura da atenção; HITL, permissões e propostas
+  continuam somente leitura.
+- `opendesk-config` e `opendesk-control` são registrados em todo workspace na
+  criação e no boot dos existentes.
+- Pacote base `controle-opendesk` com skill e comandos, instalado
+  automaticamente em novos workspaces (manual, template e fábrica) sem
+  sobrescrever arquivos.
+- Rotinas e receitas novas nascem desligadas: `schedules::create` grava
+  `is_active=false`; `save_yaml` grava `enabled=false` em arquivo novo; pacotes
+  normalizam receitas; UI reflete o padrão.
+- ADR 0044 documenta a exceção ao ADR 0032.
+- Testes: **335 Rust**, **128 Vitest** e **67 Playwright**.

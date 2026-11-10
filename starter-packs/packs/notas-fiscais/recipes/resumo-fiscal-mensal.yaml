@@ -1,7 +1,7 @@
 id: resumo-fiscal-mensal
 name: Resumo fiscal mensal
 description: Resumo do mês.
-enabled: true
+enabled: false
 triggers: []
 flow:
 - type: step

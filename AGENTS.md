@@ -39,6 +39,7 @@ npm run check          # TypeScript
 npm run build          # frontend
 npm run test:rust      # testes Rust
 npm run test:e2e       # Playwright Chromium (npx playwright install chromium)
+npm run test:features  # suíte funcional completa (sob demanda, fora do gate)
 npm run check:changed  # verificação proporcional (sem release)
 cd src-tauri && cargo check
 cd src-tauri && cargo test
@@ -49,6 +50,10 @@ scripts/release.sh     # build local + retenção de 3 releases (sem CI)
 
 - `src-tauri/src/api/` — rotas Axum, `/ws` e comandos Tauri.
 - `src-tauri/src/opencode_client/` — daemon manager e cliente REST V2.
+- `src-tauri/src/mcp_control.rs` — MCP `opendesk-control` (tarefas, rotinas,
+  receitas, fila, artefatos e atenção). `mcp_config.rs` continua com propostas.
+- `starter-packs/packs/controle-opendesk/` — skill e comandos do pacote base
+  instalado automaticamente em novos workspaces (ADR 0044).
 - `src-tauri/src/db/` — migrações, modelos e repositórios.
 - `src-tauri/src/events.rs` — contrato dos eventos em tempo real.
 - `src-tauri/src/paths.rs` — diretórios do app e layout de workspace.
@@ -107,7 +112,11 @@ integração com OpenCode Browse para tarefas de navegação web e backup/restor
 completo do workspace em ZIP, observabilidade operacional (p95, fila, falhas) e
 contract test opt-in do OpenCode V2, rate limit e auditoria da API local.
 Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
-Fábrica de Capacidades default (`meta-forge`).
+Fábrica de Capacidades default (`meta-forge`). O MCP `opendesk-control` permite
+aos agentes operar tarefas, execuções, rotinas, receitas, fila e artefatos; o
+pacote base `controle-opendesk` é instalado em novos workspaces e rotinas e
+receitas novas nascem desligadas (ADR 0044). A suíte funcional sob demanda vive
+em `npm run test:features`.
 Próxima frente: assinatura de updates, cobertura Rust ≥80%, Windows/macOS e
 testes de contrato Google/OpenCode.
 
