@@ -14,6 +14,11 @@ const e2eEnv = {
   OPENDESK_API_PORT: "4317",
   OPENDESK_SKIP_DAEMON: "1",
   OPENDESK_E2E: "1",
+  // The functional suite exercises many endpoints in a burst. Keep the real
+  // limiter for production, but give E2E enough headroom to avoid flakes.
+  OPENDESK_RATE_LIMIT_READ: "100000",
+  OPENDESK_RATE_LIMIT_WRITE: "100000",
+  OPENDESK_RATE_LIMIT_SENSITIVE: "100000",
   OPENDESK_ALLOW_TEMP_WORKSPACES: "1",
   OPENDESK_WORKSPACES_ROOT: `${e2eDir}/workspaces-root`,
   RUST_LOG: "opendesk=info",

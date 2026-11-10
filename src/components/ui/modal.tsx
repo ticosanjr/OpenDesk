@@ -18,6 +18,11 @@ export function Modal({
   className?: string;
 }) {
   const dialogRef = React.useRef<HTMLDivElement | null>(null);
+  const onCloseRef = React.useRef(onClose);
+
+  React.useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -29,14 +34,20 @@ export function Modal({
           'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
         ) ?? [],
       ).filter((element) => element.offsetParent !== null);
-    window.setTimeout(() => {
-      const first = focusable()[0];
-      (first ?? dialog)?.focus();
+    // Focus the first form field on open, never the close button. The effect
+    // intentionally depends only on `open`: parent re-renders must not steal
+    // focus while the user is typing.
+    const timer = window.setTimeout(() => {
+      const items = focusable();
+      const preferred = items.find((element) =>
+        element.matches("input, textarea, select, [autofocus]"),
+      );
+      (preferred ?? dialog)?.focus();
     }, 0);
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== "Tab") return;
@@ -49,7 +60,10 @@ export function Modal({
       const first = items[0];
       const last = items[items.length - 1];
       const active = document.activeElement as HTMLElement | null;
-      if (event.shiftKey && (active === first || !dialog?.contains(active))) {
+      if (active === dialog || !dialog?.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && active === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && active === last) {
@@ -59,10 +73,11 @@ export function Modal({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
+      window.clearTimeout(timer);
       window.removeEventListener("keydown", onKeyDown);
       previous?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

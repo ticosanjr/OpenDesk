@@ -1838,3 +1838,17 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   normalizam receitas; UI reflete o padrão.
 - ADR 0044 documenta a exceção ao ADR 0032.
 - Testes: **335 Rust**, **128 Vitest** e **67 Playwright**.
+
+## 2026-11-10 — release 0.42.1
+
+- Corrigido o `Modal` compartilhado que refocava o botão de fechar a cada
+  tecla, impedindo digitar nos formulários e fechando diálogos ao apertar
+  espaço/Enter.
+- Efeito de foco agora depende só de `open`, com `onClose` via ref; foco
+  inicial no primeiro campo, timer cancelado no cleanup e Tab/Shift+Tab
+  contidos no diálogo.
+- Regressões cobertas por Vitest (input controlado + `onClose` instável) e
+  Playwright (`pressSequentially` com espaços).
+- E2E ganhou limites de rate limit altos no ambiente de teste.
+- Testes: **335 Rust**, **130 Vitest** e **68 Playwright**; cobertura funcional
+  **69/69 (100%)**.
