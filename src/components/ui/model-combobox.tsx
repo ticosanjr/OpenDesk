@@ -7,7 +7,7 @@ import { shouldCloseOnBlur } from "@/lib/combobox";
 import { cn } from "@/lib/utils";
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 font-mono text-[10px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 font-mono text-[10px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60";
 
 export function ModelCombobox({
   value,
@@ -259,7 +259,7 @@ export function ModelCombobox({
                 </button>
               ) : null}
               {filtered.length === 0 && !query.trim() ? (
-                <p className="px-2 py-1 text-[10px] text-zinc-600">
+                <p className="px-2 py-1 text-[10px] text-zinc-500">
                   Nenhum modelo disponível. Digite um valor personalizado.
                 </p>
               ) : null}

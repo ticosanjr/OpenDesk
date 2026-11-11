@@ -299,7 +299,7 @@ export function WorkspaceDialog() {
                     <span className="mt-0.5 line-clamp-2 block text-[9px] leading-snug text-zinc-500">
                       {template.description}
                     </span>
-                    <span className="mt-1 block font-mono text-[8px] text-zinc-700">
+                    <span className="mt-1 block font-mono text-[8px] text-zinc-500">
                       {template.packs.length} pacotes · {template.folders.length} pastas
                     </span>
                   </button>
@@ -319,7 +319,7 @@ export function WorkspaceDialog() {
                 <div className="relative min-w-0 flex-1">
                   <FolderOpen
                     size={15}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
                   />
                   <input
                     value={rootParent}
@@ -335,7 +335,7 @@ export function WorkspaceDialog() {
             </label>
 
             <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
-              <p className="text-[9px] uppercase tracking-[0.12em] text-zinc-600">
+              <p className="text-[9px] uppercase tracking-[0.12em] text-zinc-500">
                 pasta do workspace
               </p>
               <p className="mt-0.5 truncate font-mono text-[10px] text-zinc-300">
@@ -362,7 +362,7 @@ export function WorkspaceDialog() {
               <div className="relative min-w-0 flex-1">
                 <FolderOpen
                   size={15}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
                 />
                 <input
                   value={existingPath}
@@ -375,7 +375,7 @@ export function WorkspaceDialog() {
                 Escolher
               </Button>
             </div>
-            <p className="mt-1 text-[9px] leading-relaxed text-zinc-600">
+            <p className="mt-1 text-[9px] leading-relaxed text-zinc-500">
               Nada é movido. O OpenDesk registra o caminho e cria input/, output/ e
               .opencode/ somente se não existirem.
             </p>
@@ -447,7 +447,7 @@ export function WorkspaceDialog() {
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-[9px] leading-relaxed text-zinc-600">
+            <p className="mt-1 text-[9px] leading-relaxed text-zinc-500">
               Cria agentes e skills em .opencode/ sem sobrescrever arquivos existentes.
             </p>
           </label>
@@ -462,7 +462,7 @@ export function WorkspaceDialog() {
         <div className="flex items-center justify-between gap-3 border-t border-zinc-800/70 pt-4">
           <div className="flex min-w-0 items-center gap-2">
             <Badge variant="default">SSOT</Badge>
-            <p className="truncate text-[9px] text-zinc-600">
+            <p className="truncate text-[9px] text-zinc-500">
               Configuração continua em opencode.jsonc e .opencode/.
             </p>
           </div>
@@ -482,4 +482,4 @@ export function WorkspaceDialog() {
 }
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60";

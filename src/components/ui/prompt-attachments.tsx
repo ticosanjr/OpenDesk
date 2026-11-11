@@ -88,7 +88,7 @@ export function PromptAttachments({
           )}
           {label}
         </Button>
-        <span className="text-[9px] text-zinc-600">
+        <span className="text-[9px] text-zinc-500">
           {value.length > 0
             ? `${value.length} anexo(s) — caminhos adicionados ao prompt`
             : "opcional, até 20 MB por arquivo"}
@@ -107,7 +107,7 @@ export function PromptAttachments({
                 type="button"
                 aria-label={`Remover ${basename(path)}`}
                 onClick={() => remove(path)}
-                className="text-zinc-600 hover:text-zinc-200"
+                className="text-zinc-500 hover:text-zinc-200"
               >
                 <X size={9} />
               </button>

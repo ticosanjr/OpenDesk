@@ -132,7 +132,7 @@ export function SwarmModal({
                 </div>
                 <div className="min-h-10 flex-1 space-y-1">
                   {(artifacts[copy.id] ?? []).length === 0 ? (
-                    <p className="text-[10px] text-zinc-600">
+                    <p className="text-[10px] text-zinc-500">
                       aguardando entregáveis…
                     </p>
                   ) : (

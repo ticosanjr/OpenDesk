@@ -25,6 +25,7 @@ import { Switch } from "@/components/ui/switch";
 import { PromptAttachments } from "@/components/ui/prompt-attachments";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { useAppStore } from "@/store/app-store";
+import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -159,7 +160,7 @@ export function RecipesPage() {
     return () => {
       cancelled = true;
     };
-  }, [selected]);
+  }, [selected, workspaceQuery]);
 
   function update(next: Dictionary) {
     setYaml(stringifyYaml(next));
@@ -169,6 +170,15 @@ export function RecipesPage() {
   }
 
   async function toggleRecipe(item: RecipeIndex) {
+    if (!item.is_enabled) {
+      const confirmed = await confirmAction({
+        title: `Ativar a receita “${item.name}”?`,
+        description:
+          "Os gatilhos automáticos desta receita passarão a disparar execuções. Revise o fluxo e os checkpoints antes de continuar.",
+        confirmLabel: "Ativar receita",
+      });
+      if (!confirmed) return;
+    }
     setToggling(item.id);
     try {
       await apiPost(`/api/recipes/${encodeURIComponent(item.id)}/enabled${workspaceQuery}`, {
@@ -337,7 +347,7 @@ export function RecipesPage() {
                     )}
                   >
                     <p className="truncate text-[11px] font-medium">{item.name}</p>
-                    <p className="truncate font-mono text-[9px] text-zinc-600">
+                    <p className="truncate font-mono text-[9px] text-zinc-500">
                       {item.trigger_type} · {item.total_runs} execuções
                     </p>
                     {item.last_error ? (
@@ -431,7 +441,7 @@ export function RecipesPage() {
         </CardHeader>
         <CardContent className="space-y-1">
           {runs.length === 0 ? (
-            <p className="p-2 text-[11px] text-zinc-600">Nenhuma execução ainda.</p>
+            <p className="p-2 text-[11px] text-zinc-500">Nenhuma execução ainda.</p>
           ) : (
             runs.map((run) => (
               <div key={run.id} className="flex flex-wrap items-center gap-2 rounded border border-zinc-800/70 px-2.5 py-1.5">
@@ -439,8 +449,8 @@ export function RecipesPage() {
                   {run.status}
                 </Badge>
                 <span className="font-mono text-[9px] text-zinc-500">{run.recipe_id}</span>
-                <span className="min-w-0 flex-1 truncate font-mono text-[9px] text-zinc-600">{run.current_step_id ?? "—"}</span>
-                <span className="text-[9px] text-zinc-600">{relativeTime(run.started_at)}</span>
+                <span className="min-w-0 flex-1 truncate font-mono text-[9px] text-zinc-500">{run.current_step_id ?? "—"}</span>
+                <span className="text-[9px] text-zinc-500">{relativeTime(run.started_at)}</span>
               </div>
             ))
           )}
@@ -464,7 +474,7 @@ export function RecipesPage() {
               onChange={(event) => setRunContext(event.target.value)}
               rows={6}
               placeholder="Ex.: analise o contrato em juridico/contratos/atual.pdf"
-              className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 p-2.5 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60"
+              className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 p-2.5 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
             />
             <PromptAttachments
               workspaceId={workspaceId}

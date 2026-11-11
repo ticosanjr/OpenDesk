@@ -79,7 +79,7 @@ export function LocalYamlEditor({
       <div
         ref={gutter}
         aria-hidden
-        className="h-full select-none overflow-hidden border-r border-zinc-800/70 px-2 py-3 text-right font-mono text-[10px] leading-[1.6] text-zinc-700"
+        className="h-full select-none overflow-hidden border-r border-zinc-800/70 px-2 py-3 text-right font-mono text-[10px] leading-[1.6] text-zinc-500"
       >
         {Array.from({ length: lines }).map((_, index) => (
           <div key={index}>{index + 1}</div>

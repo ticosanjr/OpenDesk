@@ -66,7 +66,7 @@ export function Topbar() {
             className="flex h-9 w-[220px] items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 text-left text-[13px] font-medium text-zinc-200 outline-none transition-colors hover:border-zinc-700 focus:border-blue-500/60"
             title={activeWorkspace?.root_path}
             aria-expanded={workspaceOpen}
-            aria-label="Workspace ativo"
+            aria-label={`Workspace ativo: ${activeWorkspace?.name ?? "nenhum"}`}
           >
             <span
               className="h-2 w-2 shrink-0 rounded-full"
@@ -85,7 +85,7 @@ export function Topbar() {
                   value={workspaceQuery}
                   onChange={(event) => setWorkspaceQuery(event.target.value)}
                   placeholder="Buscar workspace ou caminho…"
-                  className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2.5 text-[11px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60"
+                  className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2.5 text-[11px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
                 />
               </div>
               <div className="max-h-72 overflow-y-auto p-1.5">
@@ -109,7 +109,7 @@ export function Topbar() {
                       <span className="block truncate text-[11px] text-zinc-200">
                         {workspace.name}
                       </span>
-                      <span className="block truncate font-mono text-[9px] text-zinc-600">
+                      <span className="block truncate font-mono text-[9px] text-zinc-500">
                         {shortPath(workspace.root_path, 48)}
                       </span>
                     </span>
@@ -119,7 +119,7 @@ export function Topbar() {
                   </button>
                 ))}
                 {filteredWorkspaces.length === 0 ? (
-                  <p className="px-2 py-3 text-center text-[10px] text-zinc-600">
+                  <p className="px-2 py-3 text-center text-[10px] text-zinc-500">
                     Nenhum workspace encontrado.
                   </p>
                 ) : null}
@@ -166,12 +166,12 @@ export function Topbar() {
           <div className="hidden min-w-0 border-l border-zinc-800/70 pl-3 xl:block">
             <Link
               to="/files"
-              className="block truncate font-mono text-[10px] text-zinc-600 hover:text-blue-300"
+              className="block truncate font-mono text-[10px] text-zinc-500 hover:text-blue-300"
               title={activeWorkspace.root_path}
             >
               {shortPath(activeWorkspace.root_path, 56)}
             </Link>
-            <p className="truncate text-[10px] text-zinc-700">
+            <p className="truncate text-[10px] text-zinc-500">
               {ROUTER_POLICY_LABELS[activeWorkspace.default_router_policy] ??
                 activeWorkspace.default_router_policy}{" "}
               · {activeWorkspace.timezone}
@@ -182,7 +182,7 @@ export function Topbar() {
 
       <div className="ml-auto flex items-center gap-2">
         <div className="hidden items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-2.5 py-1.5 lg:flex">
-          <span className="font-mono text-[10px] uppercase tracking-wide text-zinc-600">
+          <span className="font-mono text-[10px] uppercase tracking-wide text-zinc-500">
             hoje
           </span>
           <div className="h-1.5 w-16 overflow-hidden rounded-full bg-zinc-800">
@@ -200,7 +200,7 @@ export function Topbar() {
         </div>
 
         <div className="hidden items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-2.5 py-1.5 md:flex">
-          <span className="font-mono text-[10px] uppercase tracking-wide text-zinc-600">
+          <span className="font-mono text-[10px] uppercase tracking-wide text-zinc-500">
             fila
           </span>
           <span className="font-mono text-[10px] text-zinc-300">
@@ -220,7 +220,7 @@ export function Topbar() {
           <span className="hidden font-mono text-[10px] uppercase tracking-wide lg:inline">
             {daemon?.online ? "engine online" : daemon?.state ?? "offline"}
           </span>
-          <RefreshCw size={12} className="text-zinc-600" />
+          <RefreshCw size={12} className="text-zinc-500" />
         </button>
 
         <Button
@@ -231,7 +231,7 @@ export function Topbar() {
         >
           <Search size={14} />
           <span className="text-[11px]">Buscar</span>
-          <span className="ml-2 flex items-center gap-0.5 rounded border border-zinc-800 bg-zinc-950 px-1 py-0.5 font-mono text-[9px] text-zinc-600">
+          <span className="ml-2 flex items-center gap-0.5 rounded border border-zinc-800 bg-zinc-950 px-1 py-0.5 font-mono text-[9px] text-zinc-500">
             <Command size={9} />K
           </span>
         </Button>

@@ -103,7 +103,7 @@ export function BrowserCard() {
       <CardContent className="space-y-4">
         <div className="grid gap-2 sm:grid-cols-3">
           <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2">
-            <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+            <p className="text-[9px] uppercase tracking-wide text-zinc-500">
               Binário
             </p>
             <p className="mt-0.5 flex items-center gap-1 text-[10px] text-zinc-300">
@@ -118,7 +118,7 @@ export function BrowserCard() {
             </p>
           </div>
           <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2">
-            <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+            <p className="text-[9px] uppercase tracking-wide text-zinc-500">
               MCP no OpenCode
             </p>
             <p className="mt-0.5 text-[10px] text-zinc-300">
@@ -126,7 +126,7 @@ export function BrowserCard() {
             </p>
           </div>
           <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2">
-            <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+            <p className="text-[9px] uppercase tracking-wide text-zinc-500">
               Skill de navegação
             </p>
             <p className="mt-0.5 text-[10px] text-zinc-300">
@@ -221,7 +221,7 @@ export function BrowserCard() {
           )}
         </div>
 
-        <p className={cn("text-[9px] text-zinc-600", !status?.config_path && "hidden")}>
+        <p className={cn("text-[9px] text-zinc-500", !status?.config_path && "hidden")}>
           Config: {status?.config_path}
         </p>
       </CardContent>

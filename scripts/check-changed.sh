@@ -23,7 +23,7 @@ frontend=0
 while IFS= read -r file; do
   case "$file" in
     src-tauri/*.rs|src-tauri/Cargo.toml|src-tauri/Cargo.lock) rust=1 ;;
-    src/*|tests/*|package.json|package-lock.json|vite.config.ts|playwright.config.ts|index.html) frontend=1 ;;
+    src/*|tests/*|package.json|package-lock.json|vite.config.ts|vitest.config.ts|playwright.config.ts|eslint.config.js|index.html) frontend=1 ;;
   esac
 done <<< "$changed"
 
@@ -35,7 +35,8 @@ if [[ "$rust" == "1" ]]; then
 fi
 
 if [[ "$frontend" == "1" ]]; then
-  echo "==> Frontend changed: TypeScript and Vitest"
+  echo "==> Frontend changed: lint, TypeScript and Vitest"
+  npm run lint
   npm run check
   npm run test:ui
 fi

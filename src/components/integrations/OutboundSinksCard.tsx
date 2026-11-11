@@ -199,7 +199,7 @@ export function OutboundSinksCard({ workspaceId }: { workspaceId: string }) {
               <Badge variant="purple">{sink.sink_type}</Badge>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[12px] text-zinc-200">{sink.name}</p>
-                <p className="truncate text-[9px] text-zinc-600">
+                <p className="truncate text-[9px] text-zinc-500">
                   {sink.last_run_at
                     ? `${sink.last_status ?? "ok"} · ${relativeTime(sink.last_run_at)}`
                     : "nunca executou"}
@@ -297,6 +297,6 @@ export function OutboundSinksCard({ workspaceId }: { workspaceId: string }) {
 }
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60";
 const labelClass =
   "mb-1 block text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-500";

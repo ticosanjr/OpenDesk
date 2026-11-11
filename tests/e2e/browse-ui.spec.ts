@@ -40,6 +40,9 @@ test("browse integration activates and marks web tasks", async ({ page, request 
   await expect(web).toHaveAttribute("aria-checked", "false");
   await web.click();
   await expect(web).toHaveAttribute("aria-checked", "true");
+  await dialog
+    .getByLabel(/Domínios permitidos/)
+    .fill("example.com, docs.example.com");
   await dialog.getByRole("button", { name: /Criar tarefa/ }).click();
 
   await expect
@@ -56,4 +59,20 @@ test("browse integration activates and marks web tasks", async ({ page, request 
       return task?.tags_json ?? "";
     })
     .toContain("needs-browser");
+  await expect
+    .poll(async () => {
+      const response = await request.get(
+        `${auth.baseURL}/api/tasks?workspace_id=${workspace.id}`,
+        { headers: auth.headers },
+      );
+      const tasks = (await response.json()) as Array<{
+        title: string;
+        tags_json: string;
+      }>;
+      return (
+        tasks.find((item) => item.title === "Pesquisar concorrentes")
+          ?.tags_json ?? ""
+      );
+    })
+    .toContain("browse-allowlist:example.com,docs.example.com");
 });

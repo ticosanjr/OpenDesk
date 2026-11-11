@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { api } from "./helpers";
 
 

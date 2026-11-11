@@ -147,12 +147,12 @@ export function ToolsCard() {
                 {tool.installed ? (
                   <CheckCircle2 size={14} className="shrink-0 text-emerald-400" />
                 ) : (
-                  <XCircle size={14} className="shrink-0 text-zinc-600" />
+                  <XCircle size={14} className="shrink-0 text-zinc-500" />
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="text-[12px] text-zinc-200">{tool.label}</p>
-                  <p className="truncate text-[9px] text-zinc-600">{tool.purpose}</p>
-                  <p className="truncate font-mono text-[9px] text-zinc-600">
+                  <p className="truncate text-[9px] text-zinc-500">{tool.purpose}</p>
+                  <p className="truncate font-mono text-[9px] text-zinc-500">
                     {tool.detected_version ?? tool.path ?? tool.manual_hint}
                   </p>
                 </div>

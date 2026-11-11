@@ -812,6 +812,69 @@ async fn dashboard_decodes_zero_cost_runs_as_real() {
 }
 
 #[tokio::test]
+async fn dashboard_counts_active_routines_and_enabled_recipes() {
+    let ctx = test_support::context().await;
+    let (status, schedule) = call(
+        &ctx,
+        Method::POST,
+        "/api/schedules",
+        Some(json!({
+            "workspace_id": ctx.workspace_id,
+            "name": "Rotina dashboard",
+            "command_or_prompt": "Resuma",
+            "cron_expression": "0 8 * * *",
+            "timezone": "UTC"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{schedule}");
+    let routine_id = schedule["id"].as_str().expect("routine id");
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/schedules/{routine_id}/active"),
+        Some(json!({ "active": true })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let yaml = "id: dashboard-recipe\nname: Receita dashboard\nenabled: false\ntriggers: []\nflow:\n  - type: step\n    id: passo-1\n    name: Passo\n    prompt: oi\n";
+    let (status, _) = call(
+        &ctx,
+        Method::PUT,
+        &format!(
+            "/api/recipes/dashboard-recipe?workspace_id={}",
+            ctx.workspace_id
+        ),
+        Some(json!({ "yaml": yaml })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        &format!(
+            "/api/recipes/dashboard-recipe/enabled?workspace_id={}",
+            ctx.workspace_id
+        ),
+        Some(json!({ "enabled": true })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, stats) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/dashboard?workspace_id={}", ctx.workspace_id),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{stats}");
+    assert_eq!(stats["active_routines"], 1);
+    assert_eq!(stats["enabled_recipes"], 1);
+}
+
+#[tokio::test]
 async fn updates_rollback_without_backup_is_actionable() {
     let ctx = test_support::context().await;
     let (status, body) = call(&ctx, Method::POST, "/api/updates/rollback", None).await;

@@ -110,7 +110,7 @@ export function SearchPage() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Digite pelo menos 2 caracteres…"
-            className="h-full flex-1 bg-transparent text-[14px] text-zinc-100 outline-none placeholder:text-zinc-600"
+            className="h-full flex-1 bg-transparent text-[14px] text-zinc-100 outline-none placeholder:text-zinc-500"
           />
           {loading ? <span className="text-[11px] text-zinc-500">buscando…</span> : null}
           <Badge variant="default">{filtered.length}</Badge>
@@ -129,7 +129,7 @@ export function SearchPage() {
               )}
             >
               {item.label}
-              <span className="font-mono text-[10px] text-zinc-600">
+              <span className="font-mono text-[10px] text-zinc-500">
                 {countFor(item.kinds)}
               </span>
             </button>
@@ -183,7 +183,7 @@ export function SearchPage() {
                     {hit.snippet}
                   </p>
                 </div>
-                <span className="shrink-0 font-mono text-[10px] text-zinc-600">
+                <span className="shrink-0 font-mono text-[10px] text-zinc-500">
                   {relativeTime(hit.updated_at)}
                 </span>
               </Link>

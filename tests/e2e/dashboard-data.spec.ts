@@ -16,5 +16,7 @@ test("dashboard shows KPIs, recent run and artifact from a real workspace", asyn
   ).toBeVisible();
   await expect(page.getByText("relatorio-executivo.md").first()).toBeVisible();
   await expect(page.getByText(/runs/).first()).toBeVisible();
+  await expect(page.getByText("0 rotinas ativas")).toBeVisible();
+  await expect(page.getByText("0 receitas ativas")).toBeVisible();
   expect(seeded.runId).toBeTruthy();
 });

@@ -236,7 +236,7 @@ export function FileViewer({
           )
         ) : binary ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-            <Download size={24} className="text-zinc-600" />
+            <Download size={24} className="text-zinc-500" />
             <p className="text-[12px] text-zinc-400">
               Este formato não tem prévia interna. Baixe ou abra externamente.
             </p>
@@ -249,7 +249,7 @@ export function FileViewer({
       </div>
       {kind === "image" && blobUrl ? (
         <div className="flex items-center gap-2 border-t border-zinc-800/70 px-3 py-2">
-          <ImageIcon size={11} className="text-zinc-600" />
+          <ImageIcon size={11} className="text-zinc-500" />
           <input
             type="range"
             min={25}
@@ -262,7 +262,7 @@ export function FileViewer({
         </div>
       ) : null}
       {kind === "video" || kind === "audio" ? (
-        <div className="flex items-center gap-1 border-t border-zinc-800/70 px-3 py-2 text-[10px] text-zinc-600">
+        <div className="flex items-center gap-1 border-t border-zinc-800/70 px-3 py-2 text-[10px] text-zinc-500">
           {kind === "video" ? <Video size={11} /> : <Music size={11} />}
           use os controles nativos para reproduzir
         </div>

@@ -1,7 +1,7 @@
 {
   "name": "opendesk",
   "private": true,
-  "version": "0.42.1",
+  "version": "0.43.0",
   "description": "Visual governance, automation and observability for OpenCode",
   "type": "module",
   "scripts": {
@@ -15,12 +15,15 @@
     "test:e2e:ui": "playwright test --ui",
     "test:ui": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:all": "npm run check && npm run test:rust && npm run test:ui && npm run build && npm run test:e2e",
+    "test:all": "npm run lint && npm run check && npm run test:rust && npm run test:ui && npm run build && npm run test:e2e",
     "clean": "bash scripts/clean.sh",
     "clean:deep": "bash scripts/clean.sh --deep",
     "check:changed": "bash scripts/check-changed.sh",
     "contract:opencode": "scripts/contract-opencode.sh",
-    "test:features": "scripts/test-features.sh"
+    "test:features": "scripts/test-features.sh",
+    "lint": "eslint src tests --max-warnings=0",
+    "audit:prod": "npm audit --omit=dev",
+    "contract:google": "scripts/contract-google.sh"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
@@ -48,6 +51,8 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.65.0",
     "@tailwindcss/vite": "^4.1.17",
     "@tauri-apps/cli": "^2",
@@ -58,10 +63,18 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.2",
     "@vitest/coverage-v8": "^5.1.0",
+    "eslint": "^10.14.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.14.0",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.1.17",
     "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.2",
     "vite": "^8.0.16",
     "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "dompurify": "^3.4.17"
   }
 }

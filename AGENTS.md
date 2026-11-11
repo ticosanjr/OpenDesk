@@ -36,6 +36,7 @@ original foi escrita para o OpenCode V1; **a implementação é V2-only** (ver
 npm install
 npm run tauri dev      # app completo
 npm run check          # TypeScript
+npm run lint           # ESLint (hooks + TypeScript)
 npm run build          # frontend
 npm run test:rust      # testes Rust
 npm run test:e2e       # Playwright Chromium (npx playwright install chromium)
@@ -52,6 +53,7 @@ scripts/release.sh     # build local + retenção de 3 releases (sem CI)
 - `src-tauri/src/opencode_client/` — daemon manager e cliente REST V2.
 - `src-tauri/src/mcp_control.rs` — MCP `opendesk-control` (tarefas, rotinas,
   receitas, fila, artefatos e atenção). `mcp_config.rs` continua com propostas.
+- `src-tauri/src/mcp_server.rs` — loop JSON-RPC compartilhado pelos três MCPs.
 - `starter-packs/packs/controle-opendesk/` — skill e comandos do pacote base
   instalado automaticamente em novos workspaces (ADR 0044).
 - `src-tauri/src/db/` — migrações, modelos e repositórios.
@@ -117,8 +119,8 @@ aos agentes operar tarefas, execuções, rotinas, receitas, fila e artefatos; o
 pacote base `controle-opendesk` é instalado em novos workspaces e rotinas e
 receitas novas nascem desligadas (ADR 0044). A suíte funcional sob demanda vive
 em `npm run test:features`.
-Próxima frente: assinatura de updates, cobertura Rust ≥80%, Windows/macOS e
-testes de contrato Google/OpenCode.
+Próxima frente: cobertura Rust ≥80%, builds Windows/macOS e contrato Google com
+conta dedicada.
 
 Releases são locais (`releases/`, máximo 3 versões) e nunca via CI. O remoto é
 `origin` em https://github.com/ticosanjr/OpenDesk (privado); `scripts/release.sh`

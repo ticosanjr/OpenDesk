@@ -140,7 +140,7 @@ export function CapturePage() {
           if (event.key === "Escape") void close();
         }}
         placeholder="Cole um texto, link ou print (Ctrl+V). Ctrl+Enter para capturar."
-        className="min-h-0 flex-1 resize-none rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-[13px] outline-none placeholder:text-zinc-600 focus:border-blue-500/40"
+        className="min-h-0 flex-1 resize-none rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-[13px] outline-none placeholder:text-zinc-500 focus:border-blue-500/40"
       />
 
       {image ? (
@@ -165,9 +165,9 @@ export function CapturePage() {
             value={agent}
             onChange={(event) => setAgent(event.target.value)}
             placeholder="@agente (opcional)"
-            className="h-7 w-36 rounded-md border border-zinc-800 bg-zinc-900 px-2 font-mono text-[10px] outline-none placeholder:text-zinc-600 focus:border-blue-500/40"
+            className="h-7 w-36 rounded-md border border-zinc-800 bg-zinc-900 px-2 font-mono text-[10px] outline-none placeholder:text-zinc-500 focus:border-blue-500/40"
           />
-          <p className="text-[10px] text-zinc-600">
+          <p className="text-[10px] text-zinc-500">
             Backlog · Ctrl+Enter envia · Esc fecha
           </p>
         </div>

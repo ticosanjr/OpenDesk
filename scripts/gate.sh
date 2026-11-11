@@ -12,6 +12,9 @@ CORE_MIN_LINES="${OPENDESK_CORE_MIN_LINES:-67}"
 echo "==> TypeScript"
 npm run check
 
+echo "==> ESLint"
+npm run lint
+
 echo "==> Frontend tests + coverage gate (logic modules)"
 npm run test:coverage
 

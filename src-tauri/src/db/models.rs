@@ -69,4 +69,6 @@ pub struct DashboardStats {
     pub queue_running: i64,
     pub queue_waiting: i64,
     pub artifacts_total: i64,
+    pub active_routines: i64,
+    pub enabled_recipes: i64,
 }

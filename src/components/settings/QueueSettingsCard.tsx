@@ -85,7 +85,7 @@ export function QueueSettingsCard() {
                 <p className="text-[11px] font-medium text-zinc-300">
                   Evitar tarefas duplicadas
                 </p>
-                <p className="mt-0.5 text-[10px] text-zinc-600">
+                <p className="mt-0.5 text-[10px] text-zinc-500">
                   Vale para tarefas manuais, receitas, rotinas e entradas do I/O.
                 </p>
               </div>
@@ -116,7 +116,7 @@ export function QueueSettingsCard() {
                 className={cn(smallInputClass, "max-w-[160px] font-mono")}
                 aria-label="Carência após conclusão em minutos"
               />
-              <span className="mt-1 block text-[9px] text-zinc-600">
+              <span className="mt-1 block text-[9px] text-zinc-500">
                 0 desliga a carência. O padrão é 5 minutos.
               </span>
             </label>

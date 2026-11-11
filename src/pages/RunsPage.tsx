@@ -120,12 +120,12 @@ export function RunsPage() {
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/20 px-3 py-2">
         <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-          <Search size={13} className="text-zinc-600" />
+          <Search size={13} className="text-zinc-500" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Buscar por tarefa, agente, modelo ou run id…"
-            className="h-full flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
+            className="h-full flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-500"
           />
         </div>
         <select
@@ -201,7 +201,7 @@ export function RunsPage() {
                       </Badge>
                       <Badge variant="default">{run.phase ?? "run"}</Badge>
                     </div>
-                    <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[9px] text-zinc-600">
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[9px] text-zinc-500">
                       <span>@{run.agent_name}</span>
                       <span>{run.model_id}</span>
                       <span className="inline-flex items-center gap-1">
@@ -221,10 +221,10 @@ export function RunsPage() {
                     ) : null}
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1 text-right">
-                    <span className="font-mono text-[9px] text-zinc-600">
+                    <span className="font-mono text-[9px] text-zinc-500">
                       {relativeTime(run.started_at)}
                     </span>
-                    <span className="font-mono text-[9px] text-zinc-700">
+                    <span className="font-mono text-[9px] text-zinc-500">
                       abrir logs →
                     </span>
                   </div>

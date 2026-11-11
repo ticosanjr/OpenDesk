@@ -106,7 +106,7 @@ test("workspace template creates a ready-to-use workspace from the UI", async ({
   request,
 }) => {
   const auth = api();
-  const workspace = await seedWorkspace(request, "Packs Template");
+  await seedWorkspace(request, "Packs Template");
   const root = `/tmp/opendesk-e2e/template-ui-${Date.now()}`;
   const name = `Conteúdo UI ${Date.now()}`;
 

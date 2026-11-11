@@ -465,12 +465,12 @@ export function KanbanPage() {
         {view !== "queue" ? (
           <>
             <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-              <Search size={13} className="shrink-0 text-zinc-600" />
+              <Search size={13} className="shrink-0 text-zinc-500" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Buscar por título, descrição, tag ou agente…"
-                className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
+                className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-500"
               />
             </div>
             <select
@@ -659,7 +659,10 @@ export function KanbanPage() {
       {view === "board" ? (
       <div
         ref={boardRef}
-        className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2"
+        role="region"
+        aria-label="Quadro Kanban"
+        tabIndex={0}
+        className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
         onDragOver={(event) => {
           event.preventDefault();
           const element = boardRef.current;
@@ -709,8 +712,8 @@ export function KanbanPage() {
               <CardContent className="flex-1 space-y-1.5 p-2">
                 {columnTasks.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-zinc-800/80 bg-zinc-950/30 px-3 py-8 text-center">
-                    <GripVertical size={15} className="mx-auto text-zinc-700" />
-                    <p className="mt-2 text-[10px] text-zinc-600">Arraste uma tarefa</p>
+                    <GripVertical size={15} className="mx-auto text-zinc-500" />
+                    <p className="mt-2 text-[10px] text-zinc-500">Arraste uma tarefa</p>
                   </div>
                 ) : (
                   columnTasks.map((task) => {
@@ -823,7 +826,7 @@ export function KanbanPage() {
                             {task.last_run_status} · {relativeTime(task.last_run_at)}
                           </span>
                         ) : (
-                          <span className="text-[11px] text-zinc-600">sem execução</span>
+                          <span className="text-[11px] text-zinc-500">sem execução</span>
                         )}
                       </td>
                       <td className="px-3 py-2 text-zinc-400">

@@ -128,14 +128,14 @@ export function DelegationsSection({
                     <p className="text-[11px] font-medium text-zinc-200">
                       {delegation.title}
                     </p>
-                    <span className="font-mono text-[9px] text-zinc-600">
+                    <span className="font-mono text-[9px] text-zinc-500">
                       {delegationSummary(delegation)}
                     </span>
                   </div>
                   <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-zinc-500">
                     {delegation.prompt}
                   </p>
-                  <p className="mt-1 text-[9px] text-zinc-600">
+                  <p className="mt-1 text-[9px] text-zinc-500">
                     solicitada {relativeTime(delegation.requested_at)}
                   </p>
                 </div>
@@ -178,7 +178,7 @@ export function DelegationsSection({
                   {delegation.status}
                 </Badge>
                 <span className="text-[9px] text-zinc-500">{delegation.title}</span>
-                <span className="font-mono text-[9px] text-zinc-600">
+                <span className="font-mono text-[9px] text-zinc-500">
                   {delegationSummary(delegation)}
                 </span>
                 {delegation.task_id ? (

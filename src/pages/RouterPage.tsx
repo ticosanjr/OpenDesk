@@ -363,7 +363,7 @@ export function RouterPage() {
                             <span className="block truncate font-mono text-zinc-200">
                               {row.model}
                             </span>
-                            <span className="block truncate text-[9px] text-zinc-600">
+                            <span className="block truncate text-[9px] text-zinc-500">
                               {row.name}
                             </span>
                           </td>
@@ -405,11 +405,11 @@ export function RouterPage() {
               )}
             >
               <div className="flex items-center justify-between">
-                <Gauge size={15} className={active ? "text-blue-400" : "text-zinc-600"} />
+                <Gauge size={15} className={active ? "text-blue-400" : "text-zinc-500"} />
                 {active ? <Badge variant="blue">atual</Badge> : null}
               </div>
               <p className="mt-3 text-[12px] font-medium text-zinc-200">{label}</p>
-              <p className="mt-1 font-mono text-[9px] text-zinc-600">{id}</p>
+              <p className="mt-1 font-mono text-[9px] text-zinc-500">{id}</p>
             </button>
           );
         })}
@@ -475,17 +475,17 @@ export function RouterPage() {
               hard stop habilitado
             </label>
             <div className="grid grid-cols-2 gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-2.5 text-[10px]">
-              <span className="text-zinc-600">gasto hoje</span>
+              <span className="text-zinc-500">gasto hoje</span>
               <span className="text-right font-mono text-zinc-300">
                 {formatUsd(config?.budget.daily_spent ?? 0)} /{" "}
                 {formatUsd(config?.budget.daily_limit ?? 0)}
               </span>
-              <span className="text-zinc-600">gasto no mês</span>
+              <span className="text-zinc-500">gasto no mês</span>
               <span className="text-right font-mono text-zinc-300">
                 {formatUsd(config?.budget.monthly_spent ?? 0)} /{" "}
                 {formatUsd(config?.budget.monthly_limit ?? 0)}
               </span>
-              <span className="text-zinc-600">janela 5h</span>
+              <span className="text-zinc-500">janela 5h</span>
               <span className="text-right font-mono text-zinc-300">
                 {config?.budget.five_hour_tokens ?? 0} tokens
               </span>
@@ -539,13 +539,13 @@ export function RouterPage() {
                     </Badge>
                     <div className="min-w-0 flex-1">
                       <p className="text-[11px] font-medium text-zinc-200">{rule.name}</p>
-                      <p className="truncate font-mono text-[9px] text-zinc-600">
+                      <p className="truncate font-mono text-[9px] text-zinc-500">
                         {rule.condition_json}
                       </p>
                     </div>
                     <Badge variant="purple">{rule.target_mode}</Badge>
                     <Badge variant="default">@{rule.target_agent ?? "build"}</Badge>
-                    <span className="font-mono text-[9px] text-zinc-600">
+                    <span className="font-mono text-[9px] text-zinc-500">
                       {rule.target_model} · {rule.target_effort}
                     </span>
                     <Button
@@ -598,7 +598,7 @@ function BudgetInput({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[9px] uppercase tracking-[0.12em] text-zinc-600">
+      <span className="mb-1 block text-[9px] uppercase tracking-[0.12em] text-zinc-500">
         {label}
       </span>
       <input

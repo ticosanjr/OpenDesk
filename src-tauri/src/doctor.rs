@@ -19,6 +19,8 @@ pub struct DoctorReport {
     pub log_dir: String,
     pub database_ok: bool,
     pub workspaces: i64,
+    pub mcp_control_workspaces: i64,
+    pub base_pack_workspaces: i64,
     pub binary: Option<OpenCodeBinaryInfo>,
     pub binary_error: Option<String>,
     pub daemon: Option<ServiceProbe>,
@@ -77,7 +79,7 @@ fn build_report() -> anyhow::Result<DoctorReport> {
     let runtime = tokio::runtime::Runtime::new()?;
     runtime.block_on(async move {
         let mut warnings = Vec::new();
-        let (database_ok, workspaces, configured_binary) =
+        let (database_ok, workspaces, mcp_control_workspaces, base_pack_workspaces, configured_binary) =
             match db::init(&paths.db_path).await {
                 Ok(pool) => {
                     let workspaces: i64 =
@@ -85,16 +87,45 @@ fn build_report() -> anyhow::Result<DoctorReport> {
                             .fetch_one(&pool)
                             .await
                             .unwrap_or(0);
+                    let list = crate::db::workspaces::list(&pool)
+                        .await
+                        .unwrap_or_default();
+                    let mut mcp_control_workspaces = 0;
+                    let mut base_pack_workspaces = 0;
+                    for workspace in &list {
+                        let root = Path::new(&workspace.root_path);
+                        let config = std::fs::read_to_string(root.join("opencode.jsonc"))
+                            .unwrap_or_default();
+                        if config.contains("\"opendesk-control\"") {
+                            mcp_control_workspaces += 1;
+                        } else {
+                            warnings.push(format!(
+                                "workspace '{}' sem MCP opendesk-control no opencode.jsonc",
+                                workspace.name
+                            ));
+                        }
+                        if root
+                            .join(".opencode/skills/operacao-opendesk/SKILL.md")
+                            .is_file()
+                        {
+                            base_pack_workspaces += 1;
+                        } else {
+                            warnings.push(format!(
+                                "workspace '{}' sem o pacote base controle-opendesk; instale em Pacotes se quiser a skill e os comandos",
+                                workspace.name
+                            ));
+                        }
+                    }
                     let configured = settings::get(&pool, OPENCODE_BIN_SETTING)
                         .await
                         .ok()
                         .flatten()
                         .and_then(|value| value.as_str().map(PathBuf::from));
-                    (true, workspaces, configured)
+                    (true, workspaces, mcp_control_workspaces, base_pack_workspaces, configured)
                 }
                 Err(error) => {
                     warnings.push(format!("could not open the database: {error:#}"));
-                    (false, 0, None)
+                    (false, 0, 0, 0, None)
                 }
             };
 
@@ -136,6 +167,8 @@ fn build_report() -> anyhow::Result<DoctorReport> {
             log_dir: paths.log_dir.to_string_lossy().to_string(),
             database_ok,
             workspaces,
+            mcp_control_workspaces,
+            base_pack_workspaces,
             binary,
             binary_error,
             daemon,
@@ -227,6 +260,13 @@ fn print_human(report: &DoctorReport) {
     println!("data:    {}", report.data_dir);
     println!("config:  {}", report.config_dir);
     println!("logs:    {}", report.log_dir);
+    println!(
+        "MCP ctl: {}/{} workspaces · pacote base: {}/{}",
+        report.mcp_control_workspaces,
+        report.workspaces,
+        report.base_pack_workspaces,
+        report.workspaces
+    );
     println!(
         "database: {} ({} workspaces)",
         if report.database_ok {

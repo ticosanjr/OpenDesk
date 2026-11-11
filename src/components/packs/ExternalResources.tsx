@@ -95,7 +95,7 @@ export function ExternalResources({
                     target="_blank"
                     rel="noreferrer"
                     aria-label={`Abrir ${resource.name}`}
-                    className="rounded p-1 text-zinc-600 hover:text-zinc-200 focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                    className="rounded p-1 text-zinc-500 hover:text-zinc-200 focus-visible:ring-2 focus-visible:ring-blue-500/60"
                   >
                     <ExternalLink size={13} />
                   </a>
@@ -103,14 +103,14 @@ export function ExternalResources({
                 <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-zinc-500">
                   {resource.focus}
                 </p>
-                <p className="mt-1.5 line-clamp-2 text-[9px] leading-snug text-zinc-600">
+                <p className="mt-1.5 line-clamp-2 text-[9px] leading-snug text-zinc-500">
                   {resource.usage}
                 </p>
                 <div className="mt-auto flex flex-wrap items-center gap-1 pt-2">
                   {resource.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="rounded border border-zinc-800 bg-zinc-900/60 px-1.5 py-0.5 font-mono text-[8px] text-zinc-600"
+                      className="rounded border border-zinc-800 bg-zinc-900/60 px-1.5 py-0.5 font-mono text-[8px] text-zinc-500"
                     >
                       {tag}
                     </span>

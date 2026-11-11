@@ -322,7 +322,7 @@ export function CalendarPage() {
             {category.label}
           </button>
         ))}
-        <span className="ml-auto font-mono text-[9px] text-zinc-600">
+        <span className="ml-auto font-mono text-[9px] text-zinc-500">
           {visibleItems.length} item(ns) visíveis
         </span>
       </div>
@@ -374,7 +374,7 @@ export function CalendarPage() {
               {WEEKDAYS.map((weekday) => (
                 <div
                   key={weekday}
-                  className="px-1 py-1 text-center text-[9px] uppercase tracking-[0.12em] text-zinc-600"
+                  className="px-1 py-1 text-center text-[9px] uppercase tracking-[0.12em] text-zinc-500"
                 >
                   {weekday}
                 </div>
@@ -416,7 +416,7 @@ export function CalendarPage() {
                         {format(day, "d")}
                       </span>
                       {dayItems.length > 0 ? (
-                        <span className="font-mono text-[8px] text-zinc-600">
+                        <span className="font-mono text-[8px] text-zinc-500">
                           {dayItems.length}
                         </span>
                       ) : null}
@@ -430,7 +430,7 @@ export function CalendarPage() {
                         />
                       ))}
                       {dayItems.length > 3 ? (
-                        <p className="px-1 text-[8px] text-zinc-600">
+                        <p className="px-1 text-[8px] text-zinc-500">
                           +{dayItems.length - 3} mais
                         </p>
                       ) : null}
@@ -546,7 +546,7 @@ function CalendarColumns({
           >
             <div className="flex items-center justify-between border-b border-zinc-800/70 pb-1.5">
               <div>
-                <p className="text-[9px] uppercase tracking-[0.12em] text-zinc-600">
+                <p className="text-[9px] uppercase tracking-[0.12em] text-zinc-500">
                   {format(day, "EEE", { locale: ptBR })}
                 </p>
                 <p
@@ -559,14 +559,14 @@ function CalendarColumns({
                 </p>
               </div>
               {dayItems.length > 0 ? (
-                <span className="font-mono text-[8px] text-zinc-600">
+                <span className="font-mono text-[8px] text-zinc-500">
                   {dayItems.length}
                 </span>
               ) : null}
             </div>
             <div className="mt-1.5 space-y-1">
               {dayItems.length === 0 ? (
-                <p className="px-1 py-2 text-[9px] text-zinc-700">—</p>
+                <p className="px-1 py-2 text-[9px] text-zinc-500">—</p>
               ) : (
                 dayItems.map((item) => (
                   <CalendarItemChip

@@ -80,12 +80,12 @@ export function AuditCard() {
           </div>
         ) : null}
         <div className="flex h-8 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-          <Search size={13} className="shrink-0 text-zinc-600" />
+          <Search size={13} className="shrink-0 text-zinc-500" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Filtrar por ação, método, rota ou status…"
-            className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
+            className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-500"
           />
         </div>
         {loading && !data ? (
@@ -99,7 +99,7 @@ export function AuditCard() {
         ) : (
           <div className="overflow-x-auto rounded-lg border border-zinc-800/70">
             <table className="w-full text-left text-[10px]">
-              <thead className="border-b border-zinc-800 text-[9px] uppercase tracking-wide text-zinc-600">
+              <thead className="border-b border-zinc-800 text-[9px] uppercase tracking-wide text-zinc-500">
                 <tr>
                   <th className="px-3 py-2">Quando</th>
                   <th className="px-3 py-2">Ação</th>

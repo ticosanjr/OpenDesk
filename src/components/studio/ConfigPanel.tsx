@@ -80,7 +80,7 @@ export function ConfigPanel({
               </Badge>
             ) : null}
           </div>
-          <p className="mt-1 font-mono text-[9px] text-zinc-600">
+          <p className="mt-1 font-mono text-[9px] text-zinc-500">
             {document?.path ?? "carregando…"}
           </p>
         </div>
@@ -107,7 +107,7 @@ export function ConfigPanel({
         />
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 font-mono text-[9px] text-zinc-600">
+      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 font-mono text-[9px] text-zinc-500">
         <span>sha256</span>
         <span>{document?.sha256 ? `${document.sha256.slice(0, 20)}…` : "—"}</span>
         <span className="ml-auto">

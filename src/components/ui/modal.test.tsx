@@ -60,6 +60,20 @@ describe("Modal focus management", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
+  it("respects a child autoFocus", async () => {
+    function AutoFocusHarness() {
+      return (
+        <Modal open onClose={() => {}} title="Auto">
+          <input aria-label="Auto" autoFocus />
+        </Modal>
+      );
+    }
+    render(<AutoFocusHarness />);
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "Auto" })).toHaveFocus(),
+    );
+  });
+
   it("closes on Escape with the latest onClose callback", async () => {
     render(<Harness />);
     await waitFor(() => expect(screen.getByLabelText("Campo")).toHaveFocus());

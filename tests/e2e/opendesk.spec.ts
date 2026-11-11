@@ -22,7 +22,7 @@ test("workspace, settings, Studio and external edit sync", async ({ page, reques
     .fill("/tmp/opendesk-e2e/workspaces");
   await page.getByRole("button", { name: "Criar workspace" }).click();
 
-  await expect(page.getByRole("button", { name: "Workspace ativo" })).toContainText("E2E Workspace");
+  await expect(page.getByRole("button", { name: /Workspace ativo/ })).toContainText("E2E Workspace");
 
   // Settings: change the default workspaces folder.
   await page.getByRole("link", { name: "Configurações" }).click();
@@ -138,7 +138,7 @@ test("adds an existing workspace from another folder without touching it", async
     .fill("Existing Workspace");
   await page.getByRole("button", { name: "Adicionar workspace" }).click();
 
-  await expect(page.getByRole("button", { name: "Workspace ativo" })).toContainText("Existing Workspace");
+  await expect(page.getByRole("button", { name: /Workspace ativo/ })).toContainText("Existing Workspace");
   expect(existsSync(`${existing}/keep-me.txt`)).toBeTruthy();
 });
 

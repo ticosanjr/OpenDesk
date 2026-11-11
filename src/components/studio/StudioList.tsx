@@ -63,7 +63,7 @@ export function StudioListItem({
         {badge}
       </div>
       {subtitle ? (
-        <p className="mt-0.5 truncate text-[9px] text-zinc-600">{subtitle}</p>
+        <p className="mt-0.5 truncate text-[9px] text-zinc-500">{subtitle}</p>
       ) : null}
     </button>
   );
@@ -84,7 +84,7 @@ export function StudioEmptyEditor({
         <Icon size={18} />
       </div>
       <p className="mt-3 text-[12px] font-medium text-zinc-300">{title}</p>
-      <p className="mt-1 max-w-sm text-[10px] leading-relaxed text-zinc-600">
+      <p className="mt-1 max-w-sm text-[10px] leading-relaxed text-zinc-500">
         {description}
       </p>
     </div>
@@ -115,7 +115,7 @@ export function StudioField({
         {label}
       </span>
       {children}
-      {hint ? <p className="mt-1 text-[9px] leading-relaxed text-zinc-600">{hint}</p> : null}
+      {hint ? <p className="mt-1 text-[9px] leading-relaxed text-zinc-500">{hint}</p> : null}
     </label>
   );
 }

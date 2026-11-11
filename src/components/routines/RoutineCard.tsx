@@ -177,7 +177,7 @@ export function RoutineCard({
           : schedule.command_or_prompt || "—"}
       </p>
 
-      <div className="mt-1 flex min-h-[14px] flex-wrap items-center gap-3 overflow-hidden font-mono text-[9px] text-zinc-600">
+      <div className="mt-1 flex min-h-[14px] flex-wrap items-center gap-3 overflow-hidden font-mono text-[9px] text-zinc-500">
         <span className="truncate">
           próxima:{" "}
           {schedule.next_run_at

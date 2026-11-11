@@ -143,7 +143,7 @@ export function QueueController({
           <span className="inline-flex items-center gap-1.5">
             total <CountPill value={queue.length} />
           </span>
-          <span className="ml-auto hidden font-mono text-[9px] text-zinc-600 md:inline">
+          <span className="ml-auto hidden font-mono text-[9px] text-zinc-500 md:inline">
             lease 60s · heartbeat 5s
           </span>
         </div>
@@ -198,13 +198,13 @@ export function QueueController({
                         : ""}
                     </p>
                   </div>
-                  <span className="inline-flex items-center gap-1 font-mono text-[9px] text-zinc-600">
+                  <span className="inline-flex items-center gap-1 font-mono text-[9px] text-zinc-500">
                     <Clock3 size={9} />
                     {relativeTime(job.started_at ?? job.enqueued_at)}
                   </span>
                   {job.status === "RUNNING" && job.lease_expires_at ? (
                     <span
-                      className="font-mono text-[9px] text-zinc-600"
+                      className="font-mono text-[9px] text-zinc-500"
                       title={`heartbeat: ${job.last_heartbeat_at ?? "—"}`}
                     >
                       lease {leaseLabel(job.lease_expires_at)}

@@ -430,7 +430,7 @@ export function IntegrationsPage() {
                 className={cn(inputClass, "h-8 text-[11px]")}
               />
             </div>
-            <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[9px] leading-relaxed text-zinc-600">
+            <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[9px] leading-relaxed text-zinc-500">
               Gmail: use uma App Password. Porta 587 usa STARTTLS; porta 465 usa TLS
               implícito. O teste sem destinatário valida apenas a conexão.
             </p>
@@ -507,7 +507,7 @@ export function IntegrationsPage() {
                 {googleMessage}
               </p>
             ) : null}
-            <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[9px] leading-relaxed text-zinc-600">
+            <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[9px] leading-relaxed text-zinc-500">
               No Google Cloud, crie um OAuth client do tipo <span className="font-mono">Desktop app</span>{" "}
               e adicione <span className="font-mono">{google?.callback_url ?? googleConfig?.callback_url ?? "http://127.0.0.1:53682/callback"}</span>{" "}
               como redirect URI autorizado. O escopo de Drive é <span className="font-mono">drive.file</span>.
@@ -572,10 +572,10 @@ export function IntegrationsPage() {
                     {delivery.status}
                   </Badge>
                   <span className="font-mono text-[10px] text-zinc-300">{delivery.channel}</span>
-                  <span className="min-w-0 flex-1 truncate font-mono text-[9px] text-zinc-600">
+                  <span className="min-w-0 flex-1 truncate font-mono text-[9px] text-zinc-500">
                     {delivery.idempotency_key}
                   </span>
-                  <span className="font-mono text-[9px] text-zinc-600">
+                  <span className="font-mono text-[9px] text-zinc-500">
                     {delivery.attempts} tentativa(s) · {relativeTime(delivery.updated_at)}
                   </span>
                   {delivery.status === "FAILED" ? (
@@ -632,7 +632,7 @@ export function IntegrationsPage() {
               >
                 <service.icon size={15} className="text-zinc-500" />
                 <p className="mt-2 text-[11px] font-medium text-zinc-300">{service.title}</p>
-                <p className="mt-1 text-[9px] leading-relaxed text-zinc-600">
+                <p className="mt-1 text-[9px] leading-relaxed text-zinc-500">
                   {service.description}
                 </p>
               </div>

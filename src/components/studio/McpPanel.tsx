@@ -158,9 +158,9 @@ export function McpPanel({
     <div className="flex min-h-0 flex-1 overflow-hidden">
       <StudioList title="MCP servers" count={servers.length} onNew={startNew} newLabel="Novo servidor">
         {loading && servers.length === 0 ? (
-          <p className="px-3 py-6 text-center text-[10px] text-zinc-600">Carregando…</p>
+          <p className="px-3 py-6 text-center text-[10px] text-zinc-500">Carregando…</p>
         ) : servers.length === 0 ? (
-          <p className="px-3 py-6 text-center text-[10px] text-zinc-600">
+          <p className="px-3 py-6 text-center text-[10px] text-zinc-500">
             Nenhum servidor MCP no <span className="font-mono">opencode.jsonc</span>.
           </p>
         ) : (
@@ -203,7 +203,7 @@ export function McpPanel({
                 </h2>
                 <Badge variant="purple">mcp.servers</Badge>
               </div>
-              <p className="mt-0.5 font-mono text-[9px] text-zinc-600">
+              <p className="mt-0.5 font-mono text-[9px] text-zinc-500">
                 {document?.path ?? "opencode.jsonc"}
               </p>
             </div>
@@ -228,7 +228,7 @@ export function McpPanel({
               onChange={(event) => setName(event.target.value)}
               placeholder="google-workspace"
               className={cn(
-                "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60 disabled:opacity-60",
+                "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60 disabled:opacity-60",
               )}
             />
           </StudioField>
@@ -247,7 +247,7 @@ export function McpPanel({
           </StudioField>
 
           {document ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 font-mono text-[9px] text-zinc-600">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 font-mono text-[9px] text-zinc-500">
               <span>{document.exists ? "arquivo existente" : "arquivo será criado"}</span>
               <span>·</span>
               <span>sha256 {document.sha256 ? `${document.sha256.slice(0, 12)}…` : "—"}</span>

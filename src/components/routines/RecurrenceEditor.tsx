@@ -173,7 +173,7 @@ export function RecurrenceEditor({
       <div className="rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="blue">{preview?.human ?? "calculando…"}</Badge>
-          <span className="font-mono text-[9px] text-zinc-600">
+          <span className="font-mono text-[9px] text-zinc-500">
             {preview?.cron_expression ?? ""}
           </span>
         </div>

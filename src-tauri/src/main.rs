@@ -18,6 +18,10 @@ fn main() {
         )
     }) {
         opendesk_lib::run_cli(cli_args);
+    } else if cli_args.first().is_some_and(|argument| {
+        argument == "keygen-update" || argument == "sign-update" || argument == "verify-update"
+    }) {
+        opendesk_lib::run_update_signing(cli_args);
     } else if std::env::args().any(|argument| argument == "doctor") {
         let json = std::env::args().any(|argument| argument == "--json");
         let fix_daemons = std::env::args().any(|argument| argument == "--fix-daemons");

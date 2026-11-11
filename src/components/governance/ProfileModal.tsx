@@ -153,7 +153,7 @@ export function ProfileModal({
               <p className="text-[10px] font-medium text-zinc-300">
                 Heartbeat autônomo
               </p>
-              <p className="text-[9px] text-zinc-600">
+              <p className="text-[9px] text-zinc-500">
                 Cria uma tarefa de revisão de metas no intervalo, respeitando
                 budget e quota.
               </p>
@@ -176,7 +176,7 @@ export function ProfileModal({
             />
           </label>
           {existing?.last_heartbeat_at ? (
-            <p className="text-[9px] text-zinc-600">
+            <p className="text-[9px] text-zinc-500">
               Último heartbeat {relativeTime(existing.last_heartbeat_at)}
               {existing.next_heartbeat_at
                 ? ` · próximo ${new Date(existing.next_heartbeat_at).toLocaleString("pt-BR")}`

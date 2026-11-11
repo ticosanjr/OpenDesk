@@ -146,7 +146,7 @@ export function TaskCard({
           <span
             title="Arrastar tarefa"
             onClick={(event) => event.stopPropagation()}
-            className="mt-0.5 cursor-grab text-zinc-600 active:cursor-grabbing"
+            className="mt-0.5 cursor-grab text-zinc-500 active:cursor-grabbing"
           >
             <GripVertical size={12} />
           </span>
@@ -200,7 +200,7 @@ export function TaskCard({
               <span className="truncate">{task.last_run_status}</span>
             </span>
           ) : (
-            <span className="truncate font-mono text-[9px] text-zinc-600">
+            <span className="truncate font-mono text-[9px] text-zinc-500">
               sem execução
             </span>
           )}

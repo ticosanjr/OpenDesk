@@ -414,12 +414,12 @@ export function PacksPage() {
             </button>
           ))}
           <div className="ml-auto flex h-8 min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5 sm:max-w-md">
-            <Search size={13} className="shrink-0 text-zinc-600" />
+            <Search size={13} className="shrink-0 text-zinc-500" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Buscar nos workspaces, pacotes e capacidades externas…"
-              className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
+              className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-500"
             />
           </div>
         </div>
@@ -558,7 +558,7 @@ export function PacksPage() {
                   <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-zinc-500">
                     {pack.description}
                   </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-1 text-[9px] text-zinc-600">
+                  <div className="mt-2 flex flex-wrap items-center gap-1 text-[9px] text-zinc-500">
                     <span>{pack.counts.agents} agentes</span>
                     <span>·</span>
                     <span>{pack.counts.recipes} receitas</span>
@@ -586,7 +586,7 @@ export function PacksPage() {
                     </div>
                   ) : null}
                 </div>
-                <Package size={15} className="shrink-0 text-zinc-600" />
+                <Package size={15} className="shrink-0 text-zinc-500" />
               </div>
             </button>
           ))}
@@ -639,7 +639,7 @@ export function PacksPage() {
         onClose={() => setTemplateOpen(null)}
       />
 
-      <p className="flex items-center gap-1.5 text-[10px] text-zinc-600">
+      <p className="flex items-center gap-1.5 text-[10px] text-zinc-500">
         <CheckCircle2 size={11} />
         O pacote Controle OpenDesk é instalado automaticamente em novos workspaces;
         os demais são opcionais. Remover um pacote não apaga arquivos que você
@@ -677,11 +677,11 @@ function TemplateCard({
       <p className="mt-1 text-[10px] leading-snug text-zinc-500">
         {template.description}
       </p>
-      <p className="mt-2 text-[10px] text-zinc-600">
+      <p className="mt-2 text-[10px] text-zinc-500">
         {template.packs.length} pacotes · {template.folders.length} pastas
         {action ? ` · ${action}` : ""}
       </p>
-      <p className="mt-1 truncate font-mono text-[8px] text-zinc-700">
+      <p className="mt-1 truncate font-mono text-[8px] text-zinc-500">
         {template.packs.slice(0, 4).join(" · ")}
         {template.packs.length > 4 ? ` +${template.packs.length - 4}` : ""}
       </p>

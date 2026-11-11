@@ -201,7 +201,7 @@ export function ImportGoogleModal({
                 <span className="min-w-0 flex-1 truncate text-[11px] text-zinc-200">
                   {source.name}
                 </span>
-                <span className="text-[9px] text-zinc-600">
+                <span className="text-[9px] text-zinc-500">
                   {source.last_synced_at
                     ? `sincronizado ${new Date(source.last_synced_at).toLocaleString("pt-BR")}`
                     : "nunca sincronizado"}

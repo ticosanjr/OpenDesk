@@ -234,16 +234,16 @@ export function ArtifactsPage() {
           <CardTitle>Explorador de proveniência</CardTitle>
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-              <Search size={13} className="text-zinc-600" />
+              <Search size={13} className="text-zinc-500" />
               <input
                 value={agentFilter}
                 onChange={(event) => setAgentFilter(event.target.value)}
                 placeholder="Filtrar por agente (@build, @auditor…)"
-                className="h-full flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
+                className="h-full flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-500"
               />
             </div>
             <div className="flex h-8 items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-              <Filter size={12} className="text-zinc-600" />
+              <Filter size={12} className="text-zinc-500" />
               <select
                 value={actionFilter}
                 onChange={(event) => setActionFilter(event.target.value)}
@@ -287,7 +287,7 @@ export function ArtifactsPage() {
           ) : (
             <div className="scroll-area max-h-[calc(100dvh-18rem)] overflow-auto">
               <table className="w-full text-left">
-                <thead className="border-b border-zinc-800/70 text-[9px] uppercase tracking-[0.12em] text-zinc-600">
+                <thead className="border-b border-zinc-800/70 text-[9px] uppercase tracking-[0.12em] text-zinc-500">
                   <tr>
                     <th className="px-4 py-2.5 font-medium">Arquivo</th>
                     <th className="px-3 py-2.5 font-medium">Agente</th>
@@ -316,16 +316,16 @@ export function ArtifactsPage() {
                               event.stopPropagation();
                               void togglePin(artifact);
                             }}
-                            className={artifact.pinned ? "text-amber-300" : "text-zinc-700 hover:text-amber-300"}
+                            className={artifact.pinned ? "text-amber-300" : "text-zinc-500 hover:text-amber-300"}
                           >
                             <Star size={13} fill={artifact.pinned ? "currentColor" : "none"} />
                           </button>
-                          <FileText size={13} className="shrink-0 text-zinc-600" />
+                          <FileText size={13} className="shrink-0 text-zinc-500" />
                           <div className="min-w-0">
                             <p className="truncate font-mono text-[10px] text-zinc-200">
                               {artifact.file_path}
                             </p>
-                            <p className="font-mono text-[8px] text-zinc-600">
+                            <p className="font-mono text-[8px] text-zinc-500">
                               {formatNumber(artifact.file_size_bytes)} bytes ·{" "}
                               {artifact.file_type || "file"}
                             </p>
@@ -341,7 +341,7 @@ export function ArtifactsPage() {
                         </p>
                       </td>
                       <td className="px-3 py-2.5">
-                        <span className="font-mono text-[9px] text-zinc-600">
+                        <span className="font-mono text-[9px] text-zinc-500">
                           {relativeTime(artifact.created_at)}
                         </span>
                       </td>
@@ -366,7 +366,7 @@ export function ArtifactsPage() {
                           {!artifact.google_doc_url &&
                           !artifact.google_drive_url &&
                           !artifact.emailed_to ? (
-                            <span className="text-[9px] text-zinc-700">—</span>
+                            <span className="text-[9px] text-zinc-500">—</span>
                           ) : null}
                         </div>
                       </td>
@@ -400,7 +400,7 @@ export function ArtifactsPage() {
                 <p className="truncate font-mono text-[11px] text-zinc-200">
                   {selected.file_path}
                 </p>
-                <p className="mt-0.5 truncate font-mono text-[9px] text-zinc-600">
+                <p className="mt-0.5 truncate font-mono text-[9px] text-zinc-500">
                   {shortPath(selected.absolute_path, 90)}
                 </p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -522,7 +522,7 @@ export function ArtifactsPage() {
                     onOpenExternal={() => void reveal(selected.absolute_path)}
                   />
                 ) : (
-                  <p className="p-4 text-[11px] text-zinc-600">
+                  <p className="p-4 text-[11px] text-zinc-500">
                     {loading ? "Carregando visualizador…" : "Sem prévia para este artefato."}
                   </p>
                 )

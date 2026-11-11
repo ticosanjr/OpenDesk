@@ -128,7 +128,7 @@ export function PackInstallModal({
                         : "rounded-md px-2 py-1 text-[10px] text-zinc-500 hover:text-zinc-200"
                     }
                   >
-                    {kind.label} <span className="font-mono text-zinc-600">{count}</span>
+                    {kind.label} <span className="font-mono text-zinc-500">{count}</span>
                   </button>
                 );
               })}
@@ -137,7 +137,7 @@ export function PackInstallModal({
               {itemsLoading ? (
                 <LoadingState compact label="Carregando itens…" />
               ) : visibleItems.length === 0 ? (
-                <p className="p-2 text-[10px] text-zinc-600">Nenhum item neste tipo.</p>
+                <p className="p-2 text-[10px] text-zinc-500">Nenhum item neste tipo.</p>
               ) : (
                 visibleItems.map((item) => (
                   <details
@@ -170,7 +170,7 @@ export function PackInstallModal({
                       {item.content}
                     </pre>
                     {item.files.length > 0 ? (
-                      <p className="mt-1 font-mono text-[8px] text-zinc-600">
+                      <p className="mt-1 font-mono text-[8px] text-zinc-500">
                         Arquivos: {item.files.join(", ")}
                       </p>
                     ) : null}

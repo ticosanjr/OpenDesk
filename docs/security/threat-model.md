@@ -33,15 +33,15 @@
 | Vazamento de prompts/segredos em logs | evidência truncada, sem prompts completos no aprendizado | logs de run ainda podem conter conteúdo |
 | Custo descontrolado | budget por workspace/agente, quota, HITL | alerta proativo em 80/100% |
 | Agente age no navegador real | abas isoladas, handoff para login/2FA, sem armazenar cookies | auditoria de sessões no OpenDesk |
-| Update malicioso | checksum do release | sem assinatura criptográfica |
+| Update malicioso | assinatura Ed25519 do `latest.json` + SHA-256 do asset; chave privada offline | rotação de chave exige release intermediário |
 
 ## Recomendações prioritárias
 
-1. Rate limit e limite de corpo por rota na API local.
-2. Auditoria de chamadas sensíveis: restore, MCP, browser, credenciais.
+1. ~~Rate limit e limite de corpo por rota na API local~~ — implementados.
+2. ~~Auditoria de chamadas sensíveis~~ — implementada; ampliar filtros por cliente/MCP.
 3. Allowlist de domínios obrigatória para tarefas `needs-browser` de alto risco.
 4. Sandbox/quarentena para MCPs e packs antes de habilitar.
 5. Criptografia em repouso para workspaces sensíveis e retenção configurável.
-6. Assinatura de updates e verificação no cliente.
+6. ~~Assinatura de updates~~ — implementada em 0.43.0 (ADR 0045).
 7. Testes de abuso: zip bomb, symlink, token vazado, prompt injection,
    ferramenta MCP destrutiva.

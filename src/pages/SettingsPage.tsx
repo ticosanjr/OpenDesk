@@ -190,7 +190,7 @@ export function SettingsPage() {
               <div className="relative min-w-0 flex-1">
                 <FolderOpen
                   size={15}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
                 />
                 <input
                   value={root}
@@ -200,7 +200,7 @@ export function SettingsPage() {
                   }}
                   placeholder="~/Documents/OpenDesk Workareas"
                   className={cn(
-                    "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 pl-9 pr-3 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60",
+                    "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 pl-9 pr-3 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60",
                     loading && "opacity-60",
                   )}
                 />
@@ -223,7 +223,7 @@ export function SettingsPage() {
                 <ExternalLink size={12} />
                 Abrir pasta
               </Button>
-              <p className="text-[9px] text-zinc-600">
+              <p className="text-[9px] text-zinc-500">
                 A pasta é criada automaticamente se não existir.
               </p>
             </div>
@@ -324,7 +324,7 @@ export function SettingsPage() {
                         </p>
                         {active ? <Badge variant="blue">ativo</Badge> : null}
                       </div>
-                      <p className="truncate font-mono text-[9px] text-zinc-600">
+                      <p className="truncate font-mono text-[9px] text-zinc-500">
                         {shortPath(workspace.root_path, 80)}
                       </p>
                     </div>

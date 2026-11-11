@@ -50,11 +50,14 @@ mudança for estrutural ou ambígua.
 
 ## Fluxo para rotinas
 
-1. Prefira `recurrence` com `frequency`, `time` e, se preciso, `weekdays`.
-2. `routine_create` sempre cria pausada.
-3. Valide com `routine_run` e `dry_run=true`.
-4. Só ative com pedido explícito: `routine_set_active`.
-5. Para desligar, use a mesma ferramenta com `active=false`.
+1. Para CRON, prefira `recurrence` com `frequency`, `time` e, se preciso,
+   `weekdays`.
+2. Para FOLDER_WATCH, RSYNC_FOLDER, IMAP_IDLE, SIGNAL_MSG, WEBHOOK ou SQL_POLL,
+   use `trigger_type` + `trigger_config`.
+3. `routine_create` sempre cria pausada.
+4. Valide com `routine_run` e `dry_run=true`.
+5. Só ative com pedido explícito: `routine_set_active`.
+6. Para desligar, use a mesma ferramenta com `active=false`.
 
 ## Fluxo para receitas
 

@@ -25,6 +25,17 @@ test("new routines and recipes start disabled until explicitly activated", async
     page.getByRole("switch", { name: "Ativar rotina Rotina desligada" }),
   ).toBeVisible();
 
+  // Activation is explicit and can be cancelled.
+  await page
+    .getByRole("switch", { name: "Ativar rotina Rotina desligada" })
+    .click();
+  const activation = page.getByRole("dialog");
+  await expect(activation).toBeVisible();
+  await activation.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(
+    page.getByRole("switch", { name: "Ativar rotina Rotina desligada" }),
+  ).toBeVisible();
+
   const schedules = (await (
     await request.get(`${auth.baseURL}/api/schedules?workspace_id=${workspace.id}`, {
       headers: auth.headers,

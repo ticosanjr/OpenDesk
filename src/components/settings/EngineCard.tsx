@@ -331,7 +331,7 @@ export function EngineCard() {
             value={manualPath}
             onChange={(event) => setManualPath(event.target.value)}
             placeholder="/home/usuario/.opencode/bin/opencode"
-            className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60"
+            className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
           />
           <div className="flex flex-wrap gap-2">
             <Button
@@ -425,7 +425,7 @@ export function EngineCard() {
 
         <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="flex-1 text-[10px] uppercase tracking-wide text-zinc-600">
+            <p className="flex-1 text-[10px] uppercase tracking-wide text-zinc-500">
               modelos em cooldown (24h)
             </p>
             {modelHealth.length > 0 ? (
@@ -439,7 +439,7 @@ export function EngineCard() {
             ) : null}
           </div>
           {modelHealth.length === 0 ? (
-            <p className="mt-1 text-[10px] text-zinc-600">
+            <p className="mt-1 text-[10px] text-zinc-500">
               Nenhum modelo bloqueado por região/auth recentemente.
             </p>
           ) : (
@@ -453,7 +453,7 @@ export function EngineCard() {
                     {item.provider_id}/{item.model_id}
                   </span>
                   <Badge variant="red">{item.code}</Badge>
-                  <span className="text-zinc-600">{item.failures}x</span>
+                  <span className="text-zinc-500">{item.failures}x</span>
                   <button
                     type="button"
                     className="text-[9px] text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline"

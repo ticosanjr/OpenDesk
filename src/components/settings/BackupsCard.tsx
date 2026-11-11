@@ -244,7 +244,7 @@ export function BackupsCard() {
             <Badge variant="default">{workspace?.name}</Badge>
             <span>{backups.length} backup(s)</span>
             {defaultsRoot ? (
-              <span className="font-mono text-zinc-600">destino padrão: {defaultsRoot}</span>
+              <span className="font-mono text-zinc-500">destino padrão: {defaultsRoot}</span>
             ) : null}
           </div>
           {loading && backups.length === 0 ? (
@@ -270,7 +270,7 @@ export function BackupsCard() {
                       <Badge variant="blue">{megabytes(backup.size_bytes)}</Badge>
                       <Badge variant="default">{backup.files} arquivos</Badge>
                     </div>
-                    <p className="mt-0.5 text-[9px] text-zinc-600">
+                    <p className="mt-0.5 text-[9px] text-zinc-500">
                       {relativeTime(backup.created_at)} · SHA-256{" "}
                       <span className="font-mono">{backup.sha256.slice(0, 12)}…</span>
                     </p>

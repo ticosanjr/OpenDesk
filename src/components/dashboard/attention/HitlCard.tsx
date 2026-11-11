@@ -54,11 +54,11 @@ export function HitlCard({
             <span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-amber-300">
               {hitlTypeLabel(request.interaction_type)}
             </span>
-            <span className="font-mono text-[9px] text-zinc-600">
+            <span className="font-mono text-[9px] text-zinc-500">
               {request.checkpoint_id}
             </span>
           </div>
-          <p className="mt-0.5 text-[9px] text-zinc-600">
+          <p className="mt-0.5 text-[9px] text-zinc-500">
             {expiry ? `expira em ${expiry}` : "sem prazo informado"}
           </p>
         </div>
@@ -127,7 +127,7 @@ export function HitlCard({
             onChange={(event) => onFeedbackText(event.target.value)}
             rows={3}
             placeholder="Explique o que deve ser ajustado antes de refazer esta etapa."
-            className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950/60 px-2.5 py-2 text-[11px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-amber-500/50"
+            className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950/60 px-2.5 py-2 text-[11px] text-zinc-200 outline-none placeholder:text-zinc-500 focus:border-amber-500/50"
             aria-label="Ajustes solicitados"
           />
           <div className="flex justify-end gap-1.5">

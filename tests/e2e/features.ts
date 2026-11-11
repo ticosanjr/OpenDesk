@@ -78,6 +78,7 @@ export const FEATURES: FeatureEntry[] = [
   { id: "security.audit", area: "Segurança", spec: "audit-ui.spec.ts", test: "sensitive API calls" },
   { id: "security.proposals", area: "Segurança", spec: "proposals.spec.ts", test: "agent configuration proposals" },
   { id: "security.webhook", area: "Segurança", spec: "io-bus.spec.ts", test: "signed webhook" },
+  { id: "security.browse-allowlist", area: "Segurança", spec: "browse-ui.spec.ts", test: "browse integration activates and marks web tasks" },
 
   { id: "integrations.smtp", area: "Integrações", spec: "integrations-ui.spec.ts", test: "SMTP setup tests" },
   { id: "integrations.browse", area: "Integrações", spec: "browse-ui.spec.ts", test: "browse integration activates" },
@@ -86,6 +87,7 @@ export const FEATURES: FeatureEntry[] = [
   { id: "models.ref", area: "Modelos", spec: "model-ref.spec.ts", test: "model references" },
   { id: "ui.modals", area: "UI", spec: "ui-audit.spec.ts", test: "key modals" },
   { id: "ui.modal.focus", area: "UI", spec: "modal-focus.spec.ts", test: "typing in a modal keeps focus" },
+  { id: "ui.a11y", area: "UI", spec: "a11y.spec.ts", test: "main routes and the task modal" },
   { id: "ui.routes", area: "UI", spec: "ui-audit.spec.ts", test: "all main routes" },
   { id: "ui.scroll", area: "UI", spec: "scroll.spec.ts", test: "every route scrolls" },
   { id: "ui.geometry", area: "UI", spec: "cards.spec.ts", test: "task, routine and attention cards" },

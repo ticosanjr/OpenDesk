@@ -70,7 +70,7 @@ export function CostMixCard() {
             </span>
           ))}
         </div>
-        <p className="text-[10px] text-zinc-600">
+        <p className="text-[10px] text-zinc-500">
           Gasto real {formatUsd(data.total_cost_usd)} · baseline no modelo mais caro{" "}
           {formatUsd(data.baseline_cost_usd)} · cache hit{" "}
           {(data.cache_ratio * 100).toFixed(1)}% ({formatNumber(data.cache_read)} tokens)

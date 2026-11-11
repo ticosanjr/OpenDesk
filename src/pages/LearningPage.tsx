@@ -531,7 +531,7 @@ function StatCard({
           <span className="text-[9px] uppercase tracking-[0.12em]">{label}</span>
         </div>
         <p className="mt-1 font-mono text-lg text-zinc-100">{value}</p>
-        <p className="text-[9px] text-zinc-600">{hint}</p>
+        <p className="text-[9px] text-zinc-500">{hint}</p>
       </CardContent>
     </Card>
   );
@@ -554,7 +554,7 @@ function SettingToggle({
     <div className="flex items-start justify-between gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-2.5 py-2">
       <div className="min-w-0">
         <p className="text-[10px] font-medium text-zinc-300">{label}</p>
-        <p className="mt-0.5 text-[9px] leading-snug text-zinc-600">
+        <p className="mt-0.5 text-[9px] leading-snug text-zinc-500">
           {description}
         </p>
       </div>
@@ -611,11 +611,11 @@ function LessonCard({
               <Badge variant="default">
                 {lessonCategoryLabel(lesson.category)}
               </Badge>
-              <span className="font-mono text-[9px] text-zinc-600">
+              <span className="font-mono text-[9px] text-zinc-500">
                 {occurrencesLabel(lesson.occurrences)}
               </span>
               {promotable && !ready ? (
-                <span className="text-[9px] text-zinc-600">
+                <span className="text-[9px] text-zinc-500">
                   abaixo do mínimo
                 </span>
               ) : null}
@@ -623,7 +623,7 @@ function LessonCard({
             <p className="mt-1 whitespace-pre-line text-[10px] leading-relaxed text-zinc-500 line-clamp-3">
               {lesson.detail}
             </p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[9px] text-zinc-600">
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[9px] text-zinc-500">
               <span>
                 {lesson.agent_name ?? "router"}
                 {lesson.model_id ? ` · ${lesson.model_id}` : ""}

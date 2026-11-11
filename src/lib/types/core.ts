@@ -29,6 +29,8 @@ export interface DashboardStats {
   queue_running: number;
   queue_waiting: number;
   artifacts_total: number;
+  active_routines: number;
+  enabled_recipes: number;
 }
 
 export interface QueueJob {

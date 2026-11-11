@@ -230,7 +230,7 @@ export function ResultCard({
         <span className="font-mono text-[10px] text-zinc-500">
           {formatDuration(durationMs)}
         </span>
-        <span className="font-mono text-[10px] text-zinc-600">
+        <span className="font-mono text-[10px] text-zinc-500">
           {formatClock(startedAt)} → {formatClock(endedAt)}
         </span>
         <Button
@@ -316,10 +316,10 @@ export function Band({
         <span className="font-mono text-[9px] text-zinc-500">
           {formatDuration(durationMs)}
         </span>
-        <span className="hidden font-mono text-[9px] text-zinc-600 sm:inline">
+        <span className="hidden font-mono text-[9px] text-zinc-500 sm:inline">
           {formatClock(startedAt)} → {formatClock(endedAt)}
         </span>
-        <span className="min-w-0 flex-1 truncate text-right text-[9px] text-zinc-600">
+        <span className="min-w-0 flex-1 truncate text-right text-[9px] text-zinc-500">
           {summary}
         </span>
       </button>
@@ -356,7 +356,7 @@ export function ToolRow({
         )}
         <span className="font-mono text-[10px] text-zinc-200">{tool.summary}</span>
         <Badge variant={failed ? "red" : "green"}>{tool.status}</Badge>
-        <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[9px] text-zinc-600">
+        <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[9px] text-zinc-500">
           <Clock3 size={9} />
           {formatClock(tool.started_at)}
           <span>{formatDuration(tool.duration_ms)}</span>
@@ -371,12 +371,12 @@ export function ToolRow({
                 abrir {path.split("/").pop()}
               </EntityLink>
             ) : null}
-            <span className="font-mono text-[9px] text-zinc-600">
+            <span className="font-mono text-[9px] text-zinc-500">
               {formatClock(tool.started_at)} → {formatClock(tool.ended_at)}
             </span>
           </div>
           <div>
-            <p className="mb-1 font-mono text-[8px] uppercase tracking-wide text-zinc-600">
+            <p className="mb-1 font-mono text-[8px] uppercase tracking-wide text-zinc-500">
               entrada
             </p>
             <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded border border-zinc-800/60 bg-zinc-950 p-2 font-mono text-[9px] text-zinc-400">
@@ -384,7 +384,7 @@ export function ToolRow({
             </pre>
           </div>
           <div>
-            <p className="mb-1 font-mono text-[8px] uppercase tracking-wide text-zinc-600">
+            <p className="mb-1 font-mono text-[8px] uppercase tracking-wide text-zinc-500">
               saída
             </p>
             <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-zinc-800/60 bg-zinc-950 p-2 font-mono text-[9px] text-zinc-400">

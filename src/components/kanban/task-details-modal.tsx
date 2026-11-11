@@ -71,8 +71,11 @@ export function TaskDetailsModal({
   const [savingSinks, setSavingSinks] = useState(false);
   const daemon = useAppStore((state) => state.daemon);
 
+  const taskId = task?.id;
+  const taskWorkspaceId = task?.workspace_id;
+
   useEffect(() => {
-    if (!task) {
+    if (!taskId || !taskWorkspaceId) {
       setSinks([]);
       setSelectedSinks(new Set());
       return;
@@ -80,10 +83,10 @@ export function TaskDetailsModal({
     let cancelled = false;
     void Promise.all([
       apiGet<{ sinks: OutboundSink[] }>(
-        `/api/io/outbound?workspace_id=${encodeURIComponent(task.workspace_id)}`,
+        `/api/io/outbound?workspace_id=${encodeURIComponent(taskWorkspaceId)}`,
       ),
       apiGet<{ bindings: Array<{ sink_id: string }> }>(
-        `/api/tasks/${task.id}/sinks`,
+        `/api/tasks/${taskId}/sinks`,
       ),
     ])
       .then(([sinkList, bindings]) => {
@@ -100,7 +103,7 @@ export function TaskDetailsModal({
     return () => {
       cancelled = true;
     };
-  }, [task?.id]);
+  }, [taskId, taskWorkspaceId]);
 
   async function saveSinks() {
     if (!task) return;
@@ -429,7 +432,7 @@ export function TaskDetailsModal({
                       {run.agent_name} · {formatUsd(run.estimated_cost_usd)} ·{" "}
                       {Math.round(run.duration_ms / 1000)}s
                     </span>
-                    <span className="ml-auto text-zinc-600">
+                    <span className="ml-auto text-zinc-500">
                       {relativeTime(run.started_at)}
                     </span>
                     {run.error_message ? (
@@ -622,7 +625,7 @@ export function LogDrawer({
             <p className="truncate text-[12px] font-medium text-zinc-200">
               {task.title}
             </p>
-            <p className="font-mono text-[9px] text-zinc-600">
+            <p className="font-mono text-[9px] text-zinc-500">
               {STATUS_LABEL[task.status] ?? task.status} · {task.phase_status ?? "sem fase"}
             </p>
           </div>
@@ -644,11 +647,11 @@ export function LogDrawer({
         <div className="flex min-h-0 flex-1">
           <div className="w-56 shrink-0 overflow-y-auto border-r border-zinc-800/70 p-2">
             {loading && runs.length === 0 ? (
-              <p className="p-2 text-[10px] text-zinc-600">Carregando…</p>
+              <p className="p-2 text-[10px] text-zinc-500">Carregando…</p>
             ) : error ? (
               <p className="p-2 text-[10px] text-red-300">{error}</p>
             ) : runs.length === 0 ? (
-              <p className="p-2 text-[10px] text-zinc-600">Nenhum run.</p>
+              <p className="p-2 text-[10px] text-zinc-500">Nenhum run.</p>
             ) : (
               runs.map((run) => (
                 <button
@@ -668,7 +671,7 @@ export function LogDrawer({
                     </p>
                     <Badge variant={runVariant(run.status)}>{run.status}</Badge>
                   </div>
-                  <p className="font-mono text-[8px] text-zinc-600">
+                  <p className="font-mono text-[8px] text-zinc-500">
                     {formatUsd(run.estimated_cost_usd)} · {relativeTime(run.started_at)}
                   </p>
                   {run.error_message ? (
@@ -698,7 +701,6 @@ export function LogDrawer({
   );
 }
 
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
 const labelClass =
   "mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500";
 

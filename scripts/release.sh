@@ -23,6 +23,8 @@ for argument in "$@"; do
 done
 
 if [[ "$SKIP_GATE" != "1" ]]; then
+  echo "==> Production dependency audit"
+  npm run audit:prod
   echo "==> Running the local release gate"
   "$ROOT/scripts/gate.sh"
 else
@@ -59,7 +61,7 @@ const notesFile = process.argv[4];
 const notes = fs.existsSync(notesFile)
   ? fs.readFileSync(notesFile, "utf8").trim()
   : `OpenDesk v${version}`;
-const ignored = new Set(["manifest.json", "SHA256SUMS", "latest.json"]);
+const ignored = new Set(["manifest.json", "SHA256SUMS", "latest.json", "latest.json.sig"]);
 const artifacts = fs
   .readdirSync(dest)
   .filter((file) => !ignored.has(file))
@@ -101,6 +103,19 @@ fs.writeFileSync(
   `${JSON.stringify(latest, null, 2)}\n`,
 );
 NODE
+
+echo "==> Signing update manifest"
+SIGNER="$ROOT/src-tauri/target/release/opendesk"
+if [[ ! -x "$SIGNER" ]]; then
+  echo "release: binário $SIGNER ausente; não é possível assinar latest.json" >&2
+  exit 1
+fi
+SIGN_ARGS=("$DEST/latest.json" "$DEST/latest.json.sig")
+if [[ -n "${OPENDESK_UPDATE_SIGNING_KEY:-}" ]]; then
+  SIGN_ARGS+=(--key "$OPENDESK_UPDATE_SIGNING_KEY")
+fi
+"$SIGNER" sign-update "${SIGN_ARGS[@]}"
+"$SIGNER" verify-update "$DEST/latest.json" "$DEST/latest.json.sig"
 
 (
   cd "$DEST"

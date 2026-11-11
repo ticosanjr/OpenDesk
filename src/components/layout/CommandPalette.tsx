@@ -125,9 +125,9 @@ export function CommandPalette() {
           <Command.Input
             autoFocus
             placeholder="Ir para, criar workspace ou reiniciar o engine…"
-            className="h-11 flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-600"
+            className="h-11 flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
           />
-          <span className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 font-mono text-[9px] text-zinc-600">
+          <span className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 font-mono text-[9px] text-zinc-500">
             ESC
           </span>
         </div>
@@ -139,7 +139,7 @@ export function CommandPalette() {
 
           <Command.Group
             heading="Navegação"
-            className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-600"
+            className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500"
           >
             {NAV_ITEMS.map((item) => {
               const Icon = icons[item.to as keyof typeof icons] ?? Gauge;
@@ -163,7 +163,7 @@ export function CommandPalette() {
           {tasks.length > 0 ? (
             <Command.Group
               heading="Tarefas"
-              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-600"
+              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500"
             >
               {tasks.slice(0, 12).map((task) => (
                 <Command.Item
@@ -176,7 +176,7 @@ export function CommandPalette() {
                 >
                   <KanbanSquare size={14} className="shrink-0 text-zinc-500" />
                   <span className="min-w-0 flex-1 truncate">{task.title}</span>
-                  <span className="shrink-0 font-mono text-[9px] text-zinc-600">
+                  <span className="shrink-0 font-mono text-[9px] text-zinc-500">
                     {task.status}
                   </span>
                 </Command.Item>
@@ -187,7 +187,7 @@ export function CommandPalette() {
           {runs.length > 0 ? (
             <Command.Group
               heading="Execuções"
-              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-600"
+              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500"
             >
               {runs.slice(0, 10).map((item) => (
                 <Command.Item
@@ -202,7 +202,7 @@ export function CommandPalette() {
                   <span className="min-w-0 flex-1 truncate">
                     {item.task_title ?? item.agent_name}
                   </span>
-                  <span className="shrink-0 font-mono text-[9px] text-zinc-600">
+                  <span className="shrink-0 font-mono text-[9px] text-zinc-500">
                     {item.status}
                   </span>
                 </Command.Item>
@@ -213,7 +213,7 @@ export function CommandPalette() {
           {schedules.length > 0 ? (
             <Command.Group
               heading="Rotinas"
-              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-600"
+              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500"
             >
               {schedules.slice(0, 10).map((schedule) => (
                 <Command.Item
@@ -224,7 +224,7 @@ export function CommandPalette() {
                 >
                   <CalendarClock size={14} className="shrink-0 text-zinc-500" />
                   <span className="min-w-0 flex-1 truncate">{schedule.name}</span>
-                  <span className="shrink-0 font-mono text-[9px] text-zinc-600">
+                  <span className="shrink-0 font-mono text-[9px] text-zinc-500">
                     {schedule.is_active ? "ativa" : "pausada"}
                   </span>
                 </Command.Item>
@@ -235,7 +235,7 @@ export function CommandPalette() {
           {artifacts.length > 0 ? (
             <Command.Group
               heading="Artefatos"
-              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-600"
+              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500"
             >
               {artifacts.slice(0, 10).map((artifact) => (
                 <Command.Item
@@ -252,7 +252,7 @@ export function CommandPalette() {
                   <span className="min-w-0 flex-1 truncate font-mono text-[10px]">
                     {artifact.file_path}
                   </span>
-                  <span className="shrink-0 text-[9px] text-zinc-600">
+                  <span className="shrink-0 text-[9px] text-zinc-500">
                     {relativeTime(artifact.created_at)}
                   </span>
                 </Command.Item>
@@ -263,7 +263,7 @@ export function CommandPalette() {
           {agents.length > 0 ? (
             <Command.Group
               heading="Agentes"
-              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-600"
+              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500"
             >
               {agents.slice(0, 10).map((agent) => (
                 <Command.Item
@@ -274,7 +274,7 @@ export function CommandPalette() {
                 >
                   <Wand2 size={14} className="shrink-0 text-zinc-500" />
                   <span className="min-w-0 flex-1 truncate">@{agent.id}</span>
-                  <span className="shrink-0 text-[9px] text-zinc-600">
+                  <span className="shrink-0 text-[9px] text-zinc-500">
                     {agent.name ?? "agente"}
                   </span>
                 </Command.Item>
@@ -284,7 +284,7 @@ export function CommandPalette() {
 
           <Command.Group
             heading="Ações"
-            className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-600"
+            className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500"
           >
             <Command.Item
               value="Nova tarefa"
@@ -336,7 +336,7 @@ export function CommandPalette() {
           </Command.Group>
         </Command.List>
 
-        <div className="flex items-center justify-between border-t border-zinc-800/70 px-3 py-2 font-mono text-[9px] text-zinc-600">
+        <div className="flex items-center justify-between border-t border-zinc-800/70 px-3 py-2 font-mono text-[9px] text-zinc-500">
           <span>↑↓ navegar · ↵ selecionar</span>
           <span>OpenDesk</span>
         </div>

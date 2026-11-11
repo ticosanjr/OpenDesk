@@ -159,7 +159,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspace?.root_path, activeWorkspace?.id, daemon?.online]);
+  }, [activeWorkspace, daemon?.online]);
 
   useEffect(() => {
     if (!activeWorkspace) return;
@@ -179,7 +179,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspace?.id, lastRunEvent?.run_id, lastArtifactEvent]);
+  }, [activeWorkspace, lastRunEvent?.run_id, lastArtifactEvent]);
 
   if (!activeWorkspace) {
     return (
@@ -315,6 +315,28 @@ export function DashboardPage() {
         />
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 px-1 text-[10px] text-zinc-500">
+        <Badge
+          variant={
+            (dashboard?.active_routines ?? 0) + (dashboard?.enabled_recipes ?? 0) > 0
+              ? "yellow"
+              : "default"
+          }
+        >
+          Automações
+        </Badge>
+        <EntityLink to="/routines">
+          {dashboard?.active_routines ?? 0} rotinas ativas
+        </EntityLink>
+        <span>·</span>
+        <EntityLink to="/recipes">
+          {dashboard?.enabled_recipes ?? 0} receitas ativas
+        </EntityLink>
+        <span className="text-zinc-400">
+          Revise gatilhos e custos antes de deixar rodando.
+        </span>
+      </div>
+
       <CostMixCard />
 
       {pinnedArtifacts.length > 0 ? (
@@ -407,7 +429,7 @@ export function DashboardPage() {
                             <p className="truncate text-[12px] font-medium text-zinc-200">
                               {displayName}
                             </p>
-                            <p className="truncate font-mono text-[9px] text-zinc-600">
+                            <p className="truncate font-mono text-[9px] text-zinc-500">
                               @{agent.id}
                             </p>
                           </div>
@@ -419,10 +441,10 @@ export function DashboardPage() {
                           <AgentStateBadge state={agentStates[agent.id]} />
                         </div>
                       </div>
-                      <p className="mt-2 truncate text-[10px] text-zinc-600">
+                      <p className="mt-2 truncate text-[10px] text-zinc-500">
                         {custom?.description || agent.description || "sem descrição"}
                       </p>
-                      <p className="mt-1 truncate font-mono text-[9px] text-zinc-700">
+                      <p className="mt-1 truncate font-mono text-[9px] text-zinc-500">
                         {agent.model
                           ? `${agent.model.providerID}/${agent.model.id}`
                           : "modelo herdado da sessão"}
@@ -494,7 +516,7 @@ export function DashboardPage() {
             ) : (
               <div className="scroll-area overflow-auto">
                 <table className="w-full text-left">
-                  <thead className="border-b border-zinc-800/70 text-[9px] uppercase tracking-[0.12em] text-zinc-600">
+                  <thead className="border-b border-zinc-800/70 text-[9px] uppercase tracking-[0.12em] text-zinc-500">
                     <tr>
                       <th className="pb-2 font-medium">Modelo</th>
                       <th className="pb-2 text-right font-medium">Chamadas</th>
@@ -516,7 +538,7 @@ export function DashboardPage() {
                         <td className="py-2 text-right font-mono text-zinc-400">
                           {formatUsd(model.cost)}
                         </td>
-                        <td className="py-2 text-right font-mono text-zinc-600">
+                        <td className="py-2 text-right font-mono text-zinc-500">
                           {Math.round(model.duration / Math.max(1, model.calls))} ms
                         </td>
                       </tr>
@@ -568,12 +590,12 @@ export function DashboardPage() {
                         <p className="truncate font-mono text-[10px] text-zinc-300">
                           {activity.artifact.file_path}
                         </p>
-                        <p className="truncate text-[9px] text-zinc-600">
+                        <p className="truncate text-[9px] text-zinc-500">
                           @{activity.artifact.created_by_agent} ·{" "}
                           {activity.artifact.creation_reason}
                         </p>
                       </div>
-                      <span className="shrink-0 font-mono text-[8px] text-zinc-600">
+                      <span className="shrink-0 font-mono text-[8px] text-zinc-500">
                         {relativeTime(activity.at)}
                       </span>
                     </button>
@@ -612,7 +634,7 @@ export function DashboardPage() {
                             "truncate font-mono text-[9px]",
                             activity.run.status === "FAILED"
                               ? "text-red-300/80"
-                              : "text-zinc-600",
+                              : "text-zinc-500",
                           )}
                         >
                           {activity.run.status} · {formatUsd(activity.run.estimated_cost_usd)} ·{" "}
@@ -625,7 +647,7 @@ export function DashboardPage() {
                             : ""}
                         </p>
                       </div>
-                      <span className="shrink-0 font-mono text-[8px] text-zinc-600">
+                      <span className="shrink-0 font-mono text-[8px] text-zinc-500">
                         {relativeTime(activity.at)}
                       </span>
                     </button>
@@ -638,9 +660,9 @@ export function DashboardPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/20 px-4 py-3 text-[11px] text-zinc-500">
-        <Gauge size={14} className="text-zinc-600" />
+        <Gauge size={14} className="text-zinc-500" />
         <span className="font-medium text-zinc-300">Workspace</span>
-        <EntityLink to={links.file("")} className="font-mono text-[10px] text-zinc-600">
+        <EntityLink to={links.file("")} className="font-mono text-[10px] text-zinc-500">
           {activeWorkspace.root_path}
         </EntityLink>
         <Badge variant="default">
@@ -648,7 +670,7 @@ export function DashboardPage() {
             activeWorkspace.default_router_policy}
         </Badge>
         <Badge variant="default">{activeWorkspace.timezone}</Badge>
-        <span className="ml-auto font-mono text-[10px] text-zinc-600">
+        <span className="ml-auto font-mono text-[10px] text-zinc-500">
           aberto {relativeTime(activeWorkspace.last_opened_at)}
         </span>
       </div>
@@ -678,13 +700,13 @@ function KpiCard({
           </div>
           {tone === "warning" ? <Badge variant="yellow">atenção</Badge> : null}
         </div>
-        <p className="mt-3 text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-600">
+        <p className="mt-3 text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-500">
           {label}
         </p>
         <p className="mt-1 font-mono text-xl font-medium tracking-tight text-zinc-100">
           {value}
         </p>
-        <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-600">{hint}</p>
+        <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-500">{hint}</p>
       </CardContent>
     </Card>
   );

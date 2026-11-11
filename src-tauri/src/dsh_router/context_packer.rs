@@ -58,7 +58,7 @@ pub fn pack(context: &PackContext<'_>) -> String {
     prompt.push_str("\n\n");
 
     if context.needs_browser {
-        prompt.push_str(crate::browse::instructions());
+        prompt.push_str(&crate::browse::instructions(context.tags));
     }
 
     prompt.push_str("## DIRETÓRIO DE SAÍDA OBRIGATÓRIO\n\n");

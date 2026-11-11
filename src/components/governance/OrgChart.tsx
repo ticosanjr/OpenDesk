@@ -127,7 +127,7 @@ function OrgNode({
                 <p className="text-[12px] font-medium text-zinc-100">
                   {agent.name || agent.id}
                 </p>
-                <span className="font-mono text-[9px] text-zinc-600">
+                <span className="font-mono text-[9px] text-zinc-500">
                   @{agent.id}
                 </span>
                 <Badge variant={agent.scope === "workspace" ? "blue" : "default"}>
@@ -146,7 +146,7 @@ function OrgNode({
               <p className="mt-0.5 line-clamp-1 text-[9px] text-zinc-500">
                 {agent.description || "Sem descrição"}
               </p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[9px] text-zinc-600">
+              <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[9px] text-zinc-500">
                 <span>
                   {perf
                     ? `${perf.runs} runs · ${Math.round(perf.success_rate * 100)}% sucesso`

@@ -79,6 +79,15 @@ export function RoutinesPage() {
   }, [load, lastScheduleEvent?.schedule_id]);
 
   async function toggle(schedule: Schedule) {
+    if (!schedule.is_active) {
+      const confirmed = await confirmAction({
+        title: `Ativar a rotina “${schedule.name}”?`,
+        description:
+          "Ela passará a executar automaticamente conforme o gatilho configurado. Você pode pausar a qualquer momento.",
+        confirmLabel: "Ativar rotina",
+      });
+      if (!confirmed) return;
+    }
     try {
       await apiPost(`/api/schedules/${schedule.id}/active`, {
         active: !schedule.is_active,
@@ -358,7 +367,7 @@ export function RoutinesPage() {
         {historyLoading ? (
           <LoadingState compact label="Carregando histórico…" rows={3} />
         ) : historyRuns.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-[11px] text-zinc-600">
+          <p className="rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-[11px] text-zinc-500">
             Nenhum run registrado ainda. Use “Executar agora” ou aguarde o próximo disparo.
           </p>
         ) : (
@@ -387,7 +396,7 @@ export function RoutinesPage() {
                   {run.agent_name} · {run.model_id} · {Math.round(run.duration_ms / 1000)}s ·{" "}
                   {run.tokens_input + run.tokens_output} tokens
                 </span>
-                <span className="ml-auto text-zinc-600">
+                <span className="ml-auto text-zinc-500">
                   {relativeTime(run.started_at)}
                 </span>
                 {run.error_message ? (

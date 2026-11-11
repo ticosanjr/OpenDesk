@@ -56,7 +56,7 @@ export function GoalsSection({
                           {goal.title}
                         </p>
                         <Badge variant={goalTone(goal.status)}>{goal.status}</Badge>
-                        <span className="font-mono text-[9px] text-zinc-600">
+                        <span className="font-mono text-[9px] text-zinc-500">
                           @{goal.agent_id}
                         </span>
                       </div>
@@ -105,7 +105,7 @@ export function GoalsSection({
                     </span>
                   </div>
                   {goal.due_at ? (
-                    <p className="mt-1 text-[9px] text-zinc-600">
+                    <p className="mt-1 text-[9px] text-zinc-500">
                       prazo {goal.due_at}
                     </p>
                   ) : null}
@@ -116,7 +116,7 @@ export function GoalsSection({
         </div>
       )}
       {agents.length === 0 ? (
-        <p className="text-[9px] text-zinc-600">
+        <p className="text-[9px] text-zinc-500">
           Crie agentes no Studio antes de cadastrar metas.
         </p>
       ) : null}

@@ -122,6 +122,8 @@ export function FilesPage() {
         void loadMedia(deepPath);
         setParams({}, { replace: true });
       });
+    // loadMedia only depends on activeWorkspaceId, which is already listed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWorkspaceId, deepPath, loadTree, setParams]);
 
   const MEDIA_EXTENSIONS = /\.(mp4|mkv|webm|mov|avi|mp3|wav|flac|ogg|m4a|aac)$/i;
@@ -316,7 +318,7 @@ export function FilesPage() {
             <div className="flex w-full flex-wrap items-center gap-1 text-[10px] text-zinc-500">
               {crumbs.map((crumb, index) => (
                 <span key={crumb.path || "root"} className="flex items-center gap-1">
-                  {index > 0 ? <ChevronRight size={10} className="text-zinc-700" /> : null}
+                  {index > 0 ? <ChevronRight size={10} className="text-zinc-500" /> : null}
                   <button
                     type="button"
                     onClick={() => void loadTree(crumb.path)}
@@ -332,7 +334,7 @@ export function FilesPage() {
               ))}
             </div>
             <div className="flex h-8 w-full items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-              <Search size={13} className="shrink-0 text-zinc-600" />
+              <Search size={13} className="shrink-0 text-zinc-500" />
               <input
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
@@ -341,7 +343,7 @@ export function FilesPage() {
                     ? "Filtrar nesta pasta"
                     : "Procurar em todo o workspace"
                 }
-                className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
+                className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-500"
               />
             </div>
             <div className="flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5 text-[10px]">
@@ -413,14 +415,14 @@ export function FilesPage() {
                     <span className="block truncate text-[11px] text-zinc-300">
                       {entry.name}
                     </span>
-                    <span className="block truncate font-mono text-[9px] text-zinc-600">
+                    <span className="block truncate font-mono text-[9px] text-zinc-500">
                       {entry.is_dir
                         ? "pasta"
                         : `${formatNumber(entry.size)} B · ${relativeTime(entry.modified)}`}
                     </span>
                   </span>
                   {entry.is_dir ? (
-                    <ChevronRight size={12} className="text-zinc-700" />
+                    <ChevronRight size={12} className="text-zinc-500" />
                   ) : null}
                 </button>
               ))
@@ -435,7 +437,7 @@ export function FilesPage() {
                 <FileText size={14} className="text-zinc-500" />
                 {selected?.name ?? "Pré-visualização"}
               </CardTitle>
-              <p className="mt-0.5 truncate font-mono text-[9px] text-zinc-600">
+              <p className="mt-0.5 truncate font-mono text-[9px] text-zinc-500">
                 {content?.path ?? selected?.path ?? "selecione um arquivo"}
               </p>
               {media ? (
@@ -519,7 +521,7 @@ export function FilesPage() {
                 onOpenExternal={() => void reveal(content.path)}
               />
             ) : (
-              <p className="p-3 text-[11px] text-zinc-600">Sem conteúdo.</p>
+              <p className="p-3 text-[11px] text-zinc-500">Sem conteúdo.</p>
             )}
           </CardContent>
         </Card>

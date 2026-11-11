@@ -248,7 +248,7 @@ export function AboutCard() {
             </Section>
             <Section title="Arquivos de log">
               {info.logs.length === 0 ? (
-                <p className="text-[10px] text-zinc-600">Nenhum log encontrado.</p>
+                <p className="text-[10px] text-zinc-500">Nenhum log encontrado.</p>
               ) : (
                 info.logs.slice(0, 10).map((log) => (
                   <Row
@@ -289,7 +289,7 @@ function AboutMetric({
 }) {
   return (
     <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
-      <p className="text-[9px] uppercase tracking-wide text-zinc-600">{label}</p>
+      <p className="text-[9px] uppercase tracking-wide text-zinc-500">{label}</p>
       <div className="mt-0.5 flex items-center gap-2">
         <p className="truncate font-mono text-[11px] text-zinc-200">{value}</p>
         {tone !== "default" ? (
@@ -298,7 +298,7 @@ function AboutMetric({
           </Badge>
         ) : null}
       </div>
-      {hint ? <p className="mt-0.5 truncate text-[9px] text-zinc-600">{hint}</p> : null}
+      {hint ? <p className="mt-0.5 truncate text-[9px] text-zinc-500">{hint}</p> : null}
     </div>
   );
 }
@@ -318,7 +318,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-3 text-[10px]">
-      <span className="shrink-0 text-zinc-600">{label}</span>
+      <span className="shrink-0 text-zinc-500">{label}</span>
       <span className="min-w-0 break-all text-right font-mono text-zinc-300">
         {value}
       </span>

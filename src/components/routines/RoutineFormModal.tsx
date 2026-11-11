@@ -622,7 +622,7 @@ export function CreateScheduleModal({
               {recipeOpen ? (
                 <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
                   {filteredRecipes.length === 0 ? (
-                    <p className="px-2 py-1 text-[10px] text-zinc-600">
+                    <p className="px-2 py-1 text-[10px] text-zinc-500">
                       Nenhuma receita encontrada.
                     </p>
                   ) : (
@@ -639,7 +639,7 @@ export function CreateScheduleModal({
                         }}
                       >
                         <span className="text-zinc-200">{item.name}</span>
-                        <span className="ml-2 font-mono text-[9px] text-zinc-600">
+                        <span className="ml-2 font-mono text-[9px] text-zinc-500">
                           {item.id}
                         </span>
                       </button>
@@ -691,14 +691,14 @@ export function CreateScheduleModal({
                           <span className="font-mono text-zinc-200">@{item.id}</span>
                           <span className="ml-1 text-zinc-500">{item.name}</span>
                           {item.router_policy ? (
-                            <span className="ml-1 text-zinc-600">
+                            <span className="ml-1 text-zinc-500">
                               {item.router_policy}
                             </span>
                           ) : null}
                         </button>
                       ))}
                       {filteredAgents.length === 0 ? (
-                        <p className="px-2 py-1 text-[10px] text-zinc-600">
+                        <p className="px-2 py-1 text-[10px] text-zinc-500">
                           Nenhum agente encontrado.
                         </p>
                       ) : null}
@@ -756,7 +756,7 @@ export function CreateScheduleModal({
                 {slash ? (
                   <div className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
                     {slashItems.length === 0 ? (
-                      <p className="px-2 py-1 text-[10px] text-zinc-600">
+                      <p className="px-2 py-1 text-[10px] text-zinc-500">
                         Nenhum comando/skill encontrado.
                       </p>
                     ) : (
@@ -773,7 +773,7 @@ export function CreateScheduleModal({
                           <span className="font-mono text-[10px] text-zinc-200">
                             {item.label}
                           </span>
-                          <span className="ml-2 text-[9px] text-zinc-600">
+                          <span className="ml-2 text-[9px] text-zinc-500">
                             {item.detail}
                           </span>
                         </button>

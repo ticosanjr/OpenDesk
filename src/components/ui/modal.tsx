@@ -38,6 +38,11 @@ export function Modal({
     // intentionally depends only on `open`: parent re-renders must not steal
     // focus while the user is typing.
     const timer = window.setTimeout(() => {
+      const active = document.activeElement as HTMLElement | null;
+      // Respect a child's autoFocus (React focuses it before this timer).
+      if (active && active !== document.body && dialog?.contains(active)) {
+        return;
+      }
       const items = focusable();
       const preferred = items.find((element) =>
         element.matches("input, textarea, select, [autofocus]"),

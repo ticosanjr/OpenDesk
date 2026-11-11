@@ -198,7 +198,7 @@ export function EventModal({
             onChange={(event) => setDescription(event.target.value)}
             rows={3}
             placeholder="Pauta, links ou contexto…"
-            className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 p-2.5 text-[11px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60"
+            className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 p-2.5 text-[11px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
           />
         </label>
         <label className="block">
@@ -281,7 +281,7 @@ export function EventModal({
             </>
           )}
         </div>
-        <p className="text-[9px] text-zinc-600">
+        <p className="text-[9px] text-zinc-500">
           Fuso: {Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"}
         </p>
         {error ? (

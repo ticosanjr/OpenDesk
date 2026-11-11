@@ -203,7 +203,7 @@ export function StudioInstallModal({
               <source.icon size={14} className="mt-0.5 text-zinc-400" />
               <div>
                 <p className="text-[11px] font-medium text-zinc-200">{source.label}</p>
-                <p className="mt-0.5 text-[9px] leading-relaxed text-zinc-600">
+                <p className="mt-0.5 text-[9px] leading-relaxed text-zinc-500">
                   {source.hint}
                 </p>
               </div>
@@ -240,7 +240,7 @@ export function StudioInstallModal({
                       </p>
                     </div>
                     <Badge variant="blue">{repo.kind}</Badge>
-                    <span className="font-mono text-[10px] text-zinc-600">
+                    <span className="font-mono text-[10px] text-zinc-500">
                       {repo.source}
                     </span>
                   </button>
@@ -258,7 +258,7 @@ export function StudioInstallModal({
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] text-zinc-200">{preset.name}</p>
-                  <p className="truncate text-[9px] text-zinc-600">{preset.description}</p>
+                  <p className="truncate text-[9px] text-zinc-500">{preset.description}</p>
                 </div>
                 <Button
                   size="sm"
@@ -372,7 +372,7 @@ export function StudioInstallModal({
                 />
                 <Badge variant="default">{item.kind}</Badge>
                 <span className="font-mono text-zinc-300">{item.id}</span>
-                {item.name ? <span className="text-zinc-600">{item.name}</span> : null}
+                {item.name ? <span className="text-zinc-500">{item.name}</span> : null}
               </label>
             ))}
             {preview.warnings.length > 0 ? (
@@ -448,4 +448,4 @@ export function StudioInstallModal({
 }
 
 const inputClass =
-  "h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[11px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
+  "h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[11px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60";

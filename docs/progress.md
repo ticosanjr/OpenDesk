@@ -1852,3 +1852,35 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - E2E ganhou limites de rate limit altos no ambiente de teste.
 - Testes: **335 Rust**, **130 Vitest** e **68 Playwright**; cobertura funcional
   **69/69 (100%)**.
+
+## 2026-11-11 — 0.43.0 em preparação
+
+- Updates passam a ser assinados com Ed25519: `latest.json.sig` obrigatório,
+  chave pública embutida e chave privada offline; `release.sh` assina e
+  verifica; ADR 0045.
+- MCP `opendesk-control`: rotinas aceitam todos os gatilhos (folder, webhook,
+  IMAP, SQL poll, Signal, rsync) via `trigger_config`; CRON continua exigindo
+  recorrência.
+- MCP ganhou mensagens de tarefa, pin e rollback de artefato (23 ferramentas).
+- Ativar rotina/receita na UI exige confirmação explícita e pode ser cancelado.
+- Testes de assinatura, gatilhos não-CRON, autoFocus do modal e confirmação de
+  ativação adicionados.
+- ESLint (hooks + TypeScript) entrou no `check:changed` e no gate; 6 efeitos com
+  dependências faltantes e um trecho de código morto foram corrigidos.
+- Testes de digitação real para workspace, evento e rotina, além da tarefa.
+- `npm audit --omit=dev` limpo via override de `dompurify` 3.4.17.
+- Loop JSON-RPC compartilhado em `mcp_server.rs`; `mcp_control` dividido em
+  `tools`, `payload` e `util` (1250 → 569 linhas no módulo principal).
+- `api/tasks.rs` 953 → 742 com `task_dispatch.rs`; `starter_packs.rs`
+  1502 → 1317 com `plan.rs`.
+- Dashboard expõe rotinas ativas e receitas habilitadas; doctor reporta
+  cobertura de MCP e pacote base por workspace.
+- Auditoria axe com gate para violações críticas e sérias nas rotas principais
+  e modal de tarefa.
+- Browse ganhou allowlist por tag/UI; alto risco exige allowlist e o prompt
+  instrui `session_allowlist`.
+- Contrato Google opt-in (`npm run contract:google`) cobre status, MCP e busca
+  read-only no Drive.
+- Contraste global corrigido (zinc-500 mais claro, zinc-600/700 removidos,
+  botão de acento mais escuro); Kanban focável por teclado; nome acessível do
+  workspace inclui o texto visível.

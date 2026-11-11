@@ -28,16 +28,32 @@ If the daemon is offline and you only want to validate the local API shape:
 OPENDESK_CONTRACT_ALLOW_OFFLINE=1 npm run contract:opencode
 ```
 
-## Google / SMTP
+## Google (opt-in, read-only)
 
-These stay manual because they send real data:
+With Google connected in **Integrações → Google**, run:
 
-1. Configure Google in **Integrações → Google** and run the OAuth flow.
-2. Verify `/api/integrations/google/status` reports `connected: true` and the
-   configured scopes.
-3. Configure SMTP and use **Integrações → SMTP → Testar**.
-4. For delivery, run a task with `export_to_gdocs` and confirm the delivery
-   record in **Integrações → Histórico**.
+```bash
+OPENDESK_CONTRACT_GOOGLE=1 npm run contract:google
+```
 
-A future automated contract test should use a dedicated test account and a
-disposable Drive folder; do not run it against production data.
+The script reads `api.json`, checks `/api/integrations/google/status`, then
+invokes the `opendesk mcp-google` bridge and calls `gdrive_search_files` with a
+read-only query. It never creates or deletes documents. Use a dedicated account
+for CI-like runs.
+
+Optional variables:
+
+- `OPENDESK_DATA_DIR`
+- `OPENDESK_CONTRACT_WORKSPACE_ID`
+- `OPENDESK_CONTRACT_BIN`
+
+## SMTP
+
+SMTP remains manual because it sends real mail:
+
+1. Configure SMTP and use **Integrações → SMTP → Testar**.
+2. For delivery, run a task with `notify_email` and confirm the record in
+   **Integrações → Histórico**.
+
+The default E2E suite already covers SMTP against a local fake server; this
+manual step is only for real providers.

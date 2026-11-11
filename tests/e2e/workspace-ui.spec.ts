@@ -32,7 +32,14 @@ test("workspace color drives the theme and kanban retention persists", async ({
     .getByRole("button", { name: /Nova tarefa/ })
     .first()
     .evaluate((element) => getComputedStyle(element).backgroundColor);
-  expect(primary).toBe("rgb(239, 68, 68)");
+  // The primary button uses 85% of the workspace accent mixed with black so
+  // white text keeps WCAG AA contrast.
+  const channels = primary.match(/[\d.]+/g)?.map(Number) ?? [];
+  const expected = [239, 68, 68].map((value) => (value * 0.85) / 255);
+  expect(channels).toHaveLength(3);
+  expected.forEach((value, index) =>
+    expect(channels[index]).toBeCloseTo(value, 2),
+  );
 
   const created = await request.post(
     `${auth.baseURL}/api/tasks?workspace_id=${workspace.id}`,

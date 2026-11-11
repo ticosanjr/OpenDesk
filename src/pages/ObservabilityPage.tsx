@@ -196,13 +196,13 @@ export function ObservabilityPage() {
                           style={{ height: `${barPercent(day.failed, maxDaily)}%` }}
                         />
                       </div>
-                      <span className="hidden text-[8px] text-zinc-600 sm:block">
+                      <span className="hidden text-[8px] text-zinc-500 sm:block">
                         {day.date.slice(5)}
                       </span>
                     </div>
                   ))}
                 </div>
-                <div className="mt-2 flex items-center gap-3 text-[9px] text-zinc-600">
+                <div className="mt-2 flex items-center gap-3 text-[9px] text-zinc-500">
                   <span className="inline-flex items-center gap-1">
                     <span className="h-2 w-2 rounded-sm bg-sky-500/40" />
                     runs
@@ -224,7 +224,7 @@ export function ObservabilityPage() {
               </CardHeader>
               <CardContent className="space-y-1.5 p-4 pt-0">
                 {metrics.failure_codes.length === 0 ? (
-                  <p className="text-[10px] text-zinc-600">Nenhuma falha no período.</p>
+                  <p className="text-[10px] text-zinc-500">Nenhuma falha no período.</p>
                 ) : (
                   metrics.failure_codes.map((failure) => (
                     <div
@@ -252,7 +252,7 @@ export function ObservabilityPage() {
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-[10px]">
-                  <thead className="border-b border-zinc-800 text-[9px] uppercase tracking-wide text-zinc-600">
+                  <thead className="border-b border-zinc-800 text-[9px] uppercase tracking-wide text-zinc-500">
                     <tr>
                       <th className="px-4 py-2">Agente</th>
                       <th className="px-4 py-2">Runs</th>
@@ -317,7 +317,7 @@ function MetricCard({
           {tone !== "default" ? <Badge variant={tone}>{tone}</Badge> : null}
         </div>
         <p className="mt-1 font-mono text-lg text-zinc-100">{value}</p>
-        <p className="text-[9px] text-zinc-600">{hint}</p>
+        <p className="text-[9px] text-zinc-500">{hint}</p>
       </CardContent>
     </Card>
   );

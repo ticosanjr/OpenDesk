@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import QRCode from "qrcode";
 import {
   AlertTriangle,
@@ -38,7 +38,7 @@ export function SignalCard() {
   const [linkUri, setLinkUri] = useState<string | null>(null);
   const [qr, setQr] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       const value = await apiGet<SignalStatus>("/api/integrations/signal");
       setStatus(value);
@@ -52,11 +52,11 @@ export function SignalCard() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
-  }
+  }, [activeWorkspaceId]);
 
   useEffect(() => {
     void load();
-  }, [activeWorkspaceId]);
+  }, [load]);
 
   async function save() {
     setBusy("save");
@@ -253,7 +253,7 @@ export function SignalCard() {
             <div className="min-w-0 flex-1 space-y-1 text-[10px] text-zinc-500">
               <p className="font-medium text-zinc-300">Escaneie no Signal do celular</p>
               <p>Configurações → Dispositivos vinculados → Vincular dispositivo.</p>
-              <p className="break-all font-mono text-[9px] text-zinc-600">{linkUri}</p>
+              <p className="break-all font-mono text-[9px] text-zinc-500">{linkUri}</p>
             </div>
           </div>
         ) : null}
@@ -280,7 +280,7 @@ export function SignalCard() {
           </p>
         ) : null}
 
-        <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[9px] leading-relaxed text-zinc-600">
+        <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[9px] leading-relaxed text-zinc-500">
           Segurança: o bridge fica desabilitado por padrão, exige allowlist e usa o
           agente escolhido. Mensagens de números fora da allowlist são descartadas.
           Vincular um dispositivo exige o celular com Signal por perto.

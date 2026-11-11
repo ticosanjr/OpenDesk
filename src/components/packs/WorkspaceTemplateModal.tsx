@@ -85,7 +85,7 @@ export function WorkspaceTemplateModal({
             ))}
           </div>
           <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-2">
-            <p className="text-[9px] uppercase tracking-[0.12em] text-zinc-600">
+            <p className="text-[9px] uppercase tracking-[0.12em] text-zinc-500">
               pastas iniciais
             </p>
             <p className="mt-1 font-mono text-[9px] leading-relaxed text-zinc-400">

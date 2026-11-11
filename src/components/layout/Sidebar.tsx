@@ -98,7 +98,7 @@ export function Sidebar() {
             <p className="truncate text-sm font-semibold tracking-tight text-zinc-100">
               OpenDesk
             </p>
-            <p className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-600">
+            <p className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-500">
               control plane
             </p>
           </div>
@@ -144,7 +144,7 @@ export function Sidebar() {
                 {daemon?.online ? `OpenCode :${daemon.port}` : "OpenCode offline"}
               </span>
             </div>
-            <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-zinc-600">
+            <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-zinc-500">
               <span>{daemon?.version ? `v${daemon.version}` : "—"}</span>
               <span className="inline-flex items-center gap-1">
                 <span
@@ -171,7 +171,7 @@ export function Sidebar() {
         <button
           type="button"
           onClick={toggleSidebar}
-          className="flex w-full items-center justify-center gap-2 rounded-lg px-2 py-1.5 text-[11px] text-zinc-600 transition-colors hover:bg-zinc-900 hover:text-zinc-300"
+          className="flex w-full items-center justify-center gap-2 rounded-lg px-2 py-1.5 text-[11px] text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-zinc-300"
           title={collapsed ? "Expandir sidebar" : "Recolher sidebar"}
         >
           {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
@@ -184,7 +184,7 @@ export function Sidebar() {
 
 export function SidebarSectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="px-2.5 pb-1 pt-2 font-mono text-[9px] uppercase tracking-[0.16em] text-zinc-700">
+    <p className="px-2.5 pb-1 pt-2 font-mono text-[9px] uppercase tracking-[0.16em] text-zinc-500">
       {children}
     </p>
   );

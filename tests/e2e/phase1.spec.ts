@@ -50,6 +50,10 @@ test("phase 1 switches, explicit model and advanced options", async ({
   await page
     .getByRole("switch", { name: "Ativar rotina Rotina Fase 1" })
     .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Ativar rotina", exact: true })
+    .click();
   await expect(
     page.getByRole("switch", { name: "Desativar rotina Rotina Fase 1" }),
   ).toBeVisible();
@@ -75,6 +79,10 @@ test("phase 1 switches, explicit model and advanced options", async ({
   ).toBeVisible();
   await page
     .getByRole("switch", { name: "Ativar receita Receita Fase 1" })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Ativar receita", exact: true })
     .click();
   await expect(
     page.getByRole("switch", { name: "Desativar receita Receita Fase 1" }),

@@ -293,7 +293,7 @@ export function ChatPage() {
           <CardHeader className="px-3.5 py-3">
             <div>
               <CardTitle className="text-[12px]">Conversas</CardTitle>
-              <p className="mt-0.5 text-[9px] text-zinc-600">
+              <p className="mt-0.5 text-[9px] text-zinc-500">
                 {threads.length} threads
               </p>
             </div>
@@ -304,18 +304,18 @@ export function ChatPage() {
           </CardHeader>
           <div className="border-b border-zinc-800/70 p-2">
             <div className="flex h-8 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-              <Search size={12} className="text-zinc-600" />
+              <Search size={12} className="text-zinc-500" />
               <input
                 value={threadQuery}
                 onChange={(event) => setThreadQuery(event.target.value)}
                 placeholder="Buscar conversa ou agente"
-                className="h-full flex-1 bg-transparent text-[10px] outline-none placeholder:text-zinc-600"
+                className="h-full flex-1 bg-transparent text-[10px] outline-none placeholder:text-zinc-500"
               />
             </div>
           </div>
           <CardContent className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
             {filteredThreads.length === 0 ? (
-              <p className="p-3 text-center text-[10px] text-zinc-600">
+              <p className="p-3 text-center text-[10px] text-zinc-500">
                 {threads.length === 0
                   ? "Nenhuma conversa. Escolha um agente e crie a primeira."
                   : "Nenhuma conversa encontrada."}
@@ -339,7 +339,7 @@ export function ChatPage() {
                       <Badge variant="purple">{item.source}</Badge>
                     ) : null}
                   </div>
-                  <p className="mt-0.5 truncate font-mono text-[9px] text-zinc-600">
+                  <p className="mt-0.5 truncate font-mono text-[9px] text-zinc-500">
                     @{item.agent} · {relativeTime(item.last_message_at ?? item.updated_at)}
                   </p>
                 </button>
@@ -401,7 +401,7 @@ export function ChatPage() {
                 </CardTitle>
               )}
               {thread ? (
-                <p className="mt-0.5 flex flex-wrap items-center gap-1 font-mono text-[9px] text-zinc-600">
+                <p className="mt-0.5 flex flex-wrap items-center gap-1 font-mono text-[9px] text-zinc-500">
                   <EntityLink
                     to={links.agent(thread.agent, "workspace", activeWorkspaceId)}
                     chip
@@ -469,7 +469,7 @@ export function ChatPage() {
                     )}
                   >
                     <p className="whitespace-pre-wrap">{message.content}</p>
-                    <p className="mt-1 text-right font-mono text-[8px] text-zinc-600">
+                    <p className="mt-1 text-right font-mono text-[8px] text-zinc-500">
                       {message.role === "user" ? "você" : "agente"} ·{" "}
                       {relativeTime(message.created_at)}
                     </p>
@@ -514,7 +514,7 @@ export function ChatPage() {
                             current.filter((_, itemIndex) => itemIndex !== index),
                           )
                         }
-                        className="text-zinc-600 hover:text-zinc-200"
+                        className="text-zinc-500 hover:text-zinc-200"
                       >
                         <X size={10} />
                       </button>

@@ -214,7 +214,7 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
               <Badge variant="purple">{source.source_type}</Badge>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[12px] text-zinc-200">{source.name}</p>
-                <p className="truncate text-[9px] text-zinc-600">
+                <p className="truncate text-[9px] text-zinc-500">
                   {source.target_agent ? `@${source.target_agent} · ` : ""}
                   {source.last_triggered_at
                     ? `${source.last_status ?? "ok"} · ${relativeTime(source.last_triggered_at)}`
@@ -346,6 +346,6 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
 }
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60";
 const labelClass =
   "mb-1 block text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-500";

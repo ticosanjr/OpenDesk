@@ -1,6 +1,6 @@
 [package]
 name = "opendesk"
-version = "0.42.1"
+version = "0.43.0"
 description = "OpenDesk — visual governance, automation and observability for OpenCode"
 authors = ["OpenDesk"]
 edition = "2024"
@@ -52,6 +52,7 @@ lettre = { version = "0.11", default-features = false, features = ["smtp-transpo
 aes-gcm = "0.10"
 base64 = "0.22"
 rand = "0.8"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
 html-escape = "0.3.0"
 open = "5.4.5"
 pulldown-cmark = "0.13.6"

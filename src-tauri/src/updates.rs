@@ -2,6 +2,7 @@ use crate::{
     app_state::AppState,
     error::{AppError, AppResult},
     secrets::SecretStore,
+    update_signing,
 };
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -234,64 +235,53 @@ async fn fetch_latest(token: &str) -> AppResult<LatestManifest> {
         .unwrap_or_default()
         .to_string();
 
-    // Prefer the signed manifest asset uploaded by scripts/release.sh. It has
-    // the SHA256 for every artifact; the raw release assets do not.
-    let mut manifest_from_asset = None;
-    if let Some(assets) = release.get("assets").and_then(Value::as_array)
-        && let Some(asset) = assets
-            .iter()
-            .find(|asset| asset.get("name").and_then(Value::as_str) == Some("latest.json"))
-        && let Some(asset_id) = asset.get("id").and_then(Value::as_u64)
-    {
-        let bytes = download_asset(&client, token, asset_id).await?;
-        manifest_from_asset = serde_json::from_slice::<LatestManifest>(&bytes).ok();
-    }
-
-    if let Some(mut manifest) = manifest_from_asset {
-        if manifest.notes.trim().is_empty() {
-            manifest.notes = notes;
-        }
-        return Ok(manifest);
-    }
-
-    // Fallback for releases created before latest.json existed: build a
-    // manifest from the release assets, but without checksums.
-    let version = tag.trim_start_matches('v').to_string();
-    if Version::parse(&version).is_err() {
-        return Err(AppError::Daemon(format!(
-            "a release mais recente tem tag inválida ({tag})"
-        )));
-    }
-    let assets = release
+    let release_assets = release
         .get("assets")
         .and_then(Value::as_array)
-        .map(|assets| {
-            assets
-                .iter()
-                .filter_map(|asset| {
-                    Some(UpdateAsset {
-                        name: asset.get("name")?.as_str()?.to_string(),
-                        size: asset.get("size").and_then(Value::as_u64).unwrap_or(0),
-                        sha256: String::new(),
-                    })
-                })
-                .collect::<Vec<_>>()
-        })
+        .cloned()
         .unwrap_or_default();
+    let asset_id = |name: &str| {
+        release_assets
+            .iter()
+            .find(|asset| asset.get("name").and_then(Value::as_str) == Some(name))
+            .and_then(|asset| asset.get("id").and_then(Value::as_u64))
+    };
 
-    Ok(LatestManifest {
-        version,
-        tag,
-        repo: REPO.to_string(),
-        platform: "linux-x86_64".into(),
-        published_at: release
-            .get("published_at")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
-        notes,
-        assets,
-    })
+    // A release is only trusted when it publishes both latest.json and its
+    // detached Ed25519 signature. Old unsigned releases are refused with a
+    // clear message instead of silently accepting weak checksums.
+    let manifest_id = asset_id("latest.json").ok_or_else(|| {
+        AppError::Daemon(format!(
+            "a release {tag} não publica latest.json; atualize manualmente pela página de releases."
+        ))
+    })?;
+    let signature_id = asset_id("latest.json.sig").ok_or_else(|| {
+        AppError::Daemon(format!(
+            "a release {tag} não tem latest.json.sig; o OpenDesk recusa updates sem assinatura."
+        ))
+    })?;
+    let manifest_bytes = download_asset(&client, token, manifest_id).await?;
+    let signature_bytes = download_asset(&client, token, signature_id).await?;
+    let signature = std::str::from_utf8(&signature_bytes)
+        .map_err(|_| AppError::Daemon("latest.json.sig não é UTF-8".into()))?;
+    update_signing::verify_manifest(&manifest_bytes, signature)
+        .map_err(|error| AppError::Daemon(format!("assinatura do update inválida: {error}")))?;
+
+    let mut manifest: LatestManifest = serde_json::from_slice(&manifest_bytes)
+        .map_err(|error| AppError::Internal(format!("latest.json inválido: {error}")))?;
+    if manifest.tag.trim().is_empty() {
+        manifest.tag = tag;
+    }
+    if manifest.notes.trim().is_empty() {
+        manifest.notes = notes;
+    }
+    if Version::parse(manifest.version.trim().trim_start_matches('v')).is_err() {
+        return Err(AppError::Daemon(format!(
+            "latest.json tem versão inválida ({})",
+            manifest.version
+        )));
+    }
+    Ok(manifest)
 }
 
 async fn download_asset(

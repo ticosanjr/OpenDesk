@@ -127,7 +127,7 @@ export function CalendarItemRow({
         </span>
         <span
           className={cn(
-            "mt-0.5 block truncate font-mono text-zinc-600",
+            "mt-0.5 block truncate font-mono text-zinc-500",
             size === "md" ? "text-[10px]" : "text-[9px]",
           )}
         >

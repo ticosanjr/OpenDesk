@@ -168,13 +168,13 @@ export function SlashTextarea({
         rows={rows}
         placeholder={placeholder}
         className={cn(
-          "w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-[11px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-blue-500/60 disabled:opacity-60",
+          "w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-[11px] text-zinc-200 outline-none placeholder:text-zinc-500 focus:border-blue-500/60 disabled:opacity-60",
           className,
         )}
         aria-label="Comando ou prompt"
       />
       {showHints ? (
-        <p className="mt-1 text-[9px] leading-snug text-zinc-600">
+        <p className="mt-1 text-[9px] leading-snug text-zinc-500">
           Use{" "}
           <span className="font-mono text-zinc-400">@agente</span> para chamar um
           agente,{" "}
@@ -189,7 +189,7 @@ export function SlashTextarea({
           className="absolute z-40 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl"
         >
           {items.length === 0 ? (
-            <p className="px-2 py-1 text-[10px] text-zinc-600">
+            <p className="px-2 py-1 text-[10px] text-zinc-500">
               Nenhum comando/skill encontrado no runtime.
             </p>
           ) : (
@@ -211,7 +211,7 @@ export function SlashTextarea({
                 <span className="font-mono text-[10px] text-zinc-200">
                   {item.label}
                 </span>
-                <span className="ml-2 text-[9px] text-zinc-600">{item.detail}</span>
+                <span className="ml-2 text-[9px] text-zinc-500">{item.detail}</span>
               </button>
             ))
           )}

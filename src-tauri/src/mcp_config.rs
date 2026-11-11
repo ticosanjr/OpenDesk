@@ -1,93 +1,30 @@
 use crate::{
     db::{self, proposals::ProposalInput},
+    mcp_server,
     paths::AppPaths,
 };
 use anyhow::{Context, Result};
 use serde_json::{Value, json};
 use std::sync::Arc;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 pub async fn run_stdio() -> Result<()> {
     let workspace_id = std::env::var("OPENDESK_WORKSPACE_ID")
         .context("OPENDESK_WORKSPACE_ID é obrigatório para o MCP de configuração")?;
     let paths = AppPaths::discover()?;
     let pool = Arc::new(db::init(&paths.db_path).await?);
-    let stdin = tokio::io::stdin();
-    let mut stdout = tokio::io::stdout();
-    let mut lines = BufReader::new(stdin).lines();
 
-    while let Some(line) = lines.next_line().await? {
-        if line.trim().is_empty() {
-            continue;
+    mcp_server::serve_stdio("opendesk-config", tools(), |name, arguments| {
+        let paths = &paths;
+        let pool = &pool;
+        let workspace_id = &workspace_id;
+        async move {
+            propose(paths, pool, workspace_id, &name, arguments)
+                .await
+                .map(|value| value.to_string())
         }
-        let request: Value = match serde_json::from_str(&line) {
-            Ok(value) => value,
-            Err(error) => {
-                eprintln!("OpenDesk MCP config: invalid JSON: {error}");
-                continue;
-            }
-        };
-        let id = request.get("id").cloned().unwrap_or(Value::Null);
-        let method = request.get("method").and_then(Value::as_str).unwrap_or("");
-        let params = request.get("params").cloned().unwrap_or(Value::Null);
-        let response = match method {
-            "initialize" => Some(json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": { "tools": {} },
-                    "serverInfo": { "name": "opendesk-config", "version": env!("CARGO_PKG_VERSION") }
-                }
-            })),
-            "notifications/initialized" => None,
-            "ping" => Some(json!({ "jsonrpc": "2.0", "id": id, "result": {} })),
-            "tools/list" => Some(json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": { "tools": tools() }
-            })),
-            "tools/call" => {
-                let name = params.get("name").and_then(Value::as_str).unwrap_or("");
-                let arguments = params
-                    .get("arguments")
-                    .cloned()
-                    .unwrap_or_else(|| json!({}));
-                match propose(&paths, &pool, &workspace_id, name, arguments).await {
-                    Ok(value) => Some(json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "result": {
-                            "content": [{ "type": "text", "text": value.to_string() }],
-                            "isError": false
-                        }
-                    })),
-                    Err(error) => Some(json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "result": {
-                            "content": [{ "type": "text", "text": format!("{error:#}") }],
-                            "isError": true
-                        }
-                    })),
-                }
-            }
-            "shutdown" => Some(json!({ "jsonrpc": "2.0", "id": id, "result": null })),
-            "exit" => break,
-            _ => Some(json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "error": { "code": -32601, "message": format!("method not found: {method}") }
-            })),
-        };
-        if let Some(response) = response {
-            stdout
-                .write_all(serde_json::to_string(&response)?.as_bytes())
-                .await?;
-            stdout.write_all(b"\n").await?;
-            stdout.flush().await?;
-        }
-    }
+    })
+    .await?;
+
     let _ = pool.close().await;
     Ok(())
 }

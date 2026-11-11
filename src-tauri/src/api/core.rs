@@ -138,7 +138,9 @@ pub(crate) async fn dashboard(
                 THEN estimated_cost_usd ELSE 0 END), 0.0) AS REAL) AS daily_cost_usd,
             0 AS queue_running,
             0 AS queue_waiting,
-            0 AS artifacts_total
+            0 AS artifacts_total,
+            0 AS active_routines,
+            0 AS enabled_recipes
          FROM task_runs
          WHERE workspace_id = ?",
     )
@@ -163,9 +165,24 @@ pub(crate) async fn dashboard(
             .fetch_one(&state.db)
             .await?;
 
+    let active_routines: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM schedules WHERE workspace_id = ? AND is_active = 1",
+    )
+    .bind(&workspace_id)
+    .fetch_one(&state.db)
+    .await?;
+    let enabled_recipes: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM recipes_index WHERE workspace_id = ? AND is_enabled = 1",
+    )
+    .bind(&workspace_id)
+    .fetch_one(&state.db)
+    .await?;
+
     stats.queue_running = queue_running;
     stats.queue_waiting = queue_waiting;
     stats.artifacts_total = artifacts_total;
+    stats.active_routines = active_routines;
+    stats.enabled_recipes = enabled_recipes;
 
     Ok(Json(stats))
 }

@@ -93,6 +93,7 @@ export function TaskFormModal({
   const [priority, setPriority] = useState(2);
   const [tags, setTags] = useState("");
   const [needsBrowser, setNeedsBrowser] = useState(false);
+  const [browseAllowlist, setBrowseAllowlist] = useState("");
   const [agent, setAgent] = useState("");
   const [model, setModel] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<string[]>([]);
@@ -119,9 +120,24 @@ export function TaskFormModal({
       try {
         const parsed = JSON.parse(task.tags_json) as string[];
         setNeedsBrowser(parsed.includes("needs-browser"));
-        setTags(parsed.filter((tag) => tag !== "needs-browser").join(", "));
+        const allowlistTag = parsed.find((tag) =>
+          tag.startsWith("browse-allowlist:"),
+        );
+        setBrowseAllowlist(
+          allowlistTag?.slice("browse-allowlist:".length).split(",").join(", ") ?? "",
+        );
+        setTags(
+          parsed
+            .filter(
+              (tag) =>
+                tag !== "needs-browser" &&
+                !tag.startsWith("browse-allowlist:"),
+            )
+            .join(", "),
+        );
       } catch {
         setNeedsBrowser(false);
+        setBrowseAllowlist("");
         setTags("");
       }
     } else {
@@ -137,6 +153,7 @@ export function TaskFormModal({
       setExportToGdocs(false);
       setTags("");
       setNeedsBrowser(false);
+      setBrowseAllowlist("");
     }
   }, [open, task]);
 
@@ -161,8 +178,21 @@ export function TaskFormModal({
       const parsedTags = tags
         .split(",")
         .map((tag) => tag.trim())
-        .filter((tag) => Boolean(tag) && tag !== "needs-browser");
-      if (needsBrowser) parsedTags.push("needs-browser");
+        .filter(
+          (tag) =>
+            Boolean(tag) &&
+            tag !== "needs-browser" &&
+            !tag.startsWith("browse-allowlist:"),
+        );
+      if (needsBrowser) {
+        parsedTags.push("needs-browser");
+        const allowlist = browseAllowlist
+          .split(",")
+          .map((domain) => domain.trim())
+          .filter(Boolean)
+          .join(",");
+        if (allowlist) parsedTags.push(`browse-allowlist:${allowlist}`);
+      }
       const payload = {
         title: title.trim(),
         description: `${description.trim()}${attachmentBlock}`,
@@ -353,7 +383,7 @@ export function TaskFormModal({
               <Globe size={12} className="text-sky-300" />
               Precisa navegar na internet
             </p>
-            <p className="mt-0.5 text-[9px] leading-snug text-zinc-600">
+            <p className="mt-0.5 text-[9px] leading-snug text-zinc-500">
               Ativa o OpenCode Browse automaticamente e inclui a skill de navegação
               no prompt. Login, 2FA e captcha são entregues a você.
             </p>
@@ -364,6 +394,22 @@ export function TaskFormModal({
             label="Precisa navegar na internet"
           />
         </div>
+        {needsBrowser ? (
+          <label className="sm:col-span-2">
+            <span className={labelClass}>Domínios permitidos (opcional)</span>
+            <input
+              value={browseAllowlist}
+              onChange={(event) => setBrowseAllowlist(event.target.value)}
+              placeholder="example.com, docs.example.com"
+              className={inputClass}
+            />
+            <span className="mt-1 block text-[9px] leading-snug text-zinc-500">
+              Limita a sessão do Browse a estes domínios. Tarefas marcadas com
+              browse-high-risk, browse-login, browse-payment, browse-banking ou
+              browse-2fa exigem allowlist.
+            </span>
+          </label>
+        ) : null}
         <label>
           <span className={labelClass}>E-mail de notificação</span>
           <input

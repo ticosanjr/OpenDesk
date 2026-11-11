@@ -171,6 +171,8 @@ describe("websocket event reducer", () => {
         queue_running: 0,
         queue_waiting: 0,
         artifacts_total: 2,
+        active_routines: 0,
+        enabled_recipes: 0,
       },
     });
 

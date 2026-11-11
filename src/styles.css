@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
 @theme {
+  /* Slightly lighter than Tailwind's default so 12px hints reach WCAG AA
+     on the near-black surfaces used by the app. */
+  --color-zinc-500: #7d7d88;
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
@@ -127,16 +130,16 @@ body {
 }
 
 .accent-button {
-  background: var(--workspace-accent);
+  background: color-mix(in srgb, var(--workspace-accent) 85%, black);
   border: 1px solid color-mix(in srgb, var(--workspace-accent) 72%, black);
 }
 
 .accent-button:hover {
-  background: color-mix(in srgb, var(--workspace-accent) 84%, white);
+  background: color-mix(in srgb, var(--workspace-accent) 78%, black);
 }
 
 .accent-button:active {
-  background: color-mix(in srgb, var(--workspace-accent) 84%, black);
+  background: color-mix(in srgb, var(--workspace-accent) 72%, black);
 }
 
 .workspace-switch-on {

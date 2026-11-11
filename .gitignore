@@ -34,3 +34,6 @@ coverage
 *.profraw
 *.profdata
 lcov.info
+
+# Update signing private key (never commit)
+update-signing.key

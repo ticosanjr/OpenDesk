@@ -72,7 +72,7 @@ export function DismissButton({
         type="button"
         aria-label={label}
         onClick={onClick}
-        className="rounded p-1 text-zinc-600 transition-colors hover:bg-zinc-800/60 hover:text-zinc-200"
+        className="rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-800/60 hover:text-zinc-200"
       >
         <X size={12} />
       </button>

@@ -273,9 +273,9 @@ export function AgentPanel({
         newLabel="Novo agente"
       >
         {loading && agents.length === 0 ? (
-          <p className="px-3 py-6 text-center text-[10px] text-zinc-600">Carregando…</p>
+          <p className="px-3 py-6 text-center text-[10px] text-zinc-500">Carregando…</p>
         ) : agents.length === 0 ? (
-          <p className="px-3 py-6 text-center text-[10px] text-zinc-600">
+          <p className="px-3 py-6 text-center text-[10px] text-zinc-500">
             Nenhum agente neste escopo.
           </p>
         ) : (
@@ -330,7 +330,7 @@ export function AgentPanel({
                     </Badge>
                     {isNew ? <Badge variant="blue">novo</Badge> : null}
                   </div>
-                  <p className="mt-0.5 font-mono text-[9px] text-zinc-600">
+                  <p className="mt-0.5 font-mono text-[9px] text-zinc-500">
                     {draft.path || "arquivo será criado ao salvar"}
                   </p>
                 </div>
@@ -573,7 +573,7 @@ export function AgentPanel({
               </div>
               <div className="space-y-2 p-3">
                 {draft.permissions.length === 0 ? (
-                  <p className="text-[10px] text-zinc-600">
+                  <p className="text-[10px] text-zinc-500">
                     Sem regras próprias. O agente herda as permissões globais do OpenCode.
                   </p>
                 ) : (
@@ -616,7 +616,7 @@ export function AgentPanel({
                       <button
                         type="button"
                         onClick={() => removePermission(index)}
-                        className="rounded-lg text-zinc-600 hover:bg-zinc-800 hover:text-red-300"
+                        className="rounded-lg text-zinc-500 hover:bg-zinc-800 hover:text-red-300"
                         title="Remover"
                       >
                         <Trash2 size={13} className="mx-auto" />
@@ -638,7 +638,7 @@ export function AgentPanel({
             </StudioField>
 
             {!isNew ? (
-              <p className="font-mono text-[9px] text-zinc-700">
+              <p className="font-mono text-[9px] text-zinc-500">
                 sha256 {draft.sha256.slice(0, 16)}…
               </p>
             ) : null}
@@ -650,4 +650,4 @@ export function AgentPanel({
 }
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60 disabled:cursor-not-allowed";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60 disabled:cursor-not-allowed";

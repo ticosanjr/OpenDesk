@@ -20,6 +20,7 @@ mod learning;
 mod mcp_bridge;
 mod mcp_config;
 mod mcp_control;
+mod mcp_server;
 mod media;
 mod metrics;
 mod opencode_client;
@@ -35,6 +36,7 @@ mod starter_packs;
 mod test_support;
 mod text;
 mod tray;
+mod update_signing;
 mod updates;
 
 use app_state::AppState;
@@ -374,6 +376,15 @@ pub fn run_headless() {
 /// `opendesk doctor` — preflight for the engine and local state without a GUI.
 pub fn run_doctor(json: bool, fix_daemons: bool) {
     std::process::exit(doctor::run(json, fix_daemons));
+}
+
+/// Local update-signing utilities (`keygen-update`, `sign-update`). They are
+/// used by `scripts/release.sh`, never by the running app.
+pub fn run_update_signing(args: Vec<String>) {
+    if let Err(error) = update_signing::run_cli(&args) {
+        eprintln!("opendesk update signing: {error:#}");
+        std::process::exit(1);
+    }
 }
 
 /// MCP server over stdio used by OpenCode's `mcp.servers.opendesk-google`.

@@ -189,12 +189,12 @@ export function StudioOverview({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800/70 px-4 py-3">
           <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-            <Search size={13} className="text-zinc-600" />
+            <Search size={13} className="text-zinc-500" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Buscar por ID, nome ou descrição…"
-              className="h-full flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-600"
+              className="h-full flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-500"
             />
           </div>
           <select
@@ -218,7 +218,7 @@ export function StudioOverview({
             <option value="disabled">desativados</option>
           </select>
           <div className="flex min-w-[260px] flex-1 items-center gap-1">
-            <span className="text-[9px] uppercase tracking-wide text-zinc-600">
+            <span className="text-[9px] uppercase tracking-wide text-zinc-500">
               runtime
             </span>
             <input
@@ -262,7 +262,7 @@ export function StudioOverview({
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <div className="mb-3 grid gap-2 lg:grid-cols-3">
             <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
-              <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+              <p className="text-[9px] uppercase tracking-wide text-zinc-500">
                 Inventário em disco
               </p>
               <p className="mt-1 text-[11px] text-zinc-300">
@@ -272,7 +272,7 @@ export function StudioOverview({
               </p>
             </div>
             <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
-              <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+              <p className="text-[9px] uppercase tracking-wide text-zinc-500">
                 Agentes runtime do OpenCode
               </p>
               <p className="mt-1 truncate text-[11px] text-zinc-300">
@@ -285,7 +285,7 @@ export function StudioOverview({
               </p>
             </div>
             <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
-              <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+              <p className="text-[9px] uppercase tracking-wide text-zinc-500">
                 Modelos disponíveis
               </p>
               <p className="mt-1 text-[11px] text-zinc-300">
@@ -307,7 +307,7 @@ export function StudioOverview({
           {runtime?.engine.online ? (
             <div className="mb-3 grid gap-2 lg:grid-cols-3">
               <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3">
-                <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+                <p className="text-[9px] uppercase tracking-wide text-zinc-500">
                   Skills carregadas pelo OpenCode
                 </p>
                 <p className="mt-1 text-[11px] text-zinc-300">
@@ -349,7 +349,7 @@ export function StudioOverview({
                 ) : null}
               </div>
               <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3">
-                <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+                <p className="text-[9px] uppercase tracking-wide text-zinc-500">
                   Comandos carregados pelo OpenCode
                 </p>
                 <p className="mt-1 text-[11px] text-zinc-300">
@@ -365,7 +365,7 @@ export function StudioOverview({
                 </div>
               </div>
               <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3">
-                <p className="text-[9px] uppercase tracking-wide text-zinc-600">
+                <p className="text-[9px] uppercase tracking-wide text-zinc-500">
                   MCPs carregados pelo OpenCode
                 </p>
                 <p className="mt-1 text-[11px] text-zinc-300">
@@ -391,7 +391,7 @@ export function StudioOverview({
             </div>
           ) : null}
           {filtered.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-[11px] text-zinc-600">
+            <div className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-[11px] text-zinc-500">
               Nenhum item encontrado. Use “Instalar” para importar de GitHub, URL, npm,
               catálogo ou pasta local.
             </div>
@@ -428,7 +428,7 @@ export function StudioOverview({
                           {item.overridden ? <Badge variant="yellow">override</Badge> : null}
                           {item.disabled ? <Badge variant="red">desativado</Badge> : null}
                         </div>
-                        <p className="truncate font-mono text-[9px] text-zinc-600">
+                        <p className="truncate font-mono text-[9px] text-zinc-500">
                           {item.id}
                           {(item.value as { description?: string }).description
                             ? ` · ${(item.value as { description?: string }).description}`
@@ -791,7 +791,7 @@ function BackupsModal({
             carregando…
           </p>
         ) : backups.length === 0 ? (
-          <p className="text-[10px] text-zinc-600">
+          <p className="text-[10px] text-zinc-500">
             Nenhum backup para este item ainda.
           </p>
         ) : (
@@ -802,7 +802,7 @@ function BackupsModal({
             >
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] text-zinc-300">{backup.created_at}</p>
-                <p className="truncate font-mono text-[9px] text-zinc-600">
+                <p className="truncate font-mono text-[9px] text-zinc-500">
                   {backup.id}
                 </p>
               </div>

@@ -6,7 +6,7 @@ use crate::{
     app_state::AppState,
     config_sync::{jsonc_editor, paths::StudioPaths, skills, skills::SkillWriteInput},
     db::workspaces,
-    error::AppResult,
+    error::{AppError, AppResult},
 };
 use serde::Serialize;
 use serde_json::json;
@@ -14,6 +14,14 @@ use std::path::{Path, PathBuf};
 
 pub const BROWSE_TAG: &str = "needs-browser";
 pub const BROWSE_SKILL: &str = "browse-web";
+pub const BROWSE_ALLOWLIST_PREFIX: &str = "browse-allowlist:";
+const HIGH_RISK_TAGS: [&str; 5] = [
+    "browse-high-risk",
+    "browse-login",
+    "browse-payment",
+    "browse-banking",
+    "browse-2fa",
+];
 
 #[derive(Debug, Clone, Serialize)]
 pub struct BrowseStatus {
@@ -201,6 +209,13 @@ pub async fn ensure_for_task(
     if !needs_browser(title, description, tags) {
         return Ok(false);
     }
+    let allowlist = allowlist_from_tags(tags);
+    if is_high_risk(tags) && allowlist.is_empty() {
+        return Err(AppError::BadRequest(
+            "tarefa de navegador de alto risco sem allowlist; adicione a tag browse-allowlist:dominio1,dominio2"
+                .into(),
+        ));
+    }
     let current = status(state, workspace_id, "workspace").await?;
     if (!current.configured || !current.skill)
         && let Err(error) = enable(state, workspace_id, "workspace").await
@@ -246,16 +261,73 @@ pub fn needs_browser(title: &str, description: &str, tags: &[String]) -> bool {
     .any(|needle| text.contains(needle))
 }
 
-pub fn instructions() -> &'static str {
-    "## Navegação web (OpenCode Browse)\n\n\
+pub fn instructions(tags: &[String]) -> String {
+    let allowlist = allowlist_from_tags(tags);
+    let allow_line = if allowlist.is_empty() {
+        "- Nenhuma allowlist configurada; prefira sites públicos e pare em login, 2FA ou pagamento.\n".to_string()
+    } else {
+        format!(
+            "- Use `session_allowlist` com exatamente estes domínios: {}.\n",
+            allowlist.join(", ")
+        )
+    };
+    format!(
+        "## Navegação web (OpenCode Browse)\n\n\
 Esta tarefa precisa navegar na internet. Use o servidor MCP `browse`, que controla o navegador real do usuário.\n\n\
 - Comece por `status` e crie uma sessão com `session_new`; reutilize a sessão em todas as chamadas.\n\
 - Use `execute` para navegar, clicar, preencher e extrair conteúdo.\n\
-- Use `session_allowlist` para limitar a sessão aos domínios necessários quando possível.\n\
+{allow_line}\
 - Em login, 2FA, pagamento ou captcha, use o handoff e peça a ação ao usuário; não tente contornar.\n\
 - Não use curl para páginas que dependem de JavaScript, login ou interação.\n\
 - Salve screenshots, HARs e evidências no diretório de saída.\n\
 - Ao terminar, feche a sessão e informe as URLs visitadas.\n\n"
+    )
+}
+
+/// Parses `browse-allowlist:example.com,sub.example.com` tags into normalized
+/// hostnames. Invalid entries are ignored; the tag is additive so tasks can
+/// still carry regular tags.
+pub fn allowlist_from_tags(tags: &[String]) -> Vec<String> {
+    let mut hosts: Vec<String> = Vec::new();
+    for tag in tags {
+        let lower = tag.trim().to_lowercase();
+        let Some(raw) = lower.strip_prefix(BROWSE_ALLOWLIST_PREFIX) else {
+            continue;
+        };
+        for item in raw.split(',') {
+            let host = item
+                .trim()
+                .trim_start_matches("https://")
+                .trim_start_matches("http://")
+                .split(['/', '?'])
+                .next()
+                .unwrap_or("")
+                .trim();
+            let valid = host.contains('.')
+                && !host.contains(' ')
+                && !host.contains('@')
+                && !host.contains('*')
+                && host.split('.').all(|label| {
+                    !label.is_empty()
+                        && !label.starts_with('-')
+                        && !label.ends_with('-')
+                        && label
+                            .chars()
+                            .all(|value| value.is_ascii_alphanumeric() || value == '-')
+                });
+            if valid && !hosts.iter().any(|existing| existing == host) {
+                hosts.push(host.to_string());
+            }
+        }
+    }
+    hosts
+}
+
+fn is_high_risk(tags: &[String]) -> bool {
+    tags.iter().any(|tag| {
+        let tag = tag.trim().to_lowercase();
+        HIGH_RISK_TAGS.iter().any(|risk| risk == &tag)
+    })
 }
 
 #[cfg(test)]
@@ -308,6 +380,61 @@ mod tests {
         let config =
             std::fs::read_to_string(ctx.workspace_root.join("opencode.jsonc")).expect("config");
         assert!(config.contains("\"browse\""));
+    }
+
+    #[test]
+    fn parses_browse_allowlist_tags() {
+        let tags = vec![
+            "needs-browser".to_string(),
+            "browse-allowlist:https://Example.com/path, docs.example.com".to_string(),
+            "browse-allowlist:example.com, *.invalid".to_string(),
+        ];
+        assert_eq!(
+            allowlist_from_tags(&tags),
+            vec!["example.com".to_string(), "docs.example.com".to_string()]
+        );
+        assert!(allowlist_from_tags(&["needs-browser".into()]).is_empty());
+    }
+
+    #[test]
+    fn instructions_include_the_allowlist() {
+        let prompt = instructions(&[
+            "needs-browser".into(),
+            "browse-allowlist:example.com,docs.example.com".into(),
+        ]);
+        assert!(prompt.contains("session_allowlist"));
+        assert!(prompt.contains("example.com, docs.example.com"));
+    }
+
+    #[tokio::test]
+    async fn high_risk_browse_task_requires_allowlist() {
+        let ctx = test_support::context().await;
+        let error = ensure_for_task(
+            &ctx.state,
+            &ctx.workspace_id,
+            "Pagar boleto",
+            "Entre no banco e pague",
+            &["needs-browser".into(), "browse-payment".into()],
+        )
+        .await
+        .expect_err("high risk");
+        assert!(error.to_string().contains("allowlist"));
+
+        assert!(
+            ensure_for_task(
+                &ctx.state,
+                &ctx.workspace_id,
+                "Pagar boleto",
+                "Entre no banco e pague",
+                &[
+                    "needs-browser".into(),
+                    "browse-payment".into(),
+                    "browse-allowlist:banco.example.com".into(),
+                ],
+            )
+            .await
+            .expect("allowlisted high risk")
+        );
     }
 
     #[tokio::test]

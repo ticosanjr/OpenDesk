@@ -264,6 +264,4 @@ test("key modals keep buttons visible and reachable", async ({ page, request }) 
   await expect(page.getByRole("dialog")).toBeVisible();
   expect(await audit(page, '[role="dialog"]')).toEqual([]);
   await page.getByRole("dialog").getByRole("button", { name: "Cancelar" }).click();
-
-  const auth = api();
 });

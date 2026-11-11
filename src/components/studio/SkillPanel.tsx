@@ -172,9 +172,9 @@ export function SkillPanel({
         }}
       >
         {loading && skills.length === 0 ? (
-          <p className="px-3 py-6 text-center text-[10px] text-zinc-600">Carregando…</p>
+          <p className="px-3 py-6 text-center text-[10px] text-zinc-500">Carregando…</p>
         ) : skills.length === 0 ? (
-          <p className="px-3 py-6 text-center text-[10px] text-zinc-600">
+          <p className="px-3 py-6 text-center text-[10px] text-zinc-500">
             Nenhuma skill neste escopo.
           </p>
         ) : (
@@ -214,7 +214,7 @@ export function SkillPanel({
                   </h2>
                   {isNew ? <Badge variant="blue">nova</Badge> : null}
                 </div>
-                <p className="mt-0.5 font-mono text-[9px] text-zinc-600">
+                <p className="mt-0.5 font-mono text-[9px] text-zinc-500">
                   {draft.path || "pasta será criada ao salvar"}
                 </p>
               </div>
@@ -292,7 +292,7 @@ export function SkillPanel({
               </div>
               <div className="space-y-3 p-3">
                 {draft.files.length === 0 ? (
-                  <p className="text-[10px] text-zinc-600">
+                  <p className="text-[10px] text-zinc-500">
                     Nenhum arquivo auxiliar. Ex.: references/policy.md ou scripts/changelog.ts.
                   </p>
                 ) : (
@@ -308,7 +308,7 @@ export function SkillPanel({
                         <button
                           type="button"
                           onClick={() => removeFile(index)}
-                          className="rounded-lg px-2 text-zinc-600 hover:bg-zinc-800 hover:text-red-300"
+                          className="rounded-lg px-2 text-zinc-500 hover:bg-zinc-800 hover:text-red-300"
                           title="Remover arquivo"
                         >
                           <Trash2 size={13} />
@@ -333,4 +333,4 @@ export function SkillPanel({
 }
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60 disabled:cursor-not-allowed";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60 disabled:cursor-not-allowed";

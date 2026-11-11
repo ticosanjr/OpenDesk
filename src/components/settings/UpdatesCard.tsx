@@ -178,7 +178,7 @@ export function UpdatesCard() {
             value={token}
             onChange={(event) => setToken(event.target.value)}
             placeholder="github_pat_… (fine-grained: Contents: Read, Metadata: Read)"
-            className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-blue-500/60"
+            className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
           />
           <div className="flex flex-wrap gap-2">
             <Button
@@ -297,7 +297,7 @@ export function UpdatesCard() {
           </p>
         ) : null}
 
-        <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[9px] leading-relaxed text-zinc-600">
+        <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[9px] leading-relaxed text-zinc-500">
           Repositório privado: crie um token fine-grained em GitHub → Settings →
           Developer settings com acesso ao repositório{" "}
           <span className="font-mono">ticosanjr/OpenDesk</span> e permissões{" "}

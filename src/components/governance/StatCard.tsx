@@ -20,7 +20,7 @@ export function StatCard({
           <span className="text-[9px] uppercase tracking-[0.12em]">{label}</span>
         </div>
         <p className="mt-1 font-mono text-lg text-zinc-100">{value}</p>
-        <p className="text-[9px] text-zinc-600">{hint}</p>
+        <p className="text-[9px] text-zinc-500">{hint}</p>
       </CardContent>
     </Card>
   );
