@@ -86,8 +86,15 @@ export function Modal({
 
   if (!open) return null;
 
+  // Ignore caller max-widths: every dialog should occupy a meaningful part of
+  // the viewport, remain centered, and only scroll internally when needed.
+  const sizeClasses = (className ?? "")
+    .split(/\s+/)
+    .filter((value) => value && !value.startsWith("max-w-"))
+    .join(" ");
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5">
       <button
         type="button"
         aria-label="Fechar"
@@ -101,8 +108,8 @@ export function Modal({
         aria-labelledby="modal-title"
         tabIndex={-1}
         className={cn(
-          "relative w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl outline-none",
-          className,
+          "relative w-[min(94vw,64rem)] min-w-[min(92vw,42rem)] min-h-[min(50dvh,28rem)] max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-zinc-800 bg-zinc-950/95 p-5 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.85)] outline-none backdrop-blur-xl",
+          sizeClasses,
         )}
       >
         <div className="mb-4 flex items-start justify-between gap-4">

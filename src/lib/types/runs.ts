@@ -126,9 +126,11 @@ export interface TimelineArtifact {
 }
 
 export interface TimelineEvent {
-  kind: "thinking" | "tool" | "comment" | "step" | string;
+  kind: "thinking" | "tool" | "comment" | "step" | "event" | string;
   role: string;
   text: string;
+  event_type?: string;
+  data?: string;
   tool?: TimelineTool | null;
   step_index?: number | null;
   started_at?: string | null;

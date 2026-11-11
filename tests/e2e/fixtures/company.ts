@@ -220,6 +220,29 @@ export async function seedOperational(
           data: { delta: "Vou analisar o briefing e montar o relatório." },
         },
         {
+          created: 1400,
+          type: "session.tool.input.started",
+          data: { id: "tool-1", name: "read" },
+        },
+        {
+          created: 1450,
+          type: "session.tool.input.ended",
+          data: { id: "tool-1", text: "{\"path\":\"input/brief.md\"}" },
+        },
+        {
+          created: 1500,
+          type: "session.tool.success",
+          data: {
+            id: "tool-1",
+            content: [{ type: "text", text: "conteúdo do briefing" }],
+          },
+        },
+        {
+          created: 1600,
+          type: "session.permission.requested",
+          data: { action: "bash", resource: "npm test" },
+        },
+        {
           created: 1800,
           type: "session.text.delta",
           data: { delta: "Relatório executivo com três recomendações." },

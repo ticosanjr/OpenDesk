@@ -158,11 +158,10 @@ describe("RunLogView", () => {
     expect(await screen.findByText("Raciocínio")).toBeInTheDocument();
     expect(screen.getByText("Resultado")).toBeInTheDocument();
     expect(screen.getByText("Resultado final da execução.")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Vou analisar o workspace.", { selector: "pre" }),
-    ).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: /Raciocínio/ }));
+    const thinking = screen.getByRole("button", { name: /Raciocínio/ });
+    expect(thinking).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(thinking);
+    expect(thinking).toHaveAttribute("aria-expanded", "true");
     expect(
       screen.getByText("Vou analisar o workspace.", { selector: "pre" }),
     ).toBeInTheDocument();

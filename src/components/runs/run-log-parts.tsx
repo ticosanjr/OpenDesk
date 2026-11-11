@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 
 import {
+  Braces,
   BrainCircuit,
   CheckCircle2,
   ChevronRight,
@@ -29,6 +30,149 @@ import {
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+
+function Expandable({
+  open,
+  onToggle,
+  header,
+  actions,
+  children,
+  className,
+  headerClassName,
+  contentClassName,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  header: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  headerClassName?: string;
+  contentClassName?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "group overflow-hidden rounded-2xl border bg-zinc-950/30 transition-[border-color,background-color,box-shadow] duration-200 hover:border-zinc-700/80 hover:bg-white/[0.015]",
+        className,
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={onToggle}
+          className={cn(
+            "flex min-w-0 flex-1 flex-wrap items-center gap-2 px-3.5 py-2.5 text-left transition-colors hover:bg-white/[0.02]",
+            headerClassName,
+          )}
+        >
+          {header}
+        </button>
+        {actions ? (
+          <div className="flex shrink-0 items-center gap-1 pr-2">{actions}</div>
+        ) : null}
+      </div>
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
+          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+        )}
+        aria-hidden={!open}
+      >
+        <div className="overflow-hidden">
+          <div
+            onClick={(event) => {
+              const target = event.target as HTMLElement;
+              if (
+                target.closest(
+                  "button,a,input,textarea,select,[data-no-collapse]",
+                )
+              ) {
+                return;
+              }
+              if (open) onToggle();
+            }}
+            className={cn(
+              "border-t border-zinc-800/60 px-3.5 py-3",
+              contentClassName,
+            )}
+          >
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CommentCard({ event }: { event: TimelineEvent }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <Expandable
+      open={open}
+      onToggle={() => setOpen((current) => !current)}
+      className="border-zinc-800/70 bg-zinc-900/40"
+      header={
+        <>
+          <MessageSquare size={12} className="shrink-0 text-blue-300" />
+          <span className="text-[11px] font-semibold text-zinc-200">Resposta</span>
+          <span className="font-mono text-[9px] text-zinc-500">
+            {formatClock(event.started_at)} → {formatClock(event.ended_at)}
+          </span>
+          <span className="font-mono text-[9px] text-zinc-500">
+            {formatDuration(event.duration_ms)}
+          </span>
+          <ChevronRight
+            size={13}
+            className={cn(
+              "ml-auto shrink-0 text-zinc-500 transition-transform duration-200",
+              open && "rotate-90",
+            )}
+          />
+        </>
+      }
+    >
+      <p className="whitespace-pre-wrap break-words text-[12px] leading-relaxed text-zinc-200">
+        {event.text || "Sem texto."}
+      </p>
+    </Expandable>
+  );
+}
+
+function GenericEventCard({ event }: { event: TimelineEvent }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Expandable
+      open={open}
+      onToggle={() => setOpen((current) => !current)}
+      className="border-zinc-800/70 bg-zinc-950/40"
+      header={
+        <>
+          <Braces size={12} className="shrink-0 text-zinc-400" />
+          <span className="font-mono text-[10px] text-zinc-300">
+            {event.event_type || event.text}
+          </span>
+          <Badge variant="default">evento</Badge>
+          <span className="ml-auto font-mono text-[9px] text-zinc-500">
+            {formatClock(event.started_at)}
+          </span>
+          <ChevronRight
+            size={13}
+            className={cn(
+              "shrink-0 text-zinc-500 transition-transform duration-200",
+              open && "rotate-90",
+            )}
+          />
+        </>
+      }
+    >
+      <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-zinc-800/60 bg-zinc-950 p-2 font-mono text-[10px] leading-relaxed text-zinc-400">
+        {event.data ? pretty(event.data) : "Sem dados."}
+      </pre>
+    </Expandable>
+  );
+}
 
 export function StreamView({
   timeline,
@@ -145,24 +289,10 @@ export function StreamView({
           );
         }
         if (event.kind === "comment") {
-          return (
-            <div
-              key={`comment-${index}`}
-              className="rounded-xl border border-zinc-800/70 bg-zinc-900/40 px-3 py-2"
-            >
-              <div className="mb-1 flex flex-wrap items-center gap-2 font-mono text-[10px] text-zinc-500">
-                <MessageSquare size={11} />
-                modelo
-                <span>
-                  {formatClock(event.started_at)} → {formatClock(event.ended_at)}
-                </span>
-                <span>{formatDuration(event.duration_ms)}</span>
-              </div>
-              <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-zinc-200">
-                {event.text}
-              </p>
-            </div>
-          );
+          return <CommentCard key={`comment-${index}`} event={event} />;
+        }
+        if (event.kind === "event") {
+          return <GenericEventCard key={`event-${index}`} event={event} />;
         }
         return null;
       })}
@@ -199,61 +329,67 @@ export function ResultCard({
   truncated: boolean;
   copy: (text: string) => Promise<void>;
 }) {
+  const [open, setOpen] = useState(true);
   return (
-    <div
+    <Expandable
+      open={open}
+      onToggle={() => setOpen((current) => !current)}
       className={cn(
-        "rounded-xl border",
         failed
           ? "border-red-500/20 bg-red-500/[0.035]"
           : "border-emerald-500/20 bg-emerald-500/[0.035]",
       )}
-    >
-      <div
-        className={cn(
-          "flex flex-wrap items-center gap-2 border-b px-3.5 py-2.5",
-          failed ? "border-red-500/15" : "border-emerald-500/15",
-        )}
-      >
-        {failed ? (
-          <XCircle size={14} className="text-red-400" />
-        ) : (
-          <CheckCircle2 size={14} className="text-emerald-400" />
-        )}
-        <span
-          className={cn(
-            "text-[12px] font-semibold",
-            failed ? "text-red-100" : "text-emerald-100",
-          )}
-        >
-          Resultado
-        </span>
-        <span className="font-mono text-[10px] text-zinc-500">
-          {formatDuration(durationMs)}
-        </span>
-        <span className="font-mono text-[10px] text-zinc-500">
-          {formatClock(startedAt)} → {formatClock(endedAt)}
-        </span>
+      actions={
         <Button
           variant="ghost"
           size="sm"
-          className="ml-auto h-6"
+          className="h-6"
           onClick={() => void copy(text || summary || "")}
         >
           <Copy size={11} />
           copiar
         </Button>
-      </div>
-      <div className="px-3.5 py-3">
-        <pre className="whitespace-pre-wrap break-words font-sans text-[12px] leading-relaxed text-zinc-100">
-          {text || summary || "Sem texto final. Veja as ferramentas executadas e o modo bruto."}
-        </pre>
-        {truncated ? (
-          <p className="mt-2 text-[10px] text-amber-300">
-            Resultado truncado. Use o modo bruto para ver o log completo.
-          </p>
-        ) : null}
-      </div>
-    </div>
+      }
+      header={
+        <>
+          {failed ? (
+            <XCircle size={14} className="text-red-400" />
+          ) : (
+            <CheckCircle2 size={14} className="text-emerald-400" />
+          )}
+          <span
+            className={cn(
+              "text-[12px] font-semibold",
+              failed ? "text-red-100" : "text-emerald-100",
+            )}
+          >
+            Resultado
+          </span>
+          <span className="font-mono text-[10px] text-zinc-500">
+            {formatDuration(durationMs)}
+          </span>
+          <span className="hidden font-mono text-[10px] text-zinc-500 sm:inline">
+            {formatClock(startedAt)} → {formatClock(endedAt)}
+          </span>
+          <ChevronRight
+            size={13}
+            className={cn(
+              "ml-auto shrink-0 text-zinc-500 transition-transform duration-200",
+              open && "rotate-90",
+            )}
+          />
+        </>
+      }
+    >
+      <pre className="whitespace-pre-wrap break-words font-sans text-[12px] leading-relaxed text-zinc-100">
+        {text || summary || "Sem texto final. Veja as ferramentas executadas e o modo bruto."}
+      </pre>
+      {truncated ? (
+        <p className="mt-2 text-[10px] text-amber-300">
+          Resultado truncado. Use o modo bruto para ver o log completo.
+        </p>
+      ) : null}
+    </Expandable>
   );
 }
 
@@ -282,49 +418,48 @@ export function Band({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div
+    <Expandable
+      open={open}
+      onToggle={() => setOpen((current) => !current)}
       className={cn(
-        "overflow-hidden rounded-xl border",
         tone === "purple"
           ? "border-violet-500/20 bg-violet-500/[0.035]"
           : "border-blue-500/20 bg-blue-500/[0.035]",
       )}
+      header={
+        <>
+          <ChevronRight
+            size={13}
+            className={cn(
+              "shrink-0 text-zinc-500 transition-transform duration-200",
+              open && "rotate-90",
+            )}
+          />
+          <span className="shrink-0">{icon}</span>
+          <span
+            className={cn(
+              "text-[11px] font-semibold",
+              tone === "purple" ? "text-violet-100" : "text-blue-100",
+            )}
+            title={tooltip}
+          >
+            {title}
+          </span>
+          <span className="font-mono text-[9px] text-zinc-500">
+            {formatDuration(durationMs)}
+          </span>
+          <span className="hidden font-mono text-[9px] text-zinc-500 sm:inline">
+            {formatClock(startedAt)} → {formatClock(endedAt)}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-right text-[9px] text-zinc-500">
+            {summary}
+          </span>
+        </>
+      }
+      contentClassName="px-3.5 py-3"
     >
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-        className="flex w-full flex-wrap items-center gap-2 px-3.5 py-2.5 text-left hover:bg-white/[0.02]"
-        title={tooltip}
-      >
-        <ChevronRight
-          size={13}
-          className={cn(
-            "shrink-0 text-zinc-500 transition-transform",
-            open && "rotate-90",
-          )}
-        />
-        <span className="shrink-0">{icon}</span>
-        <span
-          className={cn(
-            "text-[11px] font-semibold",
-            tone === "purple" ? "text-violet-100" : "text-blue-100",
-          )}
-        >
-          {title}
-        </span>
-        <span className="font-mono text-[9px] text-zinc-500">
-          {formatDuration(durationMs)}
-        </span>
-        <span className="hidden font-mono text-[9px] text-zinc-500 sm:inline">
-          {formatClock(startedAt)} → {formatClock(endedAt)}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-right text-[9px] text-zinc-500">
-          {summary}
-        </span>
-      </button>
-      {open ? <div className="border-t border-zinc-800/60 px-3.5 py-3">{children}</div> : null}
-    </div>
+      {children}
+    </Expandable>
   );
 }
 
@@ -342,63 +477,69 @@ export function ToolRow({
   );
   const failed = tool.status === "failed";
   return (
-    <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className="flex w-full flex-wrap items-center gap-2 px-2.5 py-1.5 text-left hover:bg-zinc-900/60"
-        aria-expanded={open}
-      >
-        {failed ? (
-          <XCircle size={12} className="shrink-0 text-red-400" />
-        ) : (
-          <Wrench size={12} className="shrink-0 text-zinc-500" />
-        )}
-        <span className="font-mono text-[10px] text-zinc-200">{tool.summary}</span>
-        <Badge variant={failed ? "red" : "green"}>{tool.status}</Badge>
-        <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[9px] text-zinc-500">
-          <Clock3 size={9} />
-          {formatClock(tool.started_at)}
-          <span>{formatDuration(tool.duration_ms)}</span>
+    <Expandable
+      open={open}
+      onToggle={() => setOpen((current) => !current)}
+      className="border-zinc-800/70 bg-zinc-950/40"
+      headerClassName="px-2.5 py-1.5"
+      contentClassName="space-y-2 px-2.5 py-2"
+      header={
+        <>
+          {failed ? (
+            <XCircle size={12} className="shrink-0 text-red-400" />
+          ) : (
+            <Wrench size={12} className="shrink-0 text-zinc-500" />
+          )}
+          <span className="font-mono text-[10px] text-zinc-200">
+            {tool.summary}
+          </span>
+          <Badge variant={failed ? "red" : "green"}>{tool.status}</Badge>
+          <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[9px] text-zinc-500">
+            <Clock3 size={9} />
+            {formatClock(tool.started_at)}
+            <span>{formatDuration(tool.duration_ms)}</span>
+          </span>
+          <ChevronRight
+            size={13}
+            className={cn(
+              "shrink-0 text-zinc-500 transition-transform duration-200",
+              open && "rotate-90",
+            )}
+          />
+        </>
+      }
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        {path ? (
+          <EntityLink to={links.file(path)} chip>
+            <ExternalLink size={9} />
+            abrir {path.split("/").pop()}
+          </EntityLink>
+        ) : null}
+        <span className="font-mono text-[9px] text-zinc-500">
+          {formatClock(tool.started_at)} → {formatClock(tool.ended_at)}
         </span>
-      </button>
-      {open ? (
-        <div className="space-y-2 border-t border-zinc-800/60 px-2.5 py-2">
-          <div className="flex flex-wrap items-center gap-2">
-            {path ? (
-              <EntityLink to={links.file(path)} chip>
-                <ExternalLink size={9} />
-                abrir {path.split("/").pop()}
-              </EntityLink>
-            ) : null}
-            <span className="font-mono text-[9px] text-zinc-500">
-              {formatClock(tool.started_at)} → {formatClock(tool.ended_at)}
-            </span>
-          </div>
-          <div>
-            <p className="mb-1 font-mono text-[8px] uppercase tracking-wide text-zinc-500">
-              entrada
-            </p>
-            <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded border border-zinc-800/60 bg-zinc-950 p-2 font-mono text-[9px] text-zinc-400">
-              {pretty(tool.input)}
-            </pre>
-          </div>
-          <div>
-            <p className="mb-1 font-mono text-[8px] uppercase tracking-wide text-zinc-500">
-              saída
-            </p>
-            <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-zinc-800/60 bg-zinc-950 p-2 font-mono text-[9px] text-zinc-400">
-              {tool.output || "sem saída"}
-            </pre>
-            {tool.output_truncated ? (
-              <p className="mt-1 text-[9px] text-amber-300">
-                Saída truncada.
-              </p>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-    </div>
+      </div>
+      <div>
+        <p className="mb-1 font-mono text-[8px] uppercase tracking-wide text-zinc-500">
+          entrada
+        </p>
+        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded border border-zinc-800/60 bg-zinc-950 p-2 font-mono text-[9px] text-zinc-400">
+          {pretty(tool.input)}
+        </pre>
+      </div>
+      <div>
+        <p className="mb-1 font-mono text-[8px] uppercase tracking-wide text-zinc-500">
+          saída
+        </p>
+        <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-zinc-800/60 bg-zinc-950 p-2 font-mono text-[9px] text-zinc-400">
+          {tool.output || "sem saída"}
+        </pre>
+        {tool.output_truncated ? (
+          <p className="mt-1 text-[9px] text-amber-300">Saída truncada.</p>
+        ) : null}
+      </div>
+    </Expandable>
   );
 }
 

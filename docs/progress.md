@@ -1893,3 +1893,11 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Novos testes de integração do cron: `run_now` enfileira, fila pausa/retoma,
   prioridade, cancelamento e retry; tick cobre `SKIPPED_OFFLINE` e
   `SKIPPED_MISFIRE`.
+
+## 2026-11-11 — release 0.44.0
+
+- Timeline de execução passou a renderizar todos os eventos do OpenCode, com
+  payload genérico para tipos desconhecidos.
+- Cards expansíveis por clique no cabeçalho/conteúdo, com animação e ferramentas
+  mostrando entrada/saída reais.
+- Modais centralizados com largura/altura mínimas e command palette ampliada.

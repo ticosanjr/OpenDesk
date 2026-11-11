@@ -11,6 +11,27 @@ test("runs list opens detail and exports the session", async ({ page, request })
   await expect(page.getByText("Execução", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "MD", exact: true })).toBeVisible();
 
+  const tool = page
+    .getByRole("button", { name: /read · input\/brief\.md/ })
+    .first();
+  await expect(tool).toHaveAttribute("aria-expanded", "false");
+  await tool.click();
+  await expect(tool).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByText("entrada", { exact: true }).first()).toBeVisible();
+  await page.getByText("conteúdo do briefing").first().click();
+  await expect(tool).toHaveAttribute("aria-expanded", "false");
+
+  const generic = page
+    .getByRole("button", { name: /session\.permission\.requested/ })
+    .first();
+  await expect(generic).toHaveAttribute("aria-expanded", "false");
+  await generic.click();
+  await expect(generic).toHaveAttribute("aria-expanded", "true");
+  const payload = page.getByText(/"resource": "npm test"/).first();
+  await expect(payload).toBeVisible();
+  await payload.click();
+  await expect(generic).toHaveAttribute("aria-expanded", "false");
+
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "MD", exact: true }).click();
   const download = await downloadPromise;

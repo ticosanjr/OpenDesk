@@ -109,7 +109,7 @@ export function CommandPalette() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[15vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
         aria-label="Fechar command bar"
@@ -118,7 +118,7 @@ export function CommandPalette() {
       />
       <Command
         label="Command Menu"
-        className="relative w-full max-w-xl overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl"
+        className="relative w-full max-w-4xl overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/95 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.85)] backdrop-blur-xl"
       >
         <div className="flex items-center gap-2 border-b border-zinc-800/70 px-3">
           <Search size={15} className="text-zinc-500" />
@@ -132,7 +132,7 @@ export function CommandPalette() {
           </span>
         </div>
 
-        <Command.List className="max-h-[340px] overflow-y-auto p-2">
+        <Command.List className="max-h-[min(60dvh,28rem)] overflow-y-auto p-2">
           <Command.Empty className="px-3 py-8 text-center text-xs text-zinc-500">
             Nenhum resultado.
           </Command.Empty>

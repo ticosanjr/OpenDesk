@@ -69,3 +69,24 @@ test("routine modal accepts character-by-character typing", async ({
   await expect(name).toBeFocused();
   await expect(dialog).toBeVisible();
 });
+
+test("modals are centered and occupy a large part of the viewport", async ({
+  page,
+  request,
+}) => {
+  await seedWorkspace(request, "Modal Layout");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/#/kanban");
+  await page.getByRole("main").getByRole("button", { name: "Nova tarefa" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  const box = await dialog.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+  expect(box.width).toBeGreaterThan(900);
+  expect(box.height).toBeGreaterThan(440);
+  const centerX = box.x + box.width / 2;
+  const centerY = box.y + box.height / 2;
+  expect(Math.abs(centerX - 720)).toBeLessThan(8);
+  expect(Math.abs(centerY - 450)).toBeLessThan(8);
+});

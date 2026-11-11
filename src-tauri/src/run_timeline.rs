@@ -38,6 +38,10 @@ pub struct TimelineEvent {
     pub kind: String,
     pub role: String,
     pub text: String,
+    /// Original OpenCode event type, including unknown/future events.
+    pub event_type: String,
+    /// Raw JSON payload for generic events, truncated for transport.
+    pub data: String,
     pub tool: Option<TimelineTool>,
     pub step_index: Option<usize>,
     pub started_at: Option<String>,
@@ -456,7 +460,22 @@ pub fn timeline_from_events(
                 };
                 timeline.completed_at = iso(created);
             }
-            _ => {}
+            _ => {
+                // Keep every OpenCode event visible even when the UI does not
+                // know its schema. Future engine events then show up without a
+                // frontend release.
+                let (data, _) = truncate(data.to_string(), MAX_TOOL_OUTPUT);
+                timeline.events.push(TimelineEvent {
+                    kind: "event".into(),
+                    role: "system".into(),
+                    text: kind.to_string(),
+                    event_type: kind.to_string(),
+                    data,
+                    started_at: iso(created),
+                    ended_at: iso(created),
+                    ..Default::default()
+                });
+            }
         }
 
         let _ = reasoning_started;
@@ -544,6 +563,9 @@ pub fn timeline_from_events(
         ..Default::default()
     };
     for event in &mut timeline.events {
+        if event.event_type.is_empty() {
+            event.event_type = event.kind.clone();
+        }
         if let Some(tool) = &event.tool
             && let Some(final_tool) = timeline_tools.iter().find(|item| item.id == tool.id)
         {
@@ -667,7 +689,8 @@ mod tests {
             json!({"created": 2100, "type": "session.text.delta", "data": {"delta": "resultado "}}),
             json!({"created": 2300, "type": "session.text.ended", "data": {"text": "resultado final"}}),
             json!({"created": 2500, "type": "session.step.ended", "data": {"cost": 0.01, "finish": "stop", "tokens": {"input": 10, "output": 5, "reasoning": 2}}}),
-            json!({"created": 2600, "type": "session.execution.succeeded", "data": {}}),
+            json!({"created": 2700, "type": "session.permission.requested", "data": {"action": "bash", "resource": "npm test"}}),
+            json!({"created": 2800, "type": "session.execution.succeeded", "data": {}}),
         ]
     }
 
@@ -675,9 +698,9 @@ mod tests {
     fn builds_thinking_executed_result_bands() {
         let timeline = timeline_from_events(None, events(), false);
         assert_eq!(timeline.status, "SUCCESS");
-        assert_eq!(timeline.events_count, 13);
+        assert_eq!(timeline.events_count, 14);
         assert_eq!(timeline.workspace_root.as_deref(), Some("/tmp/workspace"));
-        assert_eq!(timeline.duration_ms, 1600);
+        assert_eq!(timeline.duration_ms, 1800);
         assert_eq!(timeline.thinking.text, "vou olhar o workspace");
         assert_eq!(timeline.thinking.duration_ms, 500);
         assert_eq!(timeline.executed.tools.len(), 1);
@@ -693,6 +716,13 @@ mod tests {
         assert!(timeline.events.iter().any(|event| event.kind == "thinking"));
         assert!(timeline.events.iter().any(|event| event.kind == "tool"));
         assert!(timeline.events.iter().any(|event| event.kind == "comment"));
+        let generic = timeline
+            .events
+            .iter()
+            .find(|event| event.kind == "event")
+            .expect("generic event");
+        assert_eq!(generic.event_type, "session.permission.requested");
+        assert!(generic.data.contains("npm test"));
         let kinds = timeline
             .events
             .iter()
