@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { seedWorkspace } from "./helpers";
+import { seedCompany, seedOperational } from "./fixtures/company";
 
 test("typing in a modal keeps focus and does not close it", async ({
   page,
@@ -89,4 +90,30 @@ test("modals are centered and occupy a large part of the viewport", async ({
   const centerY = box.y + box.height / 2;
   expect(Math.abs(centerX - 720)).toBeLessThan(8);
   expect(Math.abs(centerY - 450)).toBeLessThan(8);
+});
+
+test("execution preview is centered and occupies a large part of the viewport", async ({
+  page,
+  request,
+}) => {
+  const company = await seedCompany(request, "Execution Preview");
+  await seedOperational(request, company);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/#/kanban");
+  await page.getByText("Entrega do diagnóstico").first().click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Execução", exact: true })
+    .click();
+  const drawer = page.locator("aside").filter({ hasText: "abrir página" });
+  await expect(drawer).toBeVisible();
+  const box = await drawer.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+  expect(box.width).toBeGreaterThan(900);
+  expect(box.height).toBeGreaterThan(500);
+  expect(Math.abs(box.x + box.width / 2 - 720)).toBeLessThan(8);
+  expect(Math.abs(box.y + box.height / 2 - 450)).toBeLessThan(8);
+  await page.keyboard.press("Escape");
+  await expect(drawer).toBeHidden();
 });

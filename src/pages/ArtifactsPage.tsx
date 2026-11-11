@@ -115,6 +115,15 @@ export function ArtifactsPage() {
   }, [artifacts, searchParams, setSearchParams]);
 
   useEffect(() => {
+    if (!selected) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelected(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selected]);
+
+  useEffect(() => {
     if (!selected) {
       setContent(null);
       return;
@@ -387,14 +396,14 @@ export function ArtifactsPage() {
       </Card>
 
       {selected ? (
-        <div className="fixed inset-0 z-40 flex justify-end">
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-5">
           <button
             type="button"
             aria-label="Fechar artefato"
-            className="absolute inset-0 bg-black/60"
+            className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
             onClick={() => setSelected(null)}
           />
-          <aside className="relative flex h-dvh w-full max-w-3xl flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl">
+          <aside className="relative flex h-[min(88dvh,64rem)] w-[min(94vw,72rem)] flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/95 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.85)] backdrop-blur-xl">
             <div className="flex items-start justify-between gap-3 border-b border-zinc-800/70 px-4 py-3">
               <div className="min-w-0">
                 <p className="truncate font-mono text-[11px] text-zinc-200">

@@ -27,6 +27,9 @@ flow:
   expect(saved.ok()).toBeTruthy();
 
   await page.goto("/#/routines");
+  await expect(
+    page.getByRole("heading", { name: "Rotinas & Gatilhos" }),
+  ).toBeVisible();
   await page.getByRole("main").getByRole("button", { name: "Nova rotina" }).click();
   const dialog = page.getByRole("dialog");
   const timezone = dialog.getByLabel("Fuso horário");

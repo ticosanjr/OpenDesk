@@ -1901,3 +1901,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Cards expansíveis por clique no cabeçalho/conteúdo, com animação e ferramentas
   mostrando entrada/saída reais.
 - Modais centralizados com largura/altura mínimas e command palette ampliada.
+
+## 2026-11-11 — release 0.44.1
+
+- Preview de execução (`LogDrawer`) e preview de artefato deixaram de ser
+  drawers laterais e agora são overlays centralizados, grandes e fecháveis com
+  Esc/backdrop.
