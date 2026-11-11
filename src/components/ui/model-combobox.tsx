@@ -4,6 +4,8 @@ import { loadModelHealth, loadModels } from "@/lib/studio-cache";
 import { isValidModelRef, normalizeModelRef } from "@/lib/model-ref";
 import { toModelSelection } from "@/lib/model-selection";
 import { shouldCloseOnBlur } from "@/lib/combobox";
+import { apiPost } from "@/lib/api";
+import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
 
 const inputClass =
@@ -33,6 +35,12 @@ export function ModelCombobox({
   const [query, setQuery] = useState(current ?? "");
   const [editing, setEditing] = useState(!allowRouter || current !== null);
   const [touched, setTouched] = useState(false);
+  const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,6 +55,7 @@ export function ModelCombobox({
   }, []);
 
   useEffect(() => {
+    setTestResult(null);
     setQuery(current ?? "");
     if (!allowRouter) {
       setEditing(true);
@@ -120,6 +129,49 @@ export function ModelCombobox({
       return true;
     }
     return false;
+  }
+
+  async function testModel() {
+    const model = current ?? normalizeModelRef(query.trim());
+    if (!model) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await apiPost<{
+        ok: boolean;
+        latency_ms: number;
+        response?: string | null;
+        error_code?: string | null;
+        error_message?: string | null;
+      }>("/api/models/test", {
+        model,
+        workspace_id: activeWorkspaceId ?? undefined,
+      });
+      if (result.ok) {
+        const text = (result.response ?? "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 100);
+        setTestResult({
+          ok: true,
+          message: `OK · ${result.latency_ms}ms${text ? ` · ${text}` : ""}`,
+        });
+      } else {
+        setTestResult({
+          ok: false,
+          message: `${result.error_code ?? "erro"}: ${
+            (result.error_message ?? "falha ao testar o modelo").slice(0, 220)
+          }`,
+        });
+      }
+    } catch (cause) {
+      setTestResult({
+        ok: false,
+        message: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setTesting(false);
+    }
   }
 
   return (
@@ -278,6 +330,28 @@ export function ModelCombobox({
           Este modelo falhou recentemente. Escolha outro ou limpe o cooldown em
           Configurações → OpenCode Engine.
         </p>
+      ) : null}
+      {editing && current ? (
+        <div className="space-y-1">
+          <button
+            type="button"
+            onClick={() => void testModel()}
+            disabled={testing}
+            className="inline-flex h-6 items-center gap-1 rounded-md border border-zinc-800 px-2 text-[9px] text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200 disabled:opacity-50"
+          >
+            {testing ? "Testando…" : "Testar modelo"}
+          </button>
+          {testResult ? (
+            <p
+              className={cn(
+                "break-words text-[9px] leading-snug",
+                testResult.ok ? "text-emerald-300" : "text-red-300",
+              )}
+            >
+              {testResult.message}
+            </p>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

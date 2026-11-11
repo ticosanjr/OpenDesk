@@ -117,3 +117,24 @@ test("execution preview is centered and occupies a large part of the viewport", 
   await page.keyboard.press("Escape");
   await expect(drawer).toBeHidden();
 });
+
+test("typing a question mark in a field does not open global shortcuts", async ({
+  page,
+  request,
+}) => {
+  await seedWorkspace(request, "Shortcut Guard");
+  await page.goto("/#/kanban");
+  await page.getByRole("main").getByRole("button", { name: "Nova tarefa" }).click();
+  const title = page
+    .getByRole("dialog")
+    .getByPlaceholder("Relatório executivo de vendas");
+  await title.click();
+  await title.pressSequentially("Teste? com interrogação", { delay: 5 });
+  await expect(title).toHaveValue("Teste? com interrogação");
+  await expect(page.getByText("Atalhos do OpenDesk")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("heading", { name: "Kanban" }).click();
+  await page.keyboard.press("?");
+  await expect(page.getByText("Atalhos do OpenDesk").first()).toBeVisible();
+});

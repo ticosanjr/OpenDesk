@@ -1,0 +1,12 @@
+{
+  "name": "OpenDesk",
+  "version": "0.45.0",
+  "platform": "linux-x86_64",
+  "built_at": "2026-11-11T17:53:44.571Z",
+  "artifacts": [
+    "OpenDesk-0.45.0-1.x86_64.rpm",
+    "OpenDesk_0.45.0_amd64.AppImage",
+    "OpenDesk_0.45.0_amd64.deb",
+    "opendesk-linux-x86_64"
+  ]
+}

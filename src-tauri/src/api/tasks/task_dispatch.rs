@@ -118,6 +118,8 @@ pub(super) async fn plan_decision(
         .clone()
         .unwrap_or_else(|| task.execution_mode.clone());
     let tags = task.tags();
+    let default_model =
+        dsh_router::configured_default_model(std::path::Path::new(&workspace.root_path));
     let input = RouterInput {
         workspace_id: &task.workspace_id,
         workspace_root: std::path::Path::new(&workspace.root_path),
@@ -136,6 +138,7 @@ pub(super) async fn plan_decision(
         policy: &policy,
         rules: &rules,
         available_models: &available_models,
+        default_model: default_model.as_deref(),
         approved_plan,
         output_directory: task.output_dir_path.as_deref().map(std::path::Path::new),
         budget_daily_pct: budget_status

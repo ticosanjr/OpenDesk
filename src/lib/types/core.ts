@@ -121,6 +121,7 @@ export interface DispatchDecision {
   audit_after_build: boolean;
   policy_applied: string;
   rule_name?: string | null;
+  origin: string;
 }
 
 export interface TaskRun {

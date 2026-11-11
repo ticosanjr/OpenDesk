@@ -198,6 +198,7 @@ export function StudioOverview({
             />
           </div>
           <select
+            aria-label="Filtrar por tipo"
             value={kindFilter}
             onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}
             className={selectClass}
@@ -209,6 +210,7 @@ export function StudioOverview({
             <option value="mcp">MCPs</option>
           </select>
           <select
+            aria-label="Filtrar por estado"
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
             className={selectClass}

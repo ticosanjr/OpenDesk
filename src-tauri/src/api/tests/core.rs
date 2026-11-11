@@ -875,6 +875,51 @@ async fn dashboard_counts_active_routines_and_enabled_recipes() {
 }
 
 #[tokio::test]
+async fn router_test_uses_the_opencode_default_model() {
+    let ctx = test_support::context().await;
+    std::fs::write(
+        ctx.workspace_root.join("opencode.jsonc"),
+        r#"{ "model": "deepseek/deepseek-flash" }"#,
+    )
+    .expect("config");
+    let (status, body) = call(
+        &ctx,
+        Method::POST,
+        "/api/router/test",
+        Some(json!({
+            "title": "Relatório executivo",
+            "description": "Analise os dados e produza um relatório.",
+            "tags": ["relatorio"]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["default_model"], "deepseek/deepseek-flash");
+    assert_eq!(body["decision"]["origin"], "COST_BENEFIT");
+    assert_eq!(body["decision"]["selected_agent"], "build");
+    assert!(
+        body["decision"]["selected_model"]
+            .as_str()
+            .is_some_and(|value| value.starts_with("deepseek/deepseek-flash"))
+    );
+}
+
+#[tokio::test]
+async fn model_test_reports_engine_offline_without_failing_the_api() {
+    let ctx = test_support::context().await;
+    let (status, body) = call(
+        &ctx,
+        Method::POST,
+        "/api/models/test",
+        Some(json!({ "model": "deepseek/deepseek-flash" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["ok"], false);
+    assert_eq!(body["error_code"], "engine_offline");
+}
+
+#[tokio::test]
 async fn updates_rollback_without_backup_is_actionable() {
     let ctx = test_support::context().await;
     let (status, body) = call(&ctx, Method::POST, "/api/updates/rollback", None).await;

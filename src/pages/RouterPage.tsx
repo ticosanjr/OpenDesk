@@ -4,6 +4,7 @@ import {
   Gauge,
   GitBranch,
   Loader2,
+  Pencil,
   Plus,
   RefreshCw,
   Route,
@@ -35,6 +36,7 @@ import {
 interface RouterConfig {
   workspace_id: string;
   policy: string;
+  default_model?: string | null;
   router_model?: string | null;
   cost_blend: number;
   rules: RouterRule[];
@@ -78,6 +80,27 @@ export function RouterPage() {
   const [savingModel, setSavingModel] = useState(false);
   const [analysis, setAnalysis] = useState<RouterAnalysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [editingRule, setEditingRule] = useState<RouterRule | null>(null);
+  const [testTitle, setTestTitle] = useState("Produza um relatório executivo");
+  const [testDescription, setTestDescription] = useState(
+    "Analise os dados e destaque riscos e próximos passos.",
+  );
+  const [testTags, setTestTags] = useState("relatorio");
+  const [testDecision, setTestDecision] = useState<{
+    decision: {
+      phase: string;
+      selected_agent: string;
+      selected_model: string;
+      effort: string;
+      rationale: string;
+      origin: string;
+      policy_applied: string;
+      rule_name?: string | null;
+    };
+    policy: string;
+    default_model?: string | null;
+  } | null>(null);
+  const [testingDecision, setTestingDecision] = useState(false);
 
   const query = useMemo(
     () => (activeWorkspaceId ? `?workspace_id=${encodeURIComponent(activeWorkspaceId)}` : ""),
@@ -189,6 +212,46 @@ export function RouterPage() {
     }
   }
 
+  async function testRouting() {
+    if (!activeWorkspaceId) return;
+    setTestingDecision(true);
+    setError(null);
+    try {
+      const result = await apiPost<{
+        decision: {
+          phase: string;
+          selected_agent: string;
+          selected_model: string;
+          effort: string;
+          rationale: string;
+          origin: string;
+          policy_applied: string;
+          rule_name?: string | null;
+        };
+        policy: string;
+        default_model?: string | null;
+      }>("/api/router/test", {
+        workspace_id: activeWorkspaceId,
+        title: testTitle,
+        description: testDescription,
+        tags: testTags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      });
+      setTestDecision(result);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setTestingDecision(false);
+    }
+  }
+
+  function editRule(rule: RouterRule) {
+    setEditingRule(rule);
+    setRuleOpen(true);
+  }
+
   async function removeRule(id: string) {
     if (!(await confirmAction({ title: "Excluir regra do roteador?", description: "A regra deixa de ser avaliada imediatamente.", confirmLabel: "Excluir regra", tone: "destructive" }))) return;
     try {
@@ -234,7 +297,134 @@ export function RouterPage() {
         </p>
       ) : null}
 
-      <Card>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        {Object.entries(ROUTER_POLICY_LABELS).map(([id, label]) => {
+          const active = id === policy;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => void changePolicy(id)}
+              className={cn(
+                "rounded-xl border p-4 text-left transition-colors",
+                active
+                  ? "border-blue-500/40 bg-blue-500/[0.06]"
+                  : "border-zinc-800/80 bg-zinc-900/25 hover:border-zinc-700",
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <Gauge size={15} className={active ? "text-blue-400" : "text-zinc-500"} />
+                {active ? <Badge variant="blue">atual</Badge> : null}
+              </div>
+              <p className="mt-3 text-[12px] font-medium text-zinc-200">{label}</p>
+              <p className="mt-1 font-mono text-[9px] text-zinc-500">{id}</p>
+            </button>
+          );
+        })}
+      </div>
+
+      <Card className="border-zinc-800/80 bg-zinc-950/40">
+        <CardHeader>
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Gauge size={15} className="text-blue-300" />
+              Política atual
+            </CardTitle>
+            <p className="mt-1 text-xs text-zinc-500">
+              {ROUTER_POLICY_LABELS[policy] ?? policy} · modelo padrão do OpenCode:{" "}
+              <span className="font-mono text-zinc-300">
+                {config?.default_model ?? "não configurado"}
+              </span>
+            </p>
+          </div>
+          {testDecision ? (
+            <Badge variant="blue">{testDecision.decision.origin}</Badge>
+          ) : null}
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-2 md:grid-cols-[1fr_1.4fr_180px_auto]">
+            <input
+              value={testTitle}
+              onChange={(event) => setTestTitle(event.target.value)}
+              placeholder="Título da tarefa de teste"
+              className={inputClass}
+              aria-label="Título da tarefa de teste"
+            />
+            <input
+              value={testDescription}
+              onChange={(event) => setTestDescription(event.target.value)}
+              placeholder="Descrição da tarefa de teste"
+              className={inputClass}
+              aria-label="Descrição da tarefa de teste"
+            />
+            <input
+              value={testTags}
+              onChange={(event) => setTestTags(event.target.value)}
+              placeholder="tags, separadas"
+              className={inputClass}
+              aria-label="Tags da tarefa de teste"
+            />
+            <Button
+              size="sm"
+              className="h-9"
+              onClick={() => void testRouting()}
+              disabled={testingDecision}
+            >
+              {testingDecision ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Gauge size={13} />
+              )}
+              Testar roteamento
+            </Button>
+          </div>
+          {testDecision ? (
+            <div className="rounded-xl border border-blue-500/20 bg-blue-500/[0.04] px-3 py-2.5 text-[11px]">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="blue">{testDecision.decision.origin}</Badge>
+                <span className="font-mono text-blue-100">
+                  @{testDecision.decision.selected_agent} ·{" "}
+                  {testDecision.decision.selected_model} ·{" "}
+                  {testDecision.decision.effort} · {testDecision.decision.phase}
+                </span>
+                {testDecision.decision.rule_name ? (
+                  <Badge variant="purple">
+                    regra: {testDecision.decision.rule_name}
+                  </Badge>
+                ) : null}
+              </div>
+              <p className="mt-1 text-[10px] leading-relaxed text-zinc-400">
+                {testDecision.decision.rationale}
+              </p>
+            </div>
+          ) : (
+            <p className="text-[10px] text-zinc-500">
+              O teste roda o mesmo classificador do dispatch, sem criar tarefa
+              nem consumir modelo. Mostra a origem, a política aplicada, o
+              agente, o modelo e o effort escolhidos.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {policy === "MANUAL" ? (
+        <Card>
+          <CardContent className="flex items-start gap-3 p-4 text-[11px] text-zinc-400">
+            <ShieldAlert size={16} className="mt-0.5 text-amber-300" />
+            <p>
+              Em <strong>Manual</strong>, o roteador não escolhe modelo nem
+              agente automaticamente. A tarefa usa o agente/modelo definidos no
+              card, ou o modelo padrão do OpenCode quando não houver override.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card
+        className={cn(
+          (policy === "CUSTOM_RULES" || policy === "MANUAL") && "hidden",
+        )}
+      >
         <CardHeader>
           <div>
             <CardTitle className="flex items-center gap-2">
@@ -389,31 +579,6 @@ export function RouterPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        {Object.entries(ROUTER_POLICY_LABELS).map(([id, label]) => {
-          const active = id === policy;
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => void changePolicy(id)}
-              className={cn(
-                "rounded-xl border p-4 text-left transition-colors",
-                active
-                  ? "border-blue-500/40 bg-blue-500/[0.06]"
-                  : "border-zinc-800/80 bg-zinc-900/25 hover:border-zinc-700",
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <Gauge size={15} className={active ? "text-blue-400" : "text-zinc-500"} />
-                {active ? <Badge variant="blue">atual</Badge> : null}
-              </div>
-              <p className="mt-3 text-[12px] font-medium text-zinc-200">{label}</p>
-              <p className="mt-1 font-mono text-[9px] text-zinc-500">{id}</p>
-            </button>
-          );
-        })}
-      </div>
 
       <div className="grid gap-3 lg:grid-cols-3">
         <Card>
@@ -503,7 +668,12 @@ export function RouterPage() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
+        <Card
+          className={cn(
+            "lg:col-span-2",
+            policy !== "CUSTOM_RULES" && "hidden",
+          )}
+        >
           <CardHeader>
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -549,6 +719,15 @@ export function RouterPage() {
                       {rule.target_model} · {rule.target_effort}
                     </span>
                     <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-1.5 text-[9px]"
+                      onClick={() => editRule(rule)}
+                      title="Editar regra"
+                    >
+                      <Pencil size={10} />
+                    </Button>
+                    <Button
                       variant="destructive"
                       size="sm"
                       className="h-6 px-1.5 text-[9px]"
@@ -577,9 +756,14 @@ export function RouterPage() {
       <CreateRuleModal
         open={ruleOpen}
         workspaceId={activeWorkspaceId}
-        onClose={() => setRuleOpen(false)}
+        rule={editingRule}
+        onClose={() => {
+          setRuleOpen(false);
+          setEditingRule(null);
+        }}
         onCreated={async () => {
           setRuleOpen(false);
+          setEditingRule(null);
           await load();
         }}
       />
@@ -616,11 +800,13 @@ function BudgetInput({
 function CreateRuleModal({
   open,
   workspaceId,
+  rule,
   onClose,
   onCreated,
 }: {
   open: boolean;
   workspaceId: string;
+  rule?: RouterRule | null;
   onClose: () => void;
   onCreated: () => Promise<void>;
 }) {
@@ -636,6 +822,21 @@ function CreateRuleModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!open) return;
+    setName(rule?.name ?? "");
+    setCondition(
+      rule?.condition_json ??
+        '{"field":"tags","op":"contains","value":"roteiro"}',
+    );
+    setMode(rule?.target_mode ?? "build");
+    setAgent(rule?.target_agent ?? "build");
+    setModel(rule?.target_model ?? "opencode-go/glm-5.3");
+    setEffort(rule?.target_effort ?? "high");
+    setPriority(rule?.priority_order ?? 10);
+    setError(null);
+  }, [open, rule]);
+
   async function submit() {
     if (!name.trim()) {
       setError("Informe o nome da regra.");
@@ -650,7 +851,7 @@ function CreateRuleModal({
     setSaving(true);
     setError(null);
     try {
-      await apiPost("/api/router/rules", {
+      const payload = {
         workspace_id: workspaceId,
         name: name.trim(),
         priority_order: priority,
@@ -660,7 +861,12 @@ function CreateRuleModal({
         target_model: model.trim(),
         target_effort: effort,
         is_enabled: true,
-      });
+      };
+      if (rule) {
+        await apiPatch(`/api/router/rules/${rule.id}`, payload);
+      } else {
+        await apiPost("/api/router/rules", payload);
+      }
       setName("");
       await onCreated();
     } catch (cause) {
@@ -674,7 +880,7 @@ function CreateRuleModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Nova regra do roteador"
+      title={rule ? "Editar regra do roteador" : "Nova regra do roteador"}
       description="A condição usa field/op/value. Combine com all/any para regras compostas."
       className="max-w-2xl"
     >
@@ -737,7 +943,7 @@ function CreateRuleModal({
         </Button>
         <Button size="sm" onClick={() => void submit()} disabled={saving}>
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-          Criar regra
+          {rule ? "Salvar regra" : "Criar regra"}
         </Button>
       </div>
     </Modal>

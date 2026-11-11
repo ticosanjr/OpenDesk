@@ -15,6 +15,7 @@ import { useUiStore } from "@/store/ui-store";
 import { toast, useToastStore } from "@/store/toast-store";
 import { formatUsd } from "@/lib/format";
 import { links } from "@/lib/links";
+import { isEditableTarget } from "@/lib/keyboard";
 import { apiGet } from "@/lib/api";
 import type { Schedule } from "@/lib/types";
 import {
@@ -279,19 +280,25 @@ export function AppShell() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      if (event.defaultPrevented) return;
+      const editable = isEditableTarget(event.target);
+      const modifier = event.metaKey || event.ctrlKey;
+      if (modifier && event.key.toLowerCase() === "k") {
         event.preventDefault();
         setCommandOpen(!useUiStore.getState().commandOpen);
         return;
       }
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
+      // Never steal printable keys (?, /, letters, space) while the user is
+      // typing in a field, textarea, select or contenteditable.
+      if (editable) return;
+      if (modifier && event.key.toLowerCase() === "n") {
         event.preventDefault();
         navigate("/kanban");
         setTaskDialogOpen(true);
         return;
       }
       if (
-        (event.metaKey || event.ctrlKey) &&
+        modifier &&
         event.shiftKey &&
         event.code === "Space" &&
         !("__TAURI_INTERNALS__" in window)
@@ -301,7 +308,7 @@ export function AppShell() {
         return;
       }
       if (
-        (event.metaKey || event.ctrlKey) &&
+        modifier &&
         event.shiftKey &&
         event.key.toLowerCase() === "r"
       ) {
@@ -309,7 +316,7 @@ export function AppShell() {
         void refresh();
         return;
       }
-      if (event.key === "?" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      if (event.key === "?" && !modifier && !event.altKey) {
         event.preventDefault();
         setShortcutsOpen((current) => !current);
       }

@@ -85,6 +85,9 @@ export const FEATURES: FeatureEntry[] = [
 
   { id: "settings.views", area: "Configurações", spec: "settings-views.spec.ts", test: "settings expose general" },
   { id: "models.ref", area: "Modelos", spec: "model-ref.spec.ts", test: "model references" },
+  { id: "models.test", area: "Modelos", spec: "router-ui.spec.ts", test: "router adapts to policy" },
+  { id: "ops.router.policy", area: "Operação", spec: "router-ui.spec.ts", test: "router adapts to policy" },
+  { id: "ui.shortcuts", area: "UI", spec: "modal-focus.spec.ts", test: "question mark in a field" },
   { id: "ui.modals", area: "UI", spec: "ui-audit.spec.ts", test: "key modals" },
   { id: "ui.modal.focus", area: "UI", spec: "modal-focus.spec.ts", test: "typing in a modal keeps focus" },
   { id: "ui.a11y", area: "UI", spec: "a11y.spec.ts", test: "main routes and key modals" },

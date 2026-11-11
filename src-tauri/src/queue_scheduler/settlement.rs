@@ -48,6 +48,14 @@ pub fn classify_run_error(message: &str) -> (&'static str, &'static str) {
             "agent_not_found",
             "O agente configurado não existe no workspace. Edite a tarefa e escolha outro agente.",
         )
+    } else if lower.contains("provider.quota")
+        || lower.contains("insufficient balance")
+        || lower.contains("\"status\":402")
+    {
+        (
+            "provider_quota",
+            "O provedor do modelo está sem saldo ou limite. Troque para um modelo/provider com créditos nas configurações ou ajuste a conta do provedor.",
+        )
     } else if lower.contains("429")
         || lower.contains("too many requests")
         || lower.contains("503")
@@ -273,6 +281,10 @@ mod tests {
             "engine_offline"
         );
         assert_eq!(classify_run_error("429 rate limit").0, "rate_limited");
+        assert_eq!(
+            classify_run_error("provider.quota: Insufficient balance").0,
+            "provider_quota"
+        );
         assert_eq!(
             classify_run_error("model not found: x").0,
             "model_not_found"

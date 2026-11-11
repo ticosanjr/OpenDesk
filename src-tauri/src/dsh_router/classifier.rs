@@ -1,4 +1,8 @@
-use crate::{db::router::RouterRule, opencode_client::rest_client::ModelDto};
+use crate::{
+    config_sync::{jsonc_editor, paths::StudioPaths},
+    db::router::RouterRule,
+    opencode_client::rest_client::ModelDto,
+};
 use chrono::{Datelike, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -17,6 +21,9 @@ pub struct RouterDecision {
     pub audit_after_build: bool,
     pub policy_applied: String,
     pub rule_name: Option<String>,
+    /// Where the final decision came from: default model, policy, rule,
+    /// manual override or fallback.
+    pub origin: String,
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +41,8 @@ pub struct RouterInput<'a> {
     pub policy: &'a str,
     pub rules: &'a [RouterRule],
     pub available_models: &'a [ModelDto],
+    /// `model` from the user's opencode.jsonc (workspace first, then global).
+    pub default_model: Option<&'a str>,
     pub approved_plan: Option<&'a str>,
     pub output_directory: Option<&'a Path>,
     pub budget_daily_pct: f64,
@@ -72,7 +81,14 @@ pub fn classify(input: &RouterInput<'_>) -> RouterDecision {
     };
 
     let mut selected_agent = "build".to_string();
-    let mut selected_model = "opencode-go/deepseek-v4.1-flash".to_string();
+    let default_model = input
+        .default_model
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let mut selected_model = default_model
+        .unwrap_or("opencode-go/deepseek-v4.1-flash")
+        .to_string();
+    let mut origin = "DEFAULT".to_string();
     let mut effort = "medium".to_string();
     let mut rationale = String::new();
     let mut requires_plan_approval = mode == "PLAN_THEN_BUILD";
@@ -86,6 +102,7 @@ pub fn classify(input: &RouterInput<'_>) -> RouterDecision {
         .find(|rule| rule.is_enabled && matches_rule(rule, input, &complexity))
     {
         policy_applied = "CUSTOM_RULE".into();
+        origin = "RULE".into();
         rule_name = Some(rule.name.clone());
         phase = match rule.target_mode.as_str() {
             "plan" => "plan",
@@ -104,59 +121,71 @@ pub fn classify(input: &RouterInput<'_>) -> RouterDecision {
                 selected_agent = input.manual_agent.unwrap_or("build").to_string();
                 selected_model = input
                     .manual_model
+                    .or(default_model)
                     .unwrap_or("opencode-go/deepseek-v4.1-flash")
                     .to_string();
                 effort = input.manual_effort.unwrap_or("medium").to_string();
                 rationale = "política manual".into();
+                origin = "MANUAL".into();
             }
             "CHEAPEST" => {
-                selected_model = cheapest_model(input.available_models)
-                    .unwrap_or_else(|| "opencode-go/deepseek-v4.1-flash".into());
+                selected_model = cheapest_model(input.available_models, default_model)
+                    .unwrap_or_else(|| {
+                        default_model
+                            .unwrap_or("opencode-go/deepseek-v4.1-flash")
+                            .into()
+                    });
                 effort = "low".into();
                 selected_agent = if phase == "plan" { "plan" } else { "build" }.into();
                 rationale = "política mais barata: modelo de menor custo, effort low".into();
+                origin = "CHEAPEST".into();
             }
             "BEST_QUALITY" => {
                 if phase == "plan" {
-                    selected_model = prefer_model(
-                        input.available_models,
-                        &["opencode-go/deepseek-v4-pro", "opencode-go/glm-5.3"],
-                        "high",
-                    );
+                    let mut candidates = Vec::new();
+                    if let Some(model) = default_model {
+                        candidates.push(model);
+                    }
+                    candidates.extend(["opencode-go/deepseek-v4-pro", "opencode-go/glm-5.3"]);
+                    selected_model = prefer_model(input.available_models, &candidates, "high");
                     effort = "high".into();
                     selected_agent = "plan".into();
                     rationale = "máxima qualidade: Plan forte antes do Build".into();
                 } else {
-                    selected_model = prefer_model(
-                        input.available_models,
-                        &["opencode-go/glm-5.3", "opencode-go/deepseek-v4-pro"],
-                        "high",
-                    );
+                    let mut candidates = Vec::new();
+                    if let Some(model) = default_model {
+                        candidates.push(model);
+                    }
+                    candidates.extend(["opencode-go/glm-5.3", "opencode-go/deepseek-v4-pro"]);
+                    selected_model = prefer_model(input.available_models, &candidates, "high");
                     effort = "high".into();
                     selected_agent = "build".into();
                     audit_after_build = true;
                     rationale = "máxima qualidade: Build forte seguido de auditoria".into();
                 }
+                origin = "BEST_QUALITY".into();
                 requires_plan_approval = true;
             }
             _ => {
                 // COST_BENEFIT / unknown falls back to the default policy.
                 policy_applied = "COST_BENEFIT".into();
                 if phase == "plan" {
-                    selected_model = prefer_model(
-                        input.available_models,
-                        &["opencode-go/glm-5.3", "opencode-go/deepseek-v4-pro"],
-                        "medium",
-                    );
+                    let mut candidates = Vec::new();
+                    if let Some(model) = default_model {
+                        candidates.push(model);
+                    }
+                    candidates.extend(["opencode-go/glm-5.3", "opencode-go/deepseek-v4-pro"]);
+                    selected_model = prefer_model(input.available_models, &candidates, "medium");
                     effort = "medium".into();
                     selected_agent = "plan".into();
-                    rationale = "custo-benefício: Plan em modelo forte com effort medium".into();
+                    rationale = "custo-benefício: Plan com effort medium".into();
                 } else {
-                    selected_model = prefer_model(
-                        input.available_models,
-                        &["opencode-go/deepseek-v4.1-flash", "opencode-go/glm-5.3"],
-                        "low",
-                    );
+                    let mut candidates = Vec::new();
+                    if let Some(model) = default_model {
+                        candidates.push(model);
+                    }
+                    candidates.extend(["opencode-go/deepseek-v4.1-flash", "opencode-go/glm-5.3"]);
+                    selected_model = prefer_model(input.available_models, &candidates, "low");
                     effort = "low".into();
                     selected_agent = "build".into();
                     rationale = if complexity.score >= 3 {
@@ -165,6 +194,7 @@ pub fn classify(input: &RouterInput<'_>) -> RouterDecision {
                         "custo-benefício: triagem/Build simples no modelo econômico".into()
                     };
                 }
+                origin = "COST_BENEFIT".into();
             }
         }
     }
@@ -188,6 +218,7 @@ pub fn classify(input: &RouterInput<'_>) -> RouterDecision {
     }
     if let Some(model) = input.manual_model.filter(|value| !value.trim().is_empty()) {
         selected_model = model.to_string();
+        origin = "MANUAL_OVERRIDE".into();
     }
 
     // If the selected model is not exposed by this OpenCode instance, fall back
@@ -214,6 +245,9 @@ pub fn classify(input: &RouterInput<'_>) -> RouterDecision {
     };
     if let Some(note) = model_note {
         rationale.push_str(&format!(" · {note}"));
+        if input.manual_model.is_none() {
+            origin = "FALLBACK".into();
+        }
     }
 
     let output = input
@@ -235,6 +269,7 @@ pub fn classify(input: &RouterInput<'_>) -> RouterDecision {
         audit_after_build,
         policy_applied,
         rule_name,
+        origin,
     }
 }
 
@@ -389,9 +424,23 @@ fn prefer_model(available: &[ModelDto], candidates: &[&str], effort: &str) -> St
         .to_string()
 }
 
-fn cheapest_model(available: &[ModelDto]) -> Option<String> {
-    available
+fn cheapest_model(available: &[ModelDto], default_model: Option<&str>) -> Option<String> {
+    let preferred_provider = default_model
+        .and_then(|model| model.split('#').next())
+        .and_then(|model| model.split_once('/'))
+        .map(|(provider, _)| provider);
+    let same_provider = available
         .iter()
+        .filter(|model| {
+            preferred_provider.is_none_or(|provider| model.provider_id.as_deref() == Some(provider))
+        })
+        .collect::<Vec<_>>();
+    let pool = if same_provider.is_empty() {
+        available.iter().collect::<Vec<_>>()
+    } else {
+        same_provider
+    };
+    pool.into_iter()
         .filter(|model| model.enabled.unwrap_or(true))
         .min_by(|a, b| {
             let a_price = model_price(a);
@@ -487,6 +536,29 @@ fn split_model(model: &str) -> (String, String) {
         Some((provider, id)) => (provider.to_string(), id.to_string()),
         None => (String::new(), base.to_string()),
     }
+}
+
+/// Reads the user's default model from the workspace config, then global.
+pub fn configured_default_model(workspace_root: &Path) -> Option<String> {
+    let paths = StudioPaths::new(Some(workspace_root.to_path_buf()));
+    for scope in ["workspace", "global"] {
+        let Ok(path) = paths.config_path(scope) else {
+            continue;
+        };
+        let Ok(document) = jsonc_editor::read_document(&path) else {
+            continue;
+        };
+        if let Some(model) = document
+            .parsed
+            .get("model")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            return Some(model.to_string());
+        }
+    }
+    None
 }
 
 pub fn slugify(value: &str) -> String {
@@ -595,10 +667,24 @@ mod tests {
             policy,
             rules,
             available_models: available,
+            default_model: None,
             approved_plan: None,
             output_directory: None,
             budget_daily_pct: 10.0,
         }
+    }
+
+    #[test]
+    fn configured_default_model_wins_over_hardcoded_provider() {
+        let models = vec![
+            model("deepseek", "deepseek-flash", 0.1, 0.2, &["low"]),
+            model("opencode-go", "deepseek-v4.1-flash", 0.1, 0.2, &["low"]),
+        ];
+        let mut router_input = input(&models, &[], "COST_BENEFIT", "BUILD_DIRECT", &[]);
+        router_input.default_model = Some("deepseek/deepseek-flash");
+        let decision = classify(&router_input);
+        assert_eq!(decision.selected_model, "deepseek/deepseek-flash#low");
+        assert_eq!(decision.origin, "COST_BENEFIT");
     }
 
     #[test]

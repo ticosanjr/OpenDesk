@@ -552,9 +552,11 @@ impl QueueManager {
                 .unwrap_or("run failed without a message");
             let (code, hint) = settlement::classify_run_error(message);
             let _ = runs::set_error(&self.pool, &run_id, code, message, hint).await;
-            if code == "rate_limited" {
+            if matches!(code, "rate_limited" | "provider_quota") {
+                let minutes = if code == "provider_quota" { 60 } else { 5 };
                 let _ =
-                    model_health::record_cooldown(&self.pool, &job.resolved_model, code, 5).await;
+                    model_health::record_cooldown(&self.pool, &job.resolved_model, code, minutes)
+                        .await;
                 if job.job_kind != "fallback"
                     && let Some(fallback) = self
                         .pick_fallback_model(&workspace_path, &job.resolved_model)
@@ -701,7 +703,12 @@ impl QueueManager {
             let id = model.model_id.clone().unwrap_or_else(|| model.id.clone());
             format!("{provider}/{id}")
         };
-        let preferred = ["opencode-go/deepseek-v4.1-flash", "opencode-go/glm-5.3"];
+        let default_model = crate::dsh_router::configured_default_model(workspace_root);
+        let mut preferred = Vec::new();
+        if let Some(model) = default_model.as_deref() {
+            preferred.push(model);
+        }
+        preferred.extend(["opencode-go/deepseek-v4.1-flash", "opencode-go/glm-5.3"]);
         let mut candidates = models
             .iter()
             .filter(|model| model.enabled.unwrap_or(true))

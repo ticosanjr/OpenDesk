@@ -3,7 +3,9 @@ use crate::{
     db::{
         budget,
         router::{self, CreateRuleInput, RouterRule, UpdateRuleInput},
+        workspaces,
     },
+    dsh_router::{self, RouterInput},
     error::{AppError, AppResult},
     opencode_client::rest_client::ModelRefDto,
 };
@@ -24,6 +26,7 @@ pub struct RouterQuery {
 pub struct RouterConfig {
     pub workspace_id: String,
     pub policy: String,
+    pub default_model: Option<String>,
     pub router_model: Option<String>,
     pub cost_blend: f64,
     pub rules: Vec<RouterRule>,
@@ -39,6 +42,9 @@ pub async fn get_config(
     let policy = router::workspace_policy(&state.db, &workspace_id).await?;
     let rules = router::list(&state.db, &workspace_id).await?;
     let budget = budget::status(&state.db).await?;
+    let workspace = workspaces::get(&state.db, &workspace_id).await?;
+    let default_model =
+        dsh_router::configured_default_model(std::path::Path::new(&workspace.root_path));
     let router_model = crate::db::settings::get(&state.db, "router_model")
         .await?
         .and_then(|value| value.as_str().map(str::to_string));
@@ -46,11 +52,86 @@ pub async fn get_config(
     Ok(Json(RouterConfig {
         workspace_id,
         policy,
+        default_model,
         router_model,
         cost_blend,
         rules,
         budget,
     }))
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct TestDecisionBody {
+    pub workspace_id: Option<String>,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub policy: Option<String>,
+    pub manual_agent: Option<String>,
+    pub manual_model: Option<String>,
+    pub manual_effort: Option<String>,
+    pub execution_mode: Option<String>,
+}
+
+/// Runs the router against a sample task without dispatching anything.
+pub async fn test_decision(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<TestDecisionBody>,
+) -> AppResult<Json<serde_json::Value>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, body.workspace_id.as_deref()).await?;
+    let workspace = workspaces::get(&state.db, &workspace_id).await?;
+    let rules = router::list(&state.db, &workspace_id).await?;
+    let policy = match body.policy {
+        Some(policy) => policy,
+        None => router::workspace_policy(&state.db, &workspace_id).await?,
+    };
+    let available_models = state
+        .daemon
+        .models(Some(&workspace.root_path))
+        .await
+        .unwrap_or_default();
+    let default_model =
+        dsh_router::configured_default_model(std::path::Path::new(&workspace.root_path));
+    let title = if body.title.trim().is_empty() {
+        "Teste de roteamento".to_string()
+    } else {
+        body.title
+    };
+    let description = if body.description.trim().is_empty() {
+        "Explique como o roteador decidiria esta tarefa.".to_string()
+    } else {
+        body.description
+    };
+    let execution_mode = body.execution_mode.unwrap_or_else(|| "AUTO_DSH".into());
+    let decision = dsh_router::classify(&RouterInput {
+        workspace_id: &workspace_id,
+        workspace_root: std::path::Path::new(&workspace.root_path),
+        title: &title,
+        prompt: &description,
+        execution_mode: &execution_mode,
+        priority: 2,
+        tags: &body.tags,
+        manual_agent: body.manual_agent.as_deref(),
+        manual_model: body.manual_model.as_deref(),
+        manual_effort: body.manual_effort.as_deref(),
+        policy: &policy,
+        rules: &rules,
+        available_models: &available_models,
+        default_model: default_model.as_deref(),
+        approved_plan: None,
+        output_directory: None,
+        budget_daily_pct: 0.0,
+    });
+    Ok(Json(serde_json::json!({
+        "workspace_id": workspace_id,
+        "policy": policy,
+        "default_model": default_model,
+        "decision": decision,
+    })))
 }
 
 pub async fn list_rules(

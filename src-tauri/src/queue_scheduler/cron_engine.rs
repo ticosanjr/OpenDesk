@@ -390,6 +390,7 @@ impl CronEngine {
             .models(Some(&workspace.root_path))
             .await
             .unwrap_or_default();
+        let default_model = dsh_router::configured_default_model(&workspace_root);
         let input = RouterInput {
             workspace_id: &schedule.workspace_id,
             workspace_root: &workspace_root,
@@ -404,6 +405,7 @@ impl CronEngine {
             policy: &schedule.router_policy,
             rules: &rules,
             available_models: &available_models,
+            default_model: default_model.as_deref(),
             approved_plan: None,
             output_directory: Some(&output_directory),
             budget_daily_pct: 0.0,

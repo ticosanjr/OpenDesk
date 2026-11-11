@@ -1907,3 +1907,21 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Preview de execução (`LogDrawer`) e preview de artefato deixaram de ser
   drawers laterais e agora são overlays centralizados, grandes e fecháveis com
   Esc/backdrop.
+
+## 2026-11-11 — release 0.45.0
+
+- Atalhos globais ignoram `input`, `textarea`, `select` e `contenteditable`;
+  `?` e letras voltam a ser texto normal enquanto o usuário digita
+  (`src/lib/keyboard.ts`, guard no `AppShell`).
+- Roteador contextual por política: cards condicionais, teste de roteamento
+  sem dispatch, edição de regras IF-THEN e `RouterDecision.origin`.
+- Modelo padrão lido do `opencode.jsonc` (workspace → global) em dispatch,
+  cron, roteador e fallback; fim do `opencode-go/*` fixo que causava 402.
+- `POST /api/models/test` abre sessão real no OpenCode e classifica
+  `engine_offline`, `provider_quota`, `auth_failed`, `model_not_found`,
+  `timeout` e `provider_error`; botão “Testar modelo” em todos os
+  `ModelCombobox`.
+- `provider.quota`/saldo insuficiente classificado no settlement com cooldown
+  de 60 min e fallback preferindo o modelo padrão.
+- Filtros do Studio com nome acessível (axe verde).
+- Testes: 352 Rust, 134 Vitest, 76 Playwright; 74/74 features (100%).

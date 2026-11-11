@@ -102,6 +102,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/engine/restart", post(engine::restart))
         .route("/api/engine/diagnostics", get(engine::diagnostics))
         .route("/api/models/health", get(engine::model_health))
+        .route("/api/models/test", post(engine::test_model))
         .route("/api/models/health/clear", post(engine::clear_model_health))
         .route("/api/engine/update/check", post(engine::update_check))
         .route("/api/engine/update", post(engine::update))
@@ -448,6 +449,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/router/model", put(router::set_router_model))
         .route("/api/router/blend", put(router::set_blend))
         .route("/api/router/analyze", post(router::analyze))
+        .route("/api/router/test", post(router::test_decision))
         .route(
             "/api/router/rules",
             get(router::list_rules).post(router::create_rule),

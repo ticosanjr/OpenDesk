@@ -305,6 +305,23 @@ impl RestClient {
         Ok(())
     }
 
+    pub async fn delete_session(&self, session_id: &str) -> Result<()> {
+        let response = self
+            .request(
+                reqwest::Method::DELETE,
+                &format!("/api/session/{session_id}"),
+            )
+            .send()
+            .await
+            .context("could not delete OpenCode session")?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            anyhow::bail!("OpenCode session delete failed ({status}): {body}");
+        }
+        Ok(())
+    }
+
     pub async fn wait_session(&self, session_id: &str) -> Result<()> {
         let response = self
             .request(
