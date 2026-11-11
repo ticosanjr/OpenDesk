@@ -642,6 +642,112 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn tick_skips_offline_and_misfired_schedules() {
+        let ctx = crate::test_support::context().await;
+        let input: crate::db::schedules::CreateScheduleInput =
+            serde_json::from_value(serde_json::json!({
+                "workspace_id": ctx.workspace_id,
+                "name": "Rotina offline",
+                "command_or_prompt": "Resuma",
+                "cron_expression": "0 8 * * *",
+                "timezone": "UTC",
+                "trigger_type": "CRON",
+                "target_kind": "PROMPT"
+            }))
+            .expect("input");
+        let schedule = crate::db::schedules::create(&ctx.state.db, input)
+            .await
+            .expect("schedule");
+        crate::db::schedules::set_active(&ctx.state.db, &schedule.id, true)
+            .await
+            .expect("active");
+
+        let recent_past = (Utc::now() - chrono::Duration::seconds(10)).to_rfc3339();
+        crate::db::schedules::set_next_run(&ctx.state.db, &schedule.id, Some(&recent_past))
+            .await
+            .expect("next");
+        let tick = ctx.state.cron.tick_once().await.expect("tick offline");
+        assert_eq!(tick.enqueued, 0);
+        let after = crate::db::schedules::get(&ctx.state.db, &schedule.id)
+            .await
+            .expect("after");
+        assert_eq!(after.last_run_status.as_deref(), Some("SKIPPED_OFFLINE"));
+
+        let old_past = (Utc::now() - chrono::Duration::seconds(120)).to_rfc3339();
+        crate::db::schedules::set_next_run(&ctx.state.db, &schedule.id, Some(&old_past))
+            .await
+            .expect("next old");
+        let tick = ctx.state.cron.tick_once().await.expect("tick misfire");
+        assert_eq!(tick.enqueued, 0);
+        let after = crate::db::schedules::get(&ctx.state.db, &schedule.id)
+            .await
+            .expect("after misfire");
+        assert_eq!(after.last_run_status.as_deref(), Some("SKIPPED_MISFIRE"));
+    }
+
+    #[tokio::test]
+    async fn run_now_enqueues_and_queue_controls_work() {
+        let ctx = crate::test_support::context().await;
+        let input: crate::db::schedules::CreateScheduleInput =
+            serde_json::from_value(serde_json::json!({
+                "workspace_id": ctx.workspace_id,
+                "name": "Rotina de fila",
+                "command_or_prompt": "Resuma o dia",
+                "cron_expression": "0 8 * * *",
+                "timezone": "UTC",
+                "trigger_type": "CRON",
+                "target_kind": "PROMPT"
+            }))
+            .expect("input");
+        let schedule = crate::db::schedules::create(&ctx.state.db, input)
+            .await
+            .expect("schedule");
+
+        let result = ctx.state.cron.run_now(&schedule.id).await.expect("run now");
+        assert_eq!(result["kind"], "queue");
+        let job_id = result["job"]["id"].as_str().expect("job id").to_string();
+
+        let status = ctx
+            .state
+            .queue
+            .status(Some(&ctx.workspace_id))
+            .await
+            .expect("status");
+        assert_eq!(status.waiting, 1);
+        assert!(!status.paused);
+
+        let listed = ctx
+            .state
+            .queue
+            .list(Some(&ctx.workspace_id))
+            .await
+            .expect("list");
+        assert!(listed.iter().any(|job| job.id == job_id));
+
+        let prioritized = ctx
+            .state
+            .queue
+            .update_priority(&job_id, 4)
+            .await
+            .expect("priority");
+        assert_eq!(prioritized.priority, 4);
+
+        ctx.state.queue.pause("manutenção").await;
+        let paused = ctx.state.queue.status(None).await.expect("paused");
+        assert!(paused.paused);
+        assert_eq!(paused.pause_reason.as_deref(), Some("manutenção"));
+        ctx.state.queue.resume().await.expect("resume");
+        assert!(!ctx.state.queue.is_paused());
+
+        let cancelled = ctx.state.queue.cancel(&job_id).await.expect("cancel");
+        assert_eq!(cancelled.status, "CANCELLED");
+        let retried = ctx.state.queue.retry(&job_id).await.expect("retry");
+        assert_eq!(retried.status, "QUEUED");
+        assert_eq!(retried.retry_count, 1);
+        let _ = ctx.state.queue.cancel(&job_id).await.expect("cancel again");
+    }
+
     #[test]
     fn invalid_cron_and_timezone_are_rejected() {
         let now = chrono::Utc::now();

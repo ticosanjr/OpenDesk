@@ -409,7 +409,7 @@ export function CalendarPage() {
                         className={cn(
                           "flex h-5 w-5 items-center justify-center rounded-full text-[10px]",
                           isToday(day)
-                            ? "bg-blue-500 font-semibold text-white"
+                            ? "bg-blue-600 font-semibold text-white"
                             : "text-zinc-400",
                         )}
                       >

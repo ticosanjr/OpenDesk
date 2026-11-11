@@ -1884,3 +1884,12 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Contraste global corrigido (zinc-500 mais claro, zinc-600/700 removidos,
   botão de acento mais escuro); Kanban focável por teclado; nome acessível do
   workspace inclui o texto visível.
+
+## 2026-11-11 — release 0.43.1
+
+- Axe ampliado para 17 rotas principais e 4 modais (tarefa, workspace, evento
+  e rotina); contraste do dia selecionado no calendário corrigido.
+- Testes de `split_model` e `job_dto` no queue manager.
+- Novos testes de integração do cron: `run_now` enfileira, fila pausa/retoma,
+  prioridade, cancelamento e retry; tick cobre `SKIPPED_OFFLINE` e
+  `SKIPPED_MISFIRE`.

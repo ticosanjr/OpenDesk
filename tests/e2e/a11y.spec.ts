@@ -15,13 +15,31 @@ async function criticalViolations(page: Page) {
     }));
 }
 
-test("main routes and the task modal have no critical or serious accessibility violations", async ({
+test("main routes and key modals have no critical or serious accessibility violations", async ({
   page,
   request,
 }) => {
   await seedWorkspace(request, "A11y");
 
-  for (const route of ["/#/", "/#/kanban", "/#/studio", "/#/settings"]) {
+  for (const route of [
+    "/#/",
+    "/#/kanban",
+    "/#/studio",
+    "/#/settings",
+    "/#/chat",
+    "/#/calendar",
+    "/#/files",
+    "/#/artifacts",
+    "/#/recipes",
+    "/#/routines",
+    "/#/runs",
+    "/#/observability",
+    "/#/learning",
+    "/#/governance",
+    "/#/integrations",
+    "/#/packs",
+    "/#/router",
+  ]) {
     await page.goto(route);
     await page.waitForLoadState("networkidle");
     expect(await criticalViolations(page), route).toEqual([]);
@@ -31,4 +49,21 @@ test("main routes and the task modal have no critical or serious accessibility v
   await page.getByRole("main").getByRole("button", { name: "Nova tarefa" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   expect(await criticalViolations(page), "task modal").toEqual([]);
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: "Novo workspace" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(await criticalViolations(page), "workspace modal").toEqual([]);
+  await page.getByRole("dialog").getByRole("button", { name: "Cancelar" }).click();
+
+  await page.goto("/#/calendar");
+  await page.getByRole("main").getByRole("button", { name: "Novo evento" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(await criticalViolations(page), "event modal").toEqual([]);
+  await page.keyboard.press("Escape");
+
+  await page.goto("/#/routines");
+  await page.getByRole("main").getByRole("button", { name: "Nova rotina" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(await criticalViolations(page), "routine modal").toEqual([]);
 });
