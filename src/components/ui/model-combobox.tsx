@@ -4,9 +4,9 @@ import { loadModelHealth, loadModels } from "@/lib/studio-cache";
 import { isValidModelRef, normalizeModelRef } from "@/lib/model-ref";
 import { toModelSelection } from "@/lib/model-selection";
 import { shouldCloseOnBlur } from "@/lib/combobox";
-import { apiPost } from "@/lib/api";
 import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
+import { ModelTestButton } from "@/components/ui/model-test-button";
 
 const inputClass =
   "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 font-mono text-[10px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60";
@@ -18,6 +18,7 @@ export function ModelCombobox({
   routerLabel = "Roteador automático",
   routerHint = "O roteador escolhe o modelo por custo e qualidade. O modelo não muda sem esta opção.",
   placeholder = "digite para filtrar (ex.: deepseek, glm, opencode-go/…)",
+  ariaLabel = "Modelo",
   className,
 }: {
   value: string | null;
@@ -26,6 +27,7 @@ export function ModelCombobox({
   routerLabel?: string;
   routerHint?: string;
   placeholder?: string;
+  ariaLabel?: string;
   className?: string;
 }) {
   const current = toModelSelection(value);
@@ -36,11 +38,6 @@ export function ModelCombobox({
   const [editing, setEditing] = useState(!allowRouter || current !== null);
   const [touched, setTouched] = useState(false);
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{
-    ok: boolean;
-    message: string;
-  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +52,6 @@ export function ModelCombobox({
   }, []);
 
   useEffect(() => {
-    setTestResult(null);
     setQuery(current ?? "");
     if (!allowRouter) {
       setEditing(true);
@@ -129,49 +125,6 @@ export function ModelCombobox({
       return true;
     }
     return false;
-  }
-
-  async function testModel() {
-    const model = current ?? normalizeModelRef(query.trim());
-    if (!model) return;
-    setTesting(true);
-    setTestResult(null);
-    try {
-      const result = await apiPost<{
-        ok: boolean;
-        latency_ms: number;
-        response?: string | null;
-        error_code?: string | null;
-        error_message?: string | null;
-      }>("/api/models/test", {
-        model,
-        workspace_id: activeWorkspaceId ?? undefined,
-      });
-      if (result.ok) {
-        const text = (result.response ?? "")
-          .replace(/\s+/g, " ")
-          .trim()
-          .slice(0, 100);
-        setTestResult({
-          ok: true,
-          message: `OK · ${result.latency_ms}ms${text ? ` · ${text}` : ""}`,
-        });
-      } else {
-        setTestResult({
-          ok: false,
-          message: `${result.error_code ?? "erro"}: ${
-            (result.error_message ?? "falha ao testar o modelo").slice(0, 220)
-          }`,
-        });
-      }
-    } catch (cause) {
-      setTestResult({
-        ok: false,
-        message: cause instanceof Error ? cause.message : String(cause),
-      });
-    } finally {
-      setTesting(false);
-    }
   }
 
   return (
@@ -251,7 +204,7 @@ export function ModelCombobox({
             }}
             placeholder={placeholder}
             className={inputClass}
-            aria-label="Modelo"
+            aria-label={ariaLabel}
             aria-expanded={open}
             aria-invalid={invalid}
             role="combobox"
@@ -332,26 +285,7 @@ export function ModelCombobox({
         </p>
       ) : null}
       {editing && current ? (
-        <div className="space-y-1">
-          <button
-            type="button"
-            onClick={() => void testModel()}
-            disabled={testing}
-            className="inline-flex h-6 items-center gap-1 rounded-md border border-zinc-800 px-2 text-[9px] text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200 disabled:opacity-50"
-          >
-            {testing ? "Testando…" : "Testar modelo"}
-          </button>
-          {testResult ? (
-            <p
-              className={cn(
-                "break-words text-[9px] leading-snug",
-                testResult.ok ? "text-emerald-300" : "text-red-300",
-              )}
-            >
-              {testResult.message}
-            </p>
-          ) : null}
-        </div>
+        <ModelTestButton model={current} workspaceId={activeWorkspaceId} />
       ) : null}
     </div>
   );

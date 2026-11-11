@@ -1,8 +1,4 @@
-use crate::{
-    config_sync::{jsonc_editor, paths::StudioPaths},
-    db::router::RouterRule,
-    opencode_client::rest_client::ModelDto,
-};
+use crate::{db::router::RouterRule, opencode_client::rest_client::ModelDto};
 use chrono::{Datelike, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -41,8 +37,12 @@ pub struct RouterInput<'a> {
     pub policy: &'a str,
     pub rules: &'a [RouterRule],
     pub available_models: &'a [ModelDto],
-    /// `model` from the user's opencode.jsonc (workspace first, then global).
+    /// Model chosen for this workspace in OpenDesk (never read from
+    /// `opencode.jsonc`).
     pub default_model: Option<&'a str>,
+    /// Model chosen for the MANUAL policy. A task-level `manual_model` still
+    /// wins over this value.
+    pub manual_default_model: Option<&'a str>,
     pub approved_plan: Option<&'a str>,
     pub output_directory: Option<&'a Path>,
     pub budget_daily_pct: f64,
@@ -85,9 +85,7 @@ pub fn classify(input: &RouterInput<'_>) -> RouterDecision {
         .default_model
         .map(str::trim)
         .filter(|value| !value.is_empty());
-    let mut selected_model = default_model
-        .unwrap_or("opencode-go/deepseek-v4.1-flash")
-        .to_string();
+    let mut selected_model = default_model.unwrap_or_default().to_string();
     let mut origin = "DEFAULT".to_string();
     let mut effort = "medium".to_string();
     let mut rationale = String::new();
@@ -121,8 +119,9 @@ pub fn classify(input: &RouterInput<'_>) -> RouterDecision {
                 selected_agent = input.manual_agent.unwrap_or("build").to_string();
                 selected_model = input
                     .manual_model
+                    .or(input.manual_default_model)
                     .or(default_model)
-                    .unwrap_or("opencode-go/deepseek-v4.1-flash")
+                    .unwrap_or_default()
                     .to_string();
                 effort = input.manual_effort.unwrap_or("medium").to_string();
                 rationale = "política manual".into();
@@ -130,11 +129,8 @@ pub fn classify(input: &RouterInput<'_>) -> RouterDecision {
             }
             "CHEAPEST" => {
                 selected_model = cheapest_model(input.available_models, default_model)
-                    .unwrap_or_else(|| {
-                        default_model
-                            .unwrap_or("opencode-go/deepseek-v4.1-flash")
-                            .into()
-                    });
+                    .or_else(|| default_model.map(str::to_string))
+                    .unwrap_or_default();
                 effort = "low".into();
                 selected_agent = if phase == "plan" { "plan" } else { "build" }.into();
                 rationale = "política mais barata: modelo de menor custo, effort low".into();
@@ -417,11 +413,7 @@ fn prefer_model(available: &[ModelDto], candidates: &[&str], effort: &str) -> St
         let key = model_key(model);
         return with_variant(available, &key, effort);
     }
-    candidates
-        .first()
-        .copied()
-        .unwrap_or("opencode-go/deepseek-v4.1-flash")
-        .to_string()
+    candidates.first().copied().unwrap_or_default().to_string()
 }
 
 fn cheapest_model(available: &[ModelDto], default_model: Option<&str>) -> Option<String> {
@@ -474,6 +466,10 @@ fn model_key(model: &ModelDto) -> String {
     let provider = model.provider_id.clone().unwrap_or_default();
     let id = model.model_id.clone().unwrap_or_else(|| model.id.clone());
     format!("{provider}/{id}")
+}
+
+pub fn model_available(available: &[ModelDto], candidate: &str) -> bool {
+    model_exists(available, candidate)
 }
 
 fn model_exists(available: &[ModelDto], candidate: &str) -> bool {
@@ -536,29 +532,6 @@ fn split_model(model: &str) -> (String, String) {
         Some((provider, id)) => (provider.to_string(), id.to_string()),
         None => (String::new(), base.to_string()),
     }
-}
-
-/// Reads the user's default model from the workspace config, then global.
-pub fn configured_default_model(workspace_root: &Path) -> Option<String> {
-    let paths = StudioPaths::new(Some(workspace_root.to_path_buf()));
-    for scope in ["workspace", "global"] {
-        let Ok(path) = paths.config_path(scope) else {
-            continue;
-        };
-        let Ok(document) = jsonc_editor::read_document(&path) else {
-            continue;
-        };
-        if let Some(model) = document
-            .parsed
-            .get("model")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-        {
-            return Some(model.to_string());
-        }
-    }
-    None
 }
 
 pub fn slugify(value: &str) -> String {
@@ -668,6 +641,7 @@ mod tests {
             rules,
             available_models: available,
             default_model: None,
+            manual_default_model: None,
             approved_plan: None,
             output_directory: None,
             budget_daily_pct: 10.0,
@@ -675,7 +649,7 @@ mod tests {
     }
 
     #[test]
-    fn configured_default_model_wins_over_hardcoded_provider() {
+    fn workspace_default_model_wins_over_hardcoded_provider() {
         let models = vec![
             model("deepseek", "deepseek-flash", 0.1, 0.2, &["low"]),
             model("opencode-go", "deepseek-v4.1-flash", 0.1, 0.2, &["low"]),
@@ -759,6 +733,27 @@ mod tests {
             with_variant(&[], "provider/model# high ", "low"),
             "provider/model#high"
         );
+    }
+
+    #[test]
+    fn manual_policy_uses_the_workspace_manual_model() {
+        let models = available();
+        let mut router_input = input(&models, &[], "MANUAL", "BUILD_DIRECT", &[]);
+        router_input.manual_default_model = Some("opencode-go/glm-5.3");
+        let decision = classify(&router_input);
+        assert_eq!(decision.selected_model, "opencode-go/glm-5.3#medium");
+        assert_eq!(decision.origin, "MANUAL");
+    }
+
+    #[test]
+    fn task_model_wins_over_the_workspace_manual_model() {
+        let models = available();
+        let mut router_input = input(&models, &[], "MANUAL", "BUILD_DIRECT", &[]);
+        router_input.manual_default_model = Some("opencode-go/glm-5.3");
+        router_input.manual_model = Some("opencode-go/deepseek-v4-pro");
+        let decision = classify(&router_input);
+        assert_eq!(decision.selected_model, "opencode-go/deepseek-v4-pro");
+        assert_eq!(decision.origin, "MANUAL_OVERRIDE");
     }
 
     #[test]

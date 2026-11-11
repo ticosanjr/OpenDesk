@@ -2,7 +2,7 @@ use crate::{
     app_state::AppState,
     db::{
         budget,
-        router::{self, CreateRuleInput, RouterRule, UpdateRuleInput},
+        router::{self, CreateRuleInput, RouterModels, RouterRule, UpdateRuleInput},
         workspaces,
     },
     dsh_router::{self, RouterInput},
@@ -27,6 +27,7 @@ pub struct RouterConfig {
     pub workspace_id: String,
     pub policy: String,
     pub default_model: Option<String>,
+    pub manual_model: Option<String>,
     pub router_model: Option<String>,
     pub cost_blend: f64,
     pub rules: Vec<RouterRule>,
@@ -42,9 +43,7 @@ pub async fn get_config(
     let policy = router::workspace_policy(&state.db, &workspace_id).await?;
     let rules = router::list(&state.db, &workspace_id).await?;
     let budget = budget::status(&state.db).await?;
-    let workspace = workspaces::get(&state.db, &workspace_id).await?;
-    let default_model =
-        dsh_router::configured_default_model(std::path::Path::new(&workspace.root_path));
+    let models = router::models(&state.db, &workspace_id).await?;
     let router_model = crate::db::settings::get(&state.db, "router_model")
         .await?
         .and_then(|value| value.as_str().map(str::to_string));
@@ -52,7 +51,8 @@ pub async fn get_config(
     Ok(Json(RouterConfig {
         workspace_id,
         policy,
-        default_model,
+        default_model: models.default_model,
+        manual_model: models.manual_model,
         router_model,
         cost_blend,
         rules,
@@ -70,8 +70,9 @@ pub struct TestDecisionBody {
     #[serde(default)]
     pub tags: Vec<String>,
     pub policy: Option<String>,
-    pub manual_agent: Option<String>,
+    pub default_model: Option<String>,
     pub manual_model: Option<String>,
+    pub manual_agent: Option<String>,
     pub manual_effort: Option<String>,
     pub execution_mode: Option<String>,
 }
@@ -89,13 +90,15 @@ pub async fn test_decision(
         Some(policy) => policy,
         None => router::workspace_policy(&state.db, &workspace_id).await?,
     };
+    let engine_online = state.daemon.client().await.is_some();
     let available_models = state
         .daemon
         .models(Some(&workspace.root_path))
         .await
         .unwrap_or_default();
-    let default_model =
-        dsh_router::configured_default_model(std::path::Path::new(&workspace.root_path));
+    let saved_models = router::models(&state.db, &workspace_id).await?;
+    let default_model = body.default_model.or(saved_models.default_model);
+    let manual_model = body.manual_model.or(saved_models.manual_model);
     let title = if body.title.trim().is_empty() {
         "Teste de roteamento".to_string()
     } else {
@@ -116,21 +119,70 @@ pub async fn test_decision(
         priority: 2,
         tags: &body.tags,
         manual_agent: body.manual_agent.as_deref(),
-        manual_model: body.manual_model.as_deref(),
+        manual_model: None,
         manual_effort: body.manual_effort.as_deref(),
         policy: &policy,
         rules: &rules,
         available_models: &available_models,
         default_model: default_model.as_deref(),
+        manual_default_model: manual_model.as_deref(),
         approved_plan: None,
         output_directory: None,
         budget_daily_pct: 0.0,
     });
+    let model_available = decision.selected_model.is_empty()
+        || available_models.is_empty()
+        || dsh_router::model_available(&available_models, &decision.selected_model);
     Ok(Json(serde_json::json!({
         "workspace_id": workspace_id,
         "policy": policy,
         "default_model": default_model,
+        "manual_model": manual_model,
+        "engine_online": engine_online,
+        "model_available": model_available,
+        "available_models": available_models.len(),
         "decision": decision,
+    })))
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct RouterModelsBody {
+    pub workspace_id: Option<String>,
+    pub default_model: Option<String>,
+    pub manual_model: Option<String>,
+}
+
+fn normalize_optional_model(value: Option<String>, field: &str) -> AppResult<Option<String>> {
+    let value = value
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if let Some(value) = value {
+        validate_model(value)
+            .map_err(|_| AppError::BadRequest(format!("invalid {field} '{value}'")))?;
+        Ok(Some(value.to_string()))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Persist the OpenDesk-owned model choices for one workspace. This never
+/// reads or writes the `model` field of `opencode.jsonc`.
+pub async fn set_models(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<RouterModelsBody>,
+) -> AppResult<Json<serde_json::Value>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, body.workspace_id.as_deref()).await?;
+    let models = RouterModels {
+        default_model: normalize_optional_model(body.default_model, "default_model")?,
+        manual_model: normalize_optional_model(body.manual_model, "manual_model")?,
+    };
+    router::set_models(&state.db, &workspace_id, &models).await?;
+    Ok(Json(serde_json::json!({
+        "workspace_id": workspace_id,
+        "default_model": models.default_model,
+        "manual_model": models.manual_model,
     })))
 }
 

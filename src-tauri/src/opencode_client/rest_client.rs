@@ -270,6 +270,34 @@ impl RestClient {
             .ok_or_else(|| anyhow::anyhow!("OpenCode session response had no id: {value}"))
     }
 
+    /// Stateless one-shot generation. Unlike a session prompt this does not
+    /// load agent instructions, tools or history, so it is the cheapest way to
+    /// validate provider connectivity and quota.
+    pub async fn generate_text(&self, text: &str, model: Option<ModelRefDto>) -> Result<String> {
+        let mut body = serde_json::json!({ "prompt": text });
+        if let Some(payload) = model.as_ref().and_then(ModelRefDto::to_payload) {
+            body["model"] = payload;
+        }
+        let response = self
+            .request(reqwest::Method::POST, "/api/experimental/generate/text")
+            .json(&body)
+            .send()
+            .await
+            .context("could not generate OpenCode text")?;
+        let status = response.status();
+        let raw = response.text().await.unwrap_or_default();
+        if !status.is_success() {
+            anyhow::bail!("OpenCode generate failed ({status}): {raw}");
+        }
+        let value: Value =
+            serde_json::from_str(&raw).context("could not decode OpenCode generate response")?;
+        value
+            .pointer("/data/text")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .ok_or_else(|| anyhow::anyhow!("OpenCode generate response had no text: {value}"))
+    }
+
     pub async fn prompt(&self, session_id: &str, text: &str) -> Result<()> {
         let response = self
             .request(
@@ -301,23 +329,6 @@ impl RestClient {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             anyhow::bail!("OpenCode interrupt failed ({status}): {body}");
-        }
-        Ok(())
-    }
-
-    pub async fn delete_session(&self, session_id: &str) -> Result<()> {
-        let response = self
-            .request(
-                reqwest::Method::DELETE,
-                &format!("/api/session/{session_id}"),
-            )
-            .send()
-            .await
-            .context("could not delete OpenCode session")?;
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("OpenCode session delete failed ({status}): {body}");
         }
         Ok(())
     }
@@ -528,6 +539,12 @@ mod tests {
                 }),
             )
             .route(
+                "/api/experimental/generate/text",
+                post(|Json(_body): Json<Value>| async {
+                    Json(serde_json::json!({ "data": { "text": "OK" } }))
+                }),
+            )
+            .route(
                 "/api/session/{id}/prompt",
                 post(|| async { StatusCode::NO_CONTENT }),
             )
@@ -601,6 +618,15 @@ mod tests {
         assert_eq!(commands[0]["name"], "init");
         let mcps = client.mcp_servers(None).await.expect("mcps");
         assert_eq!(mcps[0]["name"], "rea");
+
+        let generated = client
+            .generate_text(
+                "Output only: OK",
+                Some(ModelRefDto::parse("opencode-go/glm-5.3").expect("model")),
+            )
+            .await
+            .expect("generate");
+        assert_eq!(generated, "OK");
 
         let session = client
             .create_session("/tmp/ws", "Test", "build", None)

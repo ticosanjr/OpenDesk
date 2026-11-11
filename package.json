@@ -1,7 +1,7 @@
 {
   "name": "opendesk",
   "private": true,
-  "version": "0.45.0",
+  "version": "0.46.0",
   "description": "Visual governance, automation and observability for OpenCode",
   "type": "module",
   "scripts": {
@@ -23,7 +23,8 @@
     "test:features": "scripts/test-features.sh",
     "lint": "eslint src tests --max-warnings=0",
     "audit:prod": "npm audit --omit=dev",
-    "contract:google": "scripts/contract-google.sh"
+    "contract:google": "scripts/contract-google.sh",
+    "verify:model": "bash scripts/verify-model.sh"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

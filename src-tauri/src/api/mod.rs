@@ -447,6 +447,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/router/config", get(router::get_config))
         .route("/api/router/model", put(router::set_router_model))
+        .route("/api/router/models", put(router::set_models))
         .route("/api/router/blend", put(router::set_blend))
         .route("/api/router/analyze", post(router::analyze))
         .route("/api/router/test", post(router::test_decision))

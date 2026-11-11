@@ -25,13 +25,46 @@ test("router lets the user save the cost blend", async ({ page, request }) => {
       return body.cost_blend;
     })
     .toBe(0.5);
-
 });
 
-test("router adapts to policy and tests routing/model", async ({ page, request }) => {
+test("router saves OpenDesk models and tests every policy", async ({
+  page,
+  request,
+}) => {
+  const auth = api();
   const workspace = await seedWorkspace(request, "Router Policy");
   await page.goto("/#/router");
   await expect(page.getByRole("heading", { name: "Roteador & Custos" })).toBeVisible();
+
+  const defaultModel = page.getByRole("combobox", { name: "Modelo padrão" });
+  await defaultModel.fill("deepseek/deepseek-flash");
+  await defaultModel.press("Enter");
+  const manualModel = page.getByRole("combobox", { name: "Modelo do modo manual" });
+  await manualModel.fill("deepseek/deepseek-v4-pro");
+  await manualModel.press("Enter");
+  await page.getByRole("button", { name: /Salvar modelos/ }).click();
+
+  await expect
+    .poll(async () => {
+      const response = await request.get(
+        `${auth.baseURL}/api/router/config?workspace_id=${workspace.id}`,
+        { headers: auth.headers },
+      );
+      const body = (await response.json()) as {
+        default_model?: string | null;
+        manual_model?: string | null;
+      };
+      return `${body.default_model ?? ""}|${body.manual_model ?? ""}`;
+    })
+    .toBe("deepseek/deepseek-flash|deepseek/deepseek-v4-pro");
+
+  await page.getByRole("button", { name: /Testar todas/ }).click();
+  await expect(page.getByText("deepseek/deepseek-flash").first()).toBeVisible();
+  await expect(page.getByText("deepseek/deepseek-v4-pro").first()).toBeVisible();
+  await expect(page.getByText("Regras customizadas").first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Testar modelo" }).first().click();
+  await expect(page.getByText(/engine_offline|OK ·/).first()).toBeVisible();
 
   await page.getByRole("button", { name: "Regras customizadas" }).click();
   await expect(page.getByText("Regras IF-THEN")).toBeVisible();
@@ -52,14 +85,8 @@ test("router adapts to policy and tests routing/model", async ({ page, request }
   await expect(ruleDialog).toBeHidden();
   await expect(page.getByText("Regra E2E editada").first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Melhor custo-benefício" }).click();
-  await expect(page.getByText("Modelo roteador e comparação")).toBeVisible();
-  await page.getByRole("button", { name: /Testar roteamento/ }).click();
-  await expect(page.getByText(/@build · opencode-go\//)).toBeVisible();
-
   await expect
     .poll(async () => {
-      const auth = api();
       const response = await request.get(
         `${auth.baseURL}/api/router/rules?workspace_id=${workspace.id}`,
         { headers: auth.headers },
@@ -69,10 +96,6 @@ test("router adapts to policy and tests routing/model", async ({ page, request }
     })
     .toBe(true);
 
-  await page.getByRole("button", { name: "Modelo específico", exact: true }).click();
-  const model = page.getByRole("combobox", { name: "Modelo" });
-  await model.fill("deepseek/deepseek-flash");
-  await model.press("Enter");
-  await page.getByRole("button", { name: "Testar modelo", exact: true }).click();
-  await expect(page.getByText(/engine_offline/)).toBeVisible();
+  await page.getByRole("button", { name: "Melhor custo-benefício" }).click();
+  await expect(page.getByText("Modelo roteador e comparação")).toBeVisible();
 });

@@ -875,18 +875,35 @@ async fn dashboard_counts_active_routines_and_enabled_recipes() {
 }
 
 #[tokio::test]
-async fn router_test_uses_the_opencode_default_model() {
+async fn router_test_uses_opendesk_models_instead_of_the_opencode_default() {
     let ctx = test_support::context().await;
     std::fs::write(
         ctx.workspace_root.join("opencode.jsonc"),
-        r#"{ "model": "deepseek/deepseek-flash" }"#,
+        r#"{ "model": "other/provider-that-must-be-ignored" }"#,
     )
     .expect("config");
+
+    let (status, saved) = call(
+        &ctx,
+        Method::PUT,
+        "/api/router/models",
+        Some(json!({
+            "workspace_id": ctx.workspace_id,
+            "default_model": "deepseek/deepseek-flash",
+            "manual_model": "deepseek/deepseek-v4-pro"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{saved}");
+    assert_eq!(saved["default_model"], "deepseek/deepseek-flash");
+    assert_eq!(saved["manual_model"], "deepseek/deepseek-v4-pro");
+
     let (status, body) = call(
         &ctx,
         Method::POST,
         "/api/router/test",
         Some(json!({
+            "workspace_id": ctx.workspace_id,
             "title": "Relatório executivo",
             "description": "Analise os dados e produza um relatório.",
             "tags": ["relatorio"]
@@ -895,6 +912,7 @@ async fn router_test_uses_the_opencode_default_model() {
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["default_model"], "deepseek/deepseek-flash");
+    assert_eq!(body["manual_model"], "deepseek/deepseek-v4-pro");
     assert_eq!(body["decision"]["origin"], "COST_BENEFIT");
     assert_eq!(body["decision"]["selected_agent"], "build");
     assert!(
@@ -902,6 +920,53 @@ async fn router_test_uses_the_opencode_default_model() {
             .as_str()
             .is_some_and(|value| value.starts_with("deepseek/deepseek-flash"))
     );
+
+    let (status, manual) = call(
+        &ctx,
+        Method::POST,
+        "/api/router/test",
+        Some(json!({
+            "workspace_id": ctx.workspace_id,
+            "policy": "MANUAL",
+            "title": "Teste manual",
+            "description": "Use o modelo manual do workspace."
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{manual}");
+    assert_eq!(manual["decision"]["origin"], "MANUAL");
+    assert_eq!(
+        manual["decision"]["selected_model"],
+        "deepseek/deepseek-v4-pro"
+    );
+
+    let (status, _) = call(
+        &ctx,
+        Method::PUT,
+        "/api/router/models",
+        Some(json!({
+            "workspace_id": ctx.workspace_id,
+            "default_model": "sem-provider",
+            "manual_model": null
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, cleared) = call(
+        &ctx,
+        Method::PUT,
+        "/api/router/models",
+        Some(json!({
+            "workspace_id": ctx.workspace_id,
+            "default_model": null,
+            "manual_model": ""
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{cleared}");
+    assert!(cleared["default_model"].is_null());
+    assert!(cleared["manual_model"].is_null());
 }
 
 #[tokio::test]

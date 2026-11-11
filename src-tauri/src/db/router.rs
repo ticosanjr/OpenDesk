@@ -48,6 +48,42 @@ fn default_true() -> bool {
     true
 }
 
+/// Models chosen by the user for this workspace. `default_model` is the
+/// router's base model and `manual_model` is used by the MANUAL policy when
+/// the task itself does not override the model.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RouterModels {
+    #[serde(default)]
+    pub default_model: Option<String>,
+    #[serde(default)]
+    pub manual_model: Option<String>,
+}
+
+fn models_key(workspace_id: &str) -> String {
+    format!("router_models:{workspace_id}")
+}
+
+pub async fn models(pool: &SqlitePool, workspace_id: &str) -> AppResult<RouterModels> {
+    let Some(value) = crate::db::settings::get(pool, &models_key(workspace_id)).await? else {
+        return Ok(RouterModels::default());
+    };
+    serde_json::from_value(value).map_err(|error| {
+        AppError::Internal(format!(
+            "invalid router models setting for workspace '{workspace_id}': {error}"
+        ))
+    })
+}
+
+pub async fn set_models(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    models: &RouterModels,
+) -> AppResult<()> {
+    let value = serde_json::to_value(models)
+        .map_err(|error| AppError::Internal(format!("could not encode router models: {error}")))?;
+    crate::db::settings::set(pool, &models_key(workspace_id), &value).await
+}
+
 const COLUMNS: &str = "id, workspace_id, name, priority_order, condition_json, target_mode, \
     target_agent, target_model, target_effort, is_enabled";
 
@@ -262,6 +298,34 @@ mod tests {
         .await
         .expect_err("invalid mode");
         assert!(format!("{error}").contains("target_mode"));
+    }
+
+    #[tokio::test]
+    async fn router_models_round_trip_per_workspace() {
+        let (_temp, pool) = setup().await;
+        assert_eq!(
+            models(&pool, "ws-1").await.expect("empty"),
+            RouterModels::default()
+        );
+
+        let saved = RouterModels {
+            default_model: Some("deepseek/deepseek-flash".into()),
+            manual_model: Some("deepseek/deepseek-v4-pro#high".into()),
+        };
+        set_models(&pool, "ws-1", &saved).await.expect("set");
+        assert_eq!(models(&pool, "ws-1").await.expect("get"), saved);
+        assert_eq!(
+            models(&pool, "ws-2").await.expect("other"),
+            RouterModels::default()
+        );
+
+        set_models(&pool, "ws-1", &RouterModels::default())
+            .await
+            .expect("clear");
+        assert_eq!(
+            models(&pool, "ws-1").await.expect("cleared"),
+            RouterModels::default()
+        );
     }
 
     #[tokio::test]

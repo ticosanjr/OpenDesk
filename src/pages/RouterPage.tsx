@@ -5,6 +5,7 @@ import {
   GitBranch,
   Loader2,
   Pencil,
+  Play,
   Plus,
   RefreshCw,
   Route,
@@ -23,6 +24,7 @@ import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
 import type { BudgetSettings, BudgetStatus, RouterRule } from "@/lib/types";
 import { ROUTER_POLICY_LABELS } from "@/lib/types";
 import { ModelCombobox } from "@/components/ui/model-combobox";
+import { ModelTestButton } from "@/components/ui/model-test-button";
 import { IconLabel } from "@/components/ui/icon-label";
 import { LoadingState } from "@/components/ui/loading-state";
 import { formatUsd } from "@/lib/format";
@@ -37,6 +39,7 @@ interface RouterConfig {
   workspace_id: string;
   policy: string;
   default_model?: string | null;
+  manual_model?: string | null;
   router_model?: string | null;
   cost_blend: number;
   rules: RouterRule[];
@@ -60,6 +63,25 @@ interface RouterAnalysis {
   models: ModelCost[];
   cheapest?: string | null;
   generated_at: string;
+}
+
+interface RouterTestResult {
+  policy: string;
+  default_model?: string | null;
+  manual_model?: string | null;
+  engine_online: boolean;
+  model_available: boolean;
+  available_models: number;
+  decision: {
+    phase: string;
+    selected_agent: string;
+    selected_model: string;
+    effort: string;
+    rationale: string;
+    origin: string;
+    policy_applied: string;
+    rule_name?: string | null;
+  };
 }
 
 export function RouterPage() {
@@ -86,21 +108,13 @@ export function RouterPage() {
     "Analise os dados e destaque riscos e próximos passos.",
   );
   const [testTags, setTestTags] = useState("relatorio");
-  const [testDecision, setTestDecision] = useState<{
-    decision: {
-      phase: string;
-      selected_agent: string;
-      selected_model: string;
-      effort: string;
-      rationale: string;
-      origin: string;
-      policy_applied: string;
-      rule_name?: string | null;
-    };
-    policy: string;
-    default_model?: string | null;
-  } | null>(null);
-  const [testingDecision, setTestingDecision] = useState(false);
+  const [defaultModel, setDefaultModel] = useState("");
+  const [manualModel, setManualModel] = useState("");
+  const [savingModels, setSavingModels] = useState(false);
+  const [policyResults, setPolicyResults] = useState<
+    Record<string, RouterTestResult | undefined>
+  >({});
+  const [testingPolicy, setTestingPolicy] = useState<string | null>(null);
 
   const query = useMemo(
     () => (activeWorkspaceId ? `?workspace_id=${encodeURIComponent(activeWorkspaceId)}` : ""),
@@ -120,6 +134,8 @@ export function RouterPage() {
         apiGet<BudgetSettings>("/api/budget"),
       ]);
       setConfig(routerConfig);
+      setDefaultModel(routerConfig.default_model ?? "");
+      setManualModel(routerConfig.manual_model ?? "");
       setRouterModel(routerConfig.router_model ?? "");
       setCostBlend(routerConfig.cost_blend ?? 0.7);
       setSettings(budgetSettings);
@@ -212,26 +228,34 @@ export function RouterPage() {
     }
   }
 
-  async function testRouting() {
+  async function saveModels() {
     if (!activeWorkspaceId) return;
-    setTestingDecision(true);
+    setSavingModels(true);
     setError(null);
     try {
-      const result = await apiPost<{
-        decision: {
-          phase: string;
-          selected_agent: string;
-          selected_model: string;
-          effort: string;
-          rationale: string;
-          origin: string;
-          policy_applied: string;
-          rule_name?: string | null;
-        };
-        policy: string;
-        default_model?: string | null;
-      }>("/api/router/test", {
+      await apiPut("/api/router/models", {
         workspace_id: activeWorkspaceId,
+        default_model: defaultModel.trim() || null,
+        manual_model: manualModel.trim() || null,
+      });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSavingModels(false);
+    }
+  }
+
+  async function testPolicy(policyId: string) {
+    if (!activeWorkspaceId) return;
+    setTestingPolicy(policyId);
+    setError(null);
+    try {
+      const result = await apiPost<RouterTestResult>("/api/router/test", {
+        workspace_id: activeWorkspaceId,
+        policy: policyId,
+        default_model: defaultModel.trim() || null,
+        manual_model: manualModel.trim() || null,
         title: testTitle,
         description: testDescription,
         tags: testTags
@@ -239,11 +263,19 @@ export function RouterPage() {
           .map((tag) => tag.trim())
           .filter(Boolean),
       });
-      setTestDecision(result);
+      setPolicyResults((current) => ({ ...current, [policyId]: result }));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setTestingDecision(false);
+      setTestingPolicy(null);
+    }
+  }
+
+  async function testAllPolicies() {
+    if (!activeWorkspaceId) return;
+    setError(null);
+    for (const policyId of Object.keys(ROUTER_POLICY_LABELS)) {
+      await testPolicy(policyId);
     }
   }
 
@@ -328,21 +360,114 @@ export function RouterPage() {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Gauge size={15} className="text-blue-300" />
-              Política atual
+              Modelos do roteador
             </CardTitle>
             <p className="mt-1 text-xs text-zinc-500">
-              {ROUTER_POLICY_LABELS[policy] ?? policy} · modelo padrão do OpenCode:{" "}
-              <span className="font-mono text-zinc-300">
-                {config?.default_model ?? "não configurado"}
-              </span>
+              Modelos escolhidos no OpenDesk para este workspace. O roteador
+              não lê mais o <span className="font-mono">model</span> do{" "}
+              <span className="font-mono">opencode.jsonc</span>.
             </p>
           </div>
-          {testDecision ? (
-            <Badge variant="blue">{testDecision.decision.origin}</Badge>
+          <Button
+            size="sm"
+            onClick={() => void saveModels()}
+            disabled={savingModels}
+          >
+            <IconLabel
+              icon={
+                savingModels ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Save size={13} />
+                )
+              }
+            >
+              Salvar modelos
+            </IconLabel>
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid gap-5 md:grid-cols-2">
+            <div>
+              <span className={labelClass}>Modelo padrão do OpenDesk</span>
+              <ModelCombobox
+                value={defaultModel || null}
+                onChange={(value) => {
+                  setDefaultModel(value ?? "");
+                  setPolicyResults({});
+                }}
+                allowRouter={false}
+                placeholder="deepseek/deepseek-flash"
+                ariaLabel="Modelo padrão"
+              />
+              <p className="mt-1.5 text-[10px] leading-snug text-zinc-500">
+                Base das políticas automáticas e fallback do roteador. Se o
+                modelo não existir no motor, o roteador escolhe outro modelo
+                disponível e registra a origem <span className="font-mono">FALLBACK</span>.
+              </p>
+            </div>
+            <div>
+              <span className={labelClass}>Modelo do modo Manual</span>
+              <ModelCombobox
+                value={manualModel || null}
+                onChange={(value) => {
+                  setManualModel(value ?? "");
+                  setPolicyResults({});
+                }}
+                allowRouter={false}
+                placeholder="escolha o modelo usado no manual"
+                ariaLabel="Modelo do modo manual"
+              />
+              <p className="mt-1.5 text-[10px] leading-snug text-zinc-500">
+                Usado quando a política é <strong>Manual</strong> e a tarefa não
+                escolhe um modelo. O modelo definido no card da tarefa continua
+                vencendo.
+              </p>
+            </div>
+          </div>
+          {!defaultModel ? (
+            <p className="rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2 text-[10px] leading-snug text-amber-200">
+              Nenhum modelo padrão definido. Escolha um acima para evitar que o
+              roteador dependa do modelo padrão do OpenCode ou de um provider
+              que você não usa.
+            </p>
           ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Play size={15} className="text-blue-300" />
+              Teste das modalidades
+            </CardTitle>
+            <p className="mt-1 text-xs text-zinc-500">
+              Cada teste roda o classificador local do dispatch. Não cria
+              tarefa, não abre sessão e não consome tokens.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void testAllPolicies()}
+            disabled={testingPolicy !== null}
+          >
+            <IconLabel
+              icon={
+                testingPolicy ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Play size={13} />
+                )
+              }
+            >
+              {testingPolicy ? "Testando…" : "Testar todas"}
+            </IconLabel>
+          </Button>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid gap-2 md:grid-cols-[1fr_1.4fr_180px_auto]">
+          <div className="grid gap-2 md:grid-cols-[1fr_1.4fr_180px]">
             <input
               value={testTitle}
               onChange={(event) => setTestTitle(event.target.value)}
@@ -364,46 +489,122 @@ export function RouterPage() {
               className={inputClass}
               aria-label="Tags da tarefa de teste"
             />
-            <Button
-              size="sm"
-              className="h-9"
-              onClick={() => void testRouting()}
-              disabled={testingDecision}
-            >
-              {testingDecision ? (
-                <Loader2 size={13} className="animate-spin" />
-              ) : (
-                <Gauge size={13} />
-              )}
-              Testar roteamento
-            </Button>
           </div>
-          {testDecision ? (
-            <div className="rounded-xl border border-blue-500/20 bg-blue-500/[0.04] px-3 py-2.5 text-[11px]">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="blue">{testDecision.decision.origin}</Badge>
-                <span className="font-mono text-blue-100">
-                  @{testDecision.decision.selected_agent} ·{" "}
-                  {testDecision.decision.selected_model} ·{" "}
-                  {testDecision.decision.effort} · {testDecision.decision.phase}
-                </span>
-                {testDecision.decision.rule_name ? (
-                  <Badge variant="purple">
-                    regra: {testDecision.decision.rule_name}
-                  </Badge>
-                ) : null}
-              </div>
-              <p className="mt-1 text-[10px] leading-relaxed text-zinc-400">
-                {testDecision.decision.rationale}
-              </p>
-            </div>
-          ) : (
-            <p className="text-[10px] text-zinc-500">
-              O teste roda o mesmo classificador do dispatch, sem criar tarefa
-              nem consumir modelo. Mostra a origem, a política aplicada, o
-              agente, o modelo e o effort escolhidos.
-            </p>
-          )}
+          <div className="scroll-area overflow-x-auto rounded-lg border border-zinc-800/70">
+            <table className="w-full min-w-[760px] text-left text-[10px]">
+              <thead className="bg-zinc-950/90 text-[9px] uppercase tracking-wide text-zinc-500">
+                <tr>
+                  <th className="px-3 py-2">Modalidade</th>
+                  <th className="px-3 py-2">Decisão</th>
+                  <th className="px-3 py-2">Modelo resolvido</th>
+                  <th className="px-3 py-2 text-right">Testar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(ROUTER_POLICY_LABELS).map(([id, label]) => {
+                  const result = policyResults[id];
+                  const testing = testingPolicy === id;
+                  const active = id === policy;
+                  return (
+                    <tr key={id} className="border-t border-zinc-800/60 align-top">
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-medium text-zinc-200">{label}</span>
+                          {active ? <Badge variant="blue">atual</Badge> : null}
+                        </div>
+                        <span className="font-mono text-[9px] text-zinc-500">{id}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-zinc-400">
+                        {result ? (
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge variant="blue">{result.decision.origin}</Badge>
+                              <span className="font-mono text-blue-100">
+                                @{result.decision.selected_agent} ·{" "}
+                                {result.decision.effort} · {result.decision.phase}
+                              </span>
+                            </div>
+                            {result.decision.rule_name ? (
+                              <p className="text-[9px] text-purple-300">
+                                regra: {result.decision.rule_name}
+                              </p>
+                            ) : null}
+                            <p
+                              className="max-w-[340px] text-[9px] leading-snug text-zinc-500"
+                              title={result.decision.rationale}
+                            >
+                              {result.decision.rationale}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-zinc-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {result ? (
+                          <div className="space-y-1.5">
+                            <span className="block truncate font-mono text-zinc-200">
+                              {result.decision.selected_model || "(sem modelo)"}
+                            </span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge
+                                variant={
+                                  !result.engine_online
+                                    ? "yellow"
+                                    : result.model_available
+                                      ? "green"
+                                      : "yellow"
+                                }
+                              >
+                                {!result.engine_online
+                                  ? "motor offline"
+                                  : result.model_available
+                                    ? "modelo listado"
+                                    : "modelo não listado"}
+                              </Badge>
+                              <span className="text-[9px] text-zinc-500">
+                                {result.available_models} modelo(s) no motor
+                              </span>
+                            </div>
+                            <ModelTestButton
+                              model={result.decision.selected_model}
+                              workspaceId={activeWorkspaceId}
+                              variant="compact"
+                              label="Testar modelo"
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-zinc-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-[9px]"
+                          onClick={() => void testPolicy(id)}
+                          disabled={testing}
+                        >
+                          {testing ? (
+                            <Loader2 size={10} className="animate-spin" />
+                          ) : (
+                            <Play size={10} />
+                          )}
+                          Testar
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-zinc-500">
+            “Testar modelo” faz uma geração curta sem sessão, histórico ou
+            ferramentas (<span className="font-mono">Output only: OK</span>) e
+            consome poucos tokens. É assim que o OpenDesk separa quota do
+            provider (402) de falha do motor.
+          </p>
         </CardContent>
       </Card>
 
@@ -412,9 +613,10 @@ export function RouterPage() {
           <CardContent className="flex items-start gap-3 p-4 text-[11px] text-zinc-400">
             <ShieldAlert size={16} className="mt-0.5 text-amber-300" />
             <p>
-              Em <strong>Manual</strong>, o roteador não escolhe modelo nem
-              agente automaticamente. A tarefa usa o agente/modelo definidos no
-              card, ou o modelo padrão do OpenCode quando não houver override.
+              Em <strong>Manual</strong>, o roteador usa o modelo do modo
+              Manual salvo neste workspace. Se a tarefa tiver um modelo
+              próprio, ele vence. Sem modelo manual e sem override, o roteador
+              usa o modelo padrão do OpenDesk.
             </p>
           </CardContent>
         </Card>
@@ -465,6 +667,7 @@ export function RouterPage() {
                 onChange={(value) => setRouterModel(value ?? "")}
                 routerLabel="Determinístico (local)"
                 routerHint="Sem modelo de IA: o roteador compara custo e qualidade com regras locais."
+                ariaLabel="Modelo roteador"
               />
             </label>
             <Button

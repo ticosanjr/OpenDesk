@@ -1925,3 +1925,22 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   de 60 min e fallback preferindo o modelo padrão.
 - Filtros do Studio com nome acessível (axe verde).
 - Testes: 352 Rust, 134 Vitest, 76 Playwright; 74/74 features (100%).
+
+## 2026-11-11 — release 0.46.0
+
+- Modelo padrão e modelo Manual do roteador passaram a ser configuração do
+  OpenDesk por workspace (`router_models:<workspace_id>`), não o `model` do
+  `opencode.jsonc`. `task_dispatch`, `cron_engine` e fallback da fila usam esses
+  valores; o Manual aceita override da tarefa.
+- `POST /api/router/models` e os novos campos de `/api/router/config` expõem os
+  modelos; `/api/router/test` aceita política e overrides e informa
+  `engine_online`, `model_available` e a contagem de modelos.
+- Tela do roteador ganhou a tabela de teste das cinco modalidades (zero tokens),
+  `Testar todas`, resultado por política e `Testar modelo` no modelo resolvido.
+- `POST /api/models/test` virou geração mínima via
+  `/api/experimental/generate/text` (`Output only: OK`), sem sessão, histórico
+  ou ferramentas. Classifica 402/429/modelo inexistente/engine offline e
+  registra cooldown de quota.
+- `npm run verify:model` valida a conexão real com `deepseek/deepseek-flash`
+  (resposta OK, 81 modelos, `model_available: true`).
+- Testes: 356 Rust, 134 Vitest, 76 Playwright; 74/74 features (100%).

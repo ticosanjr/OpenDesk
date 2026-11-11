@@ -1,5 +1,5 @@
 use crate::{
-    db::{budget, model_health, queue, runs, tasks, workspaces},
+    db::{budget, model_health, queue, router as router_db, runs, tasks, workspaces},
     error::{AppError, AppResult},
     events::{EventBus, OpenDeskWsEvent, QueueJobDto},
     integrations::{delivery, google_oauth::GoogleOAuth},
@@ -559,7 +559,11 @@ impl QueueManager {
                         .await;
                 if job.job_kind != "fallback"
                     && let Some(fallback) = self
-                        .pick_fallback_model(&workspace_path, &job.resolved_model)
+                        .pick_fallback_model(
+                            &job.workspace_id,
+                            &workspace_path,
+                            &job.resolved_model,
+                        )
                         .await
                 {
                     let _ = self
@@ -688,7 +692,12 @@ impl QueueManager {
         }
     }
 
-    async fn pick_fallback_model(&self, workspace_root: &Path, current: &str) -> Option<String> {
+    async fn pick_fallback_model(
+        &self,
+        workspace_id: &str,
+        workspace_root: &Path,
+        current: &str,
+    ) -> Option<String> {
         let models = self
             .daemon
             .models(Some(&workspace_root.to_string_lossy()))
@@ -703,9 +712,14 @@ impl QueueManager {
             let id = model.model_id.clone().unwrap_or_else(|| model.id.clone());
             format!("{provider}/{id}")
         };
-        let default_model = crate::dsh_router::configured_default_model(workspace_root);
+        let router_models = router_db::models(&self.pool, workspace_id)
+            .await
+            .unwrap_or_default();
         let mut preferred = Vec::new();
-        if let Some(model) = default_model.as_deref() {
+        if let Some(model) = router_models.default_model.as_deref() {
+            preferred.push(model);
+        }
+        if let Some(model) = router_models.manual_model.as_deref() {
             preferred.push(model);
         }
         preferred.extend(["opencode-go/deepseek-v4.1-flash", "opencode-go/glm-5.3"]);

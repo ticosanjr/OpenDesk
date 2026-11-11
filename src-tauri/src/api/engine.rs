@@ -521,7 +521,6 @@ fn tail(path: &std::path::Path, lines: usize) -> String {
 pub struct TestModelBody {
     pub model: String,
     pub workspace_id: Option<String>,
-    pub prompt: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -529,13 +528,18 @@ pub struct ModelTestResult {
     pub ok: bool,
     pub model: String,
     pub provider: Option<String>,
+    pub variant: Option<String>,
     pub latency_ms: i64,
     pub response: Option<String>,
     pub error_code: Option<String>,
     pub error_message: Option<String>,
 }
 
-/// Performs a real one-shot prompt with the selected model so the UI can
+/// The smallest useful prompt: it validates provider auth/quota without a
+/// session, history or tools. It costs a handful of tokens.
+const MODEL_TEST_PROMPT: &str = "Output only: OK";
+
+/// Performs one stateless generation with the selected model so the UI can
 /// distinguish engine connectivity from provider quota/auth failures.
 pub async fn test_model(
     State(state): State<Arc<AppState>>,
@@ -544,144 +548,90 @@ pub async fn test_model(
     let model = ModelRefDto::parse(&body.model)
         .ok_or_else(|| AppError::BadRequest(format!("modelo inválido '{}'", body.model)))?;
     let model_label = format!("{}/{}", model.provider_id, model.id);
-    let workspace_id =
-        crate::api::tasks::resolve_workspace_id(&state, body.workspace_id.as_deref()).await?;
-    let workspace = workspaces::get(&state.db, &workspace_id).await?;
+    let _ = crate::api::tasks::resolve_workspace_id(&state, body.workspace_id.as_deref()).await?;
     let Some(client) = state.daemon.client().await else {
         return Ok(Json(ModelTestResult {
             ok: false,
             model: model_label,
             provider: Some(model.provider_id),
+            variant: model.variant,
             latency_ms: 0,
             response: None,
             error_code: Some("engine_offline".into()),
             error_message: Some("O motor OpenCode não está online.".into()),
         }));
     };
+
     let started = Instant::now();
-    let session = match client
-        .create_session(
-            &workspace.root_path,
-            "OpenDesk model test",
-            "build",
-            Some(model.clone()),
-        )
-        .await
-    {
-        Ok(session) => session,
-        Err(error) => {
-            return Ok(Json(ModelTestResult {
-                ok: false,
-                model: model_label,
-                provider: Some(model.provider_id),
-                latency_ms: started.elapsed().as_millis() as i64,
-                response: None,
-                error_code: Some("session_failed".into()),
-                error_message: Some(format!("{error:#}")),
-            }));
-        }
+    let failure = |code: &str, message: String| ModelTestResult {
+        ok: false,
+        model: model_label.clone(),
+        provider: Some(model.provider_id.clone()),
+        variant: model.variant.clone(),
+        latency_ms: started.elapsed().as_millis() as i64,
+        response: None,
+        error_code: Some(code.to_string()),
+        error_message: Some(message),
     };
 
-    let prompt = body
-        .prompt
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or("Responda apenas OK.");
-    if let Err(error) = client.prompt(&session, prompt).await {
-        let message = format!("{error:#}");
-        let code = classify_model_error(&message);
-        let _ = client.delete_session(&session).await;
-        return Ok(Json(ModelTestResult {
-            ok: false,
+    let result = tokio::time::timeout(
+        Duration::from_secs(45),
+        client.generate_text(MODEL_TEST_PROMPT, Some(model.clone())),
+    )
+    .await;
+
+    let result = match result {
+        Err(_) => failure(
+            "timeout",
+            "tempo esgotado aguardando a resposta mínima do modelo".into(),
+        ),
+        Ok(Err(error)) => {
+            let message = format!("{error:#}");
+            let code = classify_model_error(&message);
+            if matches!(code, "provider_quota" | "rate_limited") {
+                let _ = crate::db::model_health::record_cooldown(&state.db, &model_label, code, 60)
+                    .await;
+            }
+            failure(code, message)
+        }
+        Ok(Ok(text)) => ModelTestResult {
+            ok: true,
             model: model_label,
             provider: Some(model.provider_id),
+            variant: model.variant,
             latency_ms: started.elapsed().as_millis() as i64,
-            response: None,
-            error_code: Some(code.into()),
-            error_message: Some(message),
-        }));
-    }
-
-    let wait = tokio::time::timeout(Duration::from_secs(60), client.wait_session(&session)).await;
-    let messages = client.messages(&session).await.unwrap_or(Value::Null);
-    let response = assistant_text(&messages);
-    let raw = messages.to_string();
-    let provider_error = provider_error_message(&raw);
-    let code = provider_error.as_deref().map(classify_model_error);
-    if let Some(code) = code {
-        let (provider_id, model_id) = crate::db::model_health::split_model(&model_label);
-        let _ = crate::db::model_health::record_cooldown(
-            &state.db,
-            &format!("{provider_id}/{model_id}"),
-            code,
-            60,
-        )
-        .await;
-    }
-    let error_message = provider_error.or_else(|| match wait {
-        Ok(Err(error)) => Some(format!("{error:#}")),
-        Err(_) => Some("tempo esgotado aguardando o modelo".into()),
-        _ => None,
-    });
-    let ok = code.is_none() && error_message.is_none() && response.is_some();
-    let result = ModelTestResult {
-        ok,
-        model: model_label,
-        provider: Some(model.provider_id),
-        latency_ms: started.elapsed().as_millis() as i64,
-        response,
-        error_code: code.map(str::to_string),
-        error_message,
+            response: Some(text),
+            error_code: None,
+            error_message: None,
+        },
     };
-    let _ = client.delete_session(&session).await;
     Ok(Json(result))
-}
-
-fn assistant_text(value: &Value) -> Option<String> {
-    let messages = value.get("data").and_then(Value::as_array)?;
-    for message in messages.iter().rev() {
-        if message.get("type").and_then(Value::as_str) != Some("assistant") {
-            continue;
-        }
-        let text = message
-            .get("content")
-            .and_then(Value::as_array)
-            .map(|parts| {
-                parts
-                    .iter()
-                    .filter(|part| part.get("type").and_then(Value::as_str) == Some("text"))
-                    .filter_map(|part| part.get("text").and_then(Value::as_str))
-                    .collect::<Vec<_>>()
-                    .join("")
-            })
-            .unwrap_or_default();
-        if !text.trim().is_empty() {
-            return Some(text);
-        }
-    }
-    None
-}
-
-fn provider_error_message(raw: &str) -> Option<String> {
-    let lower = raw.to_lowercase();
-    if lower.contains("provider.quota") || lower.contains("insufficient balance") {
-        return Some(raw.chars().take(800).collect());
-    }
-    None
 }
 
 fn classify_model_error(message: &str) -> &'static str {
     let lower = message.to_lowercase();
     if lower.contains("provider.quota")
         || lower.contains("insufficient balance")
-        || lower.contains("402")
+        || lower.contains("status\":402")
+        || lower.contains("status\": 402")
     {
         "provider_quota"
+    } else if lower.contains("rate_limit")
+        || lower.contains("rate limit")
+        || lower.contains("status\":429")
+        || lower.contains("status\": 429")
+        || lower.contains("429")
+    {
+        "rate_limited"
     } else if lower.contains("401") || lower.contains("unauthorized") {
         "auth_failed"
-    } else if lower.contains("not found") || lower.contains("unknown model") {
+    } else if lower.contains("modelnotfound")
+        || lower.contains("model not found")
+        || lower.contains("unknown model")
+    {
         "model_not_found"
+    } else if lower.contains("404") {
+        "engine_unsupported"
     } else if lower.contains("timeout") || lower.contains("timed out") {
         "timeout"
     } else {
@@ -712,5 +662,28 @@ mod tests {
     #[test]
     fn tail_returns_empty_for_missing_files() {
         assert_eq!(tail(std::path::Path::new("/nope/missing.log"), 10), "");
+    }
+
+    #[test]
+    fn classifies_provider_test_failures() {
+        assert_eq!(
+            classify_model_error("provider.quota: Insufficient balance"),
+            "provider_quota"
+        );
+        assert_eq!(
+            classify_model_error(r#"{"reason":"rate_limit","status":429}"#),
+            "rate_limited"
+        );
+        assert_eq!(classify_model_error("401 Unauthorized"), "auth_failed");
+        assert_eq!(
+            classify_model_error(r#"{"_tag":"ModelNotFoundError"}"#),
+            "model_not_found"
+        );
+        assert_eq!(
+            classify_model_error("HTTP 404 Not Found"),
+            "engine_unsupported"
+        );
+        assert_eq!(classify_model_error("request timed out"), "timeout");
+        assert_eq!(classify_model_error("boom"), "provider_error");
     }
 }
