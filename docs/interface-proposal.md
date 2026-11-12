@@ -58,12 +58,12 @@ preset **Somente atenção**; as setas de rolagem cobrem telas de 1100px. Ainda
 falta salvar combinações nomeadas (Minhas tarefas / Automações / Revisão) e
 transformar a concorrência em um ajuste da fila.
 
-### 2. Configurações com IA mais curta (P1)
+### 2. Configurações com IA mais curta (P1) — parcialmente feito na onda 10
 
-Dez abas em uma linha funcionam em 1440px, mas a leitura ainda é de catálogo.
-Agrupar em quatro blocos — **Geral**, **Motor e execução**, **Dados e
-segurança**, **Sobre** — com uma navegação secundária vertical ou um select
-compacto. O conteúdo ganha largura e a pessoa não precisa varrer dez rótulos.
+As abas agora têm grupos visuais (Geral, Motor, Operação, Workspace, Sobre) e
+Integrações segue o mesmo padrão (Mensageria, I/O, Sistema). Ainda falta
+reduzir para quatro blocos com navegação secundária/vertical, mas a varredura
+de dez rótulos ficou mais curta.
 
 ### 3. Governança como organograma real (P1) — feito na onda 7
 

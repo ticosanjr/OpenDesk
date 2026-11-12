@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -6,6 +7,8 @@ export interface SectionTabItem {
   label: string;
   icon?: LucideIcon;
   badge?: string | number;
+  /** Optional visual cluster; a divider is drawn when the group changes. */
+  group?: string;
 }
 
 export function SectionTabs({
@@ -30,31 +33,42 @@ export function SectionTabs({
             className,
           )}
         >
-          {items.map((item) => {
+          {items.map((item, index) => {
             const Icon = item.icon;
             const active = item.id === value;
+            const divider =
+              index > 0 &&
+              Boolean(item.group) &&
+              items[index - 1]?.group !== item.group;
             return (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => onChange(item.id)}
-                className={cn(
-                  "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors",
-                  active
-                    ? "bg-zinc-800 text-zinc-100"
-                    : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200",
-                )}
-              >
-                {Icon ? <Icon size={13} /> : null}
-                {item.label}
-                {item.badge !== undefined ? (
-                  <span className="rounded bg-zinc-900 px-1 font-mono text-[10px] text-zinc-400">
-                    {item.badge}
-                  </span>
+              <Fragment key={item.id}>
+                {divider ? (
+                  <span
+                    aria-hidden="true"
+                    className="mx-1 h-5 w-px shrink-0 self-center bg-zinc-800"
+                  />
                 ) : null}
-              </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => onChange(item.id)}
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+                    active
+                      ? "bg-zinc-800 text-zinc-100"
+                      : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200",
+                  )}
+                >
+                  {Icon ? <Icon size={14} /> : null}
+                  {item.label}
+                  {item.badge !== undefined ? (
+                    <span className="rounded bg-zinc-900 px-1 font-mono text-[11px] text-zinc-400">
+                      {item.badge}
+                    </span>
+                  ) : null}
+                </button>
+              </Fragment>
             );
           })}
         </div>

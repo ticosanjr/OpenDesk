@@ -67,16 +67,16 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const section = params.get("section") ?? "general";
   const tabs = [
-    { id: "general", label: "Geral", icon: Settings },
-    { id: "engine", label: "Engine", icon: Cpu },
-    { id: "updates", label: "Atualizações", icon: Download },
-    { id: "notifications", label: "Notificações", icon: Bell },
-    { id: "queue", label: "Fila", icon: ListChecks },
-    { id: "backups", label: "Backups", icon: Archive },
-    { id: "audit", label: "Auditoria", icon: ShieldCheck },
-    { id: "workspaces", label: "Workspaces", icon: FolderOpen },
-    { id: "tools", label: "Ferramentas", icon: Wrench },
-    { id: "about", label: "Sobre", icon: Info },
+    { id: "general", label: "Geral", icon: Settings, group: "Geral" },
+    { id: "engine", label: "Engine", icon: Cpu, group: "Motor" },
+    { id: "updates", label: "Atualizações", icon: Download, group: "Motor" },
+    { id: "notifications", label: "Notificações", icon: Bell, group: "Operação" },
+    { id: "queue", label: "Fila", icon: ListChecks, group: "Operação" },
+    { id: "backups", label: "Backups", icon: Archive, group: "Operação" },
+    { id: "audit", label: "Auditoria", icon: ShieldCheck, group: "Operação" },
+    { id: "workspaces", label: "Workspaces", icon: FolderOpen, group: "Workspace" },
+    { id: "tools", label: "Ferramentas", icon: Wrench, group: "Workspace" },
+    { id: "about", label: "Sobre", icon: Info, group: "Sobre" },
   ] as const;
   const activeTab = tabs.some((tab) => tab.id === section) ? section : "general";
   function selectTab(id: string) {

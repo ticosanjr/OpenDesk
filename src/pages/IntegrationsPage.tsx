@@ -97,14 +97,14 @@ export function IntegrationsPage() {
   const [error, setError] = useState<string | null>(null);
   const section = params.get("section") ?? "smtp";
   const tabs = [
-    { id: "smtp", label: "SMTP", icon: Mail },
-    { id: "google", label: "Google", icon: Cloud },
-    { id: "signal", label: "Signal", icon: Plug },
-    { id: "browser", label: "Browser", icon: Globe },
-    { id: "inbound", label: "Entradas", icon: Inbox },
-    { id: "sinks", label: "Saídas", icon: Package },
-    { id: "deliveries", label: "Histórico", icon: Send },
-    { id: "mcp", label: "MCP e segurança", icon: ShieldCheck },
+    { id: "smtp", label: "SMTP", icon: Mail, group: "Mensageria" },
+    { id: "google", label: "Google", icon: Cloud, group: "Mensageria" },
+    { id: "signal", label: "Signal", icon: Plug, group: "Mensageria" },
+    { id: "browser", label: "Browser", icon: Globe, group: "I/O" },
+    { id: "inbound", label: "Entradas", icon: Inbox, group: "I/O" },
+    { id: "sinks", label: "Saídas", icon: Package, group: "I/O" },
+    { id: "deliveries", label: "Histórico", icon: Send, group: "Sistema" },
+    { id: "mcp", label: "MCP e segurança", icon: ShieldCheck, group: "Sistema" },
   ] as const;
   const activeTab = tabs.some((tab) => tab.id === section) ? section : "smtp";
   function selectTab(id: string) {

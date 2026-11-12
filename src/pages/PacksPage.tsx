@@ -412,25 +412,26 @@ export function PacksPage() {
               onClick={() => setTab(item.id as typeof tab)}
               className={
                 tab === item.id
-                  ? "rounded-lg bg-zinc-800 px-2.5 py-1 text-[10px] text-zinc-100"
-                  : "rounded-lg px-2.5 py-1 text-[10px] text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200"
+                  ? "inline-flex h-8 items-center rounded-lg bg-zinc-800 px-3 text-[12px] font-medium text-zinc-100"
+                  : "inline-flex h-8 items-center rounded-lg px-3 text-[12px] font-medium text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-zinc-200"
               }
             >
               {item.label}
             </button>
           ))}
-          <div className="ml-auto flex h-8 min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5 sm:max-w-md">
+          <div className="ml-auto flex h-9 min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5 focus-within:border-zinc-600 sm:max-w-md">
             <Search size={13} className="shrink-0 text-zinc-500" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Buscar nos workspaces, pacotes e capacidades externas…"
-              className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-500"
+              className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-zinc-500"
+              aria-label="Buscar workspaces, pacotes e capacidades externas"
             />
           </div>
         </div>
         {searching ? (
-          <p className="text-[9px] text-zinc-500">
+          <p className="text-[11.5px] text-zinc-500">
             Resultados em {filteredTemplates.length} workspace(s), {filtered.length} pacote(s)
             e capacidades externas.
           </p>

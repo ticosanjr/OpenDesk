@@ -2170,3 +2170,13 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   orientação.
 - Verificação: `npm run gate:fast` (158 Vitest), `dashboard-data`,
   `observability-data`, `runs-detail-ui` e `governance-ui`. Sem release.
+
+## 2026-11-12 — onda 10: navegação agrupada, Packs e release 0.49.0
+
+- Configurações e Integrações agrupam abas com divisores visuais, mantendo
+  todos os destinos e os testes por `role="tab"`.
+- Pacotes padronizou abas de 32px, busca de 36px e rótulos de resultado.
+- `SectionTabs` aceita `group` opcional e desenha o divisor apenas na troca de
+  grupo; sem grupo, o comportamento anterior é preservado.
+- Detector Impeccable sem achados e suíte Playwright completa verde (78).
+- Release 0.49.0 com notas em `docs/releases/0.49.0.md`.
