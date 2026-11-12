@@ -38,6 +38,7 @@ import { QueueController } from "@/components/queue/QueueController";
 import { PRIORITY_LABEL } from "@/lib/task-ui";
 import { workflowMeta } from "@/lib/workflow";
 import { useDismissable } from "@/lib/use-dismissable";
+import { useKanbanViews } from "@/lib/kanban-views";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterSearch } from "@/components/ui/filter-bar";
 import { useAppStore } from "@/store/app-store";
@@ -157,6 +158,8 @@ export function KanbanPage() {
   const [priorityFilter, setPriorityFilter] = useState("");
   const [attentionOnly, setAttentionOnly] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [viewName, setViewName] = useState("");
+  const { views: savedViews, save: saveView, remove: removeView } = useKanbanViews();
   const [view, setView] = useState<"board" | "list" | "queue">("board");
   const [originFilter, setOriginFilter] = useState<"work" | "automations" | "all">(
     "work",
@@ -284,6 +287,29 @@ export function KanbanPage() {
 
   useDismissable(filtersRef, filtersOpen, () => setFiltersOpen(false));
   useDismissable(visibilityRef, visibilityOpen, () => setVisibilityOpen(false));
+
+  function applySavedView(view: (typeof savedViews)[number]) {
+    setOriginFilter(view.origin);
+    setQuery(view.query);
+    setAgentFilter(view.agent);
+    setPriorityFilter(view.priority);
+    setAttentionOnly(view.attentionOnly);
+    setFiltersOpen(false);
+  }
+
+  function saveCurrentView() {
+    const name = viewName.trim();
+    if (!name) return;
+    saveView({
+      name,
+      origin: originFilter,
+      query,
+      agent: agentFilter,
+      priority: priorityFilter,
+      attentionOnly,
+    });
+    setViewName("");
+  }
 
   const load = useCallback(async () => {
     if (!activeWorkspaceId) {
@@ -636,7 +662,7 @@ export function KanbanPage() {
                 </IconLabel>
               </Button>
               {filtersOpen ? (
-                <div className="absolute right-0 top-9 z-40 w-[280px] space-y-3 rounded-xl border border-zinc-700 bg-zinc-950 p-3 shadow-2xl">
+                <div className="absolute right-0 top-9 z-40 max-h-[min(70dvh,520px)] w-[320px] space-y-3 overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-950 p-3 shadow-2xl">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[12px] font-medium text-zinc-200">Filtros</p>
                     <button
@@ -699,6 +725,69 @@ export function KanbanPage() {
                     Aprovação, pergunta, permissão ou falha. Bom para revisar o
                     que está parado.
                   </p>
+                  <div className="space-y-2 border-t border-zinc-800/70 pt-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-zinc-400">
+                        Visões salvas
+                      </p>
+                      <span className="font-mono text-[11px] text-zinc-500">
+                        {savedViews.length}
+                      </span>
+                    </div>
+                    {savedViews.length === 0 ? (
+                      <p className="text-[11px] leading-snug text-zinc-500">
+                        Salve a combinação atual para reaplicar depois.
+                      </p>
+                    ) : (
+                      <div className="space-y-1">
+                        {savedViews.map((view) => (
+                          <div
+                            key={view.id}
+                            className="flex items-center gap-1 rounded-md border border-zinc-800/70 bg-zinc-900/30"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => applySavedView(view)}
+                              className="min-w-0 flex-1 truncate px-2 py-1.5 text-left text-[12px] text-zinc-300 hover:text-zinc-100"
+                            >
+                              {view.name}
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Remover visão ${view.name}`}
+                              title="Remover visão"
+                              onClick={() => removeView(view.id)}
+                              className="rounded p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-1.5">
+                      <input
+                        value={viewName}
+                        onChange={(event) => setViewName(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            saveCurrentView();
+                          }
+                        }}
+                        placeholder="Nome da visão"
+                        aria-label="Nome da visão"
+                        className="h-8 min-w-0 flex-1 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 text-[12px] text-zinc-200 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
+                      />
+                      <Button
+                        size="xs"
+                        onClick={saveCurrentView}
+                        disabled={!viewName.trim()}
+                      >
+                        Salvar
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               ) : null}
             </div>

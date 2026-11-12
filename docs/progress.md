@@ -2216,3 +2216,6 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   agrupado (Geral, Motor, Operação, Workspace, Sobre). O conteúdo ganhou largura
   e a navegação continua com os mesmos `role="tab"` e nomes, preservando os
   testes e deep links.
+- Kanban ganhou **views salvas**: nome, origem, busca, agente, prioridade e
+  “somente atenção” são persistidos em `localStorage`, com aplicar/remover no
+  popover de filtros e teste E2E de persistência.
