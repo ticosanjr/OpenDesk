@@ -46,7 +46,9 @@ npm run gate:fast      # gate rápido: fmt Rust, TS, lint e Vitest
 scripts/gate-fast.sh --rust  # inclui clippy e testes Rust
 cd src-tauri && cargo check
 cd src-tauri && cargo test
-scripts/release.sh     # build local + retenção de 3 releases (sem CI)
+scripts/release.sh     # gate rápido + build local + retenção de 3 releases
+scripts/release.sh --full-gate  # gate completo antes do build (sob demanda)
+scripts/release.sh --skip-gate  # build já verificado externamente
 ```
 
 ## Onde está o quê
