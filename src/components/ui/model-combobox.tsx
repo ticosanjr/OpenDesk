@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { ModelTestButton } from "@/components/ui/model-test-button";
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 font-mono text-[10px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 font-mono text-[12.5px] text-zinc-100 outline-none placeholder:text-zinc-500 transition-colors hover:border-zinc-700 focus:border-blue-500/60";
 
 export function ModelCombobox({
   value,
@@ -130,13 +130,17 @@ export function ModelCombobox({
   return (
     <div className={cn("space-y-1.5", className)}>
       {allowRouter ? (
-        <div className="flex rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5">
+        <div
+          role="group"
+          aria-label={ariaLabel}
+          className="flex rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5"
+        >
           <button
             type="button"
             aria-pressed={!editing}
             onClick={chooseRouter}
             className={cn(
-              "flex-1 rounded-md px-2 py-1 text-[10px] transition-colors",
+              "flex-1 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors",
               !editing
                 ? "bg-zinc-800 text-zinc-100"
                 : "text-zinc-500 hover:text-zinc-300",
@@ -153,7 +157,7 @@ export function ModelCombobox({
               setOpen(true);
             }}
             className={cn(
-              "flex-1 rounded-md px-2 py-1 text-[10px] transition-colors",
+              "flex-1 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors",
               editing
                 ? "bg-zinc-800 text-zinc-100"
                 : "text-zinc-500 hover:text-zinc-300",
@@ -165,12 +169,9 @@ export function ModelCombobox({
       ) : null}
 
       {allowRouter && !editing ? (
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-2.5 py-2">
-          <p className="text-[10px] font-medium text-zinc-300">{routerLabel}</p>
-          <p className="mt-0.5 text-[9px] leading-snug text-zinc-500">
-            {routerHint}
-          </p>
-        </div>
+        <p className="px-0.5 text-[11.5px] leading-relaxed text-zinc-500">
+          {routerHint}
+        </p>
       ) : (
         <div className="relative">
           <input
@@ -219,7 +220,7 @@ export function ModelCombobox({
                   type="button"
                   role="option"
                   aria-selected={current === null}
-                  className="block w-full rounded px-2 py-1.5 text-left text-[10px] text-zinc-400 hover:bg-zinc-800"
+                  className="block w-full rounded-md px-2.5 py-2 text-left text-[12px] text-zinc-400 hover:bg-zinc-800"
                   onMouseDown={(event) => {
                     event.preventDefault();
                     chooseRouter();
@@ -235,7 +236,7 @@ export function ModelCombobox({
                   role="option"
                   aria-selected={candidate === current}
                   className={cn(
-                    "block w-full rounded px-2 py-1.5 text-left font-mono text-[10px] hover:bg-zinc-800",
+                    "block w-full rounded-md px-2.5 py-2 text-left font-mono text-[12px] hover:bg-zinc-800",
                     candidate === current
                       ? "bg-zinc-800 text-zinc-100"
                       : "text-zinc-300",

@@ -284,7 +284,6 @@ export function RecipesPage() {
   return (
     <PageBody>
       <PageHeader
-        eyebrow="workflows declarativos"
         title="Receitas"
         description="Monte o fluxo visualmente, use zero ou vários gatilhos e combine etapas, checkpoints e saídas na ordem que fizer sentido. Novas receitas nascem desligadas; ative depois de revisar."
         actions={
@@ -324,6 +323,7 @@ export function RecipesPage() {
                 icon={Workflow}
                 title="Nenhuma receita"
                 description="Crie a primeira receita YAML."
+                compact
                 className="border-0 bg-transparent"
               />
             ) : (
@@ -462,7 +462,7 @@ export function RecipesPage() {
         onClose={closeRun}
         title={runMode === "dry" ? "Dry-run da receita" : "Executar receita"}
         description="O contexto abaixo fica disponível como {{trigger.context}}, {{trigger.prompt}} e {{trigger.question}} nos prompts."
-        className="max-w-lg"
+        size="md"
       >
         <div className="space-y-3">
           <label className="block">

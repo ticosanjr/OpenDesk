@@ -319,7 +319,7 @@ export function BackupsCard() {
         onClose={() => setRestoring(null)}
         title="Restaurar backup como novo workspace"
         description="O destino precisa estar vazio ou não existir. O workspace atual não é alterado."
-        className="max-w-lg"
+        size="md"
       >
         <div className="space-y-3">
           <label>

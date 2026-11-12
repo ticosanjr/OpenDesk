@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   CheckCircle2,
+  ChevronRight,
   Clock3,
   Cpu,
   Loader2,
   RefreshCw,
-  Search,
   XCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -15,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterBar, FilterSearch, FilterSelect } from "@/components/ui/filter-bar";
 import { LoadingState } from "@/components/ui/loading-state";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
@@ -28,8 +29,15 @@ import {
   relativeTime,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { runStatusLabel } from "@/lib/task-ui";
 
-const STATUSES = ["", "SUCCESS", "FAILED", "RUNNING", "CANCELLED"];
+const STATUSES: Array<[string, string]> = [
+  ["", "todos os status"],
+  ["SUCCESS", "sucesso"],
+  ["FAILED", "falhou"],
+  ["RUNNING", "executando"],
+  ["CANCELLED", "cancelada"],
+];
 
 export function RunsPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -123,7 +131,7 @@ export function RunsPage() {
   if (!activeWorkspaceId) {
     return (
       <PageBody>
-        <PageHeader eyebrow="auditoria" title="Execuções" />
+        <PageHeader title="Execuções" />
         <EmptyState
           icon={Activity}
           title="Nenhum workspace ativo"
@@ -141,7 +149,6 @@ export function RunsPage() {
   return (
     <PageBody>
       <PageHeader
-        eyebrow="auditoria"
         title="Execuções"
         description={`${workspace?.name ?? "Workspace"} · runs, duração, tokens e logs estruturados.`}
         actions={
@@ -158,32 +165,28 @@ export function RunsPage() {
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/20 px-3 py-2">
-        <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-          <Search size={13} className="text-zinc-500" />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por tarefa, agente, modelo ou run id…"
-            className="h-full flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-500"
-          />
-        </div>
-        <select
+      <FilterBar>
+        <FilterSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Buscar por tarefa, agente, modelo ou run id…"
+          ariaLabel="Buscar execuções"
+        />
+        <FilterSelect
           value={status}
-          onChange={(event) => setStatus(event.target.value)}
-          className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300"
-          aria-label="Filtrar por status"
+          onChange={setStatus}
+          ariaLabel="Filtrar por status"
         >
-          {STATUSES.map((value) => (
+          {STATUSES.map(([value, label]) => (
             <option key={value || "all"} value={value}>
-              {value || "todos os status"}
+              {label}
             </option>
           ))}
-        </select>
+        </FilterSelect>
         <Badge variant="default">
           {grouped.length} de {threadCount} execuções
         </Badge>
-      </div>
+      </FilterBar>
 
       <Card>
         <CardContent className="p-0">
@@ -223,7 +226,7 @@ export function RunsPage() {
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-[12px] font-medium text-zinc-200">
+                      <p className="truncate text-[14px] font-medium text-zinc-100">
                         {run.task_title ?? run.agent_name}
                       </p>
                       <Badge
@@ -237,7 +240,7 @@ export function RunsPage() {
                                 : "yellow"
                         }
                       >
-                        {run.status}
+                        {runStatusLabel(run.status)}
                       </Badge>
                       {attempts.length > 1 ? (
                         <Badge
@@ -249,15 +252,15 @@ export function RunsPage() {
                       ) : null}
                       <Badge variant="default">{run.phase ?? "run"}</Badge>
                     </div>
-                    <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[9px] text-zinc-500">
+                    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11.5px] text-zinc-500">
                       <span>@{run.agent_name}</span>
                       <span>{run.model_id}</span>
                       <span className="inline-flex items-center gap-1">
-                        <Clock3 size={9} />
+                        <Clock3 size={11} />
                         {formatDuration(duration)}
                       </span>
                       <span className="inline-flex items-center gap-1">
-                        <Cpu size={9} />
+                        <Cpu size={11} />
                         ↑ {formatNumber(tokensInput)} · ↓{" "}
                         {formatNumber(tokensOutput)} · Σ{" "}
                         {formatNumber(tokensInput + tokensOutput)} tokens
@@ -265,18 +268,16 @@ export function RunsPage() {
                       <span>{formatUsd(cost)}</span>
                     </p>
                     {run.error_message ? (
-                      <p className="mt-1 truncate font-mono text-[9px] text-red-300/80">
+                      <p className="mt-1 truncate font-mono text-[11px] text-red-300/80">
                         {run.error_message}
                       </p>
                     ) : null}
                   </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1 text-right">
-                    <span className="font-mono text-[9px] text-zinc-500">
+                  <div className="flex shrink-0 items-center gap-2 text-right">
+                    <span className="font-mono text-[11.5px] text-zinc-500">
                       {relativeTime(run.started_at)}
                     </span>
-                    <span className="font-mono text-[9px] text-zinc-500">
-                      abrir execução →
-                    </span>
+                    <ChevronRight size={16} className="text-zinc-600" />
                   </div>
                 </Link>
               ))}

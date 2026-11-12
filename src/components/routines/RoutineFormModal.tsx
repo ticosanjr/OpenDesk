@@ -365,7 +365,7 @@ export function CreateScheduleModal({
       onClose={cancel}
       title={schedule ? "Editar rotina" : "Nova rotina"}
       description="A rotina pertence ao workspace ativo. Mude de workspace na barra superior para gerenciar as rotinas de outro workspace. Toda rotina nova nasce desligada; ative quando revisar."
-      className="max-w-3xl"
+      size="lg"
     >
       <div className="space-y-3">
         <div className="grid gap-2 md:grid-cols-2">

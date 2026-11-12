@@ -187,7 +187,7 @@ export function LearningPage() {
       toast({
         tone: "success",
         title: "Lição adicionada à MEMORY.md",
-        description: "Ela passa a entrar no contexto dos próximos runs.",
+        description: "Ela passa a entrar no contexto das próximas execuções.",
       });
     } catch (cause) {
       toast({
@@ -282,7 +282,7 @@ export function LearningPage() {
   if (!activeWorkspaceId) {
     return (
       <PageBody>
-        <PageHeader eyebrow="aprendizado" title="Aprendizado" />
+        <PageHeader title="Aprendizado" />
         <EmptyState
           icon={Brain}
           title="Nenhum workspace ativo"
@@ -313,7 +313,6 @@ export function LearningPage() {
   return (
     <PageBody>
       <PageHeader
-        eyebrow="aprendizado"
         title="Aprendizado"
         description={`${workspace?.name ?? "Workspace"} · lições extraídas de execuções reais. Nada vira skill sem sua aprovação.`}
         actions={
@@ -351,7 +350,7 @@ export function LearningPage() {
           />
           <StatCard
             icon={<Activity size={13} />}
-            label="Runs · 30 dias"
+            label="Execuções · 30 dias"
             value={String(stats.runs_analyzed)}
             hint={`${stats.failed_runs} falha(s)`}
           />
@@ -391,7 +390,7 @@ export function LearningPage() {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <SettingToggle
                 label="Ativar aprendizado"
-                description="Observa runs concluídos."
+                description="Observa execuções concluídas."
                 checked={settings.enabled}
                 onCheckedChange={(enabled) =>
                   void saveSettings({ ...settings, enabled })
@@ -399,7 +398,7 @@ export function LearningPage() {
               />
               <SettingToggle
                 label="Capturar sucessos"
-                description="Também aprende com runs bem-sucedidos."
+                description="Também aprende com execuções bem-sucedidas."
                 checked={settings.capture_successes}
                 disabled={!settings.enabled}
                 onCheckedChange={(capture_successes) =>
@@ -455,7 +454,7 @@ export function LearningPage() {
             </p>
             <p className="mt-1">
               Adiciona um bloco em <span className="font-mono">.opencode/MEMORY.md</span>.
-              Esse conteúdo entra no contexto dos próximos runs e pode ser
+              Esse conteúdo entra no contexto das próximas execuções e pode ser
               removido depois pelo botão “Remover da memória”.
             </p>
           </div>
@@ -559,7 +558,7 @@ export function LearningPage() {
           <EmptyState
             icon={Brain}
             title="Nenhuma lição nesta visão"
-            description="Rode “Analisar execuções” para extrair padrões dos runs recentes. Falhas repetidas viram lições; você decide o que promover."
+            description="Rode “Analisar execuções” para extrair padrões das execuções recentes. Falhas repetidas viram lições; você decide o que promover."
           />
         ) : (
           <div className="space-y-1.5">

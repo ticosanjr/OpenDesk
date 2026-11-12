@@ -343,7 +343,6 @@ export function PacksPage() {
   return (
     <PageBody>
       <PageHeader
-        eyebrow="biblioteca"
         title="Pacotes"
         description="Comece com um pacote pronto ou adicione capacidades ao workspace atual. Tudo é opcional e removível."
         actions={
@@ -538,6 +537,7 @@ export function PacksPage() {
           icon={Boxes}
           title="Nenhum pacote encontrado"
           description="Ajuste o filtro de categoria ou limpe a busca."
+          compact
         />
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

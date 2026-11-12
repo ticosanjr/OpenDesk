@@ -58,7 +58,7 @@ export function RecurrenceEditor({
             className={cn(
               "rounded-lg border px-2.5 py-1 text-[10px]",
               value.frequency === frequency.id
-                ? "border-blue-500/50 bg-blue-500/10 text-blue-200"
+                ? "workspace-selected workspace-selected-text"
                 : "border-zinc-800 text-zinc-500 hover:text-zinc-300",
             )}
           >

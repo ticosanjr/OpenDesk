@@ -63,6 +63,7 @@ export function AppShell() {
   const restartDaemon = useAppStore((state) => state.restartDaemon);
   const refresh = useAppStore((state) => state.refresh);
   const setCommandOpen = useUiStore((state) => state.setCommandOpen);
+  const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed);
   const setTaskDialogOpen = useUiStore((state) => state.setTaskDialogOpen);
   const navigate = useNavigate();
   const budgetAlert = useAppStore((state) => state.budgetAlert);
@@ -79,6 +80,19 @@ export function AppShell() {
   useEffect(() => {
     setDismissedBudget(null);
   }, [budgetAlert?.message]);
+
+  // At the app's compact width the fixed sidebar eats too much of the view.
+  // Collapse automatically when entering that width; the manual toggle keeps
+  // working and the persisted preference is not overwritten.
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 1199px)");
+    const apply = () => {
+      if (query.matches) setSidebarCollapsed(true);
+    };
+    apply();
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
+  }, [setSidebarCollapsed]);
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 });
@@ -401,7 +415,7 @@ export function AppShell() {
               variant="outline"
               size="sm"
               className="h-7"
-              onClick={() => navigate("/settings")}
+              onClick={() => navigate("/settings?section=engine")}
             >
               <Settings size={12} />
               Configurar binário
@@ -482,7 +496,7 @@ export function AppShell() {
         onClose={() => setShortcutsOpen(false)}
         title="Atalhos do OpenDesk"
         description="Produtividade sem sair do teclado."
-        className="max-w-lg"
+        size="md"
       >
         <div className="space-y-1.5">
           {[

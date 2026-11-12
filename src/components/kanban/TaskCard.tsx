@@ -19,6 +19,7 @@ import {
   ORIGIN_LABEL,
   PRIORITY_LABEL,
   PRIORITY_TONE,
+  STATUS_LABEL,
 } from "@/lib/task-ui";
 import { isTaskAwaitingApproval, taskState } from "@/lib/task-state";
 import type { Task } from "@/lib/types";
@@ -127,116 +128,114 @@ export function TaskCard({
         }
       }}
       className={cn(
-        "flex h-[184px] flex-col rounded-lg border bg-zinc-950/50 p-2.5 text-left outline-none transition-colors hover:border-zinc-700 focus-visible:ring-2 focus-visible:ring-blue-500/60",
+        "flex min-h-[176px] flex-col gap-1.5 rounded-lg border bg-zinc-950/50 p-3 text-left outline-none transition-colors hover:border-zinc-700 hover:bg-zinc-900/40 focus-visible:ring-2 focus-visible:ring-blue-500/60",
         attention
-          ? "border-amber-500/40"
+          ? "border-amber-500/30"
           : state === "running"
-            ? "border-blue-500/40"
+            ? "border-blue-500/35"
             : queued
-              ? "border-amber-500/25"
+              ? "border-amber-500/20"
               : "border-zinc-800/80",
       )}
     >
-      <div className="flex min-h-[30px] items-start justify-between gap-2">
-        <div className="flex min-w-0 items-start gap-1">
-          <span
-            title="Arrastar tarefa"
-            onClick={(event) => event.stopPropagation()}
-            className="mt-0.5 cursor-grab text-zinc-500 active:cursor-grabbing"
-          >
-            <GripVertical size={12} />
-          </span>
-          <p className="line-clamp-2 text-[12px] font-semibold leading-snug text-zinc-100">
-            {task.title}
-          </p>
-        </div>
-        <WorkflowStatusBadge task={task} className="max-w-[132px] shrink-0" />
+      <div className="flex items-start gap-1.5">
+        <span
+          title="Arrastar tarefa"
+          onClick={(event) => event.stopPropagation()}
+          className="mt-0.5 cursor-grab text-zinc-600 transition-colors hover:text-zinc-400 active:cursor-grabbing"
+        >
+          <GripVertical size={13} />
+        </span>
+        <p className="line-clamp-2 min-w-0 flex-1 text-[13.5px] font-semibold leading-snug text-zinc-100">
+          {task.title}
+        </p>
       </div>
 
-      <p className="mt-0.5 line-clamp-3 min-h-[42px] text-[10px] leading-snug text-zinc-500">
-        {task.description || "—"}
-      </p>
-
-      <div className="mt-1 flex h-5 items-center gap-1 overflow-hidden">
-        {meta.slice(0, 3)}
-        {meta.length > 3 ? (
-          <Badge variant="default" title={meta.length - 3 + " metadados ocultos"}>
-            +{meta.length - 3}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <WorkflowStatusBadge task={task} />
+        {meta.slice(0, 2)}
+        {meta.length > 2 ? (
+          <Badge variant="default" title={`${meta.length - 2} metadados ocultos`}>
+            +{meta.length - 2}
           </Badge>
         ) : null}
       </div>
 
-      <div className="mt-auto flex h-7 items-center gap-1 border-t border-zinc-800/60 pt-1.5">
+      <p className="line-clamp-3 text-[12px] leading-relaxed text-zinc-400">
+        {task.description || "—"}
+      </p>
+
+      <div className="mt-auto flex min-h-8 items-center gap-1 border-t border-zinc-800/60 pt-2">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           {hasOutput ? (
             <Link
               to={`/artifacts?task=${encodeURIComponent(task.id)}`}
               onClick={(event) => event.stopPropagation()}
               title="Ver arquivos gerados por esta tarefa"
-              className="inline-flex items-center gap-1 rounded-md border border-zinc-800/80 bg-zinc-900/50 px-1.5 py-0.5 text-[9px] text-zinc-400 transition-colors hover:border-blue-500/40 hover:text-blue-200"
+              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-800/80 bg-zinc-900/50 px-2 py-1 text-[11px] text-zinc-400 transition-colors hover:border-blue-500/40 hover:text-blue-200"
             >
-              <FolderOpen size={10} />
+              <FolderOpen size={12} />
               arquivos
             </Link>
           ) : attention ? (
-            <span className="truncate text-[9px] text-amber-300/90">
+            <span className="truncate text-[11px] text-amber-300/90">
               {task.workflow_reason === "in_progress_without_run"
                 ? "sem execução ativa"
                 : "precisa de atenção"}
             </span>
-          ) : (
-            <span className="truncate font-mono text-[9px] text-zinc-500">
-              {task.status.toLowerCase()}
+          ) : task.status === "DONE" || task.status === "CANCELLED" ? (
+            <span className="truncate text-[11px] text-zinc-500">
+              {STATUS_LABEL[task.status] ?? task.status}
             </span>
-          )}
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {isTaskAwaitingApproval(task) ? (
             <Button
-              size="sm"
-              className="h-6 px-1.5 text-[10px]"
+              size="xs"
+              className="px-2"
               title="Aprovar o plano e iniciar o Build"
               onClick={(event) => {
                 event.stopPropagation();
                 onApprove();
               }}
             >
-              <CheckCircle2 size={11} />
+              <CheckCircle2 size={12} />
               Aprovar
             </Button>
           ) : held ? (
             <Button
               variant="outline"
-              size="sm"
-              className="h-6 px-1.5 text-[10px]"
+              size="xs"
+              className="px-2"
               title="Retomar e entrar na fila automaticamente"
               onClick={(event) => {
                 event.stopPropagation();
                 onResume();
               }}
             >
-              <Play size={10} />
+              <Play size={12} />
               Retomar
             </Button>
           ) : running || queued ? (
             <Button
               variant="destructive"
-              size="sm"
-              className="h-6 px-1.5 text-[10px]"
+              size="xs"
+              className="px-2"
               title={queued ? "Remover da fila" : "Cancelar a execução agora"}
               onClick={(event) => {
                 event.stopPropagation();
                 onCancel();
               }}
             >
-              <Square size={10} />
+              <Square size={11} />
               Cancelar
             </Button>
           ) : waitingInput ? (
             <Button
               variant="outline"
-              size="sm"
-              className="h-6 px-1.5 text-[10px]"
+              size="xs"
+              className="px-2"
               title="Abrir a tarefa para responder ao agente"
               onClick={(event) => {
                 event.stopPropagation();
@@ -248,8 +247,8 @@ export function TaskCard({
           ) : task.status !== "DONE" && task.status !== "CANCELLED" ? (
             <Button
               variant="outline"
-              size="sm"
-              className="h-6 px-1.5 text-[10px]"
+              size="xs"
+              className="px-2"
               title={
                 daemonOnline
                   ? "Criar uma nova tentativa de execução"
@@ -261,14 +260,14 @@ export function TaskCard({
                 onDispatch();
               }}
             >
-              <Play size={11} />
+              <Play size={12} />
               {task.status === "BLOCKED" ? "Tentar" : "Executar"}
             </Button>
           ) : null}
           <Button
             variant="ghost"
-            size="icon"
-            className="h-6 w-6"
+            size="xs"
+            className="w-7 px-0"
             aria-label="Abrir logs da tarefa"
             title="Abrir a execução e o log completo"
             onClick={(event) => {
@@ -276,7 +275,7 @@ export function TaskCard({
               onLogs();
             }}
           >
-            <FileText size={11} />
+            <FileText size={12} />
           </Button>
         </div>
       </div>

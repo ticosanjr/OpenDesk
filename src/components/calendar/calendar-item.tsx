@@ -81,10 +81,10 @@ export function CalendarItemChip({
       }}
       title={`${itemTimeLabel(item)} · ${item.title}`}
       className={cn(
-        "block w-full rounded border-l-2 text-left leading-tight",
+        "block w-full rounded border-l text-left leading-tight",
         detailed
-          ? "px-1.5 py-1 text-[9px]"
-          : "truncate px-1 py-0.5 text-[8px]",
+          ? "px-2 py-1 text-[11.5px]"
+          : "truncate px-1.5 py-0.5 text-[11px]",
         statusClass(item, true),
       )}
       style={{
@@ -99,12 +99,12 @@ export function CalendarItemChip({
               ? item.title
               : `${format(new Date(item.start), "HH:mm")} ${item.title}`}
           </span>
-          <span className="flex items-center gap-1 truncate text-[8px] text-zinc-500">
+          <span className="flex items-center gap-1 truncate text-[10.5px] text-zinc-500">
             {(() => {
               const meta = executionMeta(item.execution_status);
               return meta ? (
                 <meta.icon
-                  size={8}
+                  size={10}
                   className={meta.tone === "green" ? "text-emerald-400" : meta.tone === "red" ? "text-red-400" : meta.tone === "yellow" ? "text-amber-400" : meta.tone === "blue" ? "text-blue-400" : "text-zinc-500"}
                 />
               ) : null;
@@ -182,7 +182,12 @@ export function CalendarItemRow({
           )}
         >
           {itemTimeLabel(item)}
-          {item.subtitle ? ` · ${item.subtitle}` : ""}
+          {item.subtitle
+            ? ` · ${item.subtitle
+                .replace(/RUNNING_STEP/g, "executando etapa")
+                .replace(/AWAITING_APPROVAL/g, "aguardando aprovação")
+                .replace(/AWAITING_INPUT/g, "aguardando resposta")}`
+            : ""}
         </span>
       </span>
     </button>

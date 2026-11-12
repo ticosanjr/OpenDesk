@@ -22,6 +22,7 @@ import {
   barPercent,
   dailyMax,
   failureLabel,
+  fillDailySeries,
   formatMs,
   successTone,
 } from "@/lib/metrics";
@@ -75,7 +76,7 @@ export function ObservabilityPage() {
   if (!activeWorkspaceId) {
     return (
       <PageBody>
-        <PageHeader eyebrow="operação" title="Observabilidade" />
+        <PageHeader title="Observabilidade" />
         <EmptyState
           icon={Activity}
           title="Nenhum workspace ativo"
@@ -90,12 +91,12 @@ export function ObservabilityPage() {
     );
   }
 
-  const maxDaily = metrics ? dailyMax(metrics.daily) : 1;
+  const daily = metrics ? fillDailySeries(metrics.daily, days) : [];
+  const maxDaily = metrics ? dailyMax(daily) : 1;
 
   return (
     <PageBody>
       <PageHeader
-        eyebrow="operação"
         title="Observabilidade"
         description={`${workspace?.name ?? "Workspace"} · sucesso, latência, espera na fila e falhas dos últimos ${days} dias.`}
         actions={
@@ -147,7 +148,9 @@ export function ObservabilityPage() {
               icon={<TrendingUp size={13} />}
               label="Taxa de sucesso"
               value={formatPercent(metrics.success_rate * 100)}
-              hint={`${metrics.runs_success} de ${metrics.runs_total} runs`}
+              hint={`${metrics.runs_success} de ${metrics.runs_total} ${
+                metrics.runs_total === 1 ? "run" : "runs"
+              }`}
               tone={successTone(metrics.success_rate)}
             />
             <MetricCard
@@ -175,20 +178,20 @@ export function ObservabilityPage() {
               <CardHeader className="py-3">
                 <CardTitle className="flex items-center gap-2 text-[13px]">
                   <Gauge size={14} className="text-zinc-400" />
-                  Runs por dia
+                  Execuções por dia
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0">
                 <div className="flex h-40 items-end gap-1">
-                  {metrics.daily.map((day) => (
+                  {daily.map((day, index) => (
                     <div
                       key={day.date}
-                      className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-1"
-                      title={`${day.date}: ${day.runs} runs, ${day.failed} falhas`}
+                      className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1"
+                      title={`${day.date}: ${day.runs} execuções, ${day.failed} falhas`}
                     >
-                      <div className="relative flex w-full flex-1 items-end">
+                      <div className="relative flex w-full min-w-0 flex-1 items-end">
                         <div
-                          className="w-full rounded-t bg-sky-500/30"
+                          className="w-full rounded-t bg-sky-500/30 transition-colors group-hover:bg-sky-500/50"
                           style={{ height: `${barPercent(day.runs, maxDaily)}%` }}
                         />
                         <div
@@ -196,16 +199,21 @@ export function ObservabilityPage() {
                           style={{ height: `${barPercent(day.failed, maxDaily)}%` }}
                         />
                       </div>
-                      <span className="hidden text-[8px] text-zinc-500 sm:block">
+                      <span
+                        className={cn(
+                          "hidden whitespace-nowrap text-[10px] text-zinc-500 sm:block",
+                          index % 5 !== 0 && index !== daily.length - 1 && "opacity-0",
+                        )}
+                      >
                         {day.date.slice(5)}
                       </span>
                     </div>
                   ))}
                 </div>
-                <div className="mt-2 flex items-center gap-3 text-[9px] text-zinc-500">
+                <div className="mt-2 flex items-center gap-3 text-[11px] text-zinc-500">
                   <span className="inline-flex items-center gap-1">
                     <span className="h-2 w-2 rounded-sm bg-sky-500/40" />
-                    runs
+                    execuções
                   </span>
                   <span className="inline-flex items-center gap-1">
                     <span className="h-2 w-2 rounded-sm bg-red-400/70" />
@@ -224,14 +232,14 @@ export function ObservabilityPage() {
               </CardHeader>
               <CardContent className="space-y-1.5 p-4 pt-0">
                 {metrics.failure_codes.length === 0 ? (
-                  <p className="text-[10px] text-zinc-500">Nenhuma falha no período.</p>
+                  <p className="text-[12px] text-zinc-400">Nenhuma falha no período.</p>
                 ) : (
                   metrics.failure_codes.map((failure) => (
                     <div
                       key={failure.code}
                       className="flex items-center justify-between gap-2 rounded-lg border border-zinc-800/60 bg-zinc-950/30 px-2.5 py-1.5"
                     >
-                      <span className="truncate text-[10px] text-zinc-300">
+                      <span className="truncate text-[12px] text-zinc-300">
                         {failureLabel(failure.code)}
                       </span>
                       <Badge variant="red">{failure.count}</Badge>
@@ -252,10 +260,10 @@ export function ObservabilityPage() {
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-[10px]">
-                  <thead className="border-b border-zinc-800 text-[9px] uppercase tracking-wide text-zinc-500">
+                  <thead className="border-b border-zinc-800 text-[11px] uppercase tracking-[0.06em] text-zinc-400">
                     <tr>
                       <th className="px-4 py-2">Agente</th>
-                      <th className="px-4 py-2">Runs</th>
+                      <th className="px-4 py-2">Execuções</th>
                       <th className="px-4 py-2">Sucesso</th>
                       <th className="px-4 py-2">Duração p95</th>
                       <th className="px-4 py-2">Custo</th>
@@ -308,16 +316,19 @@ function MetricCard({
   hint: string;
   tone?: "default" | "green" | "yellow" | "red";
 }) {
+  const toneLabel = { green: "saudável", yellow: "atenção", red: "crítico" } as const;
   return (
     <Card>
       <CardContent className="p-3">
         <div className="flex items-center gap-1.5 text-zinc-500">
           {icon}
-          <span className="text-[9px] uppercase tracking-[0.12em]">{label}</span>
-          {tone !== "default" ? <Badge variant={tone}>{tone}</Badge> : null}
+          <span className="text-[10px] uppercase tracking-[0.12em]">{label}</span>
+          {tone !== "default" ? (
+            <Badge variant={tone}>{toneLabel[tone]}</Badge>
+          ) : null}
         </div>
         <p className="mt-1 font-mono text-lg text-zinc-100">{value}</p>
-        <p className="text-[9px] text-zinc-500">{hint}</p>
+        <p className="text-[10px] text-zinc-500">{hint}</p>
       </CardContent>
     </Card>
   );

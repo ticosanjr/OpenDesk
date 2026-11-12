@@ -302,7 +302,7 @@ export function RecipeStepper({
         )}
       </section>
 
-      <section className="relative space-y-2 border-l-2 border-zinc-800 pl-4">
+      <section className="relative space-y-2 border-l border-zinc-800 pl-4">
         <div className="flex items-center gap-2">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
             Ordem de execução
@@ -437,7 +437,7 @@ function StepEditor({
 
   return (
     <div className="mt-1.5 space-y-1.5">
-      <div className="grid gap-1.5 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-2">
         <LabeledField label="Modo">
           <select
             value={String(step.mode ?? "build")}
@@ -456,15 +456,16 @@ function StepEditor({
             workspaceId={workspaceId}
             placeholder="automático (router)"
             compact
-            className="[&_input]:h-8 [&_input]:text-[10px]"
           />
         </LabeledField>
-        <LabeledField label="Modelo">
-          <ModelCombobox
-            value={typeof step.model === "string" ? step.model : null}
-            onChange={(value) => onChange({ model: value })}
-          />
-        </LabeledField>
+        <div className="sm:col-span-2">
+          <LabeledField label="Modelo">
+            <ModelCombobox
+              value={typeof step.model === "string" ? step.model : null}
+              onChange={(value) => onChange({ model: value })}
+            />
+          </LabeledField>
+        </div>
       </div>
       <LabeledField label="Prompt da etapa">
         <SlashTextarea

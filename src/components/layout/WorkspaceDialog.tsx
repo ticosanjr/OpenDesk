@@ -191,7 +191,7 @@ export function WorkspaceDialog() {
       onClose={() => setOpen(false)}
       title="Novo workspace"
       description="Comece em branco, use um template com pacotes e pastas prontos ou registre uma pasta existente. Tudo pode ser editado depois."
-      className="max-w-xl"
+      size="md"
     >
       <div className="space-y-4">
         <div className="flex items-center gap-1 rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-1">

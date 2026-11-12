@@ -37,12 +37,17 @@ async function cardHeights(page: Page, selector: string): Promise<number[]> {
 async function assertConsistent(
   page: Page,
   selector: string,
-  expectedHeight: number,
+  minHeight: number,
 ): Promise<void> {
   const heights = await cardHeights(page, selector);
   expect(heights.length).toBeGreaterThan(2);
-  expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1.5);
-  expect(Math.abs(heights[0] - expectedHeight)).toBeLessThanOrEqual(1.5);
+  // Cards grow with their content now; the invariant is a readable minimum
+  // plus consistent width, not one frozen pixel height for every card.
+  expect(Math.min(...heights)).toBeGreaterThanOrEqual(minHeight - 1.5);
+  const widths = await page.locator(selector).evaluateAll((elements) =>
+    elements.map((element) => element.getBoundingClientRect().width),
+  );
+  expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1.5);
 }
 
 async function assertNoInternalOverflow(page: Page, selector: string): Promise<void> {
@@ -58,7 +63,7 @@ async function assertNoInternalOverflow(page: Page, selector: string): Promise<v
   expect(overflowing).toEqual([]);
 }
 
-test("task, routine and attention cards keep a consistent geometry", async ({
+test("task, routine and attention cards keep a readable minimum and consistent width", async ({
   page,
   request,
 }) => {
@@ -203,7 +208,7 @@ flow:
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/#/kanban");
   await expect(page.locator('[data-card="task"]')).toHaveCount(5);
-  await assertConsistent(page, '[data-card="task"]', 184);
+  await assertConsistent(page, '[data-card="task"]', 176);
   await assertNoInternalOverflow(page, '[data-card="task"]');
   await page.screenshot({
     path: test.info().outputPath("kanban-cards-1440.png"),
@@ -223,7 +228,7 @@ flow:
 
   await page.goto("/#/");
   await expect(page.locator("[data-attention-row]")).toHaveCount(4);
-  await assertConsistent(page, "[data-attention-row]", 82);
+  await assertConsistent(page, "[data-attention-row]", 72);
   await assertNoInternalOverflow(page, "[data-attention-row]");
   await page.screenshot({
     path: test.info().outputPath("attention-cards-1440.png"),
@@ -233,13 +238,13 @@ flow:
   await page.setViewportSize({ width: 1100, height: 800 });
   await page.goto("/#/kanban");
   await expect(page.locator('[data-card="task"]')).toHaveCount(5);
-  await assertConsistent(page, '[data-card="task"]', 184);
+  await assertConsistent(page, '[data-card="task"]', 176);
   await page.goto("/#/routines");
   await expect(page.locator('[data-card="routine"]')).toHaveCount(3);
   await assertConsistent(page, '[data-card="routine"]', 188);
   await page.goto("/#/");
   await expect(page.locator("[data-attention-row]")).toHaveCount(4);
-  await assertConsistent(page, "[data-attention-row]", 82);
+  await assertConsistent(page, "[data-attention-row]", 72);
 });
 
 test("kanban groups by workflow and honors explicit hold", async ({

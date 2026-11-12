@@ -35,7 +35,7 @@ export function RunDetailPage() {
   if (!runId) {
     return (
       <PageBody>
-        <PageHeader eyebrow="auditoria" title="Execução" />
+        <PageHeader title="Execução" />
       </PageBody>
     );
   }
@@ -43,7 +43,6 @@ export function RunDetailPage() {
     <PageBodyFill>
       <div className="shrink-0">
         <PageHeader
-          eyebrow="auditoria"
           title="Execução"
           description={`run ${runId}`}
           actions={

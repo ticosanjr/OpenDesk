@@ -341,7 +341,7 @@ export function TaskFormModal({
             ? "Revise a cópia antes de criar. O fork nasce como uma tarefa independente e só entra na fila depois que você confirmar."
             : "Corrija agente, modelo, prompt e prioridade sem recriar o card."
       }
-      className="max-w-2xl"
+      size="xl"
     >
       <div className="space-y-3">
       <div className="grid gap-3 md:grid-cols-2">

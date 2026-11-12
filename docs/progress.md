@@ -2065,3 +2065,64 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Corrigidos flakes de seletor em calendário e atenção.
 - Release 0.47.0 com notas em `docs/releases/0.47.0.md`.
 - Testes: 362 Rust, 156 Vitest, 78 Playwright; 74/74 features (100%).
+
+## 2026-11-12 — passe de interface: precisão operacional e DESIGN.md
+
+- `PRODUCT.md`, `DESIGN.md` e ADR 0046 registram a verdade de produto, a
+  escala tipográfica, os tokens de superfície, os controles e as regras de
+  modais. Páginas deixam de usar overlines decorativas e adotam título de 24px,
+  corpo de 13,5px e metadados de 12px.
+- Shell: a topbar perdeu o caminho duplicado e os glifos `0● 0○`; fila agora
+  fala “0 ativos · 0 na fila”. O botão “Novo workspace” continua ao lado do
+  seletor, com nome acessível. Custo e fila ficam visíveis em telas largas e a
+  busca continua disponível em 1100px. Reiniciar o engine pede confirmação
+  quando há jobs ativos.
+- Orçamento do dia passa a vir de `/api/budget/status` em vez do limite fixo de
+  US$ 5; topbar e dashboard mostram o mesmo gasto e o mesmo limite.
+- Sidebar: ícone distinto para Observabilidade, separadores de grupo no modo
+  recolhido, preferência de recolhimento persistida e compactação vertical para
+  manter todas as rotas acessíveis em 700px de altura. Em larguras menores que
+  1200px a sidebar recolhe automaticamente.
+- Filtros de Execuções, Artefatos, Arquivos e Kanban usam `FilterBar`,
+  `FilterSearch` e `FilterSelect`: mesma altura, limpeza por botão/Esc e
+  placeholders completos.
+- Observabilidade: a série diária agora preenche os dias sem runs (o gráfico
+  antes não desenhava barras) e os eixos não quebram linha; o selo de saúde
+  deixou de exibir “GREEN” cru e o plural de runs foi corrigido.
+- Modais ganharam `size` (`sm/md/lg/xl`), sem largura/altura mínima forçada;
+  confirmações destrutivas focam “Cancelar” em vez do botão de exclusão, e
+  `aria-describedby`/ids únicos melhoram leitores de tela.
+- Command palette ganhou ação explícita “Buscar em todo o workspace”, separando
+  a navegação rápida da busca completa; estados selecionados usam o acento do
+  workspace em vez de azul fixo.
+- Acessibilidade: fallback de foco visível para links e botões sem ring,
+  `aria-label` em controles icônicos e switch compartilhado no TLS do SMTP.
+- `docs/interface-proposal.md` registra a direção “instrumento de precisão” e
+  as próximas fases (views salvas no Kanban, IA de Configurações, organograma
+  real, faixa única de KPIs e busca unificada).
+- Hierarquia: KPIs do Dashboard e da Governança passam a usar número de 28px,
+  rótulo de 11px e dica de 12px; títulos de card em 15px e corpo em 13,5px.
+- Kanban: as cinco raias cabem em 1440px (`xl:flex-1` com mínimo de 220px); o
+  card de tarefa ganhou altura automática, título em duas linhas sem competir
+  com o status, status na linha de metadados e rodapé de 32px. A coluna vazia
+  explica “Nenhuma tarefa nesta etapa” em vez de só pedir para arrastar.
+- Rotinas: cards com altura automática, descrição legível, ações de 28px e
+  menu “Mais ações”; os três cards explicativos só aparecem quando ainda não há
+  rotina configurada.
+- Studio: busca e filtros em 36px, linhas com título de 14px, metadados de
+  11,5px e ações “Editar” 32px + ações secundárias 28px.
+- Chat: coluna de conversas em 320px, títulos e mensagens em 13,5px, busca de
+  36px e o modelo automático sem o card duplicado; o segmentado agora cabe em
+  uma linha.
+- Calendário e atenção: item de calendário com borda de 1px (sem o “side-tab”
+  que o detector marcava), status internos traduzidos; cartão de atenção com
+  linhas de altura automática, texto de consequência legível e ações de 28px.
+- Status de execução traduzidos (sucesso, falhou, executando, cancelada) em
+  Execuções, Rotinas e Calendário; “CREATED” vira “criado” em Artefatos.
+- Acessibilidade: corrigido `label-content-name-mismatch` nos botões de busca e
+  reinício da topbar; axe segue limpo em todas as rotas e modais-chave.
+- Verificação: `npm run gate:fast` (whitespace, fmt Rust, TypeScript, ESLint e
+  158 Vitest), axe, `ui-audit` em 1440×900 e 1100×800 e a suíte Playwright
+  completa (78 testes) verdes. Detector Impeccable sem achados. O gate rápido
+  `npm run gate:fast` passa a ser o padrão do dia a dia; o gate completo fica
+  sob demanda.

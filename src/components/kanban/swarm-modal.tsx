@@ -92,7 +92,7 @@ export function SwarmModal({
       onClose={onClose}
       title="Enxame A/B"
       description="Duas cópias isoladas da mesma tarefa, com modelos diferentes. O original não muda."
-      className="max-w-2xl"
+      size="lg"
     >
       <div className="space-y-4">
         {models.map((model, index) => (

@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Switch } from "@/components/ui/switch";
 import { SignalCard } from "@/components/settings/SignalCard";
 import { SectionTabs } from "@/components/ui/section-tabs";
 import { InboundSourcesCard } from "@/components/integrations/InboundSourcesCard";
@@ -289,7 +290,7 @@ export function IntegrationsPage() {
   if (!activeWorkspaceId) {
     return (
       <PageBody>
-        <PageHeader eyebrow="credenciais por workspace" title="Integrações" />
+        <PageHeader title="Integrações" />
         <EmptyState
           icon={Plug}
           title="Nenhum workspace ativo"
@@ -307,7 +308,6 @@ export function IntegrationsPage() {
   return (
     <PageBody>
       <PageHeader
-        eyebrow="credenciais por workspace"
         title="Integrações"
         description={`${workspace?.name ?? "Workspace"} · SMTP, Google Workspace e Signal. Segredos ficam criptografados em repouso (AES-256-GCM, 0600).`}
         actions={
@@ -402,12 +402,11 @@ export function IntegrationsPage() {
               />
             </label>
             <div className="flex items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-[11px] text-zinc-400">
-                <input
-                  type="checkbox"
+              <label className="flex items-center gap-2 text-[12px] text-zinc-400">
+                <Switch
                   checked={form.useTls}
-                  onChange={(event) => setForm({ ...form, useTls: event.target.checked })}
-                  className="accent-blue-500"
+                  onCheckedChange={(checked) => setForm({ ...form, useTls: checked })}
+                  label="Usar TLS"
                 />
                 usar TLS
               </label>

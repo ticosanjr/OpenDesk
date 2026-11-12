@@ -11,7 +11,6 @@ import {
   ListChecks,
   Loader2,
   Plus,
-  Search,
   SlidersHorizontal,
   XCircle,
 } from "lucide-react";
@@ -36,6 +35,7 @@ import { QueueController } from "@/components/queue/QueueController";
 import { PRIORITY_LABEL } from "@/lib/task-ui";
 import { workflowMeta } from "@/lib/workflow";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterSearch, FilterSelect } from "@/components/ui/filter-bar";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
@@ -385,7 +385,6 @@ export function KanbanPage() {
     return (
       <PageBody>
         <PageHeader
-          eyebrow="gestão de tarefas"
           title="Kanban & Fila"
           description="Crie um workspace para planejar, executar e auditar tarefas."
         />
@@ -407,7 +406,6 @@ export function KanbanPage() {
   return (
     <PageBody>
       <PageHeader
-        eyebrow="gestão de tarefas"
         title="Kanban & Fila"
         description={`${workspace?.name ?? "Workspace"} · tarefas passam por Plan, Build e Audit; a fila executa no OpenCode com budget guard.`}
         actions={
@@ -512,20 +510,16 @@ export function KanbanPage() {
         ) : null}
         {view !== "queue" ? (
           <>
-            <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-              <Search size={13} className="shrink-0 text-zinc-500" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar por título, descrição, tag ou agente…"
-                className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-500"
-              />
-            </div>
-            <select
+            <FilterSearch
+              value={query}
+              onChange={setQuery}
+              placeholder="Buscar por título, descrição, tag ou agente…"
+              ariaLabel="Buscar tarefas"
+            />
+            <FilterSelect
               value={agentFilter}
-              onChange={(event) => setAgentFilter(event.target.value)}
-              className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300"
-              aria-label="Filtrar por agente"
+              onChange={setAgentFilter}
+              ariaLabel="Filtrar por agente"
             >
               <option value="">todos os agentes</option>
               {boardAgents.map((agent) => (
@@ -533,12 +527,11 @@ export function KanbanPage() {
                   @{agent}
                 </option>
               ))}
-            </select>
-            <select
+            </FilterSelect>
+            <FilterSelect
               value={priorityFilter}
-              onChange={(event) => setPriorityFilter(event.target.value)}
-              className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300"
-              aria-label="Filtrar por prioridade"
+              onChange={setPriorityFilter}
+              ariaLabel="Filtrar por prioridade"
             >
               <option value="">todas as prioridades</option>
               {[4, 3, 2, 1].map((priority) => (
@@ -546,7 +539,7 @@ export function KanbanPage() {
                   {priority} — {PRIORITY_LABEL[priority]}
                 </option>
               ))}
-            </select>
+            </FilterSelect>
             <Badge variant="default">
               {filteredTasks.length} de {tasks.length}
             </Badge>
@@ -730,7 +723,7 @@ export function KanbanPage() {
               key={column.id}
               data-column={column.id}
               className={cn(
-                "flex min-h-[440px] w-[280px] shrink-0 flex-col transition-colors",
+                "flex min-h-[440px] w-[280px] shrink-0 flex-col transition-colors xl:w-auto xl:min-w-[220px] xl:flex-1",
                 dragOverColumn === column.id &&
                   "border-blue-500/50 bg-blue-500/[0.04]",
               )}
@@ -759,9 +752,9 @@ export function KanbanPage() {
                 }
               }}
             >
-              <CardHeader className="px-3 py-2.5">
+              <CardHeader className="px-3.5 py-3">
                 <CardTitle
-                  className="flex items-center gap-2 text-[12px]"
+                  className="flex items-center gap-2 text-[13.5px]"
                   title={column.description}
                 >
                   <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
@@ -769,11 +762,16 @@ export function KanbanPage() {
                 </CardTitle>
                 <CountPill value={columnTasks.length} tone={column.tone} />
               </CardHeader>
-              <CardContent className="flex-1 space-y-1.5 p-2">
+              <CardContent className="flex-1 space-y-2 p-2.5">
                 {columnTasks.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-zinc-800/80 bg-zinc-950/30 px-3 py-8 text-center">
-                    <GripVertical size={15} className="mx-auto text-zinc-500" />
-                    <p className="mt-2 text-[10px] text-zinc-500">Arraste uma tarefa</p>
+                  <div className="rounded-lg border border-dashed border-zinc-800/80 bg-zinc-950/30 px-3 py-10 text-center">
+                    <GripVertical size={16} className="mx-auto text-zinc-600" />
+                    <p className="mt-2 text-[12px] font-medium text-zinc-400">
+                      Nenhuma tarefa nesta etapa
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-zinc-500">
+                      Arraste um card para mover.
+                    </p>
                   </div>
                 ) : (
                   columnTasks.map((task) => {
@@ -911,6 +909,7 @@ export function KanbanPage() {
         onClose={() => setBlockingTask(null)}
         title="Mover para Atenção"
         description="Explique por que esta tarefa precisa de intervenção humana."
+        size="md"
       >
         <div className="space-y-3">
           <label className="block">

@@ -27,5 +27,5 @@ test("observability shows latency, failures and agent performance from runs", as
   await expect(page.getByText("Falhas por código").first()).toBeVisible();
   await expect(page.getByText("timeout").first()).toBeVisible();
   await expect(page.getByText("@build").first()).toBeVisible();
-  await expect(page.getByText("Runs por dia").first()).toBeVisible();
+  await expect(page.getByText("Execuções por dia").first()).toBeVisible();
 });

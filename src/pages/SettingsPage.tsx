@@ -131,7 +131,6 @@ export function SettingsPage() {
   return (
     <PageBody>
       <PageHeader
-        eyebrow="preferências do app"
         title="Configurações"
         description="Pasta padrão para novos workspaces e visão dos workspaces registrados. O OpenDesk não move nem renomeia pastas existentes."
         actions={
@@ -309,7 +308,7 @@ export function SettingsPage() {
                     className={cn(
                       "flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2.5",
                       active
-                        ? "border-blue-500/30 bg-blue-500/5"
+                        ? "workspace-selected"
                         : "border-zinc-800/70 bg-zinc-950/40",
                     )}
                   >
@@ -322,7 +321,7 @@ export function SettingsPage() {
                         <p className="truncate text-[12px] font-medium text-zinc-200">
                           {workspace.name}
                         </p>
-                        {active ? <Badge variant="blue">ativo</Badge> : null}
+                        {active ? <Badge variant="accent">ativo</Badge> : null}
                       </div>
                       <p className="truncate font-mono text-[9px] text-zinc-500">
                         {shortPath(workspace.root_path, 80)}
@@ -478,7 +477,7 @@ function WorkspaceEditModal({
       onClose={onClose}
       title={`Editar ${workspace?.name ?? "workspace"}`}
       description="Esses valores são defaults do workspace ativo. A pasta no disco não é movida."
-      className="max-w-xl"
+      size="md"
     >
       <div className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">

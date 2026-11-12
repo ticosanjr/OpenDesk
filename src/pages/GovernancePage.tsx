@@ -84,7 +84,7 @@ export function GovernancePage() {
   if (!activeWorkspaceId) {
     return (
       <PageBody>
-        <PageHeader eyebrow="governança" title="Agentes & Governança" />
+        <PageHeader title="Agentes & Governança" />
         <EmptyState
           icon={Network}
           title="Nenhum workspace ativo"
@@ -299,7 +299,6 @@ export function GovernancePage() {
   return (
     <PageBody>
       <PageHeader
-        eyebrow="governança"
         title="Agentes & Governança"
         description={`${workspace?.name ?? "Workspace"} · hierarquia, metas, budgets, performance e delegações com aprovação.`}
         actions={

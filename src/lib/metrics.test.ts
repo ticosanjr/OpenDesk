@@ -3,6 +3,7 @@ import {
   barPercent,
   dailyMax,
   failureLabel,
+  fillDailySeries,
   formatMs,
   successTone,
 } from "./metrics";
@@ -33,5 +34,20 @@ describe("metrics helpers", () => {
     expect(barPercent(-1, 5)).toBe(0);
     expect(barPercent(10, 5)).toBe(100);
     expect(barPercent(1, 0)).toBe(0);
+  });
+
+  it("fills missing days so the chart keeps its period", () => {
+    const series = fillDailySeries(
+      [{ date: "2026-01-03", runs: 2, failed: 0, cost_usd: 0.2 }],
+      3,
+      new Date("2026-01-03T12:00:00Z"),
+    );
+    expect(series.map((day) => day.date)).toEqual([
+      "2026-01-01",
+      "2026-01-02",
+      "2026-01-03",
+    ]);
+    expect(series[2]?.runs).toBe(2);
+    expect(series[0]?.runs).toBe(0);
   });
 });

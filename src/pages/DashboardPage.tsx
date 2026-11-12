@@ -51,11 +51,12 @@ import { cn } from "@/lib/utils";
 import { links } from "@/lib/links";
 import { EntityLink } from "@/components/ui/entity-link";
 
-const DAILY_LIMIT = 5;
+const FALLBACK_DAILY_LIMIT = 5;
 
 export function DashboardPage() {
   const daemon = useAppStore((state) => state.daemon);
   const dashboard = useAppStore((state) => state.dashboard);
+  const budget = useAppStore((state) => state.budget);
   const workspaces = useAppStore((state) => state.workspaces);
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const refresh = useAppStore((state) => state.refresh);
@@ -187,7 +188,6 @@ export function DashboardPage() {
     return (
       <PageBody>
         <PageHeader
-          eyebrow="visão executiva"
           title="Dashboard"
           description="Registre um workspace para começar a governar agentes, runs, artefatos e custos."
           actions={
@@ -220,6 +220,7 @@ export function DashboardPage() {
   const cacheHit =
     cacheBase > 0 ? ((dashboard?.tokens_cache_read ?? 0) / cacheBase) * 100 : 0;
   const spent = dashboard?.daily_cost_usd ?? 0;
+  const dailyLimit = budget?.daily_limit ?? FALLBACK_DAILY_LIMIT;
   const totalSpent = dashboard?.estimated_cost_usd ?? 0;
 
   const modelUsage = Object.values(
@@ -264,7 +265,6 @@ export function DashboardPage() {
   return (
     <PageBody>
       <PageHeader
-        eyebrow="visão executiva"
         title="Dashboard"
         description={`${activeWorkspace.name} · ${shortPath(activeWorkspace.root_path, 64)}`}
         actions={
@@ -273,7 +273,7 @@ export function DashboardPage() {
               <RefreshCw size={14} />
               Atualizar
             </Button>
-            <Button size="sm" onClick={() => void restartDaemon()}>
+            <Button variant="outline" size="sm" onClick={() => void restartDaemon()}>
               <RotateCw size={14} />
               Reiniciar engine
             </Button>
@@ -318,15 +318,15 @@ export function DashboardPage() {
           icon={CircleDollarSign}
           label="Gasto hoje"
           value={formatUsd(spent)}
-          hint={`limite diário ${formatUsd(DAILY_LIMIT)} · ${formatPercent(
-            Math.min(100, (spent / DAILY_LIMIT) * 100),
+          hint={`limite diário ${formatUsd(dailyLimit)} · ${formatPercent(
+            Math.min(100, (spent / Math.max(dailyLimit, 0.01)) * 100),
           )} usado · total ${formatUsd(totalSpent)}`}
-          tone={spent / DAILY_LIMIT >= 0.8 ? "warning" : "default"}
+          tone={spent / Math.max(dailyLimit, 0.01) >= 0.8 ? "warning" : "default"}
         />
         <KpiCard
           icon={Activity}
-          label="Runs & sucesso"
-          value={`${formatNumber(runsTotal)} runs`}
+          label="Execuções & sucesso"
+          value={`${formatNumber(runsTotal)} execuções`}
           hint={`${formatPercent(successRate)} sucesso · ${
             dashboard?.runs_failed ?? 0
           } falhas`}
@@ -334,7 +334,7 @@ export function DashboardPage() {
         <KpiCard
           icon={Database}
           label="Cache & tokens"
-          value={`${formatPercent(cacheHit)} cache hit`}
+          value={`${formatPercent(cacheHit)} acertos`}
           hint={`${formatNumber(dashboard?.tokens_input)} entrada · ${formatNumber(
             dashboard?.tokens_output,
           )} saída`}
@@ -421,12 +421,14 @@ export function DashboardPage() {
                 icon={TerminalSquare}
                 title="Não foi possível listar agentes"
                 description={agentsError}
+                compact
               />
             ) : agents.length === 0 ? (
               <EmptyState
                 icon={Bot}
                 title="Nenhum agente configurado"
                 description="Crie um agente no OpenCode Studio ou adicione um arquivo em .opencode/agents/."
+                compact
                 action={
                   <Button size="sm" variant="outline" onClick={() => navigate("/studio")}>
                     Abrir Studio
@@ -547,6 +549,7 @@ export function DashboardPage() {
                 icon={Cpu}
                 title="Sem telemetria por modelo ainda"
                 description="A tabela é alimentada pelos runs persistidos em task_runs."
+                compact
               />
             ) : (
               <div className="scroll-area overflow-auto">
@@ -604,6 +607,7 @@ export function DashboardPage() {
                 icon={Archive}
                 title="Nenhuma atividade ainda"
                 description="Runs e artefatos aparecerão aqui em tempo real via WebSocket."
+                compact
                 action={
                   <Button size="sm" onClick={() => setTaskDialogOpen(true)}>
                     Criar tarefa
@@ -735,19 +739,19 @@ function KpiCard({
   return (
     <Card>
       <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/60 text-zinc-500">
-            <Icon size={15} strokeWidth={1.7} />
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/60 text-zinc-400">
+            <Icon size={16} strokeWidth={1.7} />
           </div>
           {tone === "warning" ? <Badge variant="yellow">atenção</Badge> : null}
         </div>
-        <p className="mt-3 text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-500">
+        <p className="mt-3.5 text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-400">
           {label}
         </p>
-        <p className="mt-1 font-mono text-xl font-medium tracking-tight text-zinc-100">
+        <p className="mt-1 font-mono text-[28px] font-medium leading-tight tracking-[-0.03em] text-zinc-50 [font-variant-numeric:tabular-nums]">
           {value}
         </p>
-        <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-500">{hint}</p>
+        <p className="mt-1.5 text-[12px] leading-relaxed text-zinc-400">{hint}</p>
         {active ? (
           <div className="mt-2">
             <WorkingIndicator label="em execução" />

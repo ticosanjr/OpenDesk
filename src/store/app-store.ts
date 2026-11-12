@@ -7,6 +7,7 @@ import {
 } from "@/lib/notification-policy";
 import type {
   Artifact,
+  BudgetStatus,
   DaemonStatus,
   DashboardStats,
   QueueJob,
@@ -32,6 +33,7 @@ interface AppStore {
   workspaces: Workspace[];
   activeWorkspaceId: string | null;
   dashboard: DashboardStats | null;
+  budget: BudgetStatus | null;
   queue: QueueJob[];
   lastEventId: number;
   lastFsEvent: {
@@ -108,6 +110,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   workspaces: [],
   activeWorkspaceId: null,
   dashboard: null,
+  budget: null,
   queue: [],
   lastEventId: 0,
   lastFsEvent: null,
@@ -153,13 +156,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
   refresh: async () => {
     const previousWorkspaceId = get().activeWorkspaceId;
     const previousDashboard = get().dashboard;
-    const [daemonResult, workspacesResult] = await Promise.allSettled([
+    const [daemonResult, workspacesResult, budgetResult] = await Promise.allSettled([
       apiGet<DaemonStatus>("/api/daemon/status"),
       apiGet<Workspace[]>("/api/workspaces"),
+      apiGet<BudgetStatus>("/api/budget/status"),
     ]);
 
     if (daemonResult.status === "fulfilled") {
       set({ daemon: daemonResult.value });
+    }
+    if (budgetResult.status === "fulfilled" && isValidBudget(budgetResult.value)) {
+      set({ budget: budgetResult.value });
     }
     if (workspacesResult.status === "rejected") {
       throw workspacesResult.reason;
@@ -252,6 +259,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }));
   },
 }));
+
+/** Runtime guard: older or partial API mocks must not poison the shell. */
+function isValidBudget(value: BudgetStatus | null | undefined): value is BudgetStatus {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      Number.isFinite(value.daily_limit) &&
+      Number.isFinite(value.daily_spent),
+  );
+}
 
 async function connectSocket() {
   if (

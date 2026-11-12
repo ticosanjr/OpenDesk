@@ -7,6 +7,7 @@ import {
   Brain,
   CalendarClock,
   CalendarDays,
+  ChartNoAxesCombined,
   FolderTree,
   Gauge,
   KanbanSquare,
@@ -43,12 +44,15 @@ const icons = {
   "/recipes": Workflow,
   "/studio": Wand2,
   "/governance": Network,
-  "/observability": Activity,
+  "/observability": ChartNoAxesCombined,
   "/learning": Brain,
   "/router": Route,
   "/integrations": Plug,
   "/settings": Settings,
 } as const;
+
+const GROUP_CLASS =
+  "[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500";
 
 export function CommandPalette() {
   const open = useUiStore((state) => state.commandOpen);
@@ -66,6 +70,7 @@ export function CommandPalette() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [agents, setAgents] = useState<AgentFile[]>([]);
   const [runs, setRuns] = useState<TaskRun[]>([]);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -75,6 +80,10 @@ export function CommandPalette() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, setOpen]);
+
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
 
   useEffect(() => {
     if (!open || !activeWorkspaceId) return;
@@ -117,17 +126,21 @@ export function CommandPalette() {
         onClick={() => setOpen(false)}
       />
       <Command
-        label="Command Menu"
+        label="Busca global e comandos"
+        role="dialog"
+        aria-modal="true"
         className="relative w-full max-w-4xl overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/95 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.85)] backdrop-blur-xl"
       >
         <div className="flex items-center gap-2 border-b border-zinc-800/70 px-3">
           <Search size={15} className="text-zinc-500" />
           <Command.Input
             autoFocus
-            placeholder="Ir para, criar workspace ou reiniciar o engine…"
+            value={query}
+            onValueChange={setQuery}
+            placeholder="Buscar páginas, tarefas, runs e ações…"
             className="h-11 flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
           />
-          <span className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 font-mono text-[9px] text-zinc-500">
+          <span className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">
             ESC
           </span>
         </div>
@@ -139,7 +152,7 @@ export function CommandPalette() {
 
           <Command.Group
             heading="Navegação"
-            className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500"
+            className={GROUP_CLASS}
           >
             {NAV_ITEMS.map((item) => {
               const Icon = icons[item.to as keyof typeof icons] ?? Gauge;
@@ -160,10 +173,30 @@ export function CommandPalette() {
             })}
           </Command.Group>
 
+          {query.trim().length >= 2 ? (
+            <Command.Group heading="Busca completa" className={cn("mt-2", GROUP_CLASS)}>
+              <Command.Item
+                value={`buscar ${query.trim()} em todo o workspace`}
+                onSelect={() =>
+                  run(() => navigate(`/search?q=${encodeURIComponent(query.trim())}`))
+                }
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+              >
+                <Search size={15} className="shrink-0 text-zinc-500" />
+                <span className="min-w-0 flex-1 truncate">
+                  Buscar “{query.trim()}” em todo o workspace
+                </span>
+                <span className="shrink-0 font-mono text-[10px] text-zinc-500">
+                  Enter
+                </span>
+              </Command.Item>
+            </Command.Group>
+          ) : null}
+
           {tasks.length > 0 ? (
             <Command.Group
               heading="Tarefas"
-              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500"
+              className={cn("mt-2", GROUP_CLASS)}
             >
               {tasks.slice(0, 12).map((task) => (
                 <Command.Item
@@ -187,7 +220,7 @@ export function CommandPalette() {
           {runs.length > 0 ? (
             <Command.Group
               heading="Execuções"
-              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500"
+              className={cn("mt-2", GROUP_CLASS)}
             >
               {runs.slice(0, 10).map((item) => (
                 <Command.Item
@@ -213,7 +246,7 @@ export function CommandPalette() {
           {schedules.length > 0 ? (
             <Command.Group
               heading="Rotinas"
-              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500"
+              className={cn("mt-2", GROUP_CLASS)}
             >
               {schedules.slice(0, 10).map((schedule) => (
                 <Command.Item
@@ -235,7 +268,7 @@ export function CommandPalette() {
           {artifacts.length > 0 ? (
             <Command.Group
               heading="Artefatos"
-              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500"
+              className={cn("mt-2", GROUP_CLASS)}
             >
               {artifacts.slice(0, 10).map((artifact) => (
                 <Command.Item
@@ -263,7 +296,7 @@ export function CommandPalette() {
           {agents.length > 0 ? (
             <Command.Group
               heading="Agentes"
-              className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500"
+              className={cn("mt-2", GROUP_CLASS)}
             >
               {agents.slice(0, 10).map((agent) => (
                 <Command.Item
@@ -284,7 +317,7 @@ export function CommandPalette() {
 
           <Command.Group
             heading="Ações"
-            className="mt-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500"
+            className={cn("mt-2", GROUP_CLASS)}
           >
             <Command.Item
               value="Nova tarefa"
@@ -336,7 +369,7 @@ export function CommandPalette() {
           </Command.Group>
         </Command.List>
 
-        <div className="flex items-center justify-between border-t border-zinc-800/70 px-3 py-2 font-mono text-[9px] text-zinc-500">
+        <div className="flex items-center justify-between border-t border-zinc-800/70 px-3 py-2 font-mono text-[10px] text-zinc-500">
           <span>↑↓ navegar · ↵ selecionar</span>
           <span>OpenDesk</span>
         </div>

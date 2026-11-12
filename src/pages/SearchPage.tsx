@@ -10,6 +10,7 @@ import {
   KanbanSquare,
   MessageSquare,
   Search,
+  X,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
@@ -97,7 +98,6 @@ export function SearchPage() {
   return (
     <PageBody>
       <PageHeader
-        eyebrow="busca global"
         title="Buscar"
         description={`${workspace?.name ?? "Workspace"} · tarefas, comentários, arquivos, artefatos, agentes, projetos, rotinas e execuções.`}
       />
@@ -113,6 +113,17 @@ export function SearchPage() {
             className="h-full flex-1 bg-transparent text-[14px] text-zinc-100 outline-none placeholder:text-zinc-500"
           />
           {loading ? <span className="text-[11px] text-zinc-500">buscando…</span> : null}
+          {query ? (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Limpar busca"
+              title="Limpar busca"
+              className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+            >
+              <X size={14} />
+            </button>
+          ) : null}
           <Badge variant="default">{filtered.length}</Badge>
         </div>
         <div className="mt-2 flex flex-wrap gap-1">

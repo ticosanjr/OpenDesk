@@ -9,6 +9,7 @@ export function Modal({
   description,
   children,
   className,
+  size = "lg",
 }: {
   open: boolean;
   onClose: () => void;
@@ -16,9 +17,13 @@ export function Modal({
   description?: string;
   children: React.ReactNode;
   className?: string;
+  /** Dialog width. `xl` keeps the large working dialogs; short confirms use `sm`. */
+  size?: "sm" | "md" | "lg" | "xl";
 }) {
   const dialogRef = React.useRef<HTMLDivElement | null>(null);
   const onCloseRef = React.useRef(onClose);
+  const titleId = React.useId();
+  const descriptionId = React.useId();
 
   React.useEffect(() => {
     onCloseRef.current = onClose;
@@ -86,12 +91,12 @@ export function Modal({
 
   if (!open) return null;
 
-  // Ignore caller max-widths: every dialog should occupy a meaningful part of
-  // the viewport, remain centered, and only scroll internally when needed.
-  const sizeClasses = (className ?? "")
-    .split(/\s+/)
-    .filter((value) => value && !value.startsWith("max-w-"))
-    .join(" ");
+  const widthClass = {
+    sm: "w-full max-w-md",
+    md: "w-full max-w-[42rem]",
+    lg: "w-full max-w-[56rem]",
+    xl: "w-full max-w-[64rem]",
+  }[size];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5">
@@ -105,29 +110,33 @@ export function Modal({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         className={cn(
-          "relative w-[min(94vw,64rem)] min-w-[min(92vw,42rem)] min-h-[min(50dvh,28rem)] max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-zinc-800 bg-zinc-950/95 p-5 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.85)] outline-none backdrop-blur-xl",
-          sizeClasses,
+          "relative max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-zinc-800 bg-zinc-950/95 p-6 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.85)] outline-none backdrop-blur-xl",
+          widthClass,
+          className,
         )}
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h2 id="modal-title" className="text-base font-semibold text-zinc-100">
+            <h2 id={titleId} className="text-lg font-semibold tracking-tight text-zinc-100">
               {title}
             </h2>
             {description ? (
-              <p className="mt-1 text-xs leading-relaxed text-zinc-500">{description}</p>
+              <p id={descriptionId} className="mt-1 max-w-prose text-[13px] leading-relaxed text-zinc-400">
+                {description}
+              </p>
             ) : null}
           </div>
           <button
             type="button"
             aria-label="Fechar"
             onClick={onClose}
-            className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-zinc-200"
+            className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800/70 hover:text-zinc-200"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
         {children}

@@ -60,7 +60,7 @@ export function ProfileModal({
       onClose={onClose}
       title={agent ? `Governança de @${agent.id}` : "Governança do agente"}
       description="Hierarquia, budget, quota e heartbeat são estado operacional do OpenDesk; o arquivo do agente continua sendo a fonte de verdade do OpenCode."
-      className="max-w-lg"
+      size="md"
     >
       {agent ? (
         <div className="space-y-3">

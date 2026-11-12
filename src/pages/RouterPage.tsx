@@ -179,6 +179,7 @@ export function RouterPage() {
       });
       setSettings(updated);
       await load();
+      await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -297,7 +298,7 @@ export function RouterPage() {
   if (!activeWorkspaceId) {
     return (
       <PageBody>
-        <PageHeader eyebrow="governança" title="Roteador & Custos" />
+        <PageHeader title="Roteador & Custos" />
         <EmptyState
           icon={Route}
           title="Nenhum workspace ativo"
@@ -312,7 +313,6 @@ export function RouterPage() {
   return (
     <PageBody>
       <PageHeader
-        eyebrow="governança"
         title="Roteador & Custos"
         description={`${workspace?.name ?? "Workspace"} · política, regras condicionais e limites de gasto que pausam a fila.`}
         actions={
@@ -340,13 +340,18 @@ export function RouterPage() {
               className={cn(
                 "rounded-xl border p-4 text-left transition-colors",
                 active
-                  ? "border-blue-500/40 bg-blue-500/[0.06]"
+                  ? "workspace-selected"
                   : "border-zinc-800/80 bg-zinc-900/25 hover:border-zinc-700",
               )}
             >
               <div className="flex items-center justify-between">
-                <Gauge size={15} className={active ? "text-blue-400" : "text-zinc-500"} />
-                {active ? <Badge variant="blue">atual</Badge> : null}
+                <Gauge
+                  size={15}
+                  className={
+                    active ? "workspace-selected-text" : "text-zinc-500"
+                  }
+                />
+                {active ? <Badge variant="accent">atual</Badge> : null}
               </div>
               <p className="mt-3 text-[12px] font-medium text-zinc-200">{label}</p>
               <p className="mt-1 font-mono text-[9px] text-zinc-500">{id}</p>
@@ -1085,7 +1090,7 @@ function CreateRuleModal({
       onClose={onClose}
       title={rule ? "Editar regra do roteador" : "Nova regra do roteador"}
       description="A condição usa field/op/value. Combine com all/any para regras compostas."
-      className="max-w-2xl"
+      size="lg"
     >
       <div className="grid gap-3 md:grid-cols-2">
         <label className="md:col-span-2">

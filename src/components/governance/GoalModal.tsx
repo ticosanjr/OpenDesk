@@ -56,7 +56,7 @@ export function GoalModal({
       onClose={onClose}
       title={goal ? "Editar meta" : "Nova meta"}
       description="Metas orientam heartbeats e a revisão de performance do agente."
-      className="max-w-lg"
+      size="md"
     >
       <div className="space-y-3">
         <div className="grid gap-2 md:grid-cols-2">

@@ -180,7 +180,7 @@ export function StudioInstallModal({
       onClose={onClose}
       title="Instalar no OpenCode Studio"
       description="Importe agentes, skills, comandos e MCPs de fontes comuns. Nada é executado durante a instalação."
-      className="max-w-3xl"
+      size="lg"
     >
       <div className="space-y-3">
         <div className="grid gap-1 sm:grid-cols-3">

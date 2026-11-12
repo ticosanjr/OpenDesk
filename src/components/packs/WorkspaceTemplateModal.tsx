@@ -40,7 +40,7 @@ export function WorkspaceTemplateModal({
       onClose={onClose}
       title={template ? `Criar workspace: ${template.name}` : "Novo workspace"}
       description={template?.description}
-      className="max-w-lg"
+      size="md"
     >
       {template ? (
         <div className="space-y-3">

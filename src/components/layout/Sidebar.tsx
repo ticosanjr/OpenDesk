@@ -7,6 +7,7 @@ import {
   Brain,
   CalendarClock,
   CalendarDays,
+  ChartNoAxesCombined,
   FolderTree,
   Gauge,
   KanbanSquare,
@@ -64,7 +65,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     label: "Governança",
     items: [
       { to: "/governance", label: "Agentes & Governança", icon: Network },
-      { to: "/observability", label: "Observabilidade", icon: Activity },
+      { to: "/observability", label: "Observabilidade", icon: ChartNoAxesCombined },
       { to: "/learning", label: "Aprendizado", icon: Brain },
       { to: "/router", label: "Roteador & Custos", icon: Route },
       { to: "/integrations", label: "Integrações", icon: Plug },
@@ -87,11 +88,11 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "flex h-full shrink-0 flex-col border-r workspace-divider bg-[#0b0b0d] transition-[width] duration-200",
+        "app-sidebar flex h-full shrink-0 flex-col border-r workspace-divider bg-[#0b0b0d] transition-[width] duration-200",
         collapsed ? "w-[64px]" : "w-[236px]",
       )}
     >
-      <div className="flex h-14 items-center gap-2.5 border-b border-zinc-800/60 px-4">
+      <div className="sidebar-brand flex h-14 items-center gap-2.5 border-b border-zinc-800/60 px-4">
         <img src="/opendesk.svg" alt="OpenDesk" className="h-7 w-7 shrink-0" />
         {!collapsed ? (
           <div className="min-w-0">
@@ -105,10 +106,14 @@ export function Sidebar() {
         ) : null}
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-2">
-        {NAV_GROUPS.map((group) => (
+      <nav className="sidebar-nav scroll-area flex-1 py-2">
+        {NAV_GROUPS.map((group, groupIndex) => (
           <div key={group.label} className="mb-1">
-            {!collapsed ? <SidebarSectionLabel>{group.label}</SidebarSectionLabel> : null}
+            {!collapsed ? (
+              <SidebarSectionLabel>{group.label}</SidebarSectionLabel>
+            ) : groupIndex > 0 ? (
+              <div className="mx-2 mb-1 mt-2 border-t border-zinc-800/70" />
+            ) : null}
             <div className="space-y-0.5">
               {group.items.map((item) => (
                 <NavLink
@@ -118,7 +123,7 @@ export function Sidebar() {
                   title={collapsed ? item.label : undefined}
                   className={({ isActive }) =>
                     cn(
-                      "group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors",
+                      "sidebar-nav-item group mx-2 flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors",
                       isActive
                         ? "workspace-nav-active text-zinc-100"
                         : "text-zinc-500 hover:bg-zinc-900/70 hover:text-zinc-200",
@@ -135,9 +140,9 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="border-t border-zinc-800/60 p-2.5">
+      <div className="sidebar-footer border-t border-zinc-800/60 p-2.5">
         {!collapsed ? (
-          <div className="mb-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 p-2.5">
+          <div className="sidebar-status-card mb-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 p-2.5">
             <div className="flex items-center gap-2">
               <StatusDot tone={statusTone(daemon?.online ?? false, daemon?.state)} />
               <span className="text-[11px] font-medium text-zinc-300">
@@ -173,6 +178,7 @@ export function Sidebar() {
           onClick={toggleSidebar}
           className="flex w-full items-center justify-center gap-2 rounded-lg px-2 py-1.5 text-[11px] text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-zinc-300"
           title={collapsed ? "Expandir sidebar" : "Recolher sidebar"}
+          aria-label={collapsed ? "Expandir sidebar" : "Recolher sidebar"}
         >
           {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           {!collapsed ? <span>Recolher</span> : null}
@@ -184,7 +190,7 @@ export function Sidebar() {
 
 export function SidebarSectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="px-2.5 pb-1 pt-2 font-mono text-[9px] uppercase tracking-[0.16em] text-zinc-500">
+    <p className="sidebar-section-label px-2.5 pb-1 pt-2 font-mono text-[9px] uppercase tracking-[0.16em] text-zinc-500">
       {children}
     </p>
   );

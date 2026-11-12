@@ -253,7 +253,7 @@ export function ChatPage() {
   if (!activeWorkspaceId) {
     return (
       <PageBody>
-        <PageHeader eyebrow="interação direta" title="Chat & Criador" />
+        <PageHeader title="Chat & Criador" />
         <EmptyState
           icon={MessageSquare}
           title="Nenhum workspace ativo"
@@ -271,7 +271,6 @@ export function ChatPage() {
   return (
     <PageBody>
       <PageHeader
-        eyebrow="interação direta"
         title="Chat & Criador"
         description={`${workspace?.name ?? "Workspace"} · converse com qualquer agente, com histórico local. Threads do Signal aparecem com o selo correspondente.`}
         actions={
@@ -288,34 +287,35 @@ export function ChatPage() {
         </p>
       ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-[280px_1fr]">
-        <Card className="flex max-h-[620px] flex-col">
-          <CardHeader className="px-3.5 py-3">
+      <div className="grid gap-3 lg:grid-cols-[320px_1fr]">
+        <Card className="flex max-h-[680px] flex-col">
+          <CardHeader className="px-4 py-3.5">
             <div>
-              <CardTitle className="text-[12px]">Conversas</CardTitle>
-              <p className="mt-0.5 text-[9px] text-zinc-500">
-                {threads.length} threads
+              <CardTitle>Conversas</CardTitle>
+              <p className="mt-0.5 text-[12px] text-zinc-500">
+                {threads.length} conversa{threads.length === 1 ? "" : "s"}
               </p>
             </div>
-            <Button size="sm" className="h-7" onClick={() => void createThread()} disabled={loading}>
-              <Plus size={12} />
+            <Button size="xs" onClick={() => void createThread()} disabled={loading}>
+              <Plus size={13} />
               Nova
             </Button>
           </CardHeader>
-          <div className="border-b border-zinc-800/70 p-2">
-            <div className="flex h-8 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-              <Search size={12} className="text-zinc-500" />
+          <div className="border-b border-zinc-800/70 p-2.5">
+            <div className="flex h-9 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5 focus-within:border-zinc-600">
+              <Search size={13} className="text-zinc-500" />
               <input
                 value={threadQuery}
                 onChange={(event) => setThreadQuery(event.target.value)}
                 placeholder="Buscar conversa ou agente"
-                className="h-full flex-1 bg-transparent text-[10px] outline-none placeholder:text-zinc-500"
+                className="h-full flex-1 bg-transparent text-[13px] outline-none placeholder:text-zinc-500"
+                aria-label="Buscar conversa ou agente"
               />
             </div>
           </div>
           <CardContent className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
             {filteredThreads.length === 0 ? (
-              <p className="p-3 text-center text-[10px] text-zinc-500">
+              <p className="p-4 text-center text-[12px] text-zinc-500">
                 {threads.length === 0
                   ? "Nenhuma conversa. Escolha um agente e crie a primeira."
                   : "Nenhuma conversa encontrada."}
@@ -327,19 +327,19 @@ export function ChatPage() {
                   key={item.id}
                   onClick={() => setSelectedId(item.id)}
                   className={cn(
-                    "w-full rounded-lg px-2.5 py-2 text-left transition",
+                    "w-full rounded-lg px-3 py-2.5 text-left transition-colors",
                     selectedId === item.id
                       ? "bg-zinc-800 text-zinc-100"
                       : "text-zinc-400 hover:bg-zinc-900",
                   )}
                 >
                   <div className="flex items-center gap-1.5">
-                    <p className="min-w-0 flex-1 truncate text-[11px]">{item.title}</p>
+                    <p className="min-w-0 flex-1 truncate text-[13.5px]">{item.title}</p>
                     {item.source !== "desktop" ? (
                       <Badge variant="purple">{item.source}</Badge>
                     ) : null}
                   </div>
-                  <p className="mt-0.5 truncate font-mono text-[9px] text-zinc-500">
+                  <p className="mt-0.5 truncate font-mono text-[11.5px] text-zinc-500">
                     @{item.agent} · {relativeTime(item.last_message_at ?? item.updated_at)}
                   </p>
                 </button>
@@ -362,7 +362,7 @@ export function ChatPage() {
               <ModelCombobox
                 value={model}
                 onChange={setModel}
-                routerLabel="Automático (padrão do agente)"
+                routerLabel="Automático"
                 routerHint="Sem modelo fixo, a conversa usa o modelo padrão do agente no OpenCode; o roteador DSH não interfere."
               />
             </div>
@@ -373,7 +373,7 @@ export function ChatPage() {
           </div>
         </Card>
 
-        <Card className="flex max-h-[620px] min-h-[420px] flex-col">
+        <Card className="flex max-h-[680px] min-h-[460px] flex-col">
           <CardHeader className="px-4 py-3">
             <div className="min-w-0 flex-1">
               {renaming && thread ? (
@@ -386,13 +386,13 @@ export function ChatPage() {
                       if (event.key === "Enter") void renameThread();
                       if (event.key === "Escape") setRenaming(false);
                     }}
-                    className="h-7 min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-950 px-2 text-[11px] text-zinc-100 outline-none"
+                    className="h-8 min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-2.5 text-[13.5px] text-zinc-100 outline-none"
                   />
-                  <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Confirmar novo nome" onClick={() => void renameThread()}>
-                    <Check size={12} />
+                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Confirmar novo nome" onClick={() => void renameThread()}>
+                    <Check size={14} />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Cancelar renomeação" onClick={() => setRenaming(false)}>
-                    <X size={12} />
+                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Cancelar renomeação" onClick={() => setRenaming(false)}>
+                    <X size={14} />
                   </Button>
                 </div>
               ) : (
@@ -401,7 +401,7 @@ export function ChatPage() {
                 </CardTitle>
               )}
               {thread ? (
-                <p className="mt-0.5 flex flex-wrap items-center gap-1 font-mono text-[9px] text-zinc-500">
+                <p className="mt-0.5 flex flex-wrap items-center gap-1 font-mono text-[11px] text-zinc-500">
                   <EntityLink
                     to={links.agent(thread.agent, "workspace", activeWorkspaceId)}
                     chip
@@ -462,7 +462,7 @@ export function ChatPage() {
                   <div
                     key={message.id}
                     className={cn(
-                      "max-w-[85%] rounded-xl px-3 py-2 text-[11px] leading-relaxed",
+                      "max-w-[85%] rounded-xl px-3.5 py-2.5 text-[13.5px] leading-relaxed",
                       message.role === "user"
                         ? "ml-auto bg-blue-500/15 text-blue-100"
                         : "border border-zinc-800/70 bg-zinc-900/50 text-zinc-300",
@@ -477,7 +477,7 @@ export function ChatPage() {
                 ))
               )}
               {sending ? (
-                <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                <div className="flex items-center gap-2 text-[11.5px] text-zinc-500">
                   <Loader2 size={12} className="animate-spin" />
                   aguardando resposta do OpenCode…
                 </div>
@@ -503,7 +503,7 @@ export function ChatPage() {
                   {attachments.map((file, index) => (
                     <span
                       key={`${file.name}-${index}`}
-                      className="inline-flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-[10px] text-zinc-400"
+                      className="inline-flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11.5px] text-zinc-400"
                     >
                       <Paperclip size={10} />
                       <span className="max-w-40 truncate">{file.name}</span>

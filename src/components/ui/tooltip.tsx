@@ -35,7 +35,7 @@ export function Tooltip({
             <span
               role="tooltip"
               style={{ left: position.x, top: position.y }}
-              className="pointer-events-none fixed z-[80] max-w-xs -translate-x-1/2 -translate-y-full rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-[11px] font-medium leading-snug text-zinc-200 shadow-xl"
+              className="pointer-events-none fixed z-[80] max-w-[280px] -translate-x-1/2 -translate-y-full rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-1.5 text-[12px] font-medium leading-snug text-zinc-200 shadow-xl"
             >
               {content}
             </span>,

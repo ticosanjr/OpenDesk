@@ -182,7 +182,7 @@ export function ImportGoogleModal({
       onClose={onClose}
       title="Calendários Google"
       description="Importe calendários para leitura e sincronização. Eventos criados ou editados no OpenDesk são enviados ao Google."
-      className="max-w-lg"
+      size="md"
     >
       <div className="space-y-4">
         {googleSources.length > 0 ? (

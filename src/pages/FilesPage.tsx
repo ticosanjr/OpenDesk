@@ -10,7 +10,6 @@ import {
   FolderTree,
   Home,
   RefreshCw,
-  Search,
 } from "lucide-react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { PageBody, PageBodyFill, PageHeader } from "@/components/layout/PageHeader";
@@ -18,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterSearch } from "@/components/ui/filter-bar";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiGet } from "@/lib/api";
@@ -273,7 +273,7 @@ export function FilesPage() {
   if (!activeWorkspaceId || !workspace) {
     return (
       <PageBody>
-        <PageHeader eyebrow="explorador" title="Arquivos" />
+        <PageHeader title="Arquivos" />
         <EmptyState
           icon={FolderTree}
           title="Nenhum workspace ativo"
@@ -292,7 +292,6 @@ export function FilesPage() {
     <PageBodyFill>
       <div className="shrink-0">
       <PageHeader
-        eyebrow="explorador"
         title="Arquivos"
         description={`${workspace.name} · ${shortPath(workspace.root_path, 64)}`}
         actions={
@@ -343,19 +342,21 @@ export function FilesPage() {
                 </span>
               ))}
             </div>
-            <div className="flex h-8 w-full items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-              <Search size={13} className="shrink-0 text-zinc-500" />
-              <input
-                value={filter}
-                onChange={(event) => setFilter(event.target.value)}
-                placeholder={
-                  scope === "folder"
-                    ? "Filtrar nesta pasta"
-                    : "Procurar em todo o workspace"
-                }
-                className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-500"
-              />
-            </div>
+            <FilterSearch
+              value={filter}
+              onChange={setFilter}
+              placeholder={
+                scope === "folder"
+                  ? "Filtrar nesta pasta"
+                  : "Procurar em todo o workspace"
+              }
+              ariaLabel={
+                scope === "folder"
+                  ? "Filtrar arquivos nesta pasta"
+                  : "Procurar arquivos em todo o workspace"
+              }
+              className="min-w-0"
+            />
             <div className="flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5 text-[10px]">
               <button
                 type="button"

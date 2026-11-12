@@ -153,7 +153,7 @@ export function RoutineCard({
     <div
       data-card="routine"
       className={cn(
-        "relative flex h-[188px] flex-col rounded-xl border px-3.5 py-3",
+        "relative flex min-h-[188px] flex-col rounded-xl border px-3.5 py-3",
         schedule.is_active
           ? "border-zinc-800/70 bg-zinc-950/40"
           : "border-zinc-800/50 bg-zinc-950/20",
@@ -161,7 +161,7 @@ export function RoutineCard({
     >
       <div className="flex min-h-[24px] items-start justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <p className="line-clamp-1 min-w-0 text-[12px] font-medium text-zinc-100">
+          <p className="line-clamp-1 min-w-0 text-[14px] font-semibold text-zinc-100">
             {schedule.name}
           </p>
           <Badge variant={schedule.is_active ? "green" : "default"}>
@@ -178,13 +178,13 @@ export function RoutineCard({
                 : `Ativar rotina ${schedule.name}`
             }
           />
-          <span className="text-[9px] text-zinc-500">
+          <span className="text-[11px] text-zinc-500">
             {schedule.is_active ? "ligada" : "desligada"}
           </span>
         </div>
       </div>
 
-      <div className="mt-1 flex h-5 items-center gap-1 overflow-hidden">
+      <div className="mt-1.5 flex min-h-5 items-center gap-1.5 overflow-hidden">
         {meta.slice(0, 4)}
         {meta.length > 4 ? (
           <Badge variant="default" title={`${meta.length - 4} metadados ocultos`}>
@@ -193,13 +193,13 @@ export function RoutineCard({
         ) : null}
       </div>
 
-      <p className="mt-1 line-clamp-2 min-h-[30px] text-[10px] leading-snug text-zinc-500">
+      <p className="mt-1 line-clamp-2 min-h-[34px] text-[12px] leading-relaxed text-zinc-400">
         {schedule.target_kind === "RECIPE"
           ? `Executa a receita ${schedule.recipe_id ?? "(não definida)"}`
           : schedule.command_or_prompt || "—"}
       </p>
 
-      <div className="mt-1 flex min-h-[14px] flex-wrap items-center gap-3 overflow-hidden font-mono text-[9px] text-zinc-500">
+      <div className="mt-1 flex min-h-4 flex-wrap items-center gap-x-3 gap-y-1 overflow-hidden font-mono text-[11px] text-zinc-500">
         <span className="truncate">
           próxima:{" "}
           {schedule.next_run_at
@@ -229,57 +229,55 @@ export function RoutineCard({
         ) : null}
       </div>
 
-      <div className="mt-auto flex h-7 items-center justify-end gap-1 border-t border-zinc-800/60 pt-1.5">
+      <div className="mt-auto flex min-h-9 items-center justify-end gap-1.5 border-t border-zinc-800/60 pt-2">
         <Button
           variant="outline"
-          size="sm"
-          className="h-6 px-2 text-[10px]"
+          size="xs"
           onClick={onRun}
         >
-          <IconLabel icon={<Play size={11} />} gap="tight">
+          <IconLabel icon={<Play size={13} />} gap="tight">
             Executar agora
           </IconLabel>
         </Button>
         <Button
           variant="outline"
-          size="sm"
-          className="h-6 px-2 text-[10px]"
+          size="xs"
           onClick={onEdit}
         >
-          <IconLabel icon={<Pencil size={11} />} gap="tight">
+          <IconLabel icon={<Pencil size={13} />} gap="tight">
             Editar
           </IconLabel>
         </Button>
         <div ref={menuRef} className="relative">
           <Button
             variant="ghost"
-            size="icon"
-            className="h-6 w-6"
+            size="xs"
+            className="w-7 px-0"
             aria-label={`Mais ações da rotina ${schedule.name}`}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((value) => !value)}
           >
-            <MoreHorizontal size={13} />
+            <MoreHorizontal size={15} />
           </Button>
 
           {menuOpen ? (
-            <div className="absolute right-0 top-8 z-40 w-48 rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-2xl">
-              <MenuItem icon={<History size={12} />} onClick={() => action(onHistory)}>
+            <div className="absolute right-0 top-9 z-40 w-52 rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-2xl">
+              <MenuItem icon={<History size={14} />} onClick={() => action(onHistory)}>
                 Histórico
               </MenuItem>
-              <MenuItem icon={<Copy size={12} />} onClick={() => action(onDuplicate)}>
+              <MenuItem icon={<Copy size={14} />} onClick={() => action(onDuplicate)}>
                 Duplicar
               </MenuItem>
-              <MenuItem icon={<FlaskConical size={12} />} onClick={() => action(onDryRun)}>
+              <MenuItem icon={<FlaskConical size={14} />} onClick={() => action(onDryRun)}>
                 Dry-run
               </MenuItem>
               {schedule.notify_email_recipients || schedule.notify_signal ? (
-                <MenuItem icon={<Send size={12} />} onClick={() => action(onTestNotification)}>
+                <MenuItem icon={<Send size={14} />} onClick={() => action(onTestNotification)}>
                   Testar aviso
                 </MenuItem>
               ) : null}
               <MenuItem
-                icon={<Trash2 size={12} />}
+                icon={<Trash2 size={14} />}
                 destructive
                 onClick={() => action(onRemove)}
               >
@@ -309,7 +307,7 @@ function MenuItem({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[10px] hover:bg-zinc-800",
+        "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12px] hover:bg-zinc-800",
         destructive ? "text-red-300" : "text-zinc-300",
       )}
     >

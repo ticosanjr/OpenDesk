@@ -1,10 +1,10 @@
 export const STATUS_LABEL: Record<string, string> = {
-  TODO: "To do",
-  IN_PROGRESS: "In progress",
-  IN_REVIEW: "In review",
-  BLOCKED: "Blocked",
-  DONE: "Done",
-  CANCELLED: "Cancelled",
+  TODO: "A fazer",
+  IN_PROGRESS: "Em execução",
+  IN_REVIEW: "Em revisão",
+  BLOCKED: "Bloqueada",
+  DONE: "Concluída",
+  CANCELLED: "Cancelada",
 };
 
 export const PRIORITY_LABEL: Record<number, string> = {
@@ -35,3 +35,15 @@ export const EFFORT_TONE: Record<string, "default" | "blue" | "purple"> = {
   medium: "blue",
   high: "purple",
 };
+
+export const RUN_STATUS_LABEL: Record<string, string> = {
+  PENDING: "pendente",
+  RUNNING: "executando",
+  SUCCESS: "sucesso",
+  FAILED: "falhou",
+  CANCELLED: "cancelada",
+};
+
+export function runStatusLabel(status: string): string {
+  return RUN_STATUS_LABEL[status] ?? status.toLowerCase();
+}

@@ -71,7 +71,6 @@ export function StudioPage() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="px-5 pb-0 pt-5 lg:px-7 lg:pt-7">
         <PageHeader
-          eyebrow="espelho bidirecional"
           title="OpenCode Studio"
           description="CRUD visual de agentes, skills, comandos, MCPs e JSONC — sempre gravando nos arquivos nativos do OpenCode."
           actions={
@@ -86,12 +85,16 @@ export function StudioPage() {
         />
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-1 rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-1">
+          <div
+            role="group"
+            aria-label="Escopo do Studio"
+            className="flex items-center gap-1 rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-1"
+          >
             <button
               type="button"
               onClick={() => setScope("workspace")}
               className={cn(
-                "rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors",
+                "rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors",
                 scope === "workspace"
                   ? "bg-zinc-800 text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-200",
@@ -103,7 +106,7 @@ export function StudioPage() {
               type="button"
               onClick={() => setScope("global")}
               className={cn(
-                "rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors",
+                "rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors",
                 scope === "global"
                   ? "bg-zinc-800 text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-200",
@@ -115,7 +118,7 @@ export function StudioPage() {
               type="button"
               onClick={() => setScope("effective")}
               className={cn(
-                "rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors",
+                "rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors",
                 scope === "effective"
                   ? "bg-zinc-800 text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-200",
@@ -132,13 +135,13 @@ export function StudioPage() {
                 type="button"
                 onClick={() => setTab(item.id)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
                   tab === item.id
                     ? "bg-zinc-800 text-zinc-100"
                     : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200",
                 )}
               >
-                <item.icon size={14} />
+                <item.icon size={15} />
                 {item.label}
               </button>
             ))}

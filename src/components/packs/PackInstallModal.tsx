@@ -64,7 +64,7 @@ export function PackInstallModal({
       onClose={onClose}
       title={selected?.name ?? "Pacote"}
       description={selected?.description}
-      className="max-w-2xl"
+      size="lg"
     >
       {selected ? (
         <div className="space-y-3">

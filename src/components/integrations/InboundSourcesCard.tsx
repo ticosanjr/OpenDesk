@@ -246,7 +246,7 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
         onClose={() => setOpen(false)}
         title={editing ? "Editar gatilho" : "Novo gatilho"}
         description="A configuração usa JSON. Segredos devem ser referências do SecretStore (`*_ref`)."
-        className="max-w-2xl"
+        size="lg"
       >
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">

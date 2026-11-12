@@ -42,6 +42,8 @@ npm run test:rust      # testes Rust
 npm run test:e2e       # Playwright Chromium (npx playwright install chromium)
 npm run test:features  # suíte funcional completa (sob demanda, fora do gate)
 npm run check:changed  # verificação proporcional (sem release)
+npm run gate:fast      # gate rápido: fmt Rust, TS, lint e Vitest
+scripts/gate-fast.sh --rust  # inclui clippy e testes Rust
 cd src-tauri && cargo check
 cd src-tauri && cargo test
 scripts/release.sh     # build local + retenção de 3 releases (sem CI)
@@ -62,6 +64,9 @@ scripts/release.sh     # build local + retenção de 3 releases (sem CI)
 - `src/pages/` — as 9 views.
 - `src/store/app-store.ts` — snapshot + WebSocket + ações.
 - `docs/` — plano, ADRs e histórico.
+- `PRODUCT.md` — verdade de produto e usuários.
+- `DESIGN.md` — tokens, escala, componentes e regras visuais (ADR 0046).
+- `scripts/gate-fast.sh` — gate diário; o gate completo é `scripts/gate.sh`.
 
 ## Convenções
 

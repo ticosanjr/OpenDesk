@@ -34,24 +34,24 @@ export function Row({
     <div
       data-attention-row
       className={cn(
-        "grid min-h-[82px] grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1 rounded-lg border bg-zinc-950/40 px-2.5 py-2 sm:h-[82px] sm:grid-cols-[auto_minmax(0,1fr)_250px] sm:items-stretch sm:overflow-hidden",
+        "grid min-h-[72px] grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1 rounded-lg border bg-zinc-950/40 px-3 py-2.5 sm:grid-cols-[auto_minmax(0,1fr)_240px] sm:items-stretch",
         border,
       )}
     >
       <span className={cn("mt-0.5 shrink-0", iconTone)}>{icon}</span>
       <div className="min-h-0 min-w-0 sm:overflow-y-auto">
-        <p className="line-clamp-1 text-[12px] text-zinc-200">{title}</p>
+        <p className="line-clamp-1 text-[13px] font-medium text-zinc-200">{title}</p>
         {meta ? (
-          <p className="truncate font-mono text-[10px] text-zinc-500">{meta}</p>
+          <p className="truncate font-mono text-[11px] text-zinc-500">{meta}</p>
         ) : null}
         {detail ? (
-          <p className="mt-0.5 line-clamp-2 min-h-[26px] break-words text-[10px] leading-snug text-red-200/70">
+          <p className="mt-0.5 line-clamp-2 min-h-[28px] break-words text-[11.5px] leading-snug text-red-200/70">
             {detail}
           </p>
         ) : null}
       </div>
       {actions ? (
-        <div className="col-span-3 flex min-h-0 flex-wrap items-center justify-end gap-1.5 sm:col-span-1 sm:w-[250px] sm:max-w-[250px] sm:overflow-y-auto">
+        <div className="col-span-3 flex min-h-0 flex-wrap items-center justify-end gap-1.5 sm:col-span-1 sm:w-[240px] sm:max-w-[240px] sm:overflow-y-auto">
           {actions}
         </div>
       ) : null}
@@ -72,9 +72,9 @@ export function DismissButton({
         type="button"
         aria-label={label}
         onClick={onClick}
-        className="rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-800/60 hover:text-zinc-200"
+        className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800/60 hover:text-zinc-200"
       >
-        <X size={12} />
+        <X size={14} />
       </button>
     </Tooltip>
   );

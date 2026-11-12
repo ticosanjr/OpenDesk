@@ -188,13 +188,14 @@ export function StudioOverview({
     <>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800/70 px-4 py-3">
-          <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
+          <div className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5 focus-within:border-zinc-600">
             <Search size={13} className="text-zinc-500" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Buscar por ID, nome ou descrição…"
-              className="h-full flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-500"
+              className="h-full flex-1 bg-transparent text-[13px] outline-none placeholder:text-zinc-500"
+              aria-label="Buscar no Studio"
             />
           </div>
           <select
@@ -220,19 +221,19 @@ export function StudioOverview({
             <option value="disabled">desativados</option>
           </select>
           <div className="flex min-w-[260px] flex-1 items-center gap-1">
-            <span className="text-[9px] uppercase tracking-wide text-zinc-500">
+            <span className="text-[11px] uppercase tracking-wide text-zinc-500">
               runtime
             </span>
             <input
               value={runtimeLocation}
               onChange={(event) => setRuntimeLocation(event.target.value)}
               placeholder={workspaceRoot || "diretório do OpenCode TUI"}
-              className="h-7 min-w-0 flex-1 rounded-md border border-zinc-800 bg-zinc-950/40 px-2 font-mono text-[9px] text-zinc-300 outline-none focus:border-blue-500/60"
+              className="h-8 min-w-0 flex-1 rounded-md border border-zinc-800 bg-zinc-950/40 px-2.5 font-mono text-[11.5px] text-zinc-300 outline-none focus:border-blue-500/60"
+              aria-label="Diretório de runtime do OpenCode"
             />
             <Button
               variant="ghost"
-              size="sm"
-              className="h-7"
+              size="xs"
               onClick={() => void load()}
               disabled={loading}
             >
@@ -410,7 +411,7 @@ export function StudioOverview({
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <p className="truncate text-[12px] font-medium text-zinc-200">
+                          <p className="truncate text-[14px] font-semibold text-zinc-100">
                             {String((item.value as { name?: string }).name || item.id)}
                           </p>
                           <Badge variant="default">{meta.label}</Badge>
@@ -430,7 +431,7 @@ export function StudioOverview({
                           {item.overridden ? <Badge variant="yellow">override</Badge> : null}
                           {item.disabled ? <Badge variant="red">desativado</Badge> : null}
                         </div>
-                        <p className="truncate font-mono text-[9px] text-zinc-500">
+                        <p className="truncate font-mono text-[11.5px] text-zinc-500">
                           {item.id}
                           {(item.value as { description?: string }).description
                             ? ` · ${(item.value as { description?: string }).description}`
@@ -439,36 +440,33 @@ export function StudioOverview({
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
-                          className="h-7 px-2 text-[9px]"
                           onClick={() => {
                             if (item.source_scope !== "ancestor" && item.source_scope !== "runtime") {
                               onOpenEditor(item.kind, item.source_scope, item.id);
                             }
                           }}
                         >
-                          editar
+                          Editar
                         </Button>
                         {item.source_scope !== "ancestor" && item.source_scope !== "runtime" ? (
                           <Button
                             variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-[9px]"
+                            size="xs"
                             onClick={() => void duplicate(item)}
                           >
-                            <Copy size={11} />
+                            <Copy size={13} />
                             duplicar
                           </Button>
                         ) : null}
                         {item.source_scope !== "ancestor" && item.source_scope !== "runtime" ? (
                           <Button
                             variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-[9px]"
+                            size="xs"
                             onClick={() => setTransfer({ item, mode: "copy" })}
                           >
-                            <ArrowRightLeft size={11} />
+                            <ArrowRightLeft size={13} />
                             copiar/mover
                           </Button>
                         ) : null}
@@ -476,32 +474,30 @@ export function StudioOverview({
                           <>
                             <Button
                               variant="outline"
-                              size="sm"
-                              className="h-7 px-2 text-[9px]"
+                              size="xs"
                               onClick={() => void toggle(item)}
                             >
-                              {item.disabled ? <ToggleLeft size={11} /> : <ToggleRight size={11} />}
+                              {item.disabled ? <ToggleLeft size={13} /> : <ToggleRight size={13} />}
                               {item.disabled ? "ativar" : "desativar"}
                             </Button>
                             <Button
                               variant="ghost"
-                              size="sm"
-                              className="h-7 px-2 text-[9px]"
+                              size="xs"
                               onClick={() => setBackupsFor(item)}
                               title="Ver backups"
                               aria-label="Ver backups"
                             >
-                              <History size={11} />
+                              <History size={13} />
                             </Button>
                             <Button
                               variant="ghost"
-                              size="sm"
-                              className="h-7 px-2 text-[9px] text-red-300/80"
+                              size="xs"
+                              className="text-red-300/80"
                               onClick={() => void remove(item)}
                               title="Excluir item"
                               aria-label="Excluir item"
                             >
-                              <Trash2 size={11} />
+                              <Trash2 size={13} />
                             </Button>
                           </>
                         ) : null}
@@ -511,7 +507,7 @@ export function StudioOverview({
                           ver detalhes, frontmatter e origem
                         </summary>
                         <div className="max-h-64 overflow-auto border-t border-zinc-800/60 p-3">
-                          <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-zinc-400">
+                          <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-zinc-400">
                             {JSON.stringify(item.value, null, 2)}
                           </pre>
                         </div>
@@ -623,7 +619,7 @@ function TransferModal({
   }
 
   return (
-    <Modal open onClose={onClose} title={`Copiar/mover ${transfer.item.id}`} className="max-w-lg">
+    <Modal open onClose={onClose} title={`Copiar/mover ${transfer.item.id}`} size="md">
       <div className="space-y-3">
         <div className="flex gap-2">
           {(["copy", "move"] as const).map((value) => (
@@ -706,11 +702,11 @@ function TransferModal({
 }
 
 const inputClass =
-  "h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[11px] text-zinc-100 outline-none focus:border-blue-500/60";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[13px] text-zinc-100 outline-none transition-colors hover:border-zinc-700 focus:border-blue-500/60";
 const selectClass =
-  "h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300 outline-none focus:border-blue-500/60";
+  "h-9 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12.5px] text-zinc-300 outline-none transition-colors hover:border-zinc-700 focus:border-blue-500/60";
 const labelClass =
-  "mb-1 block text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-500";
+  "mb-1 block text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-400";
 
 
 function BackupsModal({
@@ -779,7 +775,7 @@ function BackupsModal({
       onClose={onClose}
       title={`Backups de ${item.id}`}
       description="Cada gravação cria um backup antes de sobrescrever o arquivo nativo."
-      className="max-w-lg"
+      size="md"
     >
       <div className="space-y-2">
         {error ? (

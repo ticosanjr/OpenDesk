@@ -403,7 +403,7 @@ test("creates and edits a recurrence routine with calendar, agent search and not
   await expect(page.getByText("Rotina E2E editada").first()).toBeVisible();
 
   await page.getByRole("button", { name: "Executar agora" }).first().click();
-  await expect(page.getByText("schedule").first()).toBeVisible();
+  await expect(page.getByText("Rotina enfileirada").first()).toBeVisible();
 
   await page.goto("/#/integrations");
   await expect(page.getByRole("heading", { name: "Integrações" })).toBeVisible();
@@ -626,7 +626,7 @@ test("studio reads global V1 MCP, skills, agents and commands", async ({ page, r
   await expect(page.getByText("Global Agent").first()).toBeVisible();
   await page.getByRole("button", { name: "Skills" }).click();
   await expect(page.getByText("global-skill").first()).toBeVisible();
-  await page.getByRole("button", { name: "Comandos" }).click();
+  await page.getByRole("button", { name: "Comandos", exact: true }).click();
   await expect(page.getByText("global-command").first()).toBeVisible();
   await page.getByRole("button", { name: "MCP" }).click();
   await expect(page.getByText("rea", { exact: true }).first()).toBeVisible();
@@ -1066,7 +1066,7 @@ test("notification preferences and kanban list view are available", async ({
   await page.getByTitle("Lista").click();
   await expect(page.getByText("Último run")).toBeVisible();
   await expect(page.getByText("Tarefa Lista E2E")).toBeVisible();
-  await page.getByTitle("Fila").click();
+  await page.getByRole("main").getByRole("button", { name: "Fila" }).click();
   await expect(page.getByText("Controlador da fila")).toBeVisible();
   // The view switch must stay visible inside the queue view.
   await page.getByTitle("Board").click();

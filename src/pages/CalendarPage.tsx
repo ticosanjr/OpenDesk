@@ -242,7 +242,6 @@ export function CalendarPage() {
   return (
     <PageBody>
       <PageHeader
-        eyebrow="tempo e execução"
         title="Calendário"
         description="Veja rotinas, receitas e execuções passadas, presentes e futuras, além dos seus próprios eventos."
         actions={
@@ -320,15 +319,16 @@ export function CalendarPage() {
             className={cn(
               "rounded-full border px-2.5 py-1 text-[10px] transition-colors",
               filters[category.id]
-                ? "border-blue-500/40 bg-blue-500/10 text-blue-200"
+                ? "workspace-selected workspace-selected-text"
                 : "border-zinc-800 bg-zinc-950/40 text-zinc-500 hover:text-zinc-300",
             )}
           >
             {category.label}
           </button>
         ))}
-        <span className="ml-auto font-mono text-[9px] text-zinc-500">
-          {visibleItems.length} item(ns) visíveis
+        <span className="ml-auto font-mono text-[10px] text-zinc-500">
+          {visibleItems.length}{" "}
+          {visibleItems.length === 1 ? "item visível" : "itens visíveis"}
         </span>
       </div>
 
@@ -428,7 +428,7 @@ export function CalendarPage() {
                     className={cn(
                       "min-h-[104px] rounded-lg border p-1.5 text-left transition-colors",
                       selected
-                        ? "border-blue-500/50 bg-blue-500/5"
+                        ? "workspace-selected"
                         : "border-zinc-800/70 bg-zinc-950/30 hover:border-zinc-700",
                       isSameMonth(day, month) ? undefined : "opacity-45",
                     )}
@@ -569,7 +569,7 @@ function CalendarColumns({
             className={cn(
               "min-h-[320px] rounded-lg border p-2 transition-colors",
               selected
-                ? "border-blue-500/50 bg-blue-500/5"
+                ? "workspace-selected"
                 : "border-zinc-800/70 bg-zinc-950/30",
             )}
           >

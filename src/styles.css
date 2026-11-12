@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  /* Slightly lighter than Tailwind's default so 12px hints reach WCAG AA
-     on the near-black surfaces used by the app. */
-  --color-zinc-500: #7d7d88;
+  /* Slightly lighter than Tailwind's default so hints and metadata keep
+     WCAG AA contrast on the near-black surfaces used by the app. */
+  --color-zinc-500: #85858f;
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
@@ -19,6 +19,120 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  --text-micro: 11px;
+  --text-label: 12px;
+  --text-body: 13.5px;
+  --text-title: 15px;
+  --radius-card: 12px;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * Type roles. The app still has legacy arbitrary sizes; these roles are the
+ * target vocabulary for shared primitives and new surfaces.
+ * overline: section labels (uppercase, mono, max 3-4 per screen)
+ * meta: timestamps, ids, helper text
+ * body: default reading size
+ * title: card and panel titles
+ * page: page title
+ * kpi: highlighted numbers
+ */
+.type-overline {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8b8b96;
+}
+
+.type-meta {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #8b8b96;
+}
+
+.type-body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #e4e4e7;
+}
+
+.type-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: #f4f4f5;
+}
+
+.type-page {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: #fafafa;
+}
+
+.type-kpi {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: #fafafa;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Shared surfaces and form controls. */
+.surface-panel {
+  border: 1px solid rgb(39 39 42 / 0.72);
+  border-radius: var(--radius-card);
+  background: rgb(24 24 27 / 0.28);
+}
+
+.surface-inset {
+  border: 1px solid rgb(39 39 42 / 0.7);
+  border-radius: 8px;
+  background: rgb(9 9 11 / 0.5);
+}
+
+.field-base {
+  height: 36px;
+  width: 100%;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  background: rgb(24 24 27 / 0.5);
+  padding: 0 10px;
+  font-size: 13px;
+  color: #f4f4f5;
+  outline: none;
+  transition: border-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+}
+
+.field-base::placeholder {
+  color: #8b8b96;
+}
+
+.field-base:hover {
+  border-color: #3f3f46;
+}
+
+.field-base:focus-visible {
+  border-color: color-mix(in srgb, var(--workspace-accent) 65%, #3f3f46);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--workspace-accent) 18%, transparent);
+}
+
+.tap-target {
+  min-height: 28px;
+  min-width: 28px;
+}
+
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
 }
 
 /* The active workspace sets these at runtime; defaults keep the UI usable
@@ -115,10 +229,6 @@ body {
   border-color: var(--workspace-border);
 }
 
-.workspace-eyebrow {
-  color: color-mix(in srgb, var(--workspace-accent) 68%, #71717a);
-}
-
 .workspace-scope input:focus,
 .workspace-scope select:focus,
 .workspace-scope textarea:focus {
@@ -127,6 +237,22 @@ body {
 
 .workspace-scope :focus-visible {
   outline-color: color-mix(in srgb, var(--workspace-accent) 70%, transparent);
+}
+
+/* Fallback focus ring for links and controls that predate the shared
+   components. Elements that opt into `focus-visible:ring-*` keep their ring. */
+a:focus-visible,
+[role="button"]:focus-visible:not([class*="focus-visible:ring"]),
+button:focus-visible:not([class*="focus-visible:ring"]) {
+  outline: 2px solid color-mix(in srgb, var(--workspace-accent) 70%, transparent);
+  outline-offset: 2px;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--workspace-accent) 55%, transparent);
+  outline-offset: 1px;
 }
 
 .accent-button {
@@ -140,6 +266,23 @@ body {
 
 .accent-button:active {
   background: color-mix(in srgb, var(--workspace-accent) 72%, black);
+}
+
+/* Selected surfaces follow the workspace accent; blue stays reserved for
+   informational/running states so the two meanings never collide. */
+.workspace-selected {
+  border-color: color-mix(in srgb, var(--workspace-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--workspace-accent) 7%, transparent);
+}
+
+.workspace-selected-text {
+  color: color-mix(in srgb, var(--workspace-accent) 72%, #e4e4e7);
+}
+
+.badge-accent {
+  border-color: color-mix(in srgb, var(--workspace-accent) 38%, transparent);
+  background: color-mix(in srgb, var(--workspace-accent) 12%, transparent);
+  color: color-mix(in srgb, var(--workspace-accent) 76%, white);
 }
 
 .workspace-switch-on {
@@ -166,6 +309,44 @@ body {
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+}
+
+/* Keep every destination reachable at the app's minimum height. The daemon
+   card is repeated in the topbar, so it yields first. */
+@media (max-height: 960px) {
+  .sidebar-brand {
+    height: 3rem;
+  }
+
+  .sidebar-nav {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .sidebar-nav-item {
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+
+  .sidebar-section-label {
+    padding-top: 6px;
+    padding-bottom: 2px;
+  }
+
+  .sidebar-footer {
+    padding: 0.375rem;
+  }
+
+  .sidebar-status-card {
+    display: none;
+  }
+}
+
+@media (max-height: 640px) {
+  .sidebar-nav-item {
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
 }
 
 input,
@@ -214,15 +395,14 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   .opendesk-gear,
-  .opendesk-gear-reverse {
+  .opendesk-gear-reverse,
+  .animate-pulse {
     animation: none;
   }
 
-  .animate-spin,
-  .animate-pulse,
-  .animate-bounce {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
+  /* A spinner communicates progress; slow it down instead of freezing it. */
+  .animate-spin {
+    animation-duration: 2.4s !important;
   }
 
   [class*="animate-["] {
@@ -231,6 +411,8 @@ button {
 
   .focus-pulse {
     animation: none;
+    outline: 2px solid rgba(59, 130, 246, 0.65);
+    outline-offset: 2px;
   }
 }
 
@@ -300,11 +482,13 @@ button {
 .markdown-body img { border-radius: 8px; max-width: 100%; }
 .markdown-body hr { border-color: #27272a; margin: 1.2em 0; }
 
-/* Readability floor: the UI had too many 8–10px labels. */
-.text-\[8px\] { font-size: 10px; line-height: 1.45; }
-.text-\[9px\] { font-size: 11px; line-height: 1.45; }
-.text-\[10px\] { font-size: 12px; line-height: 1.5; }
-.text-\[11px\] { font-size: 12.5px; line-height: 1.5; }
-.text-\[12px\] { font-size: 13px; line-height: 1.5; }
-.text-\[13px\] { font-size: 13.5px; line-height: 1.5; }
-.text-xs { font-size: 12.5px; line-height: 1.5; }
+/* Readability floor: the UI had too many 8–10px labels.
+   The remap keeps legacy class names working while the components migrate to
+   the semantic `.type-*` roles above. */
+.text-\[8px\] { font-size: 11px; line-height: 1.5; }
+.text-\[9px\] { font-size: 11.5px; line-height: 1.5; }
+.text-\[10px\] { font-size: 12px; line-height: 1.55; }
+.text-\[11px\] { font-size: 13px; line-height: 1.55; }
+.text-\[12px\] { font-size: 13.5px; line-height: 1.5; }
+.text-\[13px\] { font-size: 14px; line-height: 1.5; }
+.text-xs { font-size: 13px; line-height: 1.5; }

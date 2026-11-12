@@ -405,7 +405,7 @@ export function AgentPanel({
                         className={cn(
                           "flex h-7 items-center justify-center rounded-md border text-[13px] transition",
                           draft.avatar === preset
-                            ? "border-blue-500/60 bg-blue-500/10"
+                            ? "workspace-selected"
                             : "border-zinc-800 bg-zinc-900/40 hover:border-zinc-600",
                         )}
                       >

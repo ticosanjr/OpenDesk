@@ -178,7 +178,7 @@ export function EventModal({
       onClose={onClose}
       title={event ? "Editar evento" : "Novo evento"}
       description="Eventos locais aparecem no calendário e podem ser usados como contexto para receitas."
-      className="max-w-lg"
+      size="md"
     >
       <div className="space-y-3">
         <label className="block">

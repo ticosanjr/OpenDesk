@@ -230,7 +230,7 @@ export function OutboundSinksCard({ workspaceId }: { workspaceId: string }) {
         onClose={() => setOpen(false)}
         title={editing ? "Editar sink" : "Novo sink"}
         description="O sink roda depois de um run SUCCESS. Use referências de segredo (`*_ref`) no JSON."
-        className="max-w-2xl"
+        size="lg"
       >
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">

@@ -4,12 +4,10 @@ import {
   Archive,
   ExternalLink,
   FileText,
-  Filter,
   GitCompare,
   Mail,
   RefreshCw,
   RotateCcw,
-  Search,
   Star,
   X,
 } from "lucide-react";
@@ -19,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterSearch, FilterSelect } from "@/components/ui/filter-bar";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiGet, apiPost } from "@/lib/api";
@@ -235,7 +234,7 @@ export function ArtifactsPage() {
   if (!activeWorkspaceId) {
     return (
       <PageBody>
-        <PageHeader eyebrow="proveniência" title="Artefatos" />
+        <PageHeader title="Artefatos" />
         <EmptyState
           icon={Archive}
           title="Nenhum workspace ativo"
@@ -253,7 +252,6 @@ export function ArtifactsPage() {
   return (
     <PageBody>
       <PageHeader
-        eyebrow="proveniência"
         title="Artefatos"
         description={`${workspace?.name ?? "Workspace"} · quem criou, por quê, quando, diff e destinos.`}
         actions={
@@ -274,29 +272,26 @@ export function ArtifactsPage() {
         <CardHeader className="gap-3">
           <CardTitle>Explorador de proveniência</CardTitle>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-              <Search size={13} className="text-zinc-500" />
-              <input
-                value={agentFilter}
-                onChange={(event) => setAgentFilter(event.target.value)}
-                placeholder="Filtrar por agente (@build, @auditor…)"
-                className="h-full flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-500"
-              />
-            </div>
-            <div className="flex h-8 items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5">
-              <Filter size={12} className="text-zinc-500" />
-              <select
-                value={actionFilter}
-                onChange={(event) => setActionFilter(event.target.value)}
-                className="bg-transparent text-[11px] text-zinc-300 outline-none"
-              >
-                <option value="">toda ação</option>
-                <option value="CREATED">criado</option>
-                <option value="MODIFIED">modificado</option>
-                <option value="DELETED">deletado</option>
-              </select>
-            </div>
-            <Badge variant="default">{artifacts.length} artefatos</Badge>
+            <FilterSearch
+              value={agentFilter}
+              onChange={setAgentFilter}
+              placeholder="Filtrar por agente…"
+              ariaLabel="Filtrar artefatos por agente"
+              className="min-w-[220px]"
+            />
+            <FilterSelect
+              value={actionFilter}
+              onChange={setActionFilter}
+              ariaLabel="Filtrar artefatos por ação"
+            >
+              <option value="">toda ação</option>
+              <option value="CREATED">criado</option>
+              <option value="MODIFIED">modificado</option>
+              <option value="DELETED">deletado</option>
+            </FilterSelect>
+            <Badge variant="default">
+              {artifacts.length} {artifacts.length === 1 ? "artefato" : "artefatos"}
+            </Badge>
             {runFilter ? (
               <button
                 type="button"
@@ -323,6 +318,7 @@ export function ArtifactsPage() {
                 icon={Archive}
                 title="Nenhum artefato registrado"
                 description="Quando um run criar ou modificar arquivos, o stream interceptor grava autor, motivo, timestamp e diff."
+                compact
               />
             </div>
           ) : (
@@ -353,11 +349,17 @@ export function ArtifactsPage() {
                           <button
                             type="button"
                             title={artifact.pinned ? "Desafixar entregável" : "Fixar como entregável"}
+                            aria-label={artifact.pinned ? "Desafixar entregável" : "Fixar como entregável"}
                             onClick={(event) => {
                               event.stopPropagation();
                               void togglePin(artifact);
                             }}
-                            className={artifact.pinned ? "text-amber-300" : "text-zinc-500 hover:text-amber-300"}
+                            className={cn(
+                              "-m-1 rounded p-1 transition-colors",
+                              artifact.pinned
+                                ? "text-amber-300"
+                                : "text-zinc-500 hover:text-amber-300",
+                            )}
                           >
                             <Star size={13} fill={artifact.pinned ? "currentColor" : "none"} />
                           </button>
@@ -377,12 +379,12 @@ export function ArtifactsPage() {
                         <Badge variant="purple">@{artifact.created_by_agent}</Badge>
                       </td>
                       <td className="max-w-[260px] px-3 py-2.5">
-                        <p className="truncate text-[10px] text-zinc-500">
+                        <p className="truncate text-[12px] text-zinc-400">
                           {artifact.creation_reason}
                         </p>
                       </td>
                       <td className="px-3 py-2.5">
-                        <span className="font-mono text-[9px] text-zinc-500">
+                        <span className="font-mono text-[11px] text-zinc-500">
                           {relativeTime(artifact.created_at)}
                         </span>
                       </td>
@@ -396,7 +398,13 @@ export function ArtifactsPage() {
                                 : "yellow"
                           }
                         >
-                          {artifact.action_type}
+                          {artifact.action_type === "CREATED"
+                            ? "criado"
+                            : artifact.action_type === "DELETED"
+                              ? "excluído"
+                              : artifact.action_type === "MODIFIED"
+                                ? "alterado"
+                                : artifact.action_type}
                         </Badge>
                       </td>
                       <td className="px-3 py-2.5">

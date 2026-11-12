@@ -31,6 +31,7 @@ import { toast } from "@/store/toast-store";
 import { useFocusParam } from "@/lib/use-focus-param";
 import { links } from "@/lib/links";
 import { RoutineCard } from "@/components/routines/RoutineCard";
+import { runStatusLabel } from "@/lib/task-ui";
 import { CreateScheduleModal } from "@/components/routines/RoutineFormModal";
 
 export function RoutinesPage() {
@@ -211,8 +212,21 @@ export function RoutinesPage() {
     try {
       await apiPost(`/api/schedules/${schedule.id}/run`, {});
       await load();
+      toast({
+        tone: "success",
+        title: "Rotina enfileirada",
+        description: `${schedule.name} entrará na fila assim que houver um worker livre.`,
+        href: links.schedule(schedule.id),
+      });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      const message = cause instanceof Error ? cause.message : String(cause);
+      setError(message);
+      toast({
+        tone: "error",
+        title: "Não foi possível executar a rotina",
+        description: message,
+        href: links.schedule(schedule.id),
+      });
     }
   }
 
@@ -229,7 +243,7 @@ export function RoutinesPage() {
   if (!activeWorkspaceId) {
     return (
       <PageBody>
-        <PageHeader eyebrow="automação recorrente" title="Rotinas & Gatilhos" />
+        <PageHeader title="Rotinas & Gatilhos" />
         <EmptyState
           icon={CalendarClock}
           title="Nenhum workspace ativo"
@@ -247,7 +261,6 @@ export function RoutinesPage() {
   return (
     <PageBody>
       <PageHeader
-        eyebrow="automação recorrente"
         title="Rotinas & Gatilhos"
         description={`${workspace?.name ?? "Workspace"} · horário, pasta, e-mail, Signal, webhook ou SQL; executa prompt ou receita.`}
         actions={
@@ -276,6 +289,7 @@ export function RoutinesPage() {
         </p>
       ) : null}
 
+      {schedules.length === 0 ? (
       <div className="grid gap-3 md:grid-cols-3">
         {[
           {
@@ -305,6 +319,7 @@ export function RoutinesPage() {
           </Card>
         ))}
       </div>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -320,6 +335,7 @@ export function RoutinesPage() {
               icon={CalendarClock}
               title="Nenhuma rotina configurada"
               description="Crie rotinas por horário, pasta, e-mail, Signal, webhook ou SQL. A rotina pode executar um prompt ou uma receita."
+              compact
               action={
                 <Button
                   size="sm"
@@ -362,7 +378,7 @@ export function RoutinesPage() {
         onClose={() => setHistorySchedule(null)}
         title={`Histórico · ${historySchedule?.name ?? "rotina"}`}
         description="Últimos 100 runs disparados por esta rotina."
-        className="max-w-2xl"
+        size="lg"
       >
         {historyLoading ? (
           <LoadingState compact label="Carregando histórico…" rows={3} />
@@ -376,7 +392,7 @@ export function RoutinesPage() {
               <Link
                 key={run.id}
                 to={links.run(run.id)}
-                className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[10px] transition-colors hover:border-blue-500/30 hover:bg-zinc-900/50"
+                className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5 text-[12px] transition-colors hover:border-blue-500/30 hover:bg-zinc-900/50"
               >
                 <Badge
                   variant={
@@ -389,9 +405,9 @@ export function RoutinesPage() {
                           : "yellow"
                   }
                 >
-                  {run.status}
+                  {runStatusLabel(run.status)}
                 </Badge>
-                <span className="font-mono text-zinc-400">{run.phase ?? "run"}</span>
+                <span className="font-mono text-zinc-400">{run.phase ?? "execução"}</span>
                 <span className="text-zinc-500">
                   {run.agent_name} · {run.model_id} · {Math.round(run.duration_ms / 1000)}s ·{" "}
                   {run.tokens_input + run.tokens_output} tokens
@@ -400,7 +416,7 @@ export function RoutinesPage() {
                   {relativeTime(run.started_at)}
                 </span>
                 {run.error_message ? (
-                  <p className="w-full truncate font-mono text-[9px] text-red-300/80">
+                  <p className="w-full truncate font-mono text-[11px] text-red-300/80">
                     {run.error_message}
                   </p>
                 ) : null}

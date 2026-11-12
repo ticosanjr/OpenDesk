@@ -42,6 +42,20 @@ describe("app store", () => {
     expect(useAppStore.getState().workspaces).toEqual([]);
   });
 
+  it("keeps the real budget limit when the endpoint responds", async () => {
+    (apiGet as Mock).mockImplementation(async (path: string) => {
+      if (path.includes("daemon")) return daemon;
+      if (path === "/api/budget/status") {
+        return { daily_spent: 1.5, daily_limit: 10 };
+      }
+      return [];
+    });
+
+    await useAppStore.getState().refresh();
+    expect(useAppStore.getState().budget?.daily_limit).toBe(10);
+    expect(useAppStore.getState().budget?.daily_spent).toBe(1.5);
+  });
+
   it("falls back to the first workspace when the active one is missing", async () => {
     const workspace = {
       id: "ws-1",

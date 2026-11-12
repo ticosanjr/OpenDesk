@@ -252,22 +252,24 @@ export function AttentionCard() {
   }
 
   return (
-    <Card data-testid="attention-card" className="border-amber-500/30 bg-amber-500/[0.04]">
-      <CardContent className="space-y-3 p-3.5">
+    <Card data-testid="attention-card" className="border-amber-500/25 bg-amber-500/[0.035]">
+      <CardContent className="space-y-3 p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <AlertTriangle size={15} className="shrink-0 text-amber-400" />
-          <p className="text-[13px] font-semibold text-amber-100">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md border border-amber-500/25 bg-amber-500/10 text-amber-300">
+            <AlertTriangle size={15} className="shrink-0" />
+          </span>
+          <p className="text-[14px] font-semibold text-amber-100">
             Precisa da sua atenção
           </p>
           <CountPill value={total} tone="yellow" />
           <Button
             variant="ghost"
-            size="sm"
-            className="ml-auto h-7"
+            size="xs"
+            className="ml-auto"
             onClick={() => void load()}
             disabled={busy === "refresh"}
           >
-            <IconLabel icon={<RefreshCw size={12} />}>atualizar</IconLabel>
+            <IconLabel icon={<RefreshCw size={13} />}>atualizar</IconLabel>
           </Button>
         </div>
 
@@ -287,17 +289,16 @@ export function AttentionCard() {
                   actions={
                     <>
                       <Button
-                        size="sm"
-                        className="h-7"
+                        size="xs"
                         disabled={busy === `proposal-${proposal.id}`}
                         onClick={() => resolveProposal(proposal, true)}
                       >
                         Aprovar
                       </Button>
                       <Button
-                        size="sm"
+                        size="xs"
                         variant="outline"
-                        className="h-7 border-red-500/30 text-red-300"
+                        className="border-red-500/30 text-red-300"
                         disabled={busy === `proposal-${proposal.id}`}
                         onClick={() => resolveProposal(proposal, false)}
                       >
@@ -318,23 +319,21 @@ export function AttentionCard() {
             >
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-3 py-2">
-                  <p className="text-[10px] text-amber-100">
+                  <p className="text-[11.5px] text-amber-100">
                     O app/engine estava offline ou o horário passou. Escolha o
                     que fazer; o padrão é perguntar.
                   </p>
                   <div className="flex gap-1.5">
                     <Button
-                      size="sm"
-                      className="h-7"
+                      size="xs"
                       disabled={busy === "missed-all"}
                       onClick={runAllMissed}
                     >
                       Executar todas
                     </Button>
                     <Button
-                      size="sm"
+                      size="xs"
                       variant="outline"
-                      className="h-7"
                       disabled={busy === "missed-all"}
                       onClick={ignoreAllMissed}
                     >
@@ -348,26 +347,24 @@ export function AttentionCard() {
                     className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[11px] font-medium text-zinc-200">
+                      <p className="truncate text-[12.5px] font-medium text-zinc-200">
                         {missed.schedule_name ?? missed.schedule_id}
                       </p>
-                      <p className="font-mono text-[9px] text-zinc-500">
+                      <p className="font-mono text-[11px] text-zinc-500">
                         {new Date(missed.scheduled_for).toLocaleString("pt-BR")} ·{" "}
                         {missed.reason === "OFFLINE" ? "offline" : "atraso"}
                       </p>
                     </div>
                     <Button
-                      size="sm"
-                      className="h-7"
+                      size="xs"
                       disabled={busy === `missed-${missed.id}`}
                       onClick={() => runMissed(missed.id)}
                     >
                       Executar
                     </Button>
                     <Button
-                      size="sm"
+                      size="xs"
                       variant="outline"
-                      className="h-7"
                       disabled={busy === `missed-${missed.id}`}
                       onClick={() => ignoreMissed(missed.id)}
                     >
@@ -443,7 +440,7 @@ export function AttentionCard() {
                   icon={<ShieldAlert size={13} />}
                   title={
                     <span>
-                      <span className="font-mono text-[10px] uppercase text-amber-300">
+                      <span className="font-mono text-[11px] uppercase text-amber-300">
                         {request.permission_action}
                       </span>{" "}
                       {request.resources || "ação do agente"}
@@ -454,8 +451,7 @@ export function AttentionCard() {
                   actions={
                     <>
                       <Button
-                        size="sm"
-                        className="h-7"
+                        size="xs"
                         title="Liberar apenas esta solicitação"
                         disabled={busy === `permission-${request.request_id}`}
                         onClick={() => decide(request, "once")}
@@ -463,9 +459,8 @@ export function AttentionCard() {
                         Permitir uma vez
                       </Button>
                       <Button
-                        size="sm"
+                        size="xs"
                         variant="outline"
-                        className="h-7"
                         title="Liberar ações iguais nesta tarefa"
                         disabled={busy === `permission-${request.request_id}`}
                         onClick={() => decide(request, "always")}
@@ -473,9 +468,9 @@ export function AttentionCard() {
                         Nesta tarefa
                       </Button>
                       <Button
-                        size="sm"
+                        size="xs"
                         variant="outline"
-                        className="h-7 border-red-500/30 text-red-300"
+                        className="border-red-500/30 text-red-300"
                         title="Bloquear a ação e interromper o run"
                         disabled={busy === `permission-${request.request_id}`}
                         onClick={() => decide(request, "reject")}
@@ -515,8 +510,7 @@ export function AttentionCard() {
                   actions={
                     <>
                       <Button
-                        size="sm"
-                        className="h-7"
+                        size="xs"
                         title="Aprovar o plano e iniciar a fase de Build"
                         disabled={busy === `approve-${task.id}`}
                         onClick={() => approve(task.id)}
@@ -596,9 +590,8 @@ export function AttentionCard() {
                   actions={
                     <>
                       <Button
-                        size="sm"
+                        size="xs"
                         variant="outline"
-                        className="h-7"
                         disabled={busy === `retry-${run.id}`}
                         onClick={() => retryOther(run.id)}
                       >

@@ -36,6 +36,29 @@ export function dailyMax(daily: DailyMetrics[]): number {
   return Math.max(1, ...daily.map((item) => item.runs));
 }
 
+/**
+ * The metrics endpoint only returns days that have runs. A time-series chart
+ * needs the empty buckets too, otherwise one run renders as a full-width bar
+ * and the period disappears.
+ */
+export function fillDailySeries(
+  daily: DailyMetrics[],
+  days: number,
+  now: Date = new Date(),
+): DailyMetrics[] {
+  const byDate = new Map(daily.map((item) => [item.date, item]));
+  const series: DailyMetrics[] = [];
+  for (let offset = days - 1; offset >= 0; offset -= 1) {
+    const date = new Date(now);
+    date.setUTCDate(date.getUTCDate() - offset);
+    const key = date.toISOString().slice(0, 10);
+    series.push(
+      byDate.get(key) ?? { date: key, runs: 0, failed: 0, cost_usd: 0 },
+    );
+  }
+  return series;
+}
+
 export function barPercent(value: number, max: number): number {
   if (!Number.isFinite(value) || !Number.isFinite(max) || max <= 0) return 0;
   return Math.min(100, Math.max(0, (value / max) * 100));

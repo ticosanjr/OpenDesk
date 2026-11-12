@@ -27,7 +27,7 @@ export function LoadingState({
         className,
       )}
     >
-      <span className="inline-flex items-center gap-2 text-[11px] font-medium">
+      <span className="inline-flex items-center gap-2 text-[12.5px] font-medium">
         <Loader2 size={15} className="animate-spin text-blue-400" />
         {label}
       </span>

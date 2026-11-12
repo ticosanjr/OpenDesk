@@ -312,7 +312,7 @@ export function TaskDetailsModal({
           ? `${task.execution_mode} · ${task.effort_level} · ${task.assigned_agent ?? "router"}`
           : undefined
       }
-      className="max-w-3xl"
+      size="lg"
     >
       {task ? (
         <div className="space-y-4">
