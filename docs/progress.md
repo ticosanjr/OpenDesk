@@ -2159,3 +2159,14 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   acessível (`aria-expanded`). O board continua com as setas de rolagem.
 - Verificação: `npm run gate:fast` (158 Vitest), `kanban-origins`, `cards`,
   `ui-audit` e axe com o popover aberto. Sem release.
+
+## 2026-11-12 — onda 9: consistência de dados e estados vazios
+
+- Observabilidade alinhou colunas numéricas à direita, com fonte tabular e
+  sucesso em badge alinhado; a leitura de performance por agente ficou
+  consistente com as demais tabelas.
+- Estados vazios dentro de cards (Execuções, agentes, telemetria, atividades,
+  rotinas e governança) usam a variante compacta, reduzindo altura sem perder
+  orientação.
+- Verificação: `npm run gate:fast` (158 Vitest), `dashboard-data`,
+  `observability-data`, `runs-detail-ui` e `governance-ui`. Sem release.

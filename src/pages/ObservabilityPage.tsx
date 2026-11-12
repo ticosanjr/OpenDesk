@@ -259,14 +259,14 @@ export function ObservabilityPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-[10px]">
+                <table className="w-full text-left text-[12px]">
                   <thead className="border-b border-zinc-800 text-[11px] uppercase tracking-[0.06em] text-zinc-400">
                     <tr>
                       <th className="px-4 py-2">Agente</th>
-                      <th className="px-4 py-2">Execuções</th>
-                      <th className="px-4 py-2">Sucesso</th>
-                      <th className="px-4 py-2">Duração p95</th>
-                      <th className="px-4 py-2">Custo</th>
+                      <th className="px-4 py-2 text-right">Execuções</th>
+                      <th className="px-4 py-2 text-right">Sucesso</th>
+                      <th className="px-4 py-2 text-right">Duração p95</th>
+                      <th className="px-4 py-2 text-right">Custo</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -278,16 +278,20 @@ export function ObservabilityPage() {
                         <td className="px-4 py-2 font-mono text-zinc-300">
                           @{agent.agent_id}
                         </td>
-                        <td className="px-4 py-2 text-zinc-400">{agent.runs}</td>
-                        <td className="px-4 py-2">
-                          <Badge variant={successTone(agent.success_rate)}>
-                            {formatPercent(agent.success_rate * 100)}
-                          </Badge>
+                        <td className="px-4 py-2 text-right font-mono tabular-nums text-zinc-300">
+                          {agent.runs}
                         </td>
-                        <td className="px-4 py-2 text-zinc-400">
+                        <td className="px-4 py-2 text-right">
+                          <div className="flex justify-end">
+                            <Badge variant={successTone(agent.success_rate)}>
+                              {formatPercent(agent.success_rate * 100)}
+                            </Badge>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono tabular-nums text-zinc-400">
                           {formatMs(agent.p95_duration_ms)}
                         </td>
-                        <td className="px-4 py-2 text-zinc-400">
+                        <td className="px-4 py-2 text-right font-mono tabular-nums text-zinc-400">
                           {formatUsd(agent.cost_usd)}
                         </td>
                       </tr>

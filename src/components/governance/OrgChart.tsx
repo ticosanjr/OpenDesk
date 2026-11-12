@@ -51,6 +51,7 @@ export function OrgChart({
           icon={Network}
           title="Nenhum agente neste workspace"
           description="Crie agentes no Studio para montar o organograma."
+          compact
           action={
             <Link
               to="/studio"

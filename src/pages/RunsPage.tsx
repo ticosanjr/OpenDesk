@@ -201,6 +201,7 @@ export function RunsPage() {
                   ? "Execute uma tarefa ou rotina para ver o histórico aqui."
                   : "Ajuste a busca ou o filtro de status."
               }
+              compact
               className="border-0 bg-transparent"
             />
           ) : (
