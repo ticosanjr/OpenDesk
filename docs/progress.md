@@ -2222,3 +2222,17 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Integrações adotou o mesmo trilho vertical agrupado de Configurações
   (Mensageria, I/O, Sistema), com `role="tab"` preservado e largura maior para
   formulários e cartões.
+
+## 2026-11-12 — onda 12: navegação compartilhada, busca agrupada e release 0.50.0
+
+- Kanban ganhou views nomeadas persistidas, aplicáveis pelo popover de filtros.
+- Configurações e Integrações compartilham o trilho vertical `SectionNav`
+  (grupos, `role="tab"`, deep links preservados).
+- Busca global agrupa a aba Todos por tipo, com contagens; abas específicas
+  continuam planas.
+- Rodapés de instalação ficam visíveis em listas longas; o formulário de rotina
+  evita sobreposição em viewports compactos.
+- Execuções exibem resumo de sucesso/falhas/em andamento e status traduzido no
+  RunLog.
+- Release 0.50.0 com notas em `docs/releases/0.50.0.md`.
+- Verificação: gate rápido, suíte Playwright completa, axe e detector limpos.

@@ -119,7 +119,8 @@ Shared primitives live in `src/components/ui/`:
 
 `Button`, `Badge`, `Card`, `Modal`, `Tooltip`, `EmptyState`,
 `LoadingState`, `IconLabel`, `StatusDot`, `WorkflowStatusBadge`, `FilterBar`,
-`FilterSearch`, `FilterSelect`, `SectionTabs`, `Switch`, `ConfirmDialog`.
+`FilterSearch`, `FilterSelect`, `SectionTabs`, `SectionNav`, `Switch`,
+`ConfirmDialog`.
 
 ### Status badges
 One canonical badge per object. `Badge` is 11px mono uppercase, 20px tall.
@@ -157,6 +158,11 @@ interactive controls.
   metadata and actions; Escape and focus trapping come from the modal.
 - Empty, loading and error states inside a viewer must keep the same frame and
   offer a recovery action.
+
+### Kanban views
+Named views persist origin, search, agent, priority and the attention preset in
+`opendesk.kanban.views.v1`. They are applied and removed from the filter
+popover; the board itself stays free of another toolbar row.
 
 ### Favoritos e recomendados
 - Favorites are global (`opendesk.favorites.v1`) and apply to packs and
