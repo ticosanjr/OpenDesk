@@ -34,10 +34,10 @@ pub(super) fn tools() -> Vec<Value> {
         ),
         tool(
             "task_create",
-            "Cria uma tarefa no Kanban em TODO. Use para trabalho durável, não para passos triviais.",
+            "Cria uma tarefa no Kanban em TODO. Use para trabalho durável, não para passos triviais. O título é opcional; sem ele, usamos o início da descrição.",
             json!({
                 "type": "object",
-                "required": ["title", "description"],
+                "required": ["description"],
                 "properties": {
                     "title": { "type": "string" },
                     "description": { "type": "string" },
@@ -84,7 +84,7 @@ pub(super) fn tools() -> Vec<Value> {
                 "properties": {
                     "id": { "type": "string" },
                     "status": { "type": "string", "enum": ["TODO", "IN_PROGRESS", "IN_REVIEW", "BLOCKED", "DONE", "CANCELLED"] },
-                    "position_index": { "type": "integer" }
+                    "reason": { "type": "string" }
                 }
             }),
         ),
@@ -101,6 +101,23 @@ pub(super) fn tools() -> Vec<Value> {
                     "manual_model": { "type": "string" },
                     "manual_effort": { "type": "string" },
                     "execution_mode": { "type": "string" }
+                }
+            }),
+        ),
+        tool(
+            "ask_user",
+            "Faz uma pergunta de esclarecimento ao humano e pausa a tarefa até a resposta. Use quando faltar informação essencial e não for seguro assumir. Informe o task_id recebido no contexto OpenDesk.",
+            json!({
+                "type": "object",
+                "required": ["task_id", "question"],
+                "properties": {
+                    "task_id": { "type": "string" },
+                    "question": { "type": "string" },
+                    "context": { "type": "string" },
+                    "options": { "type": "array", "items": { "type": "string" } },
+                    "multiple": { "type": "boolean" },
+                    "allow_custom": { "type": "boolean" },
+                    "timeout_minutes": { "type": "integer", "minimum": 1, "maximum": 120 }
                 }
             }),
         ),
@@ -378,6 +395,7 @@ mod tests {
             "task_update",
             "task_move",
             "task_dispatch",
+            "ask_user",
             "task_message_list",
             "task_message_post",
             "run_list",
@@ -398,6 +416,6 @@ mod tests {
         ] {
             assert!(names.iter().any(|name| name == expected), "{expected}");
         }
-        assert_eq!(names.len(), 23);
+        assert_eq!(names.len(), 24);
     }
 }

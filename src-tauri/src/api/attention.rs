@@ -1,6 +1,6 @@
 use crate::{
     app_state::AppState,
-    db::{permissions, proposals},
+    db::{interactions, missed_runs, permissions, proposals},
     error::{AppError, AppResult},
 };
 use axum::{
@@ -113,14 +113,18 @@ pub async fn attention(
     // One request feeds the whole Attention Card. Previously the card made
     // four parallel calls and could render partially loaded sections.
     let permissions = permissions::pending(&state.db, &workspace_id).await?;
+    let task_interactions = interactions::pending_for_workspace(&state.db, &workspace_id).await?;
     let hitl = crate::recipes::store::pending_hitl(&state.db, &workspace_id).await?;
     let proposals = proposals::pending(&state.db, &workspace_id).await?;
+    let missed = missed_runs::list_pending_with_names(&state.db, &workspace_id).await?;
 
     Ok(Json(serde_json::json!({
         "awaiting_approval": awaiting,
         "blocked": blocked,
         "failed_runs": failed,
         "requests": permissions,
+        "task_interactions": task_interactions,
+        "missed_runs": missed,
         "hitl": hitl,
         "proposals": proposals,
     })))

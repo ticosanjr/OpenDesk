@@ -22,6 +22,7 @@ import {
   artifactNotificationsEnabled,
   isTerminalTaskStatus,
   markNotificationOnce,
+  notificationEnabled,
   sendNativeNotification,
 } from "@/lib/notification-policy";
 
@@ -89,6 +90,11 @@ export function AppShell() {
     // notifies; runs without a task (schedules) notify once per run.
     if (lastRunEvent.task_id) return;
     const status = lastRunEvent.status;
+    const enabled =
+      status === "SUCCESS"
+        ? notificationEnabled("run_finished")
+        : notificationEnabled("run_failed");
+    if (!enabled) return;
     const key = `run:${lastRunEvent.run_id}:${status}`;
     if (!markNotificationOnce(key)) return;
     const title =
@@ -116,6 +122,11 @@ export function AppShell() {
   useEffect(() => {
     const event = lastTaskEvent;
     if (!event || !isTerminalTaskStatus(event.stage)) return;
+    const enabled =
+      event.stage === "DONE"
+        ? notificationEnabled("run_finished")
+        : notificationEnabled("run_failed");
+    if (!enabled) return;
     const key = `task:${event.task_id}:${event.stage}`;
     if (!markNotificationOnce(key)) return;
     const title =
@@ -193,6 +204,7 @@ export function AppShell() {
 
   useEffect(() => {
     if (!lastScheduleEvent) return;
+    if (!notificationEnabled("schedule_skips")) return;
     let cancelled = false;
     void apiGet<Schedule[]>(
       `/api/schedules?workspace_id=${encodeURIComponent(lastScheduleEvent.workspace_id)}`,

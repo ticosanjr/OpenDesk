@@ -2,12 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import {
-  Ban,
+  AlertTriangle,
   CheckCircle2,
-  Circle,
   Columns3,
-  Eye,
   GripVertical,
+  Inbox,
   LayoutList,
   ListChecks,
   Loader2,
@@ -21,19 +20,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CountPill } from "@/components/ui/count-pill";
+import { Modal } from "@/components/ui/modal";
 import { IconLabel } from "@/components/ui/icon-label";
 import { TaskCard } from "@/components/kanban/TaskCard";
+import { WorkflowStatusBadge } from "@/components/ui/workflow-status";
 import {
   CreateTaskModal,
   EditTaskModal,
+  ForkTaskModal,
   LogDrawer,
   SwarmModal,
   TaskDetailsModal,
 } from "@/components/kanban/task-modals";
-import { toast } from "@/store/toast-store";
 import { QueueController } from "@/components/queue/QueueController";
-import { links } from "@/lib/links";
-import { PRIORITY_LABEL, STATUS_LABEL } from "@/lib/task-ui";
+import { PRIORITY_LABEL } from "@/lib/task-ui";
+import { workflowMeta } from "@/lib/workflow";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
@@ -56,13 +57,62 @@ import {
   type TaskVisibility,
 } from "@/lib/task-visibility";
 
-const COLUMNS = [
-  { id: "TODO", label: "To do", tone: "blue" as const, icon: Circle },
-  { id: "IN_PROGRESS", label: "In progress", tone: "purple" as const, icon: Loader2 },
-  { id: "IN_REVIEW", label: "In review", tone: "yellow" as const, icon: Eye },
-  { id: "BLOCKED", label: "Blocked", tone: "red" as const, icon: Ban },
-  { id: "DONE", label: "Done", tone: "green" as const, icon: CheckCircle2 },
-  { id: "CANCELLED", label: "Cancelled", tone: "default" as const, icon: XCircle },
+type WorkflowColumn = {
+  id: string;
+  label: string;
+  tone: "default" | "blue" | "green" | "yellow" | "red" | "purple";
+  icon: typeof Inbox;
+  states: string[];
+  dropStatus: string;
+  description: string;
+};
+
+const COLUMNS: WorkflowColumn[] = [
+  {
+    id: "QUEUE",
+    label: "Fila",
+    tone: "blue",
+    icon: Inbox,
+    states: ["READY", "QUEUED", "HELD"],
+    dropStatus: "TODO",
+    description: "Prontas, na fila ou em espera. Iniciam automaticamente.",
+  },
+  {
+    id: "RUNNING",
+    label: "Em execução",
+    tone: "purple",
+    icon: Loader2,
+    states: ["RUNNING"],
+    dropStatus: "IN_PROGRESS",
+    description: "Rodando de verdade, com job e run ativos.",
+  },
+  {
+    id: "ATTENTION",
+    label: "Atenção",
+    tone: "yellow",
+    icon: AlertTriangle,
+    states: ["NEEDS_APPROVAL", "WAITING_INPUT", "BLOCKED"],
+    dropStatus: "BLOCKED",
+    description: "Precisa de você: aprovação, pergunta, permissão ou falha.",
+  },
+  {
+    id: "DONE",
+    label: "Concluído",
+    tone: "green",
+    icon: CheckCircle2,
+    states: ["DONE"],
+    dropStatus: "DONE",
+    description: "Execução concluída.",
+  },
+  {
+    id: "CANCELLED",
+    label: "Cancelado",
+    tone: "default",
+    icon: XCircle,
+    states: ["CANCELLED"],
+    dropStatus: "CANCELLED",
+    description: "Execução interrompida.",
+  },
 ];
 
 export function KanbanPage() {
@@ -99,6 +149,9 @@ export function KanbanPage() {
     "work",
   );
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [blockingTask, setBlockingTask] = useState<Task | null>(null);
+  const [blockReason, setBlockReason] = useState("");
+  const [forkSource, setForkSource] = useState<Task | null>(null);
   const [visibility, setVisibility] = useState<TaskVisibility>(DEFAULT_VISIBILITY);
   const [visibilityOpen, setVisibilityOpen] = useState(false);
   const draggedRef = useRef<string | null>(null);
@@ -250,20 +303,31 @@ export function KanbanPage() {
     }
   }
 
-  async function transitionTask(task: Task, status: string) {
+  async function transitionTask(task: Task, status: string, reason?: string) {
     if (!status || status === task.status) return;
     setError(null);
-    setTasks((current) =>
-      current.map((item) => (item.id === task.id ? { ...item, status } : item)),
-    );
+    if (status !== "IN_PROGRESS") {
+      setTasks((current) =>
+        current.map((item) => (item.id === task.id ? { ...item, status } : item)),
+      );
+    }
     try {
-      await apiPost(`/api/tasks/${task.id}/transition`, { status });
-      toast({
-        tone: status === "CANCELLED" || status === "BLOCKED" ? "warning" : "success",
-        title: `Tarefa movida para ${STATUS_LABEL[status] ?? status}`,
-        description: task.title,
-        href: links.task(task.id),
+      await apiPost(`/api/tasks/${task.id}/transition`, {
+        status,
+        reason: reason ?? null,
       });
+      // Moving a card is not an outcome: no toast/native notification.
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+      await load();
+    }
+  }
+
+  async function holdTask(task: Task, held: boolean) {
+    setError(null);
+    try {
+      await apiPost(`/api/tasks/${task.id}/hold`, { held });
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -272,23 +336,7 @@ export function KanbanPage() {
   }
 
   async function setWaiting(task: Task) {
-    await transitionTask(task, "TODO");
-  }
-
-  async function forkTask(task: Task) {
-    try {
-      const forked = await apiPost<Task>(`/api/tasks/${task.id}/fork`, {});
-      setSelectedTask(null);
-      await load();
-      toast({
-        tone: "success",
-        title: "Fork criado",
-        description: forked.title,
-        href: links.task(forked.id),
-      });
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
+    await holdTask(task, true);
   }
 
   async function toggleQueue(pause: boolean) {
@@ -630,20 +678,21 @@ export function KanbanPage() {
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-500/25 bg-blue-500/[0.06] px-3 py-2">
           <Badge variant="blue">{selected.size} selecionada(s)</Badge>
           <span className="text-[11px] text-zinc-400">mover para:</span>
-          {["TODO", "IN_PROGRESS", "DONE", "BLOCKED", "CANCELLED"].map((status) => (
+          {COLUMNS.map((column) => (
             <Button
-              key={status}
+              key={column.id}
               variant="outline"
               size="sm"
               className="h-7 text-[10px]"
+              title={column.description}
               onClick={async () => {
                 for (const task of tasks.filter((item) => selected.has(item.id))) {
-                  await transitionTask(task, status);
+                  await transitionTask(task, column.dropStatus);
                 }
                 setSelected(new Set());
               }}
             >
-              {STATUS_LABEL[status] ?? status}
+              {column.label}
             </Button>
           ))}
           <button
@@ -673,7 +722,9 @@ export function KanbanPage() {
         }}
       >
         {COLUMNS.map((column) => {
-          const columnTasks = filteredTasks.filter((task) => task.status === column.id);
+          const columnTasks = filteredTasks.filter((task) =>
+            column.states.includes(workflowMeta(task).state),
+          );
           return (
             <Card
               key={column.id}
@@ -699,11 +750,20 @@ export function KanbanPage() {
                 draggedRef.current = null;
                 setDragOverColumn(null);
                 const task = tasks.find((item) => item.id === taskId);
-                if (task) void transitionTask(task, column.id);
+                if (!task) return;
+                if (column.dropStatus === "BLOCKED") {
+                  setBlockReason("");
+                  setBlockingTask(task);
+                } else {
+                  void transitionTask(task, column.dropStatus);
+                }
               }}
             >
               <CardHeader className="px-3 py-2.5">
-                <CardTitle className="flex items-center gap-2 text-[12px]">
+                <CardTitle
+                  className="flex items-center gap-2 text-[12px]"
+                  title={column.description}
+                >
                   <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
                   {column.label}
                 </CardTitle>
@@ -717,19 +777,15 @@ export function KanbanPage() {
                   </div>
                 ) : (
                   columnTasks.map((task) => {
-                    const cardMeta =
-                      COLUMNS.find((column) => column.id === task.status) ?? COLUMNS[0];
                     return (
                       <TaskCard
                         key={task.id}
                         task={task}
-                        statusLabel={cardMeta.label}
-                        statusTone={cardMeta.tone}
-                        StatusIcon={cardMeta.icon}
                         pinned={pinned[task.id] ?? 0}
                         daemonOnline={Boolean(daemon?.online)}
                         onOpen={() => setSelectedTask(task)}
                         onDispatch={() => void dispatch(task)}
+                        onResume={() => void holdTask(task, false)}
                         onCancel={() => void transitionTask(task, "CANCELLED")}
                         onApprove={() => void approve(task)}
                         onLogs={() => setLogTask(task)}
@@ -804,9 +860,7 @@ export function KanbanPage() {
                         {task.title}
                       </td>
                       <td className="px-3 py-2">
-                        <Badge variant={COLUMNS.find((item) => item.id === task.status)?.tone ?? "default"}>
-                          {STATUS_LABEL[task.status] ?? task.status}
-                        </Badge>
+                        <WorkflowStatusBadge task={task} />
                       </td>
                       <td className="px-3 py-2 font-mono text-[11px] text-zinc-400">
                         {task.assigned_agent ? `@${task.assigned_agent}` : "router"}
@@ -852,6 +906,45 @@ export function KanbanPage() {
         />
       )}
 
+      <Modal
+        open={!!blockingTask}
+        onClose={() => setBlockingTask(null)}
+        title="Mover para Atenção"
+        description="Explique por que esta tarefa precisa de intervenção humana."
+      >
+        <div className="space-y-3">
+          <label className="block">
+            <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+              Motivo do bloqueio
+            </span>
+            <textarea
+              value={blockReason}
+              onChange={(event) => setBlockReason(event.target.value)}
+              rows={3}
+              autoFocus
+              placeholder="Ex.: falta acesso ao Drive, precisa revisar o escopo..."
+              className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 py-2 text-[11px] text-zinc-200 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setBlockingTask(null)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (!blockingTask) return;
+                const reason = blockReason.trim() || "Bloqueada manualmente";
+                setBlockingTask(null);
+                void transitionTask(blockingTask, "BLOCKED", reason);
+              }}
+            >
+              Bloquear tarefa
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       <CreateTaskModal
         open={createOpen}
         workspaceId={activeWorkspaceId}
@@ -873,7 +966,10 @@ export function KanbanPage() {
         onDispatch={(task) => void dispatch(task)}
         onStatus={(task, status) => void transitionTask(task, status)}
         onWait={(task) => void setWaiting(task)}
-        onFork={(task) => void forkTask(task)}
+        onFork={(task) => {
+          setSelectedTask(null);
+          setForkSource(task);
+        }}
         onSwarm={(task) => {
           setSwarmTask(task);
           setSelectedTask(null);
@@ -882,6 +978,16 @@ export function KanbanPage() {
           setLogTask(task);
           setInitialRunId(null);
           setSelectedTask(null);
+        }}
+      />
+
+      <ForkTaskModal
+        open={!!forkSource}
+        source={forkSource}
+        onClose={() => setForkSource(null)}
+        onSaved={async () => {
+          setForkSource(null);
+          await load();
         }}
       />
 

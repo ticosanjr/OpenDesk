@@ -7,6 +7,8 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct RunTimeline {
     pub run: Option<TaskRun>,
+    pub root_run_id: Option<String>,
+    pub attempts: Vec<RunAttempt>,
     pub status: String,
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
@@ -22,6 +24,21 @@ pub struct RunTimeline {
     pub output_directory_relative: Option<String>,
     pub artifacts: Vec<TimelineArtifact>,
     pub events: Vec<TimelineEvent>,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct RunAttempt {
+    pub id: String,
+    pub attempt_number: i64,
+    pub status: String,
+    pub phase: Option<String>,
+    pub started_at: String,
+    pub completed_at: Option<String>,
+    pub duration_ms: i64,
+    pub tokens_input: i64,
+    pub tokens_output: i64,
+    pub cost_usd: f64,
+    pub error_message: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -43,6 +60,8 @@ pub struct TimelineEvent {
     /// Raw JSON payload for generic events, truncated for transport.
     pub data: String,
     pub tool: Option<TimelineTool>,
+    pub run_id: Option<String>,
+    pub attempt_number: Option<i64>,
     pub step_index: Option<usize>,
     pub started_at: Option<String>,
     pub ended_at: Option<String>,
@@ -62,6 +81,7 @@ pub struct TimelineSection {
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct TimelineStep {
     pub index: usize,
+    pub attempt_number: Option<i64>,
     pub agent: Option<String>,
     pub model: Option<String>,
     pub started_at: Option<String>,

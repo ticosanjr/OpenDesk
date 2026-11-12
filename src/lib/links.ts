@@ -21,6 +21,7 @@ export const links = {
     return `/studio?${params.toString()}`;
   },
   file: (path: string) => `/files?path=${encodeURIComponent(path)}`,
+  dir: (path: string) => `/files?dir=1&path=${encodeURIComponent(path)}`,
   settings: (
     section:
       | "general"

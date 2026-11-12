@@ -96,6 +96,8 @@ export interface PackItem {
   description?: string | null;
   content: string;
   files: string[];
+  installed: boolean;
+  status: "installed" | "modified" | "missing" | string;
 }
 
 export interface ItemInstallResult {

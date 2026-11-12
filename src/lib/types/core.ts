@@ -106,6 +106,11 @@ export interface Task {
   parent_task_id?: string | null;
   dedupe_key?: string | null;
   deduplicated?: boolean;
+  held: boolean;
+  active_job_status?: string | null;
+  active_run_status?: string | null;
+  workflow_state?: string | null;
+  workflow_reason?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -122,6 +127,36 @@ export interface DispatchDecision {
   policy_applied: string;
   rule_name?: string | null;
   origin: string;
+}
+
+export interface MissedRun {
+  id: string;
+  workspace_id: string;
+  schedule_id: string;
+  schedule_name?: string | null;
+  scheduled_for: string;
+  detected_at: string;
+  reason: string;
+  status: "PENDING" | "QUEUED" | "IGNORED" | "FAILED" | "CANCELLED" | string;
+  run_id?: string | null;
+  error_message?: string | null;
+}
+
+export interface TaskInteraction {
+  id: string;
+  workspace_id: string;
+  task_id: string;
+  run_id?: string | null;
+  question: string;
+  context_markdown?: string | null;
+  options_json: string;
+  multiple: boolean;
+  allow_custom: boolean;
+  status: "PENDING" | "RESOLVED" | "EXPIRED" | "CANCELLED" | string;
+  answer_json?: string | null;
+  expires_at: string;
+  created_at: string;
+  resolved_at?: string | null;
 }
 
 export interface TaskRun {

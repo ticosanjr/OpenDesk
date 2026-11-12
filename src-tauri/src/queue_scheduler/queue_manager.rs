@@ -387,6 +387,18 @@ impl QueueManager {
             });
         }
 
+        let parent_run_id = if job.session_id.is_some() {
+            match job.task_id.as_deref() {
+                Some(task_id) => runs::latest_for_task(&self.pool, task_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|run| run.id),
+                None => None,
+            }
+        } else {
+            None
+        };
         let run = match runs::create(
             &self.pool,
             runs::CreateRunInput {
@@ -395,7 +407,7 @@ impl QueueManager {
                 workspace_id: job.workspace_id.clone(),
                 task_id: job.task_id.clone(),
                 schedule_id: job.schedule_id.clone(),
-                parent_run_id: None,
+                parent_run_id,
                 phase: Some(phase.to_string()),
                 agent_name: job.resolved_agent.clone(),
                 execution_mode: job.resolved_mode.clone(),

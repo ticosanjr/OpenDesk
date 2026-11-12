@@ -50,7 +50,13 @@ export function PackInstallModal({
   onInstallItem: (kind: string, id: string) => void;
 }) {
   const [itemKind, setItemKind] = useState<(typeof ITEM_KINDS)[number]["id"]>("agent");
-  const visibleItems = items.filter((item) => item.kind === itemKind);
+  const [itemStatus, setItemStatus] = useState<"all" | "installed" | "available">("all");
+  const visibleItems = items.filter(
+    (item) =>
+      item.kind === itemKind &&
+      (itemStatus === "all" ||
+        (itemStatus === "installed" ? item.installed : !item.installed)),
+  );
 
   return (
     <Modal
@@ -133,6 +139,27 @@ export function PackInstallModal({
                 );
               })}
             </div>
+            <div className="flex flex-wrap items-center gap-1 border-t border-zinc-800/60 px-2 py-1.5">
+              {([
+                ["all", "Todos"],
+                ["installed", "Instalados"],
+                ["available", "Disponíveis"],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={itemStatus === value}
+                  onClick={() => setItemStatus(value)}
+                  className={
+                    itemStatus === value
+                      ? "rounded-md bg-zinc-800 px-2 py-1 text-[9px] text-zinc-100"
+                      : "rounded-md px-2 py-1 text-[9px] text-zinc-500 hover:text-zinc-200"
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <div className="max-h-56 overflow-y-auto p-1.5">
               {itemsLoading ? (
                 <LoadingState compact label="Carregando itens…" />
@@ -147,6 +174,28 @@ export function PackInstallModal({
                     <summary className="flex cursor-pointer items-center gap-2 text-[10px] text-zinc-300">
                       <span className="min-w-0 flex-1 truncate">{item.name}</span>
                       <Badge variant="default">{item.kind}</Badge>
+                      <Badge
+                        variant={
+                          item.status === "installed"
+                            ? "green"
+                            : item.status === "modified"
+                              ? "yellow"
+                              : "default"
+                        }
+                        title={
+                          item.installed
+                            ? "Todos os arquivos deste item estão instalados no workspace"
+                            : item.status === "modified"
+                              ? "O item existe, mas foi modificado"
+                              : "Este item ainda não está instalado"
+                        }
+                      >
+                        {item.status === "installed"
+                          ? "instalado"
+                          : item.status === "modified"
+                            ? "modificado"
+                            : "disponível"}
+                      </Badge>
                       <Button
                         variant="outline"
                         size="sm"
@@ -158,7 +207,11 @@ export function PackInstallModal({
                           onInstallItem(item.kind, item.id);
                         }}
                       >
-                        {installingItem === `${item.kind}:${item.id}` ? "Instalando…" : "Instalar"}
+                        {installingItem === `${item.kind}:${item.id}`
+                          ? "Instalando…"
+                          : item.installed
+                            ? "Reaplicar"
+                            : "Instalar"}
                       </Button>
                     </summary>
                     {item.description ? (

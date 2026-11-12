@@ -158,6 +158,17 @@ pub async fn list_with_limit(
         .await?)
 }
 
+pub async fn latest_for_task(pool: &SqlitePool, task_id: &str) -> AppResult<Option<TaskRun>> {
+    let query = format!(
+        "SELECT {COLUMNS} FROM task_runs r LEFT JOIN tasks t ON t.id = r.task_id
+         WHERE r.task_id = ? ORDER BY r.started_at DESC, r.attempt_number DESC LIMIT 1"
+    );
+    Ok(sqlx::query_as::<_, TaskRun>(&query)
+        .bind(task_id)
+        .fetch_optional(pool)
+        .await?)
+}
+
 pub async fn list_by_schedule(pool: &SqlitePool, schedule_id: &str) -> AppResult<Vec<TaskRun>> {
     let query = format!(
         "SELECT {COLUMNS} FROM task_runs r

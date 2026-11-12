@@ -1,45 +1,36 @@
-import type { LucideIcon } from "lucide-react";
 import {
   CheckCircle2,
   FileText,
+  FolderOpen,
   Globe,
   GripVertical,
-  Loader2,
   Play,
   Square,
   Star,
-  XCircle,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EntityLink } from "@/components/ui/entity-link";
-import { Tooltip } from "@/components/ui/tooltip";
-import { WorkingIndicator } from "@/components/ui/working-indicator";
+import { WorkflowStatusBadge } from "@/components/ui/workflow-status";
 import { links } from "@/lib/links";
-import { relativeTime } from "@/lib/format";
 import {
   EFFORT_TONE,
   ORIGIN_LABEL,
   PRIORITY_LABEL,
   PRIORITY_TONE,
 } from "@/lib/task-ui";
-import {
-  isTaskAwaitingApproval,
-  isTaskFailed,
-  taskState,
-} from "@/lib/task-state";
+import { isTaskAwaitingApproval, taskState } from "@/lib/task-state";
 import type { Task } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export function TaskCard({
   task,
-  statusLabel,
-  statusTone,
-  StatusIcon,
   pinned,
   daemonOnline,
   onOpen,
   onDispatch,
+  onResume,
   onCancel,
   onApprove,
   onLogs,
@@ -47,13 +38,11 @@ export function TaskCard({
   onDragEnd,
 }: {
   task: Task;
-  statusLabel: string;
-  statusTone: "default" | "blue" | "green" | "yellow" | "red" | "purple";
-  StatusIcon: LucideIcon;
   pinned: number;
   daemonOnline: boolean;
   onOpen: () => void;
   onDispatch: () => void;
+  onResume: () => void;
   onCancel: () => void;
   onApprove: () => void;
   onLogs: () => void;
@@ -62,6 +51,12 @@ export function TaskCard({
 }) {
   const state = taskState(task);
   const running = state === "running";
+  const attention =
+    state === "blocked" || state === "needs_approval" || state === "waiting_input";
+  const queued = state === "queued";
+  const held = state === "held";
+  const waitingInput = state === "waiting_input";
+  const hasOutput = Boolean(task.output_dir_path || task.last_run_id);
   const webTask = task.tags_json.includes('"needs-browser"');
 
   const meta = [
@@ -71,18 +66,31 @@ export function TaskCard({
         to={links.agent(task.assigned_agent, "workspace", task.workspace_id)}
         chip
         className="max-w-[88px]"
+        title={`Agente responsável: @${task.assigned_agent}`}
       >
         @{task.assigned_agent}
       </EntityLink>
     ) : null,
-    <Badge key="priority" variant={PRIORITY_TONE[task.priority]}>
+    <Badge
+      key="priority"
+      variant={PRIORITY_TONE[task.priority]}
+      title={`Prioridade: ${PRIORITY_LABEL[task.priority] ?? task.priority} (${task.priority} de 4)`}
+    >
       {PRIORITY_LABEL[task.priority] ?? task.priority}
     </Badge>,
-    <Badge key="effort" variant={EFFORT_TONE[task.effort_level] ?? "default"}>
+    <Badge
+      key="effort"
+      variant={EFFORT_TONE[task.effort_level] ?? "default"}
+      title={`Effort: ${task.effort_level}. Controla quanto esforço de raciocínio o modelo deve usar.`}
+    >
       {task.effort_level}
     </Badge>,
     task.origin && task.origin !== "MANUAL" ? (
-      <Badge key="origin" variant="purple">
+      <Badge
+        key="origin"
+        variant="purple"
+        title={`Origem da tarefa: ${ORIGIN_LABEL[task.origin] ?? task.origin}`}
+      >
         {ORIGIN_LABEL[task.origin] ?? task.origin}
       </Badge>
     ) : null,
@@ -98,27 +106,13 @@ export function TaskCard({
         {pinned}
       </Badge>
     ) : null,
-    task.phase_status ? (
-      <Badge
-        key="phase"
-        variant={
-          isTaskFailed(task)
-            ? "red"
-            : isTaskAwaitingApproval(task) || task.phase_status === "waiting"
-              ? "yellow"
-              : "default"
-        }
-        title={task.blocked_reason ?? "Estado detalhado da execução"}
-        className="max-w-[96px]"
-      >
-        <span className="truncate">{task.phase_status}</span>
-      </Badge>
-    ) : null,
   ].filter(Boolean) as React.ReactNode[];
 
   return (
     <article
       data-card="task"
+      data-workflow-state={task.workflow_state ?? "UNKNOWN"}
+      data-workflow-reason={task.workflow_reason ?? ""}
       role="button"
       tabIndex={0}
       draggable
@@ -133,12 +127,14 @@ export function TaskCard({
         }
       }}
       className={cn(
-        "flex h-[152px] flex-col rounded-lg border bg-zinc-950/50 p-2.5 text-left outline-none transition-colors hover:border-zinc-700 focus-visible:ring-2 focus-visible:ring-blue-500/60",
-        task.status === "BLOCKED"
-          ? "border-red-500/40"
+        "flex h-[184px] flex-col rounded-lg border bg-zinc-950/50 p-2.5 text-left outline-none transition-colors hover:border-zinc-700 focus-visible:ring-2 focus-visible:ring-blue-500/60",
+        attention
+          ? "border-amber-500/40"
           : state === "running"
             ? "border-blue-500/40"
-            : "border-zinc-800/80",
+            : queued
+              ? "border-amber-500/25"
+              : "border-zinc-800/80",
       )}
     >
       <div className="flex min-h-[30px] items-start justify-between gap-2">
@@ -154,15 +150,10 @@ export function TaskCard({
             {task.title}
           </p>
         </div>
-        <Tooltip content={`Status: ${statusLabel} (${task.status})`}>
-          <Badge variant={statusTone} className="max-w-[96px] shrink-0">
-            <StatusIcon size={9} />
-            <span className="truncate">{statusLabel}</span>
-          </Badge>
-        </Tooltip>
+        <WorkflowStatusBadge task={task} className="max-w-[132px] shrink-0" />
       </div>
 
-      <p className="mt-0.5 line-clamp-1 min-h-[14px] text-[10px] leading-snug text-zinc-500">
+      <p className="mt-0.5 line-clamp-3 min-h-[42px] text-[10px] leading-snug text-zinc-500">
         {task.description || "—"}
       </p>
 
@@ -177,31 +168,25 @@ export function TaskCard({
 
       <div className="mt-auto flex h-7 items-center gap-1 border-t border-zinc-800/60 pt-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          {running ? <WorkingIndicator /> : null}
-          {task.last_run_status ? (
-            <span
-              className={cn(
-                "inline-flex min-w-0 items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[9px] font-semibold",
-                task.last_run_status === "SUCCESS"
-                  ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-300"
-                  : task.last_run_status === "FAILED"
-                    ? "border-red-500/25 bg-red-500/10 text-red-300"
-                    : "border-zinc-700 bg-zinc-900 text-zinc-400",
-              )}
-              title={`Última execução: ${task.last_run_status} · ${relativeTime(task.last_run_at)}`}
+          {hasOutput ? (
+            <Link
+              to={`/artifacts?task=${encodeURIComponent(task.id)}`}
+              onClick={(event) => event.stopPropagation()}
+              title="Ver arquivos gerados por esta tarefa"
+              className="inline-flex items-center gap-1 rounded-md border border-zinc-800/80 bg-zinc-900/50 px-1.5 py-0.5 text-[9px] text-zinc-400 transition-colors hover:border-blue-500/40 hover:text-blue-200"
             >
-              {task.last_run_status === "SUCCESS" ? (
-                <CheckCircle2 size={10} />
-              ) : task.last_run_status === "FAILED" ? (
-                <XCircle size={10} />
-              ) : (
-                <Loader2 size={10} />
-              )}
-              <span className="truncate">{task.last_run_status}</span>
+              <FolderOpen size={10} />
+              arquivos
+            </Link>
+          ) : attention ? (
+            <span className="truncate text-[9px] text-amber-300/90">
+              {task.workflow_reason === "in_progress_without_run"
+                ? "sem execução ativa"
+                : "precisa de atenção"}
             </span>
           ) : (
             <span className="truncate font-mono text-[9px] text-zinc-500">
-              sem execução
+              {task.status.toLowerCase()}
             </span>
           )}
         </div>
@@ -219,12 +204,26 @@ export function TaskCard({
               <CheckCircle2 size={11} />
               Aprovar
             </Button>
-          ) : running ? (
+          ) : held ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-1.5 text-[10px]"
+              title="Retomar e entrar na fila automaticamente"
+              onClick={(event) => {
+                event.stopPropagation();
+                onResume();
+              }}
+            >
+              <Play size={10} />
+              Retomar
+            </Button>
+          ) : running || queued ? (
             <Button
               variant="destructive"
               size="sm"
               className="h-6 px-1.5 text-[10px]"
-              title="Cancelar a execução agora"
+              title={queued ? "Remover da fila" : "Cancelar a execução agora"}
               onClick={(event) => {
                 event.stopPropagation();
                 onCancel();
@@ -232,6 +231,19 @@ export function TaskCard({
             >
               <Square size={10} />
               Cancelar
+            </Button>
+          ) : waitingInput ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-1.5 text-[10px]"
+              title="Abrir a tarefa para responder ao agente"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpen();
+              }}
+            >
+              Responder
             </Button>
           ) : task.status !== "DONE" && task.status !== "CANCELLED" ? (
             <Button

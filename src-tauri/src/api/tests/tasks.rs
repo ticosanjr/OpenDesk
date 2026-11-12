@@ -300,3 +300,180 @@ async fn task_continuation_transition_and_diagnostics_cover_follow_up_path() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(diagnostics["runs"].as_array().expect("runs").len(), 1);
 }
+
+#[tokio::test]
+async fn task_workflow_hold_and_optional_title() {
+    let ctx = test_support::context().await;
+    let (status, created) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/tasks?workspace_id={}", ctx.workspace_id),
+        Some(json!({
+            "title": "",
+            "description": "Primeira linha\nRestante da descrição"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{created}");
+    assert_eq!(created["title"], "Primeira linha");
+    assert_eq!(created["workflow_state"], "READY");
+    let id = created["id"].as_str().expect("id").to_string();
+
+    let (status, held) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/tasks/{id}/hold"),
+        Some(json!({ "held": true })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{held}");
+    assert_eq!(held["workflow_state"], "HELD");
+    assert_eq!(held["status"], "TODO");
+
+    let (status, resumed) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/tasks/{id}/hold"),
+        Some(json!({ "held": false })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{resumed}");
+    assert_eq!(resumed["workflow_state"], "READY");
+
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/tasks/{id}/transition"),
+        Some(json!({ "status": "IN_PROGRESS" })),
+    )
+    .await;
+    assert!(
+        !status.is_success(),
+        "engine offline must reject fake running"
+    );
+
+    let (_, task) = call(&ctx, Method::GET, &format!("/api/tasks/{id}"), None).await;
+    assert_eq!(task["status"], "TODO");
+    assert_eq!(task["workflow_state"], "READY");
+}
+
+#[tokio::test]
+async fn ask_user_interaction_blocks_and_resumes_the_task() {
+    let ctx = test_support::context().await;
+    let (_, created) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/tasks?workspace_id={}", ctx.workspace_id),
+        Some(json!({
+            "description": "Tarefa que precisa de esclarecimento",
+            "tags": []
+        })),
+    )
+    .await;
+    let id = created["id"].as_str().expect("id").to_string();
+
+    let (status, interaction) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/tasks/{id}/interactions"),
+        Some(json!({
+            "question": "Qual formato você quer?",
+            "options": ["PDF", "Markdown"],
+            "allow_custom": true,
+            "timeout_minutes": 5
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{interaction}");
+    assert_eq!(interaction["status"], "PENDING");
+    let interaction_id = interaction["id"]
+        .as_str()
+        .expect("interaction id")
+        .to_string();
+
+    let (_, task) = call(&ctx, Method::GET, &format!("/api/tasks/{id}"), None).await;
+    assert_eq!(task["status"], "IN_REVIEW");
+    assert_eq!(task["phase_status"], "awaiting_input");
+
+    let (status, resolved) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/interactions/{interaction_id}/resolve"),
+        Some(json!({ "selected": ["Markdown"] })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{resolved}");
+    assert_eq!(resolved["status"], "RESOLVED");
+
+    let (_, pending) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/tasks/{id}/interactions"),
+        None,
+    )
+    .await;
+    assert!(pending.as_array().expect("pending").is_empty());
+
+    let (_, task) = call(&ctx, Method::GET, &format!("/api/tasks/{id}"), None).await;
+    assert_eq!(task["status"], "IN_PROGRESS");
+    assert_eq!(task["phase_status"], "running");
+}
+
+#[tokio::test]
+async fn missed_runs_can_be_listed_and_ignored() {
+    let ctx = test_support::context().await;
+    let input: crate::db::schedules::CreateScheduleInput = serde_json::from_value(json!({
+        "workspace_id": ctx.workspace_id,
+        "name": "Rotina perdida",
+        "command_or_prompt": "Resuma",
+        "cron_expression": "0 8 * * *",
+        "timezone": "UTC",
+        "trigger_type": "CRON",
+        "target_kind": "PROMPT"
+    }))
+    .expect("schedule input");
+    let schedule = crate::db::schedules::create(&ctx.state.db, input)
+        .await
+        .expect("schedule");
+    let missed = crate::db::missed_runs::create_or_ignore(
+        &ctx.state.db,
+        &ctx.workspace_id,
+        &schedule.id,
+        "2026-01-01T08:00:00Z",
+        "OFFLINE",
+    )
+    .await
+    .expect("missed");
+
+    let (status, list) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/missed-runs?workspace_id={}", ctx.workspace_id),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{list}");
+    assert_eq!(list.as_array().expect("list").len(), 1);
+
+    let (status, ignored) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/missed-runs/{}/ignore", missed.id),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{ignored}");
+    assert_eq!(ignored["status"], "IGNORED");
+
+    let (_, pending) = call(
+        &ctx,
+        Method::GET,
+        &format!(
+            "/api/missed-runs?workspace_id={}&status=PENDING",
+            ctx.workspace_id
+        ),
+        None,
+    )
+    .await;
+    assert!(pending.as_array().expect("pending").is_empty());
+}

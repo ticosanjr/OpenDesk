@@ -72,17 +72,50 @@ export function EditTaskModal({
   );
 }
 
+export function ForkTaskModal({
+  open,
+  source,
+  runId,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  source: Task | null;
+  runId?: string | null;
+  onClose: () => void;
+  onSaved: (task: Task) => Promise<void>;
+}) {
+  return (
+    <TaskFormModal
+      open={open && !!source}
+      mode="fork"
+      task={null}
+      forkSource={source}
+      forkRunId={runId}
+      workspaceId={source?.workspace_id ?? null}
+      onClose={onClose}
+      onSaved={async (saved) => {
+        await onSaved(saved);
+      }}
+    />
+  );
+}
+
 export function TaskFormModal({
   open,
   mode,
   task,
+  forkSource = null,
+  forkRunId = null,
   workspaceId,
   onClose,
   onSaved,
 }: {
   open: boolean;
-  mode: "create" | "edit";
+  mode: "create" | "edit" | "fork";
   task: Task | null;
+  forkSource?: Task | null;
+  forkRunId?: string | null;
   workspaceId: string | null;
   onClose: () => void;
   onSaved: (task: Task, rerun: boolean) => Promise<void>;
@@ -106,19 +139,22 @@ export function TaskFormModal({
   useEffect(() => {
     if (!open) return;
     setError(null);
-    if (task) {
-      setTitle(task.title);
-      setDescription(task.description);
-      setExecutionMode(task.execution_mode);
-      setPriority(task.priority);
-      setAgent(task.assigned_agent ?? "");
-      setModel(task.preferred_model ?? null);
+    const source = task ?? forkSource;
+    if (source) {
+      setTitle(
+        mode === "fork" ? `${source.title} (fork)` : source.title,
+      );
+      setDescription(source.description);
+      setExecutionMode(source.execution_mode);
+      setPriority(source.priority);
+      setAgent(source.assigned_agent ?? "");
+      setModel(source.preferred_model ?? null);
       setAttachments([]);
-      setEffort(task.effort_level);
-      setEmail(task.notify_email ?? "");
-      setExportToGdocs(task.export_to_gdocs);
+      setEffort(source.effort_level);
+      setEmail(source.notify_email ?? "");
+      setExportToGdocs(source.export_to_gdocs);
       try {
-        const parsed = JSON.parse(task.tags_json) as string[];
+        const parsed = JSON.parse(source.tags_json) as string[];
         setNeedsBrowser(parsed.includes("needs-browser"));
         const allowlistTag = parsed.find((tag) =>
           tag.startsWith("browse-allowlist:"),
@@ -155,15 +191,15 @@ export function TaskFormModal({
       setNeedsBrowser(false);
       setBrowseAllowlist("");
     }
-  }, [open, task]);
+  }, [open, task, forkSource, mode]);
 
   if (!open) return null;
   const running = task ? isTaskRunning(task) : false;
 
   async function submit(rerun: boolean) {
     if (!workspaceId) return;
-    if (!title.trim() || !description.trim()) {
-      setError("Título e descrição são obrigatórios.");
+    if (!description.trim()) {
+      setError("A descrição é obrigatória.");
       return;
     }
     setSaving(rerun ? "rerun" : "save");
@@ -205,7 +241,24 @@ export function TaskFormModal({
         export_to_gdocs: exportToGdocs,
         tags: parsedTags,
       };
-      if (mode === "create") {
+      if (mode === "fork") {
+        if (!forkSource && !forkRunId) {
+          throw new Error("fork sem tarefa ou execução de origem");
+        }
+        const forked = await apiPost<Task>(
+          forkRunId
+            ? `/api/runs/${forkRunId}/fork`
+            : `/api/tasks/${forkSource!.id}/fork`,
+          payload,
+        );
+        toast({
+          tone: "success",
+          title: "Fork criado",
+          description: forked.title,
+          href: links.task(forked.id),
+        });
+        await onSaved(forked, false);
+      } else if (mode === "create") {
         const created = await apiPost<Task>(
           `/api/tasks?workspace_id=${encodeURIComponent(workspaceId)}`,
           payload,
@@ -274,25 +327,37 @@ export function TaskFormModal({
     <Modal
       open={open}
       onClose={cancel}
-      title={mode === "create" ? "Nova tarefa" : "Editar tarefa"}
+      title={
+        mode === "create"
+          ? "Nova tarefa"
+          : mode === "fork"
+            ? "Criar fork"
+            : "Editar tarefa"
+      }
       description={
         mode === "create"
           ? "Comece pelo título e prompt. Abra “Mais opções” para modo, agente, modelo, effort e notificações. O roteador decide o resto."
-          : "Corrija agente, modelo, prompt e prioridade sem recriar o card."
+          : mode === "fork"
+            ? "Revise a cópia antes de criar. O fork nasce como uma tarefa independente e só entra na fila depois que você confirmar."
+            : "Corrija agente, modelo, prompt e prioridade sem recriar o card."
       }
       className="max-w-2xl"
     >
       <div className="space-y-3">
       <div className="grid gap-3 md:grid-cols-2">
         <label className="md:col-span-2">
-          <span className={labelClass}>Título</span>
+          <span className={labelClass}>Título (opcional)</span>
           <input
             autoFocus
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="Relatório executivo de vendas"
+            placeholder="Se vazio, usamos o início da descrição"
             className={inputClass}
           />
+          <span className="mt-1 block text-[9px] text-zinc-500">
+            Sem título, o OpenDesk usa a primeira linha da descrição, limitada a
+            80 caracteres.
+          </span>
         </label>
         <div className="md:col-span-2">
           <span className={labelClass}>Descrição / prompt</span>
@@ -445,10 +510,10 @@ export function TaskFormModal({
         <Button variant="ghost" size="sm" onClick={cancel}>
           Cancelar
         </Button>
-        {mode === "create" ? (
+        {mode === "create" || mode === "fork" ? (
           <Button size="sm" onClick={() => void submit(false)} disabled={saving !== null}>
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-            Criar tarefa
+            {mode === "fork" ? "Criar fork" : "Criar tarefa"}
           </Button>
         ) : (
           <>

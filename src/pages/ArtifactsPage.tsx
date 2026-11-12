@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { links } from "@/lib/links";
 import { EntityLink } from "@/components/ui/entity-link";
 import { LazyFileViewer } from "@/components/viewer/LazyFileViewer";
+import { DiffView } from "@/components/viewer/DiffView";
 import { toast } from "@/store/toast-store";
 import { confirmAction } from "@/store/confirm-store";
 
@@ -55,6 +56,8 @@ export function ArtifactsPage() {
   const [actionFilter, setActionFilter] = useState("");
   const [selected, setSelected] = useState<Artifact | null>(null);
   const [content, setContent] = useState<ArtifactContent | null>(null);
+  const [contentLoading, setContentLoading] = useState(false);
+  const [contentError, setContentError] = useState<string | null>(null);
   const [tab, setTab] = useState<"content" | "diff">("content");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,14 +72,16 @@ export function ArtifactsPage() {
   }, [agentFilter]);
 
   const runFilter = searchParams.get("run") ?? "";
+  const taskFilter = searchParams.get("task") ?? "";
   const query = useMemo(() => {
     if (!activeWorkspaceId) return "";
     const params = new URLSearchParams({ workspace_id: activeWorkspaceId, limit: String(limit) });
     if (debouncedAgent.trim()) params.set("agent", debouncedAgent.trim());
     if (actionFilter) params.set("action", actionFilter);
     if (runFilter) params.set("run_id", runFilter);
+    if (taskFilter) params.set("task_id", taskFilter);
     return params.toString();
-  }, [activeWorkspaceId, debouncedAgent, actionFilter, limit, runFilter]);
+  }, [activeWorkspaceId, debouncedAgent, actionFilter, limit, runFilter, taskFilter]);
 
   const load = useCallback(async () => {
     if (!activeWorkspaceId) {
@@ -99,20 +104,39 @@ export function ArtifactsPage() {
     void load();
   }, [load, lastArtifactEvent]);
 
-  // Deep link from the dashboard: /artifacts?id=<artifact-id>
+  // Deep link from the dashboard/search: /artifacts?id=<artifact-id>.
+  // Fetch by id instead of depending on the current list/filter window.
   useEffect(() => {
     const id = searchParams.get("id");
-    if (!id || artifacts.length === 0) return;
-    const artifact = artifacts.find((item) => item.id === id);
-    if (artifact) {
-      setSelected(artifact);
-      setSearchParams((current) => {
-        const next = new URLSearchParams(current);
-        next.delete("id");
-        return next;
-      }, { replace: true });
-    }
-  }, [artifacts, searchParams, setSearchParams]);
+    if (!id) return;
+    let cancelled = false;
+    apiGet<Artifact>(`/api/artifacts/${id}`)
+      .then((artifact) => {
+        if (cancelled) return;
+        setSelected(artifact);
+        setArtifacts((current) =>
+          current.some((item) => item.id === artifact.id)
+            ? current
+            : [artifact, ...current],
+        );
+        setSearchParams(
+          (current) => {
+            const next = new URLSearchParams(current);
+            next.delete("id");
+            return next;
+          },
+          { replace: true },
+        );
+      })
+      .catch((cause) => {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : String(cause));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!selected) return;
@@ -126,18 +150,26 @@ export function ArtifactsPage() {
   useEffect(() => {
     if (!selected) {
       setContent(null);
+      setContentError(null);
+      setContentLoading(false);
       return;
     }
     let cancelled = false;
+    setContent(null);
+    setContentError(null);
+    setContentLoading(true);
     apiGet<ArtifactContent>(`/api/artifacts/${selected.id}/content`)
       .then((value) => {
         if (!cancelled) setContent(value);
       })
       .catch((cause) => {
         if (!cancelled) {
-          setError(cause instanceof Error ? cause.message : String(cause));
+          setContentError(cause instanceof Error ? cause.message : String(cause));
           setContent(null);
         }
+      })
+      .finally(() => {
+        if (!cancelled) setContentLoading(false);
       });
     return () => {
       cancelled = true;
@@ -518,7 +550,25 @@ export function ArtifactsPage() {
 
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               {tab === "content" ? (
-                content ? (
+                contentLoading ? (
+                  <p className="p-4 text-[11px] text-zinc-500">
+                    Carregando visualizador…
+                  </p>
+                ) : contentError ? (
+                  <div className="space-y-2 p-4">
+                    <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+                      Não foi possível carregar a prévia: {contentError}
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void reveal(selected.absolute_path)}
+                      title="Abrir o arquivo no sistema"
+                    >
+                      Abrir arquivo
+                    </Button>
+                  </div>
+                ) : content ? (
                   <LazyFileViewer
                     name={selected.file_path}
                     path={content.path}
@@ -532,17 +582,15 @@ export function ArtifactsPage() {
                   />
                 ) : (
                   <p className="p-4 text-[11px] text-zinc-500">
-                    {loading ? "Carregando visualizador…" : "Sem prévia para este artefato."}
+                    Sem prévia para este artefato.
                   </p>
                 )
               ) : (
-                <div className="min-h-0 flex-1 overflow-auto p-4">
-                  <p className="mb-2 text-[11px] leading-relaxed text-zinc-500">
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <p className="mx-3 mt-2 text-[11px] leading-relaxed text-zinc-500">
                     {selected.creation_reason}
                   </p>
-                  <pre className="whitespace-pre-wrap break-words rounded-lg border border-zinc-800/70 bg-zinc-900/30 p-3 font-mono text-[11px] leading-relaxed text-zinc-300">
-                    {selected.diff_patch || "Sem diff registrado para este artefato."}
-                  </pre>
+                  <DiffView patch={selected.diff_patch ?? ""} />
                 </div>
               )}
             </div>

@@ -39,3 +39,14 @@ describe("run links", () => {
     );
   });
 });
+
+describe("remaining entity links", () => {
+  it("builds calendar, dir and event links", () => {
+    expect(links.calendar()).toBe("/calendar");
+    expect(links.calendar("2026-11-12")).toBe("/calendar?date=2026-11-12");
+    expect(links.calendarEvent("evt 1")).toBe("/calendar?event=evt%201");
+    expect(links.dir("output/a b")).toBe("/files?dir=1&path=output%2Fa%20b");
+    expect(links.skill("demo")).toContain("kind=skill");
+    expect(links.skill("demo")).not.toContain("workspace_id");
+  });
+});

@@ -1,4 +1,11 @@
 import { format } from "date-fns";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  Loader2,
+  XCircle,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { itemTimeLabel } from "@/lib/calendar";
 import type { CalendarItem } from "@/lib/types";
@@ -18,9 +25,37 @@ function kindLabel(kind: string): string {
 }
 
 function statusClass(item: CalendarItem, ringActive: boolean): string | undefined {
-  if (item.status === "PAST") return "opacity-60";
+  if (item.status === "PAST" && !["MISSED", "FAILED", "BLOCKED"].includes(
+    item.execution_status ?? "",
+  )) {
+    return "opacity-60";
+  }
   if (ringActive && item.status === "ACTIVE") return "ring-1 ring-blue-500/40";
   return undefined;
+}
+
+function executionMeta(status?: string | null) {
+  switch ((status ?? "").toUpperCase()) {
+    case "SUCCESS":
+    case "DONE":
+      return { icon: CheckCircle2, tone: "green" as const, label: "executado" };
+    case "FAILED":
+    case "BLOCKED":
+      return { icon: XCircle, tone: "red" as const, label: "falhou" };
+    case "RUNNING":
+      return { icon: Loader2, tone: "blue" as const, label: "executando" };
+    case "QUEUED":
+    case "PAUSED":
+      return { icon: Clock3, tone: "yellow" as const, label: "na fila" };
+    case "MISSED":
+      return { icon: AlertTriangle, tone: "yellow" as const, label: "perdida" };
+    case "CANCELLED":
+      return { icon: XCircle, tone: "default" as const, label: "cancelada" };
+    case "PENDING":
+      return { icon: Clock3, tone: "default" as const, label: "agendada" };
+    default:
+      return null;
+  }
 }
 
 /**
@@ -64,8 +99,18 @@ export function CalendarItemChip({
               ? item.title
               : `${format(new Date(item.start), "HH:mm")} ${item.title}`}
           </span>
-          <span className="block truncate text-[8px] text-zinc-500">
+          <span className="flex items-center gap-1 truncate text-[8px] text-zinc-500">
+            {(() => {
+              const meta = executionMeta(item.execution_status);
+              return meta ? (
+                <meta.icon
+                  size={8}
+                  className={meta.tone === "green" ? "text-emerald-400" : meta.tone === "red" ? "text-red-400" : meta.tone === "yellow" ? "text-amber-400" : meta.tone === "blue" ? "text-blue-400" : "text-zinc-500"}
+                />
+              ) : null;
+            })()}
             {kindLabel(item.kind)}
+            {item.execution_status ? ` · ${executionMeta(item.execution_status)?.label ?? item.execution_status}` : ""}
           </span>
         </>
       ) : (
@@ -124,6 +169,11 @@ export function CalendarItemRow({
           <Badge variant={item.status === "ACTIVE" ? "blue" : "default"}>
             {kindLabel(item.kind)}
           </Badge>
+          {executionMeta(item.execution_status) ? (
+            <Badge variant={executionMeta(item.execution_status)!.tone}>
+              {executionMeta(item.execution_status)!.label}
+            </Badge>
+          ) : null}
         </span>
         <span
           className={cn(

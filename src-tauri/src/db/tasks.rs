@@ -37,12 +37,25 @@ pub struct Task {
     pub origin: String,
     pub parent_task_id: Option<String>,
     pub dedupe_key: Option<String>,
+    pub held: bool,
     pub created_at: String,
     pub updated_at: String,
     /// True when `create` returned an existing equivalent task instead of
     /// inserting a new one. Not persisted.
     #[sqlx(default)]
     pub deduplicated: bool,
+    /// Latest active queue job status, selected by `list`/`get`.
+    #[sqlx(default)]
+    pub active_job_status: Option<String>,
+    /// Latest run status, selected by `list`/`get`.
+    #[sqlx(default)]
+    pub active_run_status: Option<String>,
+    /// Derived workflow state used by every UI surface.
+    #[sqlx(default)]
+    pub workflow_state: String,
+    /// Code explaining why the task is in `workflow_state`.
+    #[sqlx(default)]
+    pub workflow_reason: Option<String>,
 }
 
 impl Task {
@@ -53,6 +66,7 @@ impl Task {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateTaskInput {
+    #[serde(default)]
     pub title: String,
     pub description: String,
     #[serde(default)]
@@ -114,7 +128,66 @@ pub(crate) const COLUMNS: &str = "id, workspace_id, title, description, status, 
     priority, execution_mode, assigned_agent, preferred_model, agent_override, model_override, \
     effort_level, plan_markdown, output_dir_path, notify_email, export_to_gdocs, tags_json, \
     position_index, last_run_id, last_run_status, last_run_at, blocked_reason, cancelled_at, \
-    forked_from_task_id, origin, parent_task_id, dedupe_key, created_at, updated_at";
+    forked_from_task_id, origin, parent_task_id, dedupe_key, held, created_at, updated_at";
+
+/// Extra columns that let the backend derive a single workflow state for the
+/// UI instead of letting each screen guess from `status` and `phase_status`.
+const ACTIVE_COLUMNS: &str = "    (SELECT j.status FROM execution_queue j      WHERE j.task_id = tasks.id AND j.status IN ('QUEUED', 'RUNNING', 'PAUSED')      ORDER BY j.enqueued_at DESC LIMIT 1) AS active_job_status,     (SELECT r.status FROM task_runs r WHERE r.task_id = tasks.id      ORDER BY r.started_at DESC LIMIT 1) AS active_run_status";
+
+fn derive_workflow(task: &Task) -> (&'static str, Option<&'static str>) {
+    let phase = task.phase_status.as_deref();
+    let job = task.active_job_status.as_deref();
+    match task.status.as_str() {
+        "CANCELLED" => ("CANCELLED", None),
+        "DONE" => ("DONE", None),
+        "BLOCKED" => (
+            "BLOCKED",
+            Some(if phase == Some("failed") {
+                "failed"
+            } else {
+                "manual_block"
+            }),
+        ),
+        "IN_PROGRESS" => {
+            if job == Some("RUNNING") || phase == Some("running") {
+                ("RUNNING", None)
+            } else {
+                // The card was moved to In progress without a real job/run.
+                ("BLOCKED", Some("in_progress_without_run"))
+            }
+        }
+        "IN_REVIEW" => {
+            if phase == Some("awaiting_approval") {
+                ("NEEDS_APPROVAL", Some("approval"))
+            } else if phase == Some("awaiting_permission") {
+                ("WAITING_INPUT", Some("permission"))
+            } else {
+                ("WAITING_INPUT", Some("hitl"))
+            }
+        }
+        "TODO" => {
+            if phase == Some("awaiting_approval") {
+                ("NEEDS_APPROVAL", Some("approval"))
+            } else if task.held || phase == Some("held") {
+                ("HELD", Some("held"))
+            } else if matches!(job, Some("QUEUED") | Some("PAUSED"))
+                || matches!(phase, Some("queued") | Some("follow_up_queued"))
+            {
+                ("QUEUED", Some("queued"))
+            } else {
+                ("READY", Some("ready"))
+            }
+        }
+        _ => ("READY", None),
+    }
+}
+
+fn decorate(mut task: Task) -> Task {
+    let (state, reason) = derive_workflow(&task);
+    task.workflow_state = state.to_string();
+    task.workflow_reason = reason.map(str::to_string);
+    task
+}
 
 pub const STATUSES: [&str; 6] = [
     "TODO",
@@ -142,6 +215,26 @@ fn validate_status(status: &str) -> AppResult<String> {
         Err(AppError::BadRequest(format!(
             "invalid task status '{status}'"
         )))
+    }
+}
+
+/// Title is optional. When absent, use the first non-empty line of the
+/// description, collapsed and capped so cards stay readable.
+pub fn derive_title(description: &str) -> String {
+    let line = description
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or("");
+    let collapsed = line.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut title: String = collapsed.chars().take(80).collect();
+    if collapsed.chars().count() > 80 {
+        title.push('…');
+    }
+    if title.is_empty() {
+        "Nova tarefa".to_string()
+    } else {
+        title
     }
 }
 
@@ -180,26 +273,28 @@ fn validate_effort(effort: &str) -> AppResult<String> {
 
 pub async fn list(pool: &SqlitePool, workspace_id: &str) -> AppResult<Vec<Task>> {
     let query = format!(
-        "SELECT {COLUMNS} FROM tasks WHERE workspace_id = ?
+        "SELECT {COLUMNS}, {ACTIVE_COLUMNS} FROM tasks WHERE workspace_id = ?
          ORDER BY CASE status
             WHEN 'TODO' THEN 1 WHEN 'IN_PROGRESS' THEN 2
             WHEN 'IN_REVIEW' THEN 3 WHEN 'BLOCKED' THEN 4 WHEN 'DONE' THEN 5
             WHEN 'CANCELLED' THEN 6 ELSE 7 END,
             position_index ASC, created_at ASC"
     );
-    Ok(sqlx::query_as::<_, Task>(&query)
+    let tasks = sqlx::query_as::<_, Task>(&query)
         .bind(workspace_id)
         .fetch_all(pool)
-        .await?)
+        .await?;
+    Ok(tasks.into_iter().map(decorate).collect())
 }
 
 pub async fn get(pool: &SqlitePool, id: &str) -> AppResult<Task> {
-    let query = format!("SELECT {COLUMNS} FROM tasks WHERE id = ?");
-    sqlx::query_as::<_, Task>(&query)
+    let query = format!("SELECT {COLUMNS}, {ACTIVE_COLUMNS} FROM tasks WHERE tasks.id = ?");
+    let task = sqlx::query_as::<_, Task>(&query)
         .bind(id)
         .fetch_optional(pool)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("task {id}")))
+        .ok_or_else(|| AppError::NotFound(format!("task {id}")))?;
+    Ok(decorate(task))
 }
 
 pub async fn create(
@@ -216,13 +311,15 @@ pub async fn create_with_id(
     id: Option<&str>,
     input: CreateTaskInput,
 ) -> AppResult<Task> {
-    let title = input.title.trim();
-    if title.is_empty() {
-        return Err(AppError::BadRequest("task title is required".into()));
-    }
-    if input.description.trim().is_empty() {
+    let description = input.description.trim();
+    if description.is_empty() {
         return Err(AppError::BadRequest("task description is required".into()));
     }
+    let title = if input.title.trim().is_empty() {
+        derive_title(description)
+    } else {
+        input.title.trim().to_string()
+    };
 
     let mode = validate_mode(input.execution_mode.as_deref().unwrap_or("AUTO_DSH"))?;
     let effort = validate_effort(input.effort_level.as_deref().unwrap_or("medium"))?;
@@ -234,8 +331,8 @@ pub async fn create_with_id(
     let dedupe_key = dedupe_enabled.then(|| {
         task_dedupe::build_key(
             workspace_id,
-            title,
-            input.description.trim(),
+            &title,
+            description,
             &mode,
             input.assigned_agent.as_deref(),
             input.preferred_model.as_deref(),
@@ -460,8 +557,24 @@ pub async fn move_to(
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound(format!("task {id}")));
     }
+    if status == "TODO" {
+        set_held(pool, id, false).await?;
+    }
 
     get(pool, id).await
+}
+
+pub async fn set_held(pool: &SqlitePool, id: &str, held: bool) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE tasks SET held = ?,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE id = ?",
+    )
+    .bind(held)
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 pub async fn fork(pool: &SqlitePool, id: &str) -> AppResult<Task> {
@@ -835,12 +948,131 @@ mod tests {
         assert!(get(&pool, &task.id).await.is_err());
     }
 
+    fn workflow_task(status: &str, phase: Option<&str>, job: Option<&str>) -> Task {
+        Task {
+            id: "task-1".into(),
+            workspace_id: "ws-1".into(),
+            title: "Tarefa".into(),
+            description: "Descrição".into(),
+            status: status.into(),
+            phase: None,
+            phase_status: phase.map(str::to_string),
+            priority: 2,
+            execution_mode: "AUTO_DSH".into(),
+            assigned_agent: None,
+            preferred_model: None,
+            agent_override: false,
+            model_override: false,
+            effort_level: "medium".into(),
+            plan_markdown: None,
+            output_dir_path: None,
+            notify_email: None,
+            export_to_gdocs: false,
+            tags_json: "[]".into(),
+            position_index: 0,
+            last_run_id: None,
+            last_run_status: None,
+            forked_from_task_id: None,
+            last_run_at: None,
+            blocked_reason: None,
+            cancelled_at: None,
+            origin: "MANUAL".into(),
+            parent_task_id: None,
+            dedupe_key: None,
+            held: false,
+            created_at: "2026-01-01T00:00:00Z".into(),
+            updated_at: "2026-01-01T00:00:00Z".into(),
+            deduplicated: false,
+            active_job_status: job.map(str::to_string),
+            active_run_status: None,
+            workflow_state: String::new(),
+            workflow_reason: None,
+        }
+    }
+
+    #[test]
+    fn derives_a_single_workflow_state() {
+        assert_eq!(
+            derive_workflow(&workflow_task("TODO", Some("forked"), None)),
+            ("READY", Some("ready"))
+        );
+        assert_eq!(
+            derive_workflow(&workflow_task("TODO", Some("queued"), Some("QUEUED"))),
+            ("QUEUED", Some("queued"))
+        );
+        assert_eq!(
+            derive_workflow(&workflow_task(
+                "IN_PROGRESS",
+                Some("running"),
+                Some("RUNNING")
+            )),
+            ("RUNNING", None)
+        );
+        assert_eq!(
+            derive_workflow(&workflow_task("IN_PROGRESS", None, None)),
+            ("BLOCKED", Some("in_progress_without_run"))
+        );
+        assert_eq!(
+            derive_workflow(&workflow_task("IN_REVIEW", Some("awaiting_approval"), None)),
+            ("NEEDS_APPROVAL", Some("approval"))
+        );
+        assert_eq!(
+            derive_workflow(&workflow_task(
+                "IN_REVIEW",
+                Some("awaiting_permission"),
+                None
+            )),
+            ("WAITING_INPUT", Some("permission"))
+        );
+        assert_eq!(
+            derive_workflow(&workflow_task("BLOCKED", Some("failed"), None)),
+            ("BLOCKED", Some("failed"))
+        );
+        assert_eq!(
+            derive_workflow(&workflow_task("BLOCKED", None, None)),
+            ("BLOCKED", Some("manual_block"))
+        );
+        assert_eq!(
+            derive_workflow(&workflow_task("DONE", None, None)),
+            ("DONE", None)
+        );
+        assert_eq!(
+            derive_workflow(&workflow_task("CANCELLED", None, None)),
+            ("CANCELLED", None)
+        );
+    }
+
+    #[tokio::test]
+    async fn get_exposes_ready_workflow_state() {
+        let (_temp, pool) = setup().await;
+        let task = create(&pool, "ws-1", input()).await.expect("create");
+        let loaded = get(&pool, &task.id).await.expect("get");
+        assert_eq!(loaded.workflow_state, "READY");
+        assert_eq!(loaded.workflow_reason.as_deref(), Some("ready"));
+    }
+
+    #[test]
+    fn derives_a_title_from_the_description_when_missing() {
+        assert_eq!(derive_title("  Primeira linha\nSegunda"), "Primeira linha");
+        assert_eq!(derive_title("   "), "Nova tarefa");
+        let long = "a".repeat(100);
+        let derived = derive_title(&long);
+        assert_eq!(derived.chars().count(), 81);
+        assert!(derived.ends_with('…'));
+    }
+
     #[tokio::test]
     async fn rejects_invalid_task_input() {
         let (_temp, pool) = setup().await;
         let mut value = input();
         value.title = "  ".into();
+        value.description = "  ".into();
         assert!(create(&pool, "ws-1", value).await.is_err());
+
+        let mut value = input();
+        value.title = "  ".into();
+        let created = create(&pool, "ws-1", value).await.expect("derived title");
+        assert_eq!(created.title, "Produza o relatório");
 
         let mut value = input();
         value.execution_mode = Some("nonsense".into());

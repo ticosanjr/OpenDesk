@@ -100,6 +100,43 @@ async fn learning_loop_scans_promotes_and_applies_after_approval() {
     assert!(remembered["remembered_at"].is_string());
     assert!(ctx.workspace_root.join(".opencode/MEMORY.md").exists());
 
+    let (status, forgotten) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/learning/lessons/{lesson_id}/forget{workspace}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(forgotten["remembered_at"].is_null());
+    assert!(
+        !std::fs::read_to_string(ctx.workspace_root.join(".opencode/MEMORY.md"))
+            .expect("memory")
+            .contains(&format!(
+                "<!-- learning:{} -->",
+                forgotten["fingerprint"].as_str().unwrap()
+            ))
+    );
+
+    let (status, dismissed) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/learning/lessons/{lesson_id}/dismiss{workspace}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(dismissed["status"], "DISMISSED");
+    let (status, restored) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/learning/lessons/{lesson_id}/restore{workspace}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(restored["status"], "OPEN");
+
     let (status, proposal) = call(
         &ctx,
         Method::POST,

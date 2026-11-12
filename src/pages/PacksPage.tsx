@@ -45,6 +45,7 @@ export function PacksPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
+  const [installFilter, setInstallFilter] = useState<"all" | "installed" | "available">("all");
   const [tab, setTab] = useState<"all" | "workspaces" | "packs" | "resources">("all");
   const [selected, setSelected] = useState<PackSummary | null>(null);
   const [plan, setPlan] = useState<InstallPlan | null>(null);
@@ -102,12 +103,14 @@ export function PacksPage() {
     const needle = query.trim().toLowerCase();
     return packs.filter((pack) => {
       if (category !== "all" && pack.category !== category) return false;
+      if (installFilter === "installed" && !pack.installed) return false;
+      if (installFilter === "available" && pack.installed) return false;
       if (!needle) return true;
       return `${pack.name} ${pack.description} ${pack.id}`
         .toLowerCase()
         .includes(needle);
     });
-  }, [category, packs, query]);
+  }, [category, installFilter, packs, query]);
 
   const filteredTemplates = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -128,7 +131,11 @@ export function PacksPage() {
     setOverwritePaths(new Set());
     setItemsLoading(true);
     try {
-      const list = await apiGet<PackItem[]>(`/api/starter-packs/${pack.id}/items`);
+      const list = await apiGet<PackItem[]>(
+        `/api/starter-packs/${pack.id}/items?workspace_id=${encodeURIComponent(
+          activeWorkspaceId ?? "",
+        )}`,
+      );
       setItems(Array.isArray(list) ? list : []);
     } catch (cause) {
       toast({
@@ -497,6 +504,28 @@ export function PacksPage() {
             </option>
           ))}
         </select>
+        <div className="flex rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5">
+          {([
+            ["all", "Todos"],
+            ["installed", `Instalados (${installedCount})`],
+            ["available", "Disponíveis"],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={installFilter === value}
+              onClick={() => setInstallFilter(value)}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-[10px] transition-colors",
+                installFilter === value
+                  ? "bg-zinc-800 text-zinc-100"
+                  : "text-zinc-500 hover:text-zinc-200",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <span className="text-[10px] text-zinc-500">
           {filtered.length} de {packs.length}
         </span>
@@ -544,7 +573,9 @@ export function PacksPage() {
                                 ? "purple"
                                 : "green"
                         }
+                        title="Este pacote está presente no workspace ativo"
                       >
+                        <CheckCircle2 size={9} />
                         {pack.health.status === "partial"
                           ? "parcial"
                           : pack.update_available

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { apiGet, apiPost, websocketUrl } from "@/lib/api";
 import {
   markNotificationOnce,
+  notificationEnabled,
   sendNativeNotification,
 } from "@/lib/notification-policy";
 import type {
@@ -406,7 +407,10 @@ export function handleEvent(event: WsEvent) {
             resources: payload.resources ?? [],
           },
         });
-        if (markNotificationOnce(`permission:${payload.request_id}`)) {
+        if (
+          notificationEnabled("interactions") &&
+          markNotificationOnce(`permission:${payload.request_id}`)
+        ) {
           void sendNativeNotification(
             "Agente bloqueado esperando você",
             `${payload.action ?? "permissão"}: ${(payload.resources ?? []).join(", ").slice(0, 120)}`,

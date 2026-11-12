@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { EntityLink } from "@/components/ui/entity-link";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip } from "@/components/ui/tooltip";
+import { IconLabel } from "@/components/ui/icon-label";
 import { links } from "@/lib/links";
 import { relativeTime } from "@/lib/format";
 import { describeRecurrence, parseRecurrence } from "@/lib/recurrence";
@@ -53,17 +54,30 @@ export function RoutineCard({
         )
       : null;
   const meta = [
-    <Badge key="trigger" variant="blue">
+    <Badge
+      key="trigger"
+      variant="blue"
+      title={`Gatilho: ${triggerLabel(schedule.trigger_type ?? "CRON")}`}
+    >
       {triggerLabel(schedule.trigger_type ?? "CRON")}
     </Badge>,
     schedule.trigger_type === "CRON" ? (
-      <Badge key="recurrence" variant="default">
+      <Badge
+        key="recurrence"
+        variant="default"
+        title={`Recorrência: ${recurrences}`}
+      >
         {recurrences}
       </Badge>
     ) : null,
     <Badge
       key="target"
       variant={schedule.target_kind === "RECIPE" ? "purple" : "default"}
+      title={
+        schedule.target_kind === "RECIPE"
+          ? `Executa a receita ${schedule.recipe_id ?? "não definida"}`
+          : "Executa um prompt livre"
+      }
     >
       {schedule.target_kind === "RECIPE"
         ? `receita: ${schedule.recipe_id ?? "—"}`
@@ -94,11 +108,19 @@ export function RoutineCard({
         @{schedule.agent_name}
       </EntityLink>
     ) : null,
-    <Badge key="policy" variant="default">
+    <Badge
+      key="policy"
+      variant="default"
+      title="Política do roteador aplicada a esta rotina"
+    >
       {ROUTER_POLICY_LABELS[schedule.router_policy] ?? schedule.router_policy}
     </Badge>,
     schedule.trigger_type === "CRON" ? (
-      <Badge key="timezone" variant="default">
+      <Badge
+        key="timezone"
+        variant="default"
+        title="Fuso horário usado para calcular o próximo horário"
+      >
         {schedule.timezone}
       </Badge>
     ) : null,
@@ -184,7 +206,14 @@ export function RoutineCard({
             ? new Date(schedule.next_run_at).toLocaleString("pt-BR")
             : "—"}
         </span>
-        <span className="truncate">
+        <span
+          className="truncate"
+          title={
+            schedule.last_run_at
+              ? `Última execução: ${schedule.last_run_status ?? "sem status"}`
+              : "Ainda não executou"
+          }
+        >
           última:{" "}
           {schedule.last_run_at
             ? `${relativeTime(schedule.last_run_at)} (${schedule.last_run_status ?? "—"})`
@@ -207,8 +236,9 @@ export function RoutineCard({
           className="h-6 px-2 text-[10px]"
           onClick={onRun}
         >
-          <Play size={11} />
-          Executar agora
+          <IconLabel icon={<Play size={11} />} gap="tight">
+            Executar agora
+          </IconLabel>
         </Button>
         <Button
           variant="outline"
@@ -216,8 +246,9 @@ export function RoutineCard({
           className="h-6 px-2 text-[10px]"
           onClick={onEdit}
         >
-          <Pencil size={11} />
-          Editar
+          <IconLabel icon={<Pencil size={11} />} gap="tight">
+            Editar
+          </IconLabel>
         </Button>
         <div ref={menuRef} className="relative">
           <Button

@@ -422,15 +422,15 @@ async fn installs_routines_inactive_and_removes_them() {
 #[tokio::test]
 async fn lists_and_installs_individual_pack_items() {
     let (_temp, state, workspace_id) = test_state().await;
-    let items = items("essenciais").expect("items");
+    let catalog_items = items("essenciais", None).expect("items");
     assert!(
-        items
+        catalog_items
             .iter()
             .any(|item| item.kind == "agent" && item.id == "assistente")
     );
-    assert!(items.iter().any(|item| item.kind == "skill"));
-    assert!(items.iter().any(|item| item.kind == "command"));
-    assert!(items.iter().any(|item| item.kind == "recipe"));
+    assert!(catalog_items.iter().any(|item| item.kind == "skill"));
+    assert!(catalog_items.iter().any(|item| item.kind == "command"));
+    assert!(catalog_items.iter().any(|item| item.kind == "recipe"));
 
     install_item(
         &state,
@@ -450,6 +450,13 @@ async fn lists_and_installs_individual_pack_items() {
             .join(".opencode/agents/assistente.md")
             .is_file()
     );
+    let installed = items("essenciais", Some(Path::new(&workspace.root_path))).expect("items");
+    let agent = installed
+        .iter()
+        .find(|item| item.kind == "agent" && item.id == "assistente")
+        .expect("agent item");
+    assert!(agent.installed);
+    assert_eq!(agent.status, "installed");
     install_item(
         &state,
         "essenciais",

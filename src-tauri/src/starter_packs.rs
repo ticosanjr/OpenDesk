@@ -164,6 +164,10 @@ pub struct PackItem {
     pub description: Option<String>,
     pub content: String,
     pub files: Vec<String>,
+    /// True when every file of the item exists with the packaged content.
+    pub installed: bool,
+    /// installed | modified | missing
+    pub status: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -552,8 +556,9 @@ pub async fn detail(
 
 /// Lists the individual installable items of a pack. This is read from the
 /// embedded bundle, so the UI can inspect an item before installing anything.
-pub fn items(pack_id: &str) -> AppResult<Vec<PackItem>> {
-    let (manifest, _) = load_manifest(pack_id)?;
+pub fn items(pack_id: &str, workspace_root: Option<&Path>) -> AppResult<Vec<PackItem>> {
+    let (manifest, dir) = load_manifest(pack_id)?;
+    let planned = planned_for(&manifest, dir)?;
     let mut items = Vec::new();
 
     for name in &manifest.contents.agents {
@@ -578,6 +583,8 @@ pub fn items(pack_id: &str) -> AppResult<Vec<PackItem>> {
             description: markdown::get_string(&document.frontmatter, "description"),
             content,
             files: Vec::new(),
+            installed: false,
+            status: "missing".into(),
         });
     }
 
@@ -602,6 +609,8 @@ pub fn items(pack_id: &str) -> AppResult<Vec<PackItem>> {
             description: markdown::get_string(&document.frontmatter, "description"),
             content,
             files: Vec::new(),
+            installed: false,
+            status: "missing".into(),
         });
     }
 
@@ -631,6 +640,8 @@ pub fn items(pack_id: &str) -> AppResult<Vec<PackItem>> {
                 .map(|(path, _)| path.trim_start_matches('/').to_string())
                 .filter(|path| path != "SKILL.md")
                 .collect(),
+            installed: false,
+            status: "missing".into(),
         });
     }
 
@@ -650,7 +661,43 @@ pub fn items(pack_id: &str) -> AppResult<Vec<PackItem>> {
             description: recipe.description.clone(),
             content,
             files: Vec::new(),
+            installed: false,
+            status: "missing".into(),
         });
+    }
+
+    if let Some(root) = workspace_root {
+        for item in &mut items {
+            let skill_prefix = format!(".opencode/skills/{}/", item.id);
+            let item_suffix = format!("/{}.md", item.id);
+            let recipe_suffix = format!("/{}.yaml", item.id);
+            let matching = planned.iter().filter(|file| match item.kind.as_str() {
+                "agent" | "command" => file.target.ends_with(&item_suffix),
+                "skill" => file.target.starts_with(&skill_prefix),
+                "recipe" => file.target.ends_with(&recipe_suffix),
+                _ => false,
+            });
+            let mut total = 0;
+            let mut present = 0;
+            let mut identical = 0;
+            for file in matching {
+                total += 1;
+                if let Ok(Some(snapshot)) = read_text(&root.join(&file.target)) {
+                    present += 1;
+                    if snapshot.sha256 == file.sha256 {
+                        identical += 1;
+                    }
+                }
+            }
+            item.installed = total > 0 && identical == total;
+            item.status = if item.installed {
+                "installed".into()
+            } else if present > 0 {
+                "modified".into()
+            } else {
+                "missing".into()
+            };
+        }
     }
 
     Ok(items)

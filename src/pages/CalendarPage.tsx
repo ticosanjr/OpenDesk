@@ -11,12 +11,17 @@ import {
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
+  AlertTriangle,
   CalendarDays,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock3,
   CloudDownload,
+  Loader2,
   Plus,
   RefreshCw,
+  XCircle,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
@@ -325,6 +330,30 @@ export function CalendarPage() {
         <span className="ml-auto font-mono text-[9px] text-zinc-500">
           {visibleItems.length} item(ns) visíveis
         </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 px-1 text-[9px] text-zinc-500">
+        <span className="inline-flex items-center gap-1">
+          <CheckCircle2 size={10} className="text-emerald-400" />
+          executado
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <XCircle size={10} className="text-red-400" />
+          falhou/cancelado
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <Loader2 size={10} className="text-blue-400" />
+          executando
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <Clock3 size={10} className="text-amber-400" />
+          na fila/agendada
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <AlertTriangle size={10} className="text-amber-400" />
+          perdida
+        </span>
+        <span>Dias passados mostram apenas o que rodou ou precisa de decisão.</span>
       </div>
 
       <div

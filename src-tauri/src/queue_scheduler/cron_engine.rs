@@ -1,10 +1,11 @@
 use crate::{
     config_sync::{commands, paths::StudioPaths},
     db::{
+        missed_runs,
         queue::{EnqueueInput, QueueJob},
         router as router_db,
         schedules::{self, Schedule},
-        workspaces,
+        settings, tasks, workspaces,
     },
     dsh_router::{self, PackContext, RouterInput},
     error::{AppError, AppResult},
@@ -120,16 +121,37 @@ impl CronEngine {
                     .map(|value| value.with_timezone(&Utc) <= now)
                     .unwrap_or(false);
                 if due {
-                    if !engine_online {
+                    let scheduled_for = schedule
+                        .next_run_at
+                        .clone()
+                        .unwrap_or_else(|| now.to_rfc3339());
+                    let scheduled_dt = DateTime::parse_from_rfc3339(&scheduled_for)
+                        .map(|value| value.with_timezone(&Utc))
+                        .unwrap_or(now);
+                    let overdue = now.signed_duration_since(scheduled_dt);
+                    if !engine_online || overdue.num_seconds() > 90 {
+                        let reason = if overdue.num_seconds() > 90 {
+                            "MISFIRE"
+                        } else if !engine_online {
+                            "OFFLINE"
+                        } else {
+                            "MISFIRE"
+                        };
+                        self.record_missed_occurrences(schedule, scheduled_dt, now, reason)
+                            .await;
                         let _ = schedules::mark_run(
                             &self.pool,
                             &schedule.id,
-                            "SKIPPED_OFFLINE",
+                            if overdue.num_seconds() > 90 || engine_online {
+                                "SKIPPED_MISFIRE"
+                            } else {
+                                "SKIPPED_OFFLINE"
+                            },
                             &now.to_rfc3339(),
                         )
                         .await;
                     } else {
-                        match self.run_recipe_schedule(schedule, now).await {
+                        match self.run_recipe_schedule(schedule, &scheduled_for).await {
                             Ok(_) => {
                                 enqueued += 1;
                                 let _ = schedules::mark_run(
@@ -152,7 +174,10 @@ impl CronEngine {
                             }
                         }
                     }
-                    if let Ok(next) =
+                    if schedule.one_time {
+                        let _ = schedules::set_active(&self.pool, &schedule.id, false).await;
+                        let _ = schedules::set_next_run(&self.pool, &schedule.id, None).await;
+                    } else if let Ok(next) =
                         next_occurrence(&schedule.cron_expression, &schedule.timezone, now)
                     {
                         let _ = schedules::set_next_run(
@@ -210,36 +235,44 @@ impl CronEngine {
                     .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
                     .map(|value| now.signed_duration_since(value.with_timezone(&Utc)))
                     .unwrap_or_default();
-                if overdue.num_seconds() > 90
-                    && schedule.misfire_policy.eq_ignore_ascii_case("SKIP_TO_NEXT")
-                {
+                if !engine_online || overdue.num_seconds() > 90 {
+                    let scheduled_dt = schedule
+                        .next_run_at
+                        .as_deref()
+                        .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+                        .map(|value| value.with_timezone(&Utc))
+                        .unwrap_or(now);
+                    let reason = if overdue.num_seconds() > 90 {
+                        "MISFIRE"
+                    } else if !engine_online {
+                        "OFFLINE"
+                    } else {
+                        "MISFIRE"
+                    };
+                    self.record_missed_occurrences(schedule, scheduled_dt, now, reason)
+                        .await;
                     let _ = schedules::mark_run(
                         &self.pool,
                         &schedule.id,
-                        "SKIPPED_MISFIRE",
+                        if overdue.num_seconds() > 90 || engine_online {
+                            "SKIPPED_MISFIRE"
+                        } else {
+                            "SKIPPED_OFFLINE"
+                        },
                         &now.to_rfc3339(),
                     )
                     .await;
-                    let _ =
-                        schedules::set_next_run(&self.pool, &schedule.id, Some(&next.to_rfc3339()))
-                            .await;
-                    self.events.publish(OpenDeskWsEvent::ScheduleUpdated {
-                        schedule_id: schedule.id.clone(),
-                        workspace_id: schedule.workspace_id.clone(),
-                    });
-                    continue;
-                }
-                if !engine_online {
-                    let _ = schedules::mark_run(
-                        &self.pool,
-                        &schedule.id,
-                        "SKIPPED_OFFLINE",
-                        &now.to_rfc3339(),
-                    )
-                    .await;
-                    let _ =
-                        schedules::set_next_run(&self.pool, &schedule.id, Some(&next.to_rfc3339()))
-                            .await;
+                    if schedule.one_time {
+                        let _ = schedules::set_active(&self.pool, &schedule.id, false).await;
+                        let _ = schedules::set_next_run(&self.pool, &schedule.id, None).await;
+                    } else {
+                        let _ = schedules::set_next_run(
+                            &self.pool,
+                            &schedule.id,
+                            Some(&next.to_rfc3339()),
+                        )
+                        .await;
+                    }
                     self.events.publish(OpenDeskWsEvent::ScheduleUpdated {
                         schedule_id: schedule.id.clone(),
                         workspace_id: schedule.workspace_id.clone(),
@@ -300,17 +333,68 @@ impl CronEngine {
             }
         }
 
+        enqueued += self.reconcile_tasks().await;
+
         Ok(CronTickResult {
             checked: schedules.len(),
             enqueued,
         })
     }
 
+    /// Auto-start READY tasks that are not held, not awaiting human approval
+    /// and not managed by a recipe. Called on every cron tick so tasks created
+    /// while the engine was offline start as soon as it comes back.
+    async fn reconcile_tasks(&self) -> usize {
+        if !settings::bool_flag(&self.pool, "tasks_autostart", true).await {
+            return 0;
+        }
+        if self.queue.is_paused() || !self.daemon.status().await.online {
+            return 0;
+        }
+        let Some(state) = self.app.get().and_then(Weak::upgrade) else {
+            return 0;
+        };
+        let workspaces = workspaces::list(&self.pool).await.unwrap_or_default();
+        let mut started = 0;
+        for workspace in workspaces {
+            if started >= 3 {
+                break;
+            }
+            let tasks = tasks::list(&self.pool, &workspace.id)
+                .await
+                .unwrap_or_default();
+            for task in tasks {
+                if started >= 3 {
+                    break;
+                }
+                if task.workflow_state != "READY" || task.origin == "RECIPE" {
+                    continue;
+                }
+                match crate::api::tasks::dispatch_task_internal(
+                    &state,
+                    &task.id,
+                    crate::api::tasks::DispatchBody::default(),
+                    None,
+                )
+                .await
+                {
+                    Ok(_) => started += 1,
+                    Err(error) => {
+                        tracing::debug!(task = %task.id, error = %error, "autostart postponed");
+                    }
+                }
+            }
+        }
+        started
+    }
+
     pub async fn run_now(&self, schedule_id: &str) -> AppResult<serde_json::Value> {
         let schedule = schedules::get(&self.pool, schedule_id).await?;
         let now = Utc::now();
         let result = if schedule.target_kind == "RECIPE" {
-            let value = self.run_recipe_schedule(&schedule, now).await?;
+            let value = self
+                .run_recipe_schedule(&schedule, &now.to_rfc3339())
+                .await?;
             serde_json::json!({ "kind": "recipe", "run": value })
         } else {
             let job = self
@@ -336,7 +420,7 @@ impl CronEngine {
     async fn run_recipe_schedule(
         &self,
         schedule: &Schedule,
-        now: DateTime<Utc>,
+        scheduled_for: &str,
     ) -> AppResult<serde_json::Value> {
         let recipe_id = schedule
             .recipe_id
@@ -352,7 +436,7 @@ impl CronEngine {
         let trigger = serde_json::json!({
             "routine_id": schedule.id,
             "routine_name": schedule.name,
-            "scheduled_for": now.to_rfc3339(),
+            "scheduled_for": scheduled_for,
         });
         let run =
             crate::recipes::engine::start(state, &schedule.workspace_id, recipe, trigger, false)
@@ -364,6 +448,117 @@ impl CronEngine {
     }
 
     /// Enqueue a prompt routine immediately without touching its next run.
+    /// Record every missed occurrence between `from` and `now` (bounded) and
+    /// apply the user's missed-run policy.
+    async fn record_missed_occurrences(
+        &self,
+        schedule: &Schedule,
+        from: DateTime<Utc>,
+        now: DateTime<Utc>,
+        reason: &str,
+    ) -> usize {
+        let mut cursor = from;
+        let mut count = 0;
+        while cursor <= now && count < 5 {
+            match missed_runs::create_or_ignore(
+                &self.pool,
+                &schedule.workspace_id,
+                &schedule.id,
+                &cursor.to_rfc3339(),
+                reason,
+            )
+            .await
+            {
+                Ok(missed) => {
+                    if missed.status == "PENDING" {
+                        self.apply_missed_policy(&missed).await;
+                    }
+                    count += 1;
+                }
+                Err(error) => {
+                    tracing::warn!(schedule = %schedule.id, error = %error, "could not record missed run");
+                    break;
+                }
+            }
+            if schedule.one_time {
+                break;
+            }
+            let Ok(next) = next_occurrence(&schedule.cron_expression, &schedule.timezone, cursor)
+            else {
+                break;
+            };
+            if next <= cursor {
+                break;
+            }
+            cursor = next;
+        }
+        count
+    }
+
+    async fn apply_missed_policy(&self, missed: &missed_runs::MissedRun) {
+        let policy = settings::get(&self.pool, "missed_run_policy")
+            .await
+            .ok()
+            .flatten()
+            .and_then(|value| value.as_str().map(str::to_string))
+            .unwrap_or_else(|| "ASK".to_string())
+            .to_uppercase();
+        match policy.as_str() {
+            "RUN" => {
+                if !self.daemon.status().await.online || self.queue.is_paused() {
+                    return;
+                }
+                match self.run_missed(missed).await {
+                    Ok(run_id) => {
+                        let _ = missed_runs::set_status(
+                            &self.pool,
+                            &missed.id,
+                            "QUEUED",
+                            run_id.as_deref(),
+                            None,
+                        )
+                        .await;
+                    }
+                    Err(error) => {
+                        let _ = missed_runs::set_status(
+                            &self.pool,
+                            &missed.id,
+                            "FAILED",
+                            None,
+                            Some(&format!("{error:#}")),
+                        )
+                        .await;
+                    }
+                }
+            }
+            "SKIP" => {
+                let _ =
+                    missed_runs::set_status(&self.pool, &missed.id, "IGNORED", None, None).await;
+            }
+            _ => {}
+        }
+    }
+
+    /// Execute one missed occurrence through the same path as "Run now".
+    pub async fn run_missed(&self, missed: &missed_runs::MissedRun) -> AppResult<Option<String>> {
+        let schedule = schedules::get(&self.pool, &missed.schedule_id).await?;
+        let now = Utc::now();
+        if schedule.target_kind == "RECIPE" {
+            let value = self
+                .run_recipe_schedule(&schedule, &missed.scheduled_for)
+                .await?;
+            Ok(value
+                .get("run_id")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string))
+        } else {
+            let job = self
+                .enqueue_schedule(&schedule, &missed.scheduled_for, now)
+                .await?;
+            Ok(job.map(|job| job.id))
+        }
+    }
+
     pub async fn enqueue_now(&self, schedule: &Schedule) -> AppResult<Option<QueueJob>> {
         self.enqueue_schedule(schedule, &Utc::now().to_rfc3339(), Utc::now())
             .await

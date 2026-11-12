@@ -27,21 +27,32 @@ async function load() {
 }
 
 describe("native notification settings", () => {
-  it("honors localStorage opt-outs and defaults to enabled", async () => {
+  it("uses minimal defaults and honors explicit opt-ins", async () => {
     const mod = await load();
     expect(mod.nativeNotificationsEnabled()).toBe(true);
-    expect(mod.artifactNotificationsEnabled()).toBe(true);
-    localStorage.setItem("opendesk.native_notifications", "false");
-    localStorage.setItem("opendesk.artifact_notifications", "false");
-    expect(mod.nativeNotificationsEnabled()).toBe(false);
     expect(mod.artifactNotificationsEnabled()).toBe(false);
+    expect(mod.notificationEnabled("run_finished")).toBe(true);
+    expect(mod.notificationEnabled("run_failed")).toBe(true);
+    expect(mod.notificationEnabled("interactions")).toBe(true);
+    expect(mod.notificationEnabled("schedule_skips")).toBe(false);
+    localStorage.setItem("opendesk.native_notifications", "false");
+    localStorage.setItem("opendesk.artifact_notifications", "true");
+    expect(mod.nativeNotificationsEnabled()).toBe(false);
+    expect(mod.artifactNotificationsEnabled()).toBe(true);
+    mod.setNotificationEnabled("artifacts", false);
+    expect(mod.artifactNotificationsEnabled()).toBe(false);
+    mod.resetNotificationPreferences();
+    expect(mod.notificationEnabled("run_finished")).toBe(true);
+    expect(mod.notificationEnabled("artifacts")).toBe(false);
   });
 
-  it("defaults to enabled when storage is unavailable", async () => {
+  it("defaults to minimal preferences when storage is unavailable", async () => {
     vi.stubGlobal("localStorage", undefined);
     const mod = await load();
     expect(mod.nativeNotificationsEnabled()).toBe(true);
-    expect(mod.artifactNotificationsEnabled()).toBe(true);
+    expect(mod.artifactNotificationsEnabled()).toBe(false);
+    expect(mod.notificationEnabled("run_finished")).toBe(true);
+    expect(mod.notificationEnabled("schedule_skips")).toBe(false);
     vi.unstubAllGlobals();
   });
 
@@ -116,5 +127,47 @@ describe("notification dedupe pressure", () => {
     vi.setSystemTime(new Date("2026-11-08T10:20:00Z"));
     expect(mod.markNotificationOnce("fresh")).toBe(true);
     vi.useRealTimers();
+  });
+});
+
+describe("notification preference coverage", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    localStorage.clear();
+  });
+
+  it("toggles every notification kind", async () => {
+    const mod = await load();
+    const kinds = [
+      "run_finished",
+      "run_failed",
+      "interactions",
+      "artifacts",
+      "schedule_skips",
+    ] as const;
+    for (const kind of kinds) {
+      mod.setNotificationEnabled(kind, false);
+      expect(mod.notificationEnabled(kind)).toBe(false);
+      mod.setNotificationEnabled(kind, true);
+      expect(mod.notificationEnabled(kind)).toBe(true);
+    }
+    mod.resetNotificationPreferences();
+    expect(mod.notificationEnabled("artifacts")).toBe(false);
+    expect(mod.notificationEnabled("run_finished")).toBe(true);
+  });
+
+  it("honors the legacy artifact opt-out", async () => {
+    localStorage.setItem("opendesk.artifact_notifications", "false");
+    const mod = await load();
+    expect(mod.artifactNotificationsEnabled()).toBe(false);
+  });
+
+  it("does not throw when storage is unavailable", async () => {
+    vi.stubGlobal("localStorage", undefined);
+    const mod = await load();
+    expect(() => mod.setNotificationEnabled("run_finished", false)).not.toThrow();
+    expect(() => mod.resetNotificationPreferences()).not.toThrow();
+    expect(mod.notificationEnabled("run_finished")).toBe(true);
+    vi.unstubAllGlobals();
   });
 });

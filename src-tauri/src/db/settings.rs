@@ -42,6 +42,15 @@ pub async fn all(pool: &SqlitePool) -> AppResult<Vec<AppSetting>> {
     .await?)
 }
 
+/// Reads a boolean app setting, falling back to `default` when it is absent or
+/// malformed. Used by operational toggles such as auto-start.
+pub async fn bool_flag(pool: &SqlitePool, key: &str, default: bool) -> bool {
+    match get(pool, key).await {
+        Ok(Some(value)) => value.as_bool().unwrap_or(default),
+        _ => default,
+    }
+}
+
 pub async fn active_workspace_id(pool: &SqlitePool) -> AppResult<Option<String>> {
     if let Some(value) = get(pool, "active_workspace_id").await?
         && let Some(id) = value.as_str()

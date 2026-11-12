@@ -6,6 +6,7 @@ import {
   Bot,
   CircleDollarSign,
   Clock3,
+  Cog,
   Cpu,
   Database,
   FileText,
@@ -30,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusDot, statusTone } from "@/components/ui/status-dot";
+import { WorkingIndicator } from "@/components/ui/working-indicator";
 import { AttentionCard } from "@/components/dashboard/AttentionCard";
 import { CostMixCard } from "@/components/dashboard/CostMixCard";
 import { useAppStore } from "@/store/app-store";
@@ -257,6 +259,8 @@ export function DashboardPage() {
     .sort((left, right) => right.at.localeCompare(left.at))
     .slice(0, 8);
 
+  const runningRuns = recentRuns.filter((run) => run.status === "RUNNING");
+
   return (
     <PageBody>
       <PageHeader
@@ -278,6 +282,36 @@ export function DashboardPage() {
       />
 
       <AttentionCard />
+
+      {runningRuns.length > 0 ? (
+        <Card className="border-blue-500/25 bg-blue-500/[0.03]">
+          <CardContent className="flex flex-wrap items-center gap-3 p-3">
+            <WorkingIndicator label={`${runningRuns.length} em execução`} />
+            <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+              {runningRuns.slice(0, 4).map((run) => (
+                <button
+                  key={run.id}
+                  type="button"
+                  onClick={() => navigate(links.run(run.id))}
+                  className="min-w-0 rounded-lg border border-blue-500/20 bg-zinc-950/40 px-2.5 py-1.5 text-left transition-colors hover:border-blue-500/40"
+                  title={`Abrir execução de ${run.task_title ?? run.agent_name}`}
+                >
+                  <p className="max-w-[260px] truncate text-[11px] text-zinc-200">
+                    {run.task_title ?? run.agent_name}
+                  </p>
+                  <p className="font-mono text-[9px] text-zinc-500">
+                    @{run.agent_name} · {run.model_id} ·{" "}
+                    {relativeTime(run.started_at)}
+                  </p>
+                </button>
+              ))}
+            </div>
+            <EntityLink to="/runs" className="text-[10px] text-zinc-400">
+              ver todas
+            </EntityLink>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
@@ -312,6 +346,7 @@ export function DashboardPage() {
           hint={`${dashboard?.queue_waiting ?? 0} aguardando · ${
             dashboard?.artifacts_total ?? 0
           } artefatos`}
+          active={(dashboard?.queue_running ?? 0) > 0}
         />
       </div>
 
@@ -613,17 +648,21 @@ export function DashboardPage() {
                             : "border-zinc-800/70",
                       )}
                     >
-                      <Cpu
-                        size={13}
-                        className={cn(
-                          "shrink-0",
-                          activity.run.status === "FAILED"
-                            ? "text-red-400"
-                            : activity.run.status === "SUCCESS"
-                              ? "text-emerald-400/80"
-                              : "text-blue-400/70",
-                        )}
-                      />
+                      {activity.run.status === "RUNNING" ? (
+                        <Cog size={13} className="opendesk-gear shrink-0 text-blue-400" />
+                      ) : (
+                        <Cpu
+                          size={13}
+                          className={cn(
+                            "shrink-0",
+                            activity.run.status === "FAILED"
+                              ? "text-red-400"
+                              : activity.run.status === "SUCCESS"
+                                ? "text-emerald-400/80"
+                                : "text-blue-400/70",
+                          )}
+                        />
+                      )}
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[10px] text-zinc-300">
                           {activity.run.task_title ?? activity.run.agent_name} ·{" "}
@@ -684,12 +723,14 @@ function KpiCard({
   value,
   hint,
   tone = "default",
+  active = false,
 }: {
   icon: LucideIcon;
   label: string;
   value: string;
   hint: string;
   tone?: "default" | "warning";
+  active?: boolean;
 }) {
   return (
     <Card>
@@ -707,6 +748,11 @@ function KpiCard({
           {value}
         </p>
         <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-500">{hint}</p>
+        {active ? (
+          <div className="mt-2">
+            <WorkingIndicator label="em execução" />
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

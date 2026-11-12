@@ -38,6 +38,34 @@ export interface Proposal {
 
 export interface Attention {
   requests: PermissionRequest[];
+  missed_runs: Array<{
+    id: string;
+    workspace_id: string;
+    schedule_id: string;
+    schedule_name?: string | null;
+    scheduled_for: string;
+    detected_at: string;
+    reason: string;
+    status: string;
+    run_id?: string | null;
+    error_message?: string | null;
+  }>;
+  task_interactions: Array<{
+    id: string;
+    workspace_id: string;
+    task_id: string;
+    run_id?: string | null;
+    question: string;
+    context_markdown?: string | null;
+    options_json: string;
+    multiple: boolean;
+    allow_custom: boolean;
+    status: string;
+    answer_json?: string | null;
+    expires_at: string;
+    created_at: string;
+    resolved_at?: string | null;
+  }>;
   hitl: HitlRequest[];
   proposals: Proposal[];
   awaiting_approval: Array<{
@@ -65,6 +93,8 @@ export interface Attention {
 
 export const EMPTY_ATTENTION: Attention = {
   requests: [],
+  missed_runs: [],
+  task_interactions: [],
   hitl: [],
   proposals: [],
   awaiting_approval: [],

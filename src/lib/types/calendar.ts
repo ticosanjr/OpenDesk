@@ -45,6 +45,10 @@ export interface CalendarItem {
   source: string;
   color?: string | null;
   href?: string | null;
+  execution_status?: string | null;
+  run_id?: string | null;
+  missed_id?: string | null;
+  executed?: boolean;
   editable: boolean;
 }
 

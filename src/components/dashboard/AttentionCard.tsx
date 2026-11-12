@@ -24,6 +24,7 @@ import { EMPTY_ATTENTION, type Attention, type HitlRequest, type PermissionReque
 import { useAppStore } from "@/store/app-store";
 import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
+import { InteractionCard } from "@/components/interactions/InteractionCard";
 
 export function AttentionCard() {
   const workspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -32,6 +33,7 @@ export function AttentionCard() {
   const lastPermissionEvent = useAppStore((state) => state.lastPermissionEvent);
   const lastRecipeEvent = useAppStore((state) => state.lastRecipeEvent);
   const lastProposalEvent = useAppStore((state) => state.lastProposalEvent);
+  const lastScheduleEvent = useAppStore((state) => state.lastScheduleEvent);
   const [data, setData] = useState<Attention | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [feedbackToken, setFeedbackToken] = useState<string | null>(null);
@@ -67,12 +69,15 @@ export function AttentionCard() {
     lastPermissionEvent?.request_id,
     lastRecipeEvent,
     lastProposalEvent,
+    lastScheduleEvent,
   ]);
 
   if (!data) return null;
 
   const total =
     data.requests.length +
+    data.missed_runs.length +
+    data.task_interactions.length +
     data.hitl.length +
     data.proposals.length +
     data.awaiting_approval.length +
@@ -80,6 +85,42 @@ export function AttentionCard() {
     data.failed_runs.length;
 
   if (total === 0) return null;
+
+  function runMissed(id: string) {
+    void run(`missed-${id}`, async () => {
+      await apiPost(`/api/missed-runs/${id}/run`);
+      toast({
+        tone: "success",
+        title: "Execução perdida enfileirada",
+        description: "Ela vai rodar assim que houver um worker livre.",
+      });
+    });
+  }
+
+  function ignoreMissed(id: string) {
+    void run(`missed-${id}`, async () => {
+      await apiPost(`/api/missed-runs/${id}/ignore`);
+      toast({ tone: "info", title: "Execução perdida ignorada" });
+    });
+  }
+
+  function runAllMissed() {
+    void run("missed-all", async () => {
+      await apiPost(
+        `/api/missed-runs/run-all?workspace_id=${encodeURIComponent(workspaceId ?? "")}`,
+      );
+      toast({ tone: "success", title: "Execuções perdidas enfileiradas" });
+    });
+  }
+
+  function ignoreAllMissed() {
+    void run("missed-all", async () => {
+      await apiPost(
+        `/api/missed-runs/ignore-all?workspace_id=${encodeURIComponent(workspaceId ?? "")}`,
+      );
+      toast({ tone: "info", title: "Execuções perdidas ignoradas" });
+    });
+  }
 
   async function run(key: string, action: () => Promise<void>) {
     setBusy(key);
@@ -266,6 +307,93 @@ export function AttentionCard() {
                   }
                 />
               ))}
+            </Section>
+          ) : null}
+
+          {data.missed_runs.length > 0 ? (
+            <Section
+              title="Execuções perdidas"
+              count={data.missed_runs.length}
+              tone="amber"
+            >
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-3 py-2">
+                  <p className="text-[10px] text-amber-100">
+                    O app/engine estava offline ou o horário passou. Escolha o
+                    que fazer; o padrão é perguntar.
+                  </p>
+                  <div className="flex gap-1.5">
+                    <Button
+                      size="sm"
+                      className="h-7"
+                      disabled={busy === "missed-all"}
+                      onClick={runAllMissed}
+                    >
+                      Executar todas
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7"
+                      disabled={busy === "missed-all"}
+                      onClick={ignoreAllMissed}
+                    >
+                      Ignorar todas
+                    </Button>
+                  </div>
+                </div>
+                {data.missed_runs.map((missed) => (
+                  <div
+                    key={missed.id}
+                    className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[11px] font-medium text-zinc-200">
+                        {missed.schedule_name ?? missed.schedule_id}
+                      </p>
+                      <p className="font-mono text-[9px] text-zinc-500">
+                        {new Date(missed.scheduled_for).toLocaleString("pt-BR")} ·{" "}
+                        {missed.reason === "OFFLINE" ? "offline" : "atraso"}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="h-7"
+                      disabled={busy === `missed-${missed.id}`}
+                      onClick={() => runMissed(missed.id)}
+                    >
+                      Executar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7"
+                      disabled={busy === `missed-${missed.id}`}
+                      onClick={() => ignoreMissed(missed.id)}
+                    >
+                      Ignorar
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          ) : null}
+
+          {data.task_interactions.length > 0 ? (
+            <Section
+              title="Perguntas do agente"
+              count={data.task_interactions.length}
+              tone="amber"
+            >
+              <div className="space-y-2">
+                {data.task_interactions.map((interaction) => (
+                  <InteractionCard
+                    key={`interaction-${interaction.id}`}
+                    interaction={interaction}
+                    onResolved={() => void load()}
+                  />
+                ))}
+              </div>
             </Section>
           ) : null}
 

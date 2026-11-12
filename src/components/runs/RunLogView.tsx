@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  BookmarkPlus,
   Braces,
   CheckCircle2,
   Copy,
   FileText,
   FolderOpen,
+  FolderTree,
+  GitFork,
   Loader2,
   PlayCircle,
   RefreshCw,
@@ -13,9 +16,11 @@ import {
   XCircle,
 } from "lucide-react";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { apiGet, apiPost, apiText } from "@/lib/api";
+import { apiDelete, apiGet, apiPost, apiText } from "@/lib/api";
 import type {
   RunTimeline,
+  Task,
+  TaskInteraction,
   TaskMessage,
 } from "@/lib/types";
 import { AgentCombobox } from "@/components/ui/agent-combobox";
@@ -28,6 +33,11 @@ import { EntityLink } from "@/components/ui/entity-link";
 import { CountPill } from "@/components/ui/count-pill";
 import { IconLabel } from "@/components/ui/icon-label";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ForkTaskModal } from "@/components/kanban/task-form-modal";
+import {
+  InteractionCard,
+  PermissionRequestCard,
+} from "@/components/interactions/InteractionCard";
 import { links } from "@/lib/links";
 import {
   formatClock,
@@ -79,6 +89,22 @@ export function RunLogView({
   const [continueExecution, setContinueExecution] = useState(true);
   const [sending, setSending] = useState(false);
   const [follow, setFollow] = useState(false);
+  const [forkSource, setForkSource] = useState<Task | null>(null);
+  const [forkLoading, setForkLoading] = useState(false);
+  const [openingFolder, setOpeningFolder] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [interactions, setInteractions] = useState<TaskInteraction[]>([]);
+  const [permissions, setPermissions] = useState<
+    Array<{
+      request_id: string;
+      permission_action: string;
+      resources?: string | null;
+      task_id?: string | null;
+      run_id?: string | null;
+      created_at?: string;
+    }>
+  >([]);
+  const lastPermissionEvent = useAppStore((state) => state.lastPermissionEvent);
 
   const loadMessages = useCallback(async (taskId: string) => {
     try {
@@ -94,7 +120,7 @@ export function RunLogView({
   const load = useCallback(async () => {
     try {
       const value = await apiGet<RunTimeline>(
-        `/api/runs/${encodeURIComponent(runId)}/timeline`,
+        `/api/runs/${encodeURIComponent(runId)}/thread`,
       );
       setTimeline(value);
       if (value.run?.task_id) void loadMessages(value.run.task_id);
@@ -105,6 +131,50 @@ export function RunLogView({
       setLoading(false);
     }
   }, [loadMessages, runId]);
+
+  const loadInteractions = useCallback(async () => {
+    const taskId = timeline?.run?.task_id;
+    const workspaceId = timeline?.run?.workspace_id;
+    if (!taskId || !workspaceId) {
+      setInteractions([]);
+      setPermissions([]);
+      return;
+    }
+    try {
+      const [pendingInteractions, permissionResponse] = await Promise.all([
+        apiGet<TaskInteraction[]>(`/api/tasks/${taskId}/interactions`),
+        apiGet<{
+          requests: Array<{
+            request_id: string;
+            permission_action: string;
+            resources?: string | null;
+            task_id?: string | null;
+            run_id?: string | null;
+          }>;
+        }>(
+          `/api/permissions?workspace_id=${encodeURIComponent(workspaceId)}`,
+        ),
+      ]);
+      setInteractions(
+        Array.isArray(pendingInteractions) ? pendingInteractions : [],
+      );
+      setPermissions(
+        (Array.isArray(permissionResponse?.requests)
+          ? permissionResponse.requests
+          : []
+        ).filter(
+          (request) => request.task_id === taskId || request.run_id === runId,
+        ),
+      );
+    } catch {
+      setInteractions([]);
+      setPermissions([]);
+    }
+  }, [runId, timeline?.run?.task_id, timeline?.run?.workspace_id]);
+
+  useEffect(() => {
+    void loadInteractions();
+  }, [loadInteractions, lastPermissionEvent?.request_id]);
 
   useEffect(() => {
     setLoading(true);
@@ -154,7 +224,9 @@ export function RunLogView({
       setComposer("");
       toast({
         tone: "success",
-        title: continueExecution ? "Mensagem enviada; nova tentativa enfileirada" : "Comentário adicionado",
+        title: continueExecution
+          ? "Mensagem enviada; continuação enfileirada"
+          : "Comentário adicionado",
       });
       if (continueExecution) setFollow(true);
       await Promise.all([load(), loadMessages(timeline.run.task_id)]);
@@ -187,12 +259,40 @@ export function RunLogView({
     const text = timeline?.result.text?.trim() || summary || "";
     if (!taskId || !text) return;
     try {
-      await apiPost(`/api/tasks/${taskId}/memory`, { content: text });
-      toast({ tone: "success", title: "Fixado na memória do workspace" });
+      await apiPost(`/api/tasks/${taskId}/memory`, {
+        content: text,
+        run_id: runId,
+      });
+      toast({
+        tone: "success",
+        title: "Salvo em .opencode/MEMORY.md",
+        description:
+          "O resultado entra no contexto dos próximos runs. Você pode desfazer agora.",
+        href: links.file(".opencode/MEMORY.md"),
+        action: {
+          label: "Desfazer",
+          onClick: () => {
+            void apiDelete(
+              `/api/tasks/${taskId}/memory?run_id=${encodeURIComponent(runId)}`,
+            )
+              .then(() =>
+                toast({ tone: "info", title: "Entrada removida da memória" }),
+              )
+              .catch((cause) =>
+                toast({
+                  tone: "error",
+                  title: "Não foi possível desfazer",
+                  description:
+                    cause instanceof Error ? cause.message : String(cause),
+                }),
+              );
+          },
+        },
+      });
     } catch (cause) {
       toast({
         tone: "error",
-        title: "Não foi possível fixar",
+        title: "Não foi possível salvar na memória",
         description: cause instanceof Error ? cause.message : String(cause),
       });
     }
@@ -201,38 +301,75 @@ export function RunLogView({
   async function forkHere() {
     const taskId = timeline?.run?.task_id;
     if (!taskId) return;
+    setForkLoading(true);
     try {
-      const forked = await apiPost<{ id: string; title: string }>(
-        `/api/runs/${runId}/fork`,
-        {},
-      );
-      toast({
-        tone: "success",
-        title: "Fork criado a partir deste run",
-        description: forked.title,
-        href: links.task(forked.id),
-      });
+      const task = await apiGet<Task>(`/api/tasks/${taskId}`);
+      setForkSource(task);
     } catch (cause) {
       toast({
         tone: "error",
-        title: "Não foi possível criar o fork",
+        title: "Não foi possível abrir o fork",
         description: cause instanceof Error ? cause.message : String(cause),
       });
+    } finally {
+      setForkLoading(false);
     }
   }
 
   async function openOutputFolder() {
     const path = timeline?.output_directory;
     if (!path) return;
+    setOpeningFolder(true);
     try {
       await openPath(path);
     } catch (cause) {
       toast({
         tone: "error",
         title: "Não foi possível abrir a pasta",
-        description: cause instanceof Error ? cause.message : String(cause),
+        description: `${path} · ${cause instanceof Error ? cause.message : String(cause)}`,
+        action: {
+          label: "Copiar caminho",
+          onClick: () => {
+            void navigator.clipboard.writeText(path);
+          },
+        },
       });
+    } finally {
+      setOpeningFolder(false);
     }
+  }
+
+  async function refresh() {
+    setRefreshing(true);
+    const started = Date.now();
+    try {
+      await load();
+    } finally {
+      const remaining = 300 - (Date.now() - started);
+      if (remaining > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remaining));
+      }
+      setRefreshing(false);
+    }
+  }
+
+  function copyExecution() {
+    const lines: string[] = [];
+    for (const message of messages) {
+      lines.push(`Você: ${message.content}`);
+    }
+    for (const event of timeline?.events ?? []) {
+      if (event.kind === "comment" && event.text.trim()) {
+        lines.push(`Assistente: ${event.text.trim()}`);
+      } else if (event.kind === "tool" && event.tool) {
+        lines.push(
+          `[ferramenta] ${event.tool.summary} (${event.tool.status})`,
+        );
+      }
+    }
+    const result = timeline?.result.text?.trim() || summary;
+    if (result) lines.push(`Resultado: ${result}`);
+    void copy(lines.join("\n\n"));
   }
 
   async function copy(text: string) {
@@ -248,8 +385,23 @@ export function RunLogView({
   const status = timeline?.status ?? run?.status ?? "RUNNING";
   const failedRun = status === "FAILED" || status === "CANCELLED";
   const summary = run?.summary_response?.trim() || timeline?.result.text;
-  const totalTokens =
-    (run?.tokens_input ?? 0) + (run?.tokens_output ?? 0);
+  const attempts = timeline?.attempts ?? [];
+  const totalTokens = attempts.length
+    ? attempts.reduce(
+        (total, attempt) =>
+          total + attempt.tokens_input + attempt.tokens_output,
+        0,
+      )
+    : (run?.tokens_input ?? 0) + (run?.tokens_output ?? 0);
+  const totalInput = attempts.length
+    ? attempts.reduce((total, attempt) => total + attempt.tokens_input, 0)
+    : run?.tokens_input ?? 0;
+  const totalOutput = attempts.length
+    ? attempts.reduce((total, attempt) => total + attempt.tokens_output, 0)
+    : run?.tokens_output ?? 0;
+  const totalCost = attempts.length
+    ? attempts.reduce((total, attempt) => total + attempt.cost_usd, 0)
+    : run?.estimated_cost_usd ?? 0;
 
   if (loading && !timeline) {
     return (
@@ -294,18 +446,33 @@ export function RunLogView({
           <span className="font-mono text-[10px] text-zinc-500">
             {formatDuration(timeline?.duration_ms ?? run?.duration_ms)}
           </span>
+          {attempts.length > 1 ? (
+            <Badge
+              variant="purple"
+              title={`Esta execução tem ${attempts.length} tentativas. A linha do tempo abaixo é contínua.`}
+            >
+              {attempts.length} tentativas
+            </Badge>
+          ) : null}
           {timeline?.steps.length ? (
             <Badge variant="default">{timeline.steps.length} passos</Badge>
           ) : null}
           <span className="ml-auto flex flex-wrap items-center gap-1.5">
             {run?.task_id ? (
-              <EntityLink to={links.task(run.task_id)} chip>
-                <FileText size={10} />
-                abrir tarefa
+              <EntityLink
+                to={links.task(run.task_id)}
+                chip
+                title="Abrir o card da tarefa"
+              >
+                <IconLabel icon={<FileText size={10} />}>abrir tarefa</IconLabel>
               </EntityLink>
             ) : null}
             {timeline?.artifacts.length ? (
-              <EntityLink to={`/artifacts?run=${encodeURIComponent(runId)}`} chip>
+              <EntityLink
+                to={`/artifacts?run=${encodeURIComponent(runId)}`}
+                chip
+                title="Abrir os artefatos desta execução"
+              >
                 <IconLabel icon={<FileText size={10} />}>artefatos</IconLabel>
                 <CountPill value={timeline.artifacts.length} tone="blue" />
               </EntityLink>
@@ -317,13 +484,34 @@ export function RunLogView({
                   size="sm"
                   className="h-7"
                   onClick={() => void openOutputFolder()}
-                  title={timeline.output_directory}
+                  disabled={openingFolder}
+                  title={
+                    openingFolder
+                      ? "Abrindo pasta…"
+                      : `Abrir a pasta de output no sistema (${timeline.output_directory})`
+                  }
                 >
-                  <IconLabel icon={<FolderOpen size={12} />}>pasta</IconLabel>
+                  <IconLabel
+                    icon={
+                      openingFolder ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <FolderOpen size={12} />
+                      )
+                    }
+                  >
+                    pasta
+                  </IconLabel>
                 </Button>
                 {timeline.output_directory_relative ? (
-                  <EntityLink to={links.file(timeline.output_directory_relative)} chip>
-                    explorador
+                  <EntityLink
+                    to={links.dir(timeline.output_directory_relative)}
+                    chip
+                    title="Abrir a pasta de output no explorador do OpenDesk"
+                  >
+                    <IconLabel icon={<FolderTree size={10} />}>
+                      explorador
+                    </IconLabel>
                   </EntityLink>
                 ) : null}
               </>
@@ -335,18 +523,24 @@ export function RunLogView({
                   size="sm"
                   className="h-7"
                   onClick={() => void pinMemory()}
-                  title="Adicionar o resultado à MEMORY.md do workspace"
+                  title="Salvar o resultado em .opencode/MEMORY.md; você pode desfazer no aviso"
                 >
-                  memória
+                  <IconLabel icon={<BookmarkPlus size={12} />}>memória</IconLabel>
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-7"
                   onClick={() => void forkHere()}
-                  title="Criar uma tarefa independente com os artefatos deste run"
+                  disabled={forkLoading}
+                  title="Revisar e criar uma tarefa independente com os artefatos deste run"
                 >
-                  fork daqui
+                  {forkLoading ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <GitFork size={12} />
+                  )}
+                  fork
                 </Button>
               </>
             ) : null}
@@ -354,19 +548,19 @@ export function RunLogView({
               variant="ghost"
               size="sm"
               className="h-7"
-              onClick={() => void copy(summary ?? "")}
+              onClick={copyExecution}
+              title="Copiar a transcrição completa desta execução"
             >
-              <Copy size={12} />
-              copiar
+              <IconLabel icon={<Copy size={12} />}>copiar execução</IconLabel>
             </Button>
             <Button
               variant="ghost"
               size="sm"
               className="h-7"
               onClick={() => setView(view === "stream" ? "bands" : "stream")}
-              title="Alternar entre conversa intercalada e faixas"
+              title="Alternar entre linha do tempo e resumo agrupado"
             >
-              {view === "stream" ? "bandas" : "conversa"}
+              {view === "stream" ? "resumo" : "linha do tempo"}
             </Button>
             <Button
               variant="ghost"
@@ -384,10 +578,14 @@ export function RunLogView({
               variant="ghost"
               size="sm"
               className="h-7"
-              onClick={() => void load()}
-              title="Atualizar"
+              onClick={() => void refresh()}
+              title="Recarregar a execução"
+              disabled={refreshing}
             >
-              <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+              <RefreshCw
+                size={12}
+                className={refreshing ? "animate-spin" : undefined}
+              />
             </Button>
           </span>
         </div>
@@ -396,8 +594,12 @@ export function RunLogView({
           <span>{run?.model_id ?? "modelo"}</span>
           {run ? (
             <>
-              <span>{formatNumber(totalTokens)} tokens</span>
-              <span>{formatUsd(run.estimated_cost_usd)}</span>
+              <span>
+                ↑ {formatNumber(totalInput)} · ↓{" "}
+                {formatNumber(totalOutput)} · Σ{" "}
+                {formatNumber(totalTokens)} tokens
+              </span>
+              <span>{formatUsd(totalCost)}</span>
             </>
           ) : null}
           <span>
@@ -460,6 +662,24 @@ export function RunLogView({
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
+          {view === "bands" ? (
+            <>
+              {interactions.map((interaction) => (
+                <InteractionCard
+                  key={interaction.id}
+                  interaction={interaction}
+                  onResolved={() => void loadInteractions()}
+                />
+              ))}
+              {permissions.map((request) => (
+                <PermissionRequestCard
+                  key={request.request_id}
+                  request={request}
+                  onDecided={() => void loadInteractions()}
+                />
+              ))}
+            </>
+          ) : null}
           {view === "stream" ? (
             <StreamView
               timeline={timeline}
@@ -468,6 +688,9 @@ export function RunLogView({
               summary={summary}
               failedRun={failedRun}
               copy={copy}
+              interactions={interactions}
+              permissions={permissions}
+              onInteractionsChanged={() => void loadInteractions()}
             />
           ) : (
             <>
@@ -498,6 +721,7 @@ export function RunLogView({
             </div>
           ) : null}
 
+          {timeline?.thinking.text?.trim() ? (
           <Band
             title="Raciocínio"
             icon={<BrainIcon />}
@@ -521,7 +745,9 @@ export function RunLogView({
               </p>
             ) : null}
           </Band>
+          ) : null}
 
+          {timeline?.executed.tools.length ? (
           <Band
             title="Executado"
             icon={<Terminal size={14} />}
@@ -555,6 +781,7 @@ export function RunLogView({
               </p>
             )}
           </Band>
+          ) : null}
 
           <div
             className={cn(
@@ -624,29 +851,54 @@ export function RunLogView({
           </div>
           {timeline?.run?.task_id ? (
             <div className="shrink-0 border-t border-zinc-800/70 bg-zinc-950/80 p-3">
+              <p className="mb-2 text-[9px] text-zinc-500">
+                Último agente/modelo:{" "}
+                <span className="font-mono text-zinc-400">
+                  @{run?.agent_name ?? "router"} · {run?.model_id ?? "modelo"}
+                </span>
+              </p>
               <div className="mb-2 grid gap-2 sm:grid-cols-2">
                 <AgentCombobox
                   value={composerAgent}
                   onChange={(value) => setComposerAgent(value)}
                   workspaceId={timeline.run.workspace_id}
-                  placeholder="agente automático"
+                  placeholder={`automático (router)${run?.agent_name ? ` · @${run.agent_name}` : ""}`}
                 />
                 <ModelCombobox
                   value={composerModel}
                   onChange={setComposerModel}
                   placeholder="modelo automático"
+                  routerHint={`Modelo automático. Último usado: ${
+                    run?.model_id ?? "desconhecido"
+                  }.`}
                 />
               </div>
-              <SlashTextarea
-                value={composer}
-                onChange={setComposer}
-                workspaceId={timeline.run.workspace_id}
-                rows={2}
-                submitOnEnter
-                onSubmit={() => void sendComment()}
-                placeholder="Responder, comentar ou pedir uma continuação… (Enter envia)"
-                className="min-h-[48px]"
-              />
+              <div className="flex items-stretch gap-2">
+                <SlashTextarea
+                  value={composer}
+                  onChange={setComposer}
+                  workspaceId={timeline.run.workspace_id}
+                  rows={3}
+                  submitOnEnter
+                  onSubmit={() => void sendComment()}
+                  placeholder="Responder, comentar ou pedir uma continuação… (Enter envia)"
+                  className="min-h-[88px] flex-1"
+                />
+                <Button
+                  size="sm"
+                  className="h-auto w-20 shrink-0 flex-col gap-1"
+                  onClick={() => void sendComment()}
+                  disabled={sending || !composer.trim()}
+                  title="Enviar mensagem e continuar a mesma execução"
+                >
+                  {sending ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <Send size={15} />
+                  )}
+                  Enviar
+                </Button>
+              </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <label className="flex items-center gap-2 text-[11px] text-zinc-400">
                   <input
@@ -655,26 +907,28 @@ export function RunLogView({
                     onChange={(event) => setContinueExecution(event.target.checked)}
                     className="accent-blue-500"
                   />
-                  continuar execução (nova tentativa)
+                  continuar na mesma execução
                 </label>
-                <Button
-                  size="sm"
-                  className="ml-auto h-8"
-                  onClick={() => void sendComment()}
-                  disabled={sending || !composer.trim()}
-                >
-                  {sending ? (
-                    <Loader2 size={13} className="animate-spin" />
-                  ) : (
-                    <Send size={13} />
-                  )}
-                  Enviar
-                </Button>
+                <span className="text-[9px] text-zinc-500">
+                  A continuação vira uma tentativa interna; o histórico continua
+                  no mesmo run.
+                </span>
               </div>
             </div>
           ) : null}
         </div>
       )}
+
+      <ForkTaskModal
+        open={!!forkSource}
+        source={forkSource}
+        runId={runId}
+        onClose={() => setForkSource(null)}
+        onSaved={async () => {
+          setForkSource(null);
+          toast({ tone: "success", title: "Fork criado a partir deste run" });
+        }}
+      />
     </div>
   );
 }

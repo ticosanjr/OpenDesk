@@ -1944,3 +1944,124 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `npm run verify:model` valida a conexão real com `deepseek/deepseek-flash`
   (resposta OK, 81 modelos, `model_available: true`).
 - Testes: 356 Rust, 134 Vitest, 76 Playwright; 74/74 features (100%).
+
+## 2026-11-12 — onda 1: estado único, notificações e feedback
+
+- `Task` ganhou `workflow_state` e `workflow_reason` derivados no backend a
+  partir de status, fase, job ativo e último run. A UI deixou de inferir
+  “executando” apenas por `IN_PROGRESS`; tarefa movida manualmente para
+  In progress sem job/run aparece como atenção com motivo
+  `in_progress_without_run`.
+- Novo `WorkflowStatusBadge`/`workflowMeta` compartilhado no Kanban (board e
+  lista) e no detalhe da tarefa, com ícone, cor, texto e tooltip.
+- `WorkingIndicator` passou a usar uma única engrenagem animada; Dashboard
+  mostra o indicador no KPI da fila e nos runs ativos.
+- Preferências de notificação separadas: fim de execução, falhas/bloqueios,
+  interações, artefatos e rotinas puladas. Padrão mínimo com artefatos e
+  rotinas puladas desligados; movimentação de Kanban não gera mais toast.
+- Detalhe da tarefa mostra tokens de entrada, saída, total e cache; cada run
+  em “Últimas execuções” mostra entrada/saída/total. Cabeçalho do run mostra
+  `↑ entrada · ↓ saída · Σ total`.
+- Testes: workflow no Rust e Vitest, notificações mínimas e E2E do falso
+  “executando”.
+
+## 2026-11-12 — onda 2: Kanban por workflow, autostart e fork revisável
+
+- Kanban passou para 5 colunas derivadas do `workflow_state`: Fila, Em
+  execução, Atenção, Concluído e Cancelado. `IN_REVIEW` e `BLOCKED` ficam em
+  Atenção com motivo claro; `data-column` acompanha os novos grupos.
+- Criar tarefa auto-inicia quando o motor está online, a fila não está pausada
+  e a tarefa não está em espera. Um reconciliador no tick do cron inicia até 3
+  tarefas READY por ciclo quando o motor volta. Nova opção
+  `tasks_autostart` (padrão ligado) em Configurações → Fila.
+- “Em espera” virou um estado real (`held`) com endpoint
+  `POST /api/tasks/:id/hold`; retomar limpa o hold e tenta auto-iniciar.
+- Arrastar para Em execução dispara um job real; se o motor estiver offline a
+  transição falha e o card volta para Fila. Mover para Fila limpa hold e
+  auto-inicia; Concluído/Cancelado cancelam job/run; Atenção abre um modal de
+  motivo do bloqueio.
+- Título de tarefa é opcional; quando vazio, deriva da primeira linha da
+  descrição (até 80 caracteres). Vale para UI, API e MCP `task_create`.
+- O card de tarefa usa descrição fixa de 3 linhas, altura consistente, um único
+  status de workflow, tooltips nos metadados e link “arquivos” para os
+  entregáveis. Saíram os chips duplicados de último run/fase.
+- Fork no detalhe e no run abre a tarefa em modal de edição pré-preenchido;
+  só cria depois da confirmação. A API de fork aceita overrides.
+- Rodapé do detalhe da tarefa ficou fixo no fundo e centralizado, com “Ver
+  arquivos” e ações agrupadas.
+- Testes: 360 Rust, 138 Vitest, 77 Playwright e 74/74 features (100%). Inclui
+  hold/título/transição no Rust e E2E de hold e falso running.
+
+## 2026-11-12 — onda 3: continuidade de execução, timeline e HITL inline
+
+- Follow-ups agora gravam `parent_run_id` e a página de execução usa
+  `GET /api/runs/{id}/thread` para mostrar todas as tentativas em uma única
+  linha do tempo. A lista de execuções agrupa por tarefa/thread e mostra
+  “N tentativas”.
+- `RunTimeline` ganhou `attempts` e marcadores de tentativa por evento;
+  o cabeçalho soma tokens/custo de todas as tentativas.
+- A linha do tempo é cronológica, agrupa ferramentas e mensagens consecutivas,
+  marca cada tentativa e o modo “Resumo” esconde seções vazias. Accordions
+  ficaram em 200 ms.
+- Barra da execução: ícones+texto sem quebra, tooltips, Pasta com fallback
+  “Copiar caminho”, Explorador abre a pasta de output via `dir=1`, Memória
+  grava bloco marcado em `MEMORY.md` com Desfazer, Fork abre modal pré-preenchido,
+  Copiar copia a transcrição completa e Recarregar mantém spinner mínimo.
+- Composer com textarea maior, botão Enviar quadrado, valores resolvidos de
+  agente/modelo e continuação na mesma execução.
+- HITL genérico: tabela `task_interactions`, endpoints de pergunta/resposta,
+  cartão inline no detalhe da tarefa, na timeline e no Attention Card.
+  Nova ferramenta MCP `ask_user` bloqueia a tarefa em Atenção até a resposta.
+  Permissões do OpenCode usam o mesmo cartão inline.
+- Testes: 361 Rust, 138 Vitest, 78 Playwright e 74/74 features (100%). Inclui
+  interação HITL no Rust e Playwright, thread de execução, timeline e toolbar.
+
+## 2026-11-12 — onda 4: calendário correlacionado, perdidas e dashboard ao vivo
+
+- Calendário agora correlaciona cada ocorrência de rotina/receita com o run
+  real. Executados abrem o run; não executados abrem a rotina/receita.
+  Projeções futuras só aparecem para rotinas ativas e receitas habilitadas.
+- Dias passados escondem ocorrências não executadas, exceto falha, bloqueio,
+  cancelamento ou execução perdida pendente.
+- Itens do calendário ganharam `execution_status`, `run_id`, `missed_id` e
+  `executed`, com ícone/cor/legenda para sucesso, falha, execução, fila,
+  agendado, cancelado e perdido.
+- Nova tabela `missed_runs` e política `missed_run_policy` (Perguntar padrão,
+  Executar automaticamente ou Ignorar) em Configurações → Fila.
+- O cron registra ocorrências perdidas por app/engine offline ou atraso,
+  agrupa até 5 por rotina e aplica a política. Attention Card permite executar
+  ou ignorar individualmente ou em lote.
+- Dashboard ganhou a faixa “Em execução agora” com engrenagem animada, tarefa,
+  agente, modelo e tempo decorrido.
+- Testes: 362 Rust, 138 Vitest, 78 Playwright e 74/74 features (100%).
+
+## 2026-11-12 — onda 5: artefatos, pacotes e ciclo de aprendizado
+
+- Deep link de artefato agora busca `GET /api/artifacts/{id}` diretamente,
+  mesmo fora da lista/filtro atual, e abre a prévia com estado de carregamento
+  e erro acionável.
+- Novo `DiffView`/`parseUnifiedDiff`: diff unificado com cabeçalhos de hunk,
+  números de linha antigos/novos, adicionadas em verde, removidas em vermelho,
+  contexto neutro, contagem `+/-` e copiar diff. Usado na aba Diff dos artefatos.
+- Pacotes ganharam filtro Todos/Instalados/Disponíveis; cards instalados têm
+  check e tooltip. No modal, cada item mostra `instalado`, `modificado` ou
+  `disponível`, com filtro por status e botão Reaplicar.
+- O backend de pacotes calcula o status por workspace comparando os arquivos
+  planejados com o disco; API de itens aceita `workspace_id`.
+- Aprendizado explica Promover (“criar proposta de skill”) e Memorizar
+  (“salvar em MEMORY.md”), com filtro “Memorizadas”, reabrir descartadas e
+  remover da memória. A remoção apaga o bloco marcado no `MEMORY.md` e limpa
+  `remembered_at`.
+- Testes: 362 Rust, 156 Vitest, 78 Playwright e 74/74 features (100%).
+
+## 2026-11-12 — onda 6 e release 0.47.0
+
+- Auditoria transversal de rotinas e fila: tooltips nos metadados, IconLabel
+  nos botões e indicador animado de execução no controlador da fila.
+- Revisão de consistência das telas citadas nas ondas anteriores: status real,
+  navegação para o objeto específico, feedback de ações, notificações mínimas,
+  preview compartilhado, diff, filtros de pacotes e ciclo de aprendizado.
+- Gate axe mantido em todas as rotas principais e modais-chave.
+- Corrigidos flakes de seletor em calendário e atenção.
+- Release 0.47.0 com notas em `docs/releases/0.47.0.md`.
+- Testes: 362 Rust, 156 Vitest, 78 Playwright; 74/74 features (100%).

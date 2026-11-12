@@ -168,7 +168,7 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
 
   await page.getByRole("main").getByRole("button", { name: "Nova tarefa" }).click();
   await page
-    .getByPlaceholder("Relatório executivo de vendas")
+    .getByPlaceholder("Se vazio, usamos o início da descrição")
     .fill("Tarefa E2E do Kanban");
   await page
     .getByPlaceholder("Descreva o objetivo, as entradas e os critérios de aceite…")
@@ -199,7 +199,15 @@ test("creates a Kanban task and enqueues it with the queue paused", async ({
   expect(diagnosticsBody.task.id).toBe(task!.id);
   expect(Array.isArray(diagnosticsBody.runs)).toBe(true);
 
-  for (const status of ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE", "BLOCKED", "CANCELLED", "TODO"]) {
+  // Em execução agora exige um job real; com o motor desligado no E2E a
+  // transição deve falhar em vez de fingir que a tarefa está rodando.
+  const fakeRunning = await request.post(
+    `${auth.baseURL}/api/tasks/${task!.id}/transition`,
+    { headers: auth.headers, data: { status: "IN_PROGRESS" } },
+  );
+  expect(fakeRunning.ok()).toBeFalsy();
+
+  for (const status of ["TODO", "IN_REVIEW", "DONE", "BLOCKED", "CANCELLED", "TODO"]) {
     const moved = await request.post(
       `${auth.baseURL}/api/tasks/${task!.id}/transition`,
       { headers: auth.headers, data: { status } },
@@ -757,8 +765,8 @@ test("kanban move control persists an adjacent column", async ({ page, request }
   await expect(page.getByRole("button", { name: "Abrir tarefa Drag E2E" })).toBeVisible();
   await page
     .getByRole("button", { name: "Abrir tarefa Drag E2E" })
-    .dragTo(page.locator('[data-column="TODO"]'));
-  await expect(page.locator('[data-column="TODO"]').getByText("Drag E2E")).toBeVisible();
+    .dragTo(page.locator('[data-column="QUEUE"]'));
+  await expect(page.locator('[data-column="QUEUE"]').getByText("Drag E2E")).toBeVisible();
 
   // The column change is persisted through an async API call; poll briefly.
   await expect
@@ -991,10 +999,6 @@ test("task can be cancelled from the task panel at any time", async ({ page, req
   );
   expect(createdTask.ok()).toBeTruthy();
   const task = (await createdTask.json()) as { id: string };
-  await request.post(`${auth.baseURL}/api/tasks/${task.id}/transition`, {
-    headers: auth.headers,
-    data: { status: "IN_PROGRESS" },
-  });
 
   await page.goto("/#/kanban");
   await page.getByRole("button", { name: "Abrir tarefa Cancelar E2E" }).click();
@@ -1002,13 +1006,18 @@ test("task can be cancelled from the task panel at any time", async ({ page, req
     .getByRole("dialog")
     .getByRole("button", { name: "Cancelar", exact: true })
     .click();
-  await expect(page.getByText("Tarefa movida para Cancelled").first()).toBeVisible();
-
-  const tasks = await request.get(`${auth.baseURL}/api/tasks?workspace_id=${workspaceId}`, {
-    headers: auth.headers,
-  });
-  const list = (await tasks.json()) as Array<{ id: string; status: string }>;
-  expect(list.find((item) => item.id === task.id)?.status).toBe("CANCELLED");
+  // Moving a card is intentionally silent: assert the persisted state instead
+  // of a toast.
+  await expect
+    .poll(async () => {
+      const tasks = await request.get(
+        `${auth.baseURL}/api/tasks?workspace_id=${workspaceId}`,
+        { headers: auth.headers },
+      );
+      const list = (await tasks.json()) as Array<{ id: string; status: string }>;
+      return list.find((item) => item.id === task.id)?.status;
+    })
+    .toBe("CANCELLED");
 });
 
 test("notification preferences and kanban list view are available", async ({

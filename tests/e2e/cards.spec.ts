@@ -85,12 +85,29 @@ test("task, routine and attention cards keep a consistent geometry", async ({
     tags: [],
   });
   await moveTask(request, blocked, "BLOCKED");
-  const running = await createTask(request, workspace.id, {
-    title: "Em andamento",
-    description: "Rodando.",
-    tags: ["audit"],
+  const running = await request.post(`${auth.baseURL}/api/test/seed`, {
+    headers: auth.headers,
+    data: {
+      workspace_id: workspace.id,
+      task: {
+        title: "Em andamento",
+        description: "Rodando.",
+        status: "IN_PROGRESS",
+      },
+    },
   });
-  await moveTask(request, running, "IN_PROGRESS");
+  expect(running.ok()).toBeTruthy();
+
+  await page.goto("/#/kanban");
+  await expect(page.getByRole("heading", { name: "Kanban & Fila" })).toBeVisible();
+  const fakeRunning = page
+    .locator('[data-card="task"]')
+    .filter({ hasText: "Em andamento" });
+  await expect(fakeRunning).toHaveAttribute("data-workflow-state", "BLOCKED");
+  await expect(fakeRunning).toHaveAttribute(
+    "data-workflow-reason",
+    "in_progress_without_run",
+  );
 
   const recipe = await request.put(
     `${auth.baseURL}/api/recipes/receita-cards?workspace_id=${workspace.id}`,
@@ -186,7 +203,7 @@ flow:
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/#/kanban");
   await expect(page.locator('[data-card="task"]')).toHaveCount(5);
-  await assertConsistent(page, '[data-card="task"]', 152);
+  await assertConsistent(page, '[data-card="task"]', 184);
   await assertNoInternalOverflow(page, '[data-card="task"]');
   await page.screenshot({
     path: test.info().outputPath("kanban-cards-1440.png"),
@@ -216,11 +233,55 @@ flow:
   await page.setViewportSize({ width: 1100, height: 800 });
   await page.goto("/#/kanban");
   await expect(page.locator('[data-card="task"]')).toHaveCount(5);
-  await assertConsistent(page, '[data-card="task"]', 152);
+  await assertConsistent(page, '[data-card="task"]', 184);
   await page.goto("/#/routines");
   await expect(page.locator('[data-card="routine"]')).toHaveCount(3);
   await assertConsistent(page, '[data-card="routine"]', 188);
   await page.goto("/#/");
   await expect(page.locator("[data-attention-row]")).toHaveCount(4);
   await assertConsistent(page, "[data-attention-row]", 82);
+});
+
+test("kanban groups by workflow and honors explicit hold", async ({
+  page,
+  request,
+}) => {
+  const auth = api();
+  const workspace = await seedWorkspace(request, "Workflow Hold");
+  const taskId = await createTask(request, workspace.id, {
+    title: "Hold E2E",
+    description: "Tarefa que deve ficar em espera.",
+    tags: [],
+  });
+  const held = await request.post(
+    `${auth.baseURL}/api/tasks/${taskId}/hold`,
+    { headers: auth.headers, data: { held: true } },
+  );
+  expect(held.ok()).toBeTruthy();
+
+  await page.goto("/#/kanban");
+  const card = page
+    .locator('[data-card="task"]')
+    .filter({ hasText: "Hold E2E" });
+  await expect(card).toHaveAttribute("data-workflow-state", "HELD");
+  await expect(card.getByRole("button", { name: "Retomar" })).toBeVisible();
+  await expect(page.locator('[data-column="QUEUE"]')).toContainText("Hold E2E");
+  await expect(page.getByText("Atenção", { exact: true })).toBeVisible();
+  await expect(page.getByText("Em execução", { exact: true })).toBeVisible();
+
+  await card.getByRole("button", { name: "Retomar" }).click();
+  await expect
+    .poll(async () => {
+      const tasks = await request.get(`${auth.baseURL}/api/tasks`, {
+        headers: auth.headers,
+      });
+      const list = (await tasks.json()) as Array<{
+        id: string;
+        held: boolean;
+        workflow_state: string;
+      }>;
+      const current = list.find((item) => item.id === taskId);
+      return `${current?.held}|${current?.workflow_state}`;
+    })
+    .toBe("false|READY");
 });

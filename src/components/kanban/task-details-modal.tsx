@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   Ban,
   CheckCircle2,
   Columns3,
   FileText,
-  GitBranch,
+  FolderOpen,
+  GitFork,
   Loader2,
   Pause,
   Pencil,
@@ -19,13 +20,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EntityLink } from "@/components/ui/entity-link";
 import { RunLogView } from "@/components/runs/RunLogView";
+import { WorkflowStatusBadge } from "@/components/ui/workflow-status";
+import {
+  InteractionCard,
+  PermissionRequestCard,
+} from "@/components/interactions/InteractionCard";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Modal } from "@/components/ui/modal";
 import { apiGet, apiPost } from "@/lib/api";
 import { links } from "@/lib/links";
 import { STATUS_LABEL } from "@/lib/task-ui";
-import { isTaskAwaitingApproval, isTaskFailed, isTaskRunning } from "@/lib/task-state";
-import type { Task, TaskDiagnostics, TaskRun } from "@/lib/types";
+import { isTaskAwaitingApproval, isTaskRunning } from "@/lib/task-state";
+import type {
+  Task,
+  TaskDiagnostics,
+  TaskInteraction,
+  TaskRun,
+} from "@/lib/types";
 import { formatNumber, formatUsd, relativeTime } from "@/lib/format";
 import type { OutboundSink } from "@/components/integrations/OutboundSinksCard";
 import { useAppStore } from "@/store/app-store";
@@ -69,7 +80,19 @@ export function TaskDetailsModal({
   const [sinks, setSinks] = useState<OutboundSink[]>([]);
   const [selectedSinks, setSelectedSinks] = useState<Set<string>>(new Set());
   const [savingSinks, setSavingSinks] = useState(false);
+  const [interactions, setInteractions] = useState<TaskInteraction[]>([]);
+  const [permissions, setPermissions] = useState<
+    Array<{
+      request_id: string;
+      permission_action: string;
+      resources?: string | null;
+      task_id?: string | null;
+      run_id?: string | null;
+      created_at?: string;
+    }>
+  >([]);
   const daemon = useAppStore((state) => state.daemon);
+  const navigate = useNavigate();
 
   const taskId = task?.id;
   const taskWorkspaceId = task?.workspace_id;
@@ -123,6 +146,53 @@ export function TaskDetailsModal({
       setSavingSinks(false);
     }
   }
+
+  async function loadInteractions() {
+    if (!taskId || !taskWorkspaceId) {
+      setInteractions([]);
+      setPermissions([]);
+      return;
+    }
+    try {
+      const [pendingInteractions, permissionResponse] = await Promise.all([
+        apiGet<TaskInteraction[]>(`/api/tasks/${taskId}/interactions`),
+        apiGet<{
+          requests: Array<{
+            request_id: string;
+            permission_action: string;
+            resources?: string | null;
+            task_id?: string | null;
+            run_id?: string | null;
+          }>;
+        }>(
+          `/api/permissions?workspace_id=${encodeURIComponent(taskWorkspaceId)}`,
+        ),
+      ]);
+      setInteractions(
+        Array.isArray(pendingInteractions) ? pendingInteractions : [],
+      );
+      setPermissions(
+        (Array.isArray(permissionResponse?.requests)
+          ? permissionResponse.requests
+          : []
+        ).filter(
+          (request) =>
+            request.task_id === taskId ||
+            (request.run_id && request.run_id === task?.last_run_id),
+        ),
+      );
+    } catch {
+      setInteractions([]);
+      setPermissions([]);
+    }
+  }
+
+  useEffect(() => {
+    void loadInteractions();
+    // taskId/taskWorkspaceId cover task changes; loadInteractions is intentionally
+    // called only when the task identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId, taskWorkspaceId, task?.last_run_id]);
 
   useEffect(() => {
     if (!task) {
@@ -219,9 +289,18 @@ export function TaskDetailsModal({
   }
 
   const running = task ? isTaskRunning(task) : false;
-  const failed =
-    (task ? isTaskFailed(task) : false) ||
-    (diagnostics?.error !== null && diagnostics?.error !== undefined);
+  const queued = task?.workflow_state === "QUEUED";
+  const held = task?.workflow_state === "HELD";
+  const runTotals = (diagnostics?.runs ?? []).reduce(
+    (totals, run) => ({
+      input: totals.input + run.tokens_input,
+      output: totals.output + run.tokens_output,
+      cacheRead: totals.cacheRead + run.tokens_cache_read,
+      cacheWrite: totals.cacheWrite + run.tokens_cache_write,
+      cost: totals.cost + run.estimated_cost_usd,
+    }),
+    { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 },
+  );
 
   return (
     <Modal
@@ -238,51 +317,91 @@ export function TaskDetailsModal({
       {task ? (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
+            <WorkflowStatusBadge task={task} showReason />
             <Badge
-              variant={
-                task.status === "BLOCKED"
-                  ? "red"
-                  : task.status === "DONE"
-                    ? "green"
-                    : task.status === "IN_PROGRESS"
-                      ? "blue"
-                      : task.status === "CANCELLED"
-                        ? "default"
-                        : "yellow"
-              }
+              variant="default"
+              title={`Prioridade: ${task.priority} de 4 (1 é a mais alta).`}
             >
-              {STATUS_LABEL[task.status] ?? task.status}
+              prioridade {task.priority}
             </Badge>
-            <Badge variant="default">prioridade {task.priority}</Badge>
-            {task.last_run_status ? (
-              <Badge variant={runVariant(task.last_run_status)}>
-                último run: {task.last_run_status}
-              </Badge>
-            ) : (
-              <Badge variant="default">sem execução</Badge>
-            )}
-            {task.phase_status ? (
-              <Badge variant={failed ? "red" : running ? "blue" : "yellow"}>
-                {task.phase_status}
-              </Badge>
-            ) : null}
             {task.assigned_agent ? (
               <EntityLink
                 to={links.agent(task.assigned_agent, "workspace", task.workspace_id)}
                 chip
+                title={`Agente responsável: @${task.assigned_agent}`}
               >
                 @{task.assigned_agent}
               </EntityLink>
-            ) : null}
-            {task.preferred_model ? (
-              <Badge variant="default">{task.preferred_model}</Badge>
-            ) : null}
-            {task.output_dir_path ? (
-              <Badge variant="blue" title={task.output_dir_path}>
-                output
+            ) : (
+              <Badge variant="default" title="O roteador escolhe o agente em tempo de execução.">
+                agente automático
               </Badge>
-            ) : null}
+            )}
+            {task.preferred_model ? (
+              <Badge
+                variant="default"
+                title="Modelo fixado nesta tarefa. O roteador não troca este modelo."
+              >
+                {task.preferred_model}
+              </Badge>
+            ) : (
+              <Badge variant="default" title="O roteador escolhe o modelo conforme a política.">
+                modelo automático
+              </Badge>
+            )}
           </div>
+
+          {interactions.map((interaction) => (
+            <InteractionCard
+              key={interaction.id}
+              interaction={interaction}
+              onResolved={() => void loadInteractions()}
+            />
+          ))}
+          {permissions.map((request) => (
+            <PermissionRequestCard
+              key={request.request_id}
+              request={request}
+              onDecided={() => void loadInteractions()}
+            />
+          ))}
+
+          {diagnostics && diagnostics.runs.length > 0 ? (
+            <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-3 py-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                  Tokens desta tarefa
+                </span>
+                <span className="font-mono text-[10px] text-zinc-500">
+                  {diagnostics.runs.length} execução(ões) · {formatUsd(runTotals.cost)}
+                </span>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <TokenStat
+                  label="Entrada"
+                  value={formatNumber(runTotals.input)}
+                  hint="Tokens enviados ao modelo (prompts, contexto e ferramentas)."
+                />
+                <TokenStat
+                  label="Saída"
+                  value={formatNumber(runTotals.output)}
+                  hint="Tokens gerados pelo modelo nas respostas."
+                />
+                <TokenStat
+                  label="Total"
+                  value={formatNumber(runTotals.input + runTotals.output)}
+                  hint="Entrada + saída somadas em todas as tentativas."
+                />
+                <TokenStat
+                  label="Cache"
+                  value={`${formatNumber(runTotals.cacheRead)} / ${formatNumber(
+                    runTotals.cacheWrite,
+                  )}`}
+                  hint="Cache lido / cache escrito, quando o provider informar."
+                />
+              </div>
+            </div>
+          ) : null}
 
           {task.blocked_reason ? (
             <p className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-[11px] font-medium text-red-200">
@@ -430,7 +549,10 @@ export function TaskDetailsModal({
                     <span className="font-mono text-zinc-400">{run.phase ?? "run"}</span>
                     <span className="text-zinc-500">
                       {run.agent_name} · {formatUsd(run.estimated_cost_usd)} ·{" "}
-                      {Math.round(run.duration_ms / 1000)}s
+                      {Math.round(run.duration_ms / 1000)}s · ↑{" "}
+                      {formatNumber(run.tokens_input)} ↓{" "}
+                      {formatNumber(run.tokens_output)} ={" "}
+                      {formatNumber(run.tokens_input + run.tokens_output)} tokens
                     </span>
                     <span className="ml-auto text-zinc-500">
                       {relativeTime(run.started_at)}
@@ -446,17 +568,28 @@ export function TaskDetailsModal({
             </div>
           ) : null}
 
-          <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-800/70 pt-4">
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              Fechar
-            </Button>
+          <div className="sticky bottom-0 z-10 -mx-5 -mb-5 mt-4 flex flex-wrap items-center justify-center gap-2 border-t border-zinc-800/70 bg-zinc-950/95 px-5 py-3 backdrop-blur">
+            {task.output_dir_path || diagnostics?.runs.length ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  navigate(`/artifacts?task=${encodeURIComponent(task.id)}`);
+                }}
+                title="Abrir os arquivos gerados por esta tarefa"
+              >
+                <FolderOpen size={13} />
+                Ver arquivos
+              </Button>
+            ) : null}
             <Button
               variant="outline"
               size="sm"
               onClick={() => onFork(task)}
-              title="Criar uma cópia independente desta tarefa e do estado atual"
+              title="Revisar e criar uma cópia independente desta tarefa"
             >
-              <GitBranch size={13} />
+              <GitFork size={13} />
               Fork
             </Button>
             <Button
@@ -498,15 +631,26 @@ export function TaskDetailsModal({
                 Bloquear
               </Button>
             ) : null}
-            {task.status === "IN_PROGRESS" || task.status === "TODO" ? (
+            {!held && (task.status === "IN_PROGRESS" || task.status === "TODO") ? (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => onWait(task)}
-                title="Colocar em espera sem executar"
+                title="Colocar em espera e impedir o início automático"
               >
                 <Pause size={12} />
                 Em espera
+              </Button>
+            ) : null}
+            {held ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onStatus(task, "TODO")}
+                title="Retomar e entrar na fila automaticamente"
+              >
+                <Play size={12} />
+                Retomar
               </Button>
             ) : null}
             {task.status === "BLOCKED" || task.status === "CANCELLED" || task.status === "DONE" ? (
@@ -536,7 +680,7 @@ export function TaskDetailsModal({
                 <CheckCircle2 size={13} />
                 Aprovar plano e iniciar Build
               </Button>
-            ) : !running ? (
+            ) : !running && !queued && !held ? (
               <Button
                 size="sm"
                 onClick={() => onDispatch(task)}
@@ -555,6 +699,26 @@ export function TaskDetailsModal({
         </div>
       ) : null}
     </Modal>
+  );
+}
+
+function TokenStat({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+}) {
+  return (
+    <div
+      className="rounded-md border border-zinc-800/70 bg-zinc-900/30 px-2 py-1.5"
+      title={hint}
+    >
+      <p className="text-[9px] uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="mt-0.5 font-mono text-[12px] text-zinc-200">{value}</p>
+    </div>
   );
 }
 

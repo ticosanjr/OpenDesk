@@ -136,3 +136,39 @@ pub async fn promote(
     });
     Ok(Json(proposal))
 }
+
+pub async fn restore(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Query(query): Query<LearningQuery>,
+) -> crate::error::AppResult<Json<learning::LearningLesson>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    let lesson = learning::restore(&state.db, &workspace_id, &id).await?;
+    state.events.publish(OpenDeskWsEvent::LearningUpdated {
+        workspace_id: workspace_id.clone(),
+    });
+    Ok(Json(lesson))
+}
+
+pub async fn forget(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Query(query): Query<LearningQuery>,
+) -> crate::error::AppResult<Json<learning::LearningLesson>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    let workspace = workspaces::get(&state.db, &workspace_id).await?;
+    let lesson = learning::forget(
+        &state.db,
+        std::path::Path::new(&workspace.root_path),
+        &state.paths.backups_dir,
+        &workspace_id,
+        &id,
+    )
+    .await?;
+    state.events.publish(OpenDeskWsEvent::LearningUpdated {
+        workspace_id: workspace_id.clone(),
+    });
+    Ok(Json(lesson))
+}

@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CountPill } from "@/components/ui/count-pill";
+import { WorkingIndicator } from "@/components/ui/working-indicator";
 import { IconLabel } from "@/components/ui/icon-label";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EntityLink } from "@/components/ui/entity-link";
@@ -132,6 +133,7 @@ export function QueueController({
       <CardContent className="space-y-2">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[10px] text-zinc-500">
           <span className="inline-flex items-center gap-1.5">
+            {running > 0 ? <WorkingIndicator label="" /> : null}
             rodando <CountPill value={running} tone="blue" />
           </span>
           <span className="inline-flex items-center gap-1.5">

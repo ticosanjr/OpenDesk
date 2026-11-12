@@ -86,6 +86,7 @@ export interface TimelineSection {
 
 export interface TimelineStep {
   index: number;
+  attempt_number?: number | null;
   agent?: string | null;
   model?: string | null;
   started_at?: string | null;
@@ -98,8 +99,24 @@ export interface TimelineStep {
   finish?: string | null;
 }
 
+export interface RunAttempt {
+  id: string;
+  attempt_number: number;
+  status: string;
+  phase?: string | null;
+  started_at: string;
+  completed_at?: string | null;
+  duration_ms: number;
+  tokens_input: number;
+  tokens_output: number;
+  cost_usd: number;
+  error_message?: string | null;
+}
+
 export interface RunTimeline {
   run?: TaskRun | null;
+  root_run_id?: string | null;
+  attempts?: RunAttempt[];
   status: string;
   started_at?: string | null;
   completed_at?: string | null;
@@ -128,6 +145,8 @@ export interface TimelineArtifact {
 export interface TimelineEvent {
   kind: "thinking" | "tool" | "comment" | "step" | "event" | string;
   role: string;
+  run_id?: string | null;
+  attempt_number?: number | null;
   text: string;
   event_type?: string;
   data?: string;

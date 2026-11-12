@@ -16,12 +16,24 @@ interface DedupeSettings {
 
 export function QueueSettingsCard() {
   const [settings, setSettings] = useState<DedupeSettings | null>(null);
+  const [autostart, setAutostart] = useState(true);
+  const [missedPolicy, setMissedPolicy] = useState("ASK");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    apiGet<DedupeSettings>("/api/settings/dedupe")
-      .then(setSettings)
+    Promise.all([
+      apiGet<DedupeSettings>("/api/settings/dedupe"),
+      apiGet<boolean>("/api/settings/tasks_autostart").catch(() => true),
+      apiGet<string>("/api/settings/missed_run_policy").catch(() => "ASK"),
+    ])
+      .then(([dedupe, start, missed]) => {
+        setSettings(dedupe);
+        setAutostart(start !== false);
+        setMissedPolicy(
+          ["ASK", "RUN", "SKIP"].includes(missed) ? missed : "ASK",
+        );
+      })
       .catch((cause) =>
         toast({
           tone: "error",
@@ -36,10 +48,11 @@ export function QueueSettingsCard() {
     if (!settings) return;
     setSaving(true);
     try {
-      const saved = await apiPut<DedupeSettings>(
-        "/api/settings/dedupe",
-        settings,
-      );
+      const [saved] = await Promise.all([
+        apiPut<DedupeSettings>("/api/settings/dedupe", settings),
+        apiPut<boolean>("/api/settings/tasks_autostart", autostart),
+        apiPut<string>("/api/settings/missed_run_policy", missedPolicy),
+      ]);
       setSettings(saved);
       toast({ tone: "success", title: "Preferências da fila salvas" });
     } catch (cause) {
@@ -97,6 +110,39 @@ export function QueueSettingsCard() {
                 label="Evitar tarefas duplicadas"
               />
             </div>
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2.5">
+              <div>
+                <p className="text-[11px] font-medium text-zinc-300">
+                  Iniciar tarefas automaticamente
+                </p>
+                <p className="mt-0.5 text-[10px] text-zinc-500">
+                  Tarefas novas e itens na Fila entram na execução assim que o
+                  motor estiver online. Use “Em espera” para segurar uma tarefa.
+                </p>
+              </div>
+              <Switch
+                checked={autostart}
+                onCheckedChange={setAutostart}
+                label="Iniciar tarefas automaticamente"
+              />
+            </div>
+            <label className="block">
+              <span className={smallLabelClass}>Quando uma automação perder o horário</span>
+              <select
+                value={missedPolicy}
+                onChange={(event) => setMissedPolicy(event.target.value)}
+                className={cn(smallInputClass, "max-w-[280px]")}
+                aria-label="Política para execuções perdidas"
+              >
+                <option value="ASK">Perguntar antes de executar</option>
+                <option value="RUN">Executar automaticamente</option>
+                <option value="SKIP">Ignorar e seguir o próximo horário</option>
+              </select>
+              <span className="mt-1 block text-[9px] text-zinc-500">
+                Vale quando o app/engine estava offline ou o horário passou.
+                O padrão é perguntar.
+              </span>
+            </label>
             <label>
               <span className={smallLabelClass}>
                 Carência após conclusão (minutos)

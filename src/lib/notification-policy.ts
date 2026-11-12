@@ -36,11 +36,54 @@ export function nativeNotificationsEnabled(): boolean {
   );
 }
 
+export type NotificationKind =
+  | "run_finished"
+  | "run_failed"
+  | "interactions"
+  | "artifacts"
+  | "schedule_skips";
+
+const NOTIFICATION_KEYS: Record<NotificationKind, string> = {
+  run_finished: "opendesk.notify_run_finished",
+  run_failed: "opendesk.notify_run_failed",
+  interactions: "opendesk.notify_interactions",
+  artifacts: "opendesk.notify_artifacts",
+  schedule_skips: "opendesk.notify_schedule_skips",
+};
+
+const NOTIFICATION_DEFAULTS: Record<NotificationKind, boolean> = {
+  run_finished: true,
+  run_failed: true,
+  interactions: true,
+  artifacts: false,
+  schedule_skips: false,
+};
+
+export function notificationEnabled(kind: NotificationKind): boolean {
+  if (typeof localStorage === "undefined") return NOTIFICATION_DEFAULTS[kind];
+  const stored = localStorage.getItem(NOTIFICATION_KEYS[kind]);
+  if (stored !== null) return stored !== "false";
+  // Respect the previous artifact opt-in for users who had explicitly set it.
+  if (kind === "artifacts") {
+    const legacy = localStorage.getItem("opendesk.artifact_notifications");
+    if (legacy !== null) return legacy !== "false";
+  }
+  return NOTIFICATION_DEFAULTS[kind];
+}
+
+export function setNotificationEnabled(kind: NotificationKind, value: boolean) {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(NOTIFICATION_KEYS[kind], String(value));
+}
+
+export function resetNotificationPreferences() {
+  if (typeof localStorage === "undefined") return;
+  for (const key of Object.values(NOTIFICATION_KEYS)) localStorage.removeItem(key);
+  localStorage.removeItem("opendesk.artifact_notifications");
+}
+
 export function artifactNotificationsEnabled(): boolean {
-  return (
-    typeof localStorage === "undefined" ||
-    localStorage.getItem("opendesk.artifact_notifications") !== "false"
-  );
+  return notificationEnabled("artifacts");
 }
 
 export function shouldSendNativeNotification(): boolean {

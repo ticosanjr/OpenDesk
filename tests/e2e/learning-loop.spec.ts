@@ -21,7 +21,7 @@ test("learning scans a failure, promotes a skill and remembers the lesson", asyn
     page.getByText("Falha recorrente: timeout").first(),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: /Promover/ }).first().click();
+  await page.getByRole("button", { name: /Criar proposta/ }).first().click();
   await expect(
     page.getByText("Propostas aguardando aprovação").first(),
   ).toBeVisible();
@@ -31,7 +31,7 @@ test("learning scans a failure, promotes a skill and remembers the lesson", asyn
   ).toBeHidden({ timeout: 15_000 });
 
   await page.getByRole("button", { name: "Promovidas", exact: true }).click();
-  await page.getByRole("button", { name: "Memorizar", exact: true }).first().click();
+  await page.getByRole("button", { name: "Salvar na memória", exact: true }).first().click();
   await expect(
     page.getByText("Lição adicionada à MEMORY.md").first(),
   ).toBeVisible();

@@ -11,7 +11,7 @@ test("typing in a modal keeps focus and does not close it", async ({
   await page.goto("/#/kanban");
   await page.getByRole("main").getByRole("button", { name: "Nova tarefa" }).click();
   const dialog = page.getByRole("dialog");
-  const title = dialog.getByPlaceholder("Relatório executivo de vendas");
+  const title = dialog.getByPlaceholder("Se vazio, usamos o início da descrição");
   await title.click();
   // pressSequentially reproduces real typing. Regression: the old modal
   // refocused the close button after the first keystroke, so the space closed
@@ -127,7 +127,7 @@ test("typing a question mark in a field does not open global shortcuts", async (
   await page.getByRole("main").getByRole("button", { name: "Nova tarefa" }).click();
   const title = page
     .getByRole("dialog")
-    .getByPlaceholder("Relatório executivo de vendas");
+    .getByPlaceholder("Se vazio, usamos o início da descrição");
   await title.click();
   await title.pressSequentially("Teste? com interrogação", { delay: 5 });
   await expect(title).toHaveValue("Teste? com interrogação");

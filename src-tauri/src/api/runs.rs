@@ -68,6 +68,15 @@ pub async fn run_timeline(
     Ok(Json(crate::run_export::load_timeline(&state, &id).await?))
 }
 
+pub async fn run_thread_timeline(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<RunTimeline>> {
+    Ok(Json(
+        crate::run_export::load_thread_timeline(&state, &id).await?,
+    ))
+}
+
 #[derive(Debug, Deserialize, Default)]
 pub struct ExportQuery {
     pub format: Option<String>,

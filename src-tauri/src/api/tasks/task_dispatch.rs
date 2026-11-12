@@ -195,6 +195,10 @@ pub(crate) async fn enqueue_decision_with_session(
         agent: &decision.selected_agent,
         needs_browser,
     });
+    let prompt = format!(
+        "{prompt}\n\n## Contexto OpenDesk\n\nTask ID: `{}`. Se faltar informação essencial para continuar, use a ferramenta MCP `ask_user` com este task_id antes de assumir.\n",
+        task.id
+    );
 
     tasks::move_to(&state.db, &task.id, "TODO", None).await?;
     tasks::set_phase(&state.db, &task.id, Some(&decision.phase)).await?;

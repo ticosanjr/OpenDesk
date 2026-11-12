@@ -11,6 +11,7 @@ import {
   EyeOff,
   Lightbulb,
   RefreshCw,
+  RotateCcw,
   ScanLine,
   Sparkles,
   Trash2,
@@ -51,11 +52,12 @@ import { useUiStore } from "@/store/ui-store";
 import { toast } from "@/store/toast-store";
 import { cn } from "@/lib/utils";
 
-type LessonFilter = "OPEN" | "PROMOTED" | "DISMISSED" | "ALL";
+type LessonFilter = "OPEN" | "PROMOTED" | "MEMORIZED" | "DISMISSED" | "ALL";
 
 const FILTERS: Array<{ id: LessonFilter; label: string }> = [
   { id: "OPEN", label: "Abertas" },
   { id: "PROMOTED", label: "Promovidas" },
+  { id: "MEMORIZED", label: "Memorizadas" },
   { id: "DISMISSED", label: "Descartadas" },
   { id: "ALL", label: "Todas" },
 ];
@@ -215,6 +217,48 @@ export function LearningPage() {
     }
   }
 
+  async function restore(lesson: LearningLesson) {
+    setBusy(`restore-${lesson.id}`);
+    try {
+      await apiPost(`/api/learning/lessons/${lesson.id}/restore${query}`);
+      await load();
+      toast({
+        tone: "success",
+        title: "Lição reaberta",
+        description: "Ela voltou para a lista de lições abertas.",
+      });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível reabrir",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function forget(lesson: LearningLesson) {
+    setBusy(`forget-${lesson.id}`);
+    try {
+      await apiPost(`/api/learning/lessons/${lesson.id}/forget${query}`);
+      await load();
+      toast({
+        tone: "success",
+        title: "Removida da memória",
+        description: "O bloco foi retirado de .opencode/MEMORY.md.",
+      });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível remover da memória",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function resolveProposal(proposal: LearningProposal, approved: boolean) {
     setBusy(`proposal-${proposal.id}`);
     try {
@@ -259,7 +303,9 @@ export function LearningPage() {
   const filteredLessons =
     filter === "ALL"
       ? lessons
-      : lessons.filter((lesson) => lesson.status === filter);
+      : filter === "MEMORIZED"
+        ? lessons.filter((lesson) => Boolean(lesson.remembered_at))
+        : lessons.filter((lesson) => lesson.status === filter);
   const learningProposals = (data?.proposals ?? []).filter(
     (proposal) => proposal.requested_by === "learning",
   );
@@ -392,6 +438,30 @@ export function LearningPage() {
         </Card>
       ) : null}
 
+      <Card className="border-violet-500/20 bg-violet-500/[0.025]">
+        <CardContent className="grid gap-3 p-4 text-[10px] leading-relaxed text-zinc-400 sm:grid-cols-2">
+          <div>
+            <p className="text-[11px] font-medium text-violet-200">
+              Promover = criar uma proposta
+            </p>
+            <p className="mt-1">
+              Gera uma proposta de skill no Studio. Nada é gravado no workspace
+              até você revisar e aprovar a proposta.
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] font-medium text-emerald-200">
+              Memorizar = salvar na memória
+            </p>
+            <p className="mt-1">
+              Adiciona um bloco em <span className="font-mono">.opencode/MEMORY.md</span>.
+              Esse conteúdo entra no contexto dos próximos runs e pode ser
+              removido depois pelo botão “Remover da memória”.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {learningProposals.length > 0 ? (
         <section className="space-y-2">
           <div className="flex items-center gap-2">
@@ -502,6 +572,8 @@ export function LearningPage() {
                 workspaceId={activeWorkspaceId}
                 onPromote={() => void promote(lesson)}
                 onRemember={() => void rememberLesson(lesson)}
+                onForget={() => void forget(lesson)}
+                onRestore={() => void restore(lesson)}
                 onDismiss={() => void dismiss(lesson)}
               />
             ))}
@@ -575,6 +647,8 @@ function LessonCard({
   workspaceId,
   onPromote,
   onRemember,
+  onForget,
+  onRestore,
   onDismiss,
 }: {
   lesson: LearningLesson;
@@ -583,12 +657,15 @@ function LessonCard({
   workspaceId: string;
   onPromote: () => void;
   onRemember: () => void;
+  onForget: () => void;
+  onRestore: () => void;
   onDismiss: () => void;
 }) {
   const promoted = lesson.status === "PROMOTED";
   const promotable = settings ? canPromote(lesson, settings) : false;
   const ready = settings ? readyToPromote(lesson, settings) : false;
   const rememberable = canRemember(lesson);
+  const remembered = Boolean(lesson.remembered_at);
   return (
     <Card>
       <CardContent className="p-3">
@@ -646,9 +723,10 @@ function LessonCard({
                 variant={ready ? "default" : "outline"}
                 disabled={busy === `promote-${lesson.id}`}
                 onClick={onPromote}
+                title="Criar uma proposta de skill no Studio; nada é gravado no workspace até a aprovação"
               >
                 <Sparkles size={11} />
-                {ready ? "Promover" : "Promover mesmo assim"}
+                {ready ? "Criar proposta" : "Criar proposta mesmo assim"}
               </Button>
             ) : null}
             {promoted && lesson.proposal_id ? (
@@ -660,19 +738,45 @@ function LessonCard({
                 variant="outline"
                 disabled={busy === `remember-${lesson.id}`}
                 onClick={onRemember}
-                title="Adicionar à MEMORY.md do workspace"
+                title="Adicionar um bloco em .opencode/MEMORY.md; entra no contexto dos próximos runs e pode ser removido depois"
               >
                 <BookmarkPlus size={11} />
-                Memorizar
+                Salvar na memória
               </Button>
-            ) : lesson.remembered_at ? (
-              <Link
-                to={links.file(".opencode/MEMORY.md")}
-                className="inline-flex items-center gap-1 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-emerald-300 hover:text-emerald-200"
+            ) : remembered ? (
+              <>
+                <Link
+                  to={links.file(".opencode/MEMORY.md")}
+                  title="Abrir .opencode/MEMORY.md"
+                  className="inline-flex items-center gap-1 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-emerald-300 hover:text-emerald-200"
+                >
+                  <BookmarkPlus size={10} />
+                  na memória
+                </Link>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[10px]"
+                  disabled={busy === `forget-${lesson.id}`}
+                  onClick={onForget}
+                  title="Remover este bloco de .opencode/MEMORY.md"
+                >
+                  Remover da memória
+                </Button>
+              </>
+            ) : null}
+            {lesson.status === "DISMISSED" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[10px]"
+                disabled={busy === `restore-${lesson.id}`}
+                onClick={onRestore}
+                title="Voltar esta lição para a lista de abertas"
               >
-                <BookmarkPlus size={10} />
-                na memória
-              </Link>
+                <RotateCcw size={11} />
+                Reabrir
+              </Button>
             ) : null}
             {lesson.status === "OPEN" ? (
               <Button

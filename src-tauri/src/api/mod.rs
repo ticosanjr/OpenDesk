@@ -19,10 +19,12 @@ pub mod files;
 pub mod google;
 pub mod governance;
 pub mod integrations;
+pub mod interactions;
 pub mod io_bus;
 pub mod learning;
 pub mod meta;
 pub mod metrics;
+pub mod missed_runs;
 pub mod permissions;
 pub mod proposals;
 pub mod queue;
@@ -172,6 +174,24 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             "/api/permissions/{request_id}/reply",
             post(permissions::reply_permission),
         )
+        .route("/api/interactions/pending", get(interactions::list_pending))
+        .route("/api/missed-runs", get(missed_runs::list_missed))
+        .route("/api/missed-runs/run-all", post(missed_runs::run_all))
+        .route("/api/missed-runs/ignore-all", post(missed_runs::ignore_all))
+        .route("/api/missed-runs/{id}/run", post(missed_runs::run_missed))
+        .route(
+            "/api/missed-runs/{id}/ignore",
+            post(missed_runs::ignore_missed),
+        )
+        .route("/api/interactions/{id}", get(interactions::get_interaction))
+        .route(
+            "/api/interactions/{id}/resolve",
+            post(interactions::resolve),
+        )
+        .route(
+            "/api/tasks/{id}/interactions",
+            get(interactions::list_for_task).post(interactions::ask),
+        )
         .route("/api/agents/states", get(permissions::agent_states))
         .route(
             "/api/workspaces",
@@ -263,6 +283,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/tasks/{id}/approve-plan", post(tasks::approve_plan))
         .route("/api/tasks/{id}/move", post(tasks::move_task))
         .route("/api/tasks/{id}/transition", post(tasks::transition_task))
+        .route("/api/tasks/{id}/hold", post(tasks::hold_task))
         .route("/api/tasks/{id}/diagnostics", get(tasks::task_diagnostics))
         .route("/api/tasks/{id}/fork", post(tasks::fork_task))
         .route("/api/tasks/{id}/swarm", post(tasks::swarm_task))
@@ -270,7 +291,9 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/tasks/{id}/compact", post(permissions::compact))
         .route(
             "/api/tasks/{id}/memory",
-            get(tasks::get_task_memory).post(tasks::post_task_memory),
+            get(tasks::get_task_memory)
+                .post(tasks::post_task_memory)
+                .delete(tasks::delete_task_memory),
         )
         .route(
             "/api/tasks/{id}/messages",
@@ -328,6 +351,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/runs/{id}", get(runs::get_run))
         .route("/api/runs/{id}/log", get(runs::run_log))
         .route("/api/runs/{id}/timeline", get(runs::run_timeline))
+        .route("/api/runs/{id}/thread", get(runs::run_thread_timeline))
         .route("/api/runs/{id}/export", get(runs::export_run))
         .route(
             "/api/runs/{id}/retry-other-model",
@@ -424,6 +448,11 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             "/api/learning/lessons/{id}/dismiss",
             post(learning::dismiss),
         )
+        .route(
+            "/api/learning/lessons/{id}/restore",
+            post(learning::restore),
+        )
+        .route("/api/learning/lessons/{id}/forget", post(learning::forget))
         .route(
             "/api/learning/lessons/{id}/promote",
             post(learning::promote),

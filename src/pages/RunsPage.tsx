@@ -80,6 +80,46 @@ export function RunsPage() {
     });
   }, [query, runs, status]);
 
+  const grouped = useMemo(() => {
+    const groups = new Map<string, TaskRun[]>();
+    for (const run of filtered) {
+      const key = run.task_id ?? run.id;
+      groups.set(key, [...(groups.get(key) ?? []), run]);
+    }
+    return Array.from(groups.values())
+      .map((attempts) => {
+        const ordered = attempts
+          .slice()
+          .sort((left, right) => left.started_at.localeCompare(right.started_at));
+        const latest = ordered[ordered.length - 1]!;
+        return {
+          latest,
+          attempts: ordered,
+          tokensInput: ordered.reduce(
+            (total, run) => total + run.tokens_input,
+            0,
+          ),
+          tokensOutput: ordered.reduce(
+            (total, run) => total + run.tokens_output,
+            0,
+          ),
+          cost: ordered.reduce(
+            (total, run) => total + run.estimated_cost_usd,
+            0,
+          ),
+          duration: ordered.reduce((total, run) => total + run.duration_ms, 0),
+        };
+      })
+      .sort((left, right) =>
+        right.latest.started_at.localeCompare(left.latest.started_at),
+      );
+  }, [filtered]);
+
+  const threadCount = useMemo(
+    () => new Set(runs.map((run) => run.task_id ?? run.id)).size,
+    [runs],
+  );
+
   if (!activeWorkspaceId) {
     return (
       <PageBody>
@@ -141,7 +181,7 @@ export function RunsPage() {
           ))}
         </select>
         <Badge variant="default">
-          {filtered.length} de {runs.length}
+          {grouped.length} de {threadCount} execuções
         </Badge>
       </div>
 
@@ -149,7 +189,7 @@ export function RunsPage() {
         <CardContent className="p-0">
           {loading && runs.length === 0 ? (
             <LoadingState compact label="Carregando execuções…" rows={4} />
-          ) : filtered.length === 0 ? (
+          ) : grouped.length === 0 ? (
             <EmptyState
               icon={Activity}
               title={runs.length === 0 ? "Nenhuma execução ainda" : "Nada encontrado"}
@@ -162,9 +202,9 @@ export function RunsPage() {
             />
           ) : (
             <div className="divide-y divide-zinc-800/60">
-              {filtered.map((run) => (
+              {grouped.map(({ latest: run, attempts, tokensInput, tokensOutput, cost, duration }) => (
                 <Link
-                  key={run.id}
+                  key={run.task_id ?? run.id}
                   to={links.run(run.id)}
                   className="flex flex-wrap items-center gap-3 px-4 py-3 transition-colors hover:bg-zinc-900/40"
                 >
@@ -199,6 +239,14 @@ export function RunsPage() {
                       >
                         {run.status}
                       </Badge>
+                      {attempts.length > 1 ? (
+                        <Badge
+                          variant="purple"
+                          title="Tentativas internas da mesma execução"
+                        >
+                          {attempts.length} tentativas
+                        </Badge>
+                      ) : null}
                       <Badge variant="default">{run.phase ?? "run"}</Badge>
                     </div>
                     <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[9px] text-zinc-500">
@@ -206,13 +254,15 @@ export function RunsPage() {
                       <span>{run.model_id}</span>
                       <span className="inline-flex items-center gap-1">
                         <Clock3 size={9} />
-                        {formatDuration(run.duration_ms)}
+                        {formatDuration(duration)}
                       </span>
                       <span className="inline-flex items-center gap-1">
                         <Cpu size={9} />
-                        {formatNumber(run.tokens_input + run.tokens_output)} tokens
+                        ↑ {formatNumber(tokensInput)} · ↓{" "}
+                        {formatNumber(tokensOutput)} · Σ{" "}
+                        {formatNumber(tokensInput + tokensOutput)} tokens
                       </span>
-                      <span>{formatUsd(run.estimated_cost_usd)}</span>
+                      <span>{formatUsd(cost)}</span>
                     </p>
                     {run.error_message ? (
                       <p className="mt-1 truncate font-mono text-[9px] text-red-300/80">
@@ -225,14 +275,14 @@ export function RunsPage() {
                       {relativeTime(run.started_at)}
                     </span>
                     <span className="font-mono text-[9px] text-zinc-500">
-                      abrir logs →
+                      abrir execução →
                     </span>
                   </div>
                 </Link>
               ))}
             </div>
           )}
-          {filtered.length >= limit && runs.length >= limit ? (
+          {grouped.length >= limit && runs.length >= limit ? (
             <div className="border-t border-zinc-800/60 p-3 text-center">
               <Button variant="outline" size="sm" onClick={() => setLimit((value) => value + 100)}>
                 Carregar mais

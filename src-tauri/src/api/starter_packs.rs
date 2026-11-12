@@ -1,4 +1,4 @@
-use crate::{app_state::AppState, error::AppResult};
+use crate::{app_state::AppState, db::workspaces, error::AppResult};
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -43,9 +43,21 @@ pub async fn get_pack(
 }
 
 pub async fn list_items(
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
+    Query(query): Query<PackQuery>,
 ) -> AppResult<Json<Vec<crate::starter_packs::PackItem>>> {
-    Ok(Json(crate::starter_packs::items(&id)?))
+    let workspace_root = match query.workspace_id.as_deref() {
+        Some(workspace_id) => workspaces::get(&state.db, workspace_id)
+            .await
+            .ok()
+            .map(|workspace| std::path::PathBuf::from(workspace.root_path)),
+        None => None,
+    };
+    Ok(Json(crate::starter_packs::items(
+        &id,
+        workspace_root.as_deref(),
+    )?))
 }
 
 #[derive(Debug, Deserialize)]

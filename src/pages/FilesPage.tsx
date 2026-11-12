@@ -62,6 +62,7 @@ export function FilesPage() {
   const [error, setError] = useState<string | null>(null);
   const [params, setParams] = useSearchParams();
   const deepPath = params.get("path");
+  const deepDir = params.get("dir") === "1";
 
   const loadTree = useCallback(
     async (path: string) => {
@@ -93,6 +94,15 @@ export function FilesPage() {
 
   useEffect(() => {
     if (!activeWorkspaceId || !deepPath) return;
+    if (deepDir) {
+      setSelected(null);
+      setContent(null);
+      setLoadingFile(false);
+      void loadTree(deepPath).finally(() =>
+        setParams({}, { replace: true }),
+      );
+      return;
+    }
     const parent = deepPath.includes("/")
       ? deepPath.slice(0, deepPath.lastIndexOf("/"))
       : "";
@@ -124,7 +134,7 @@ export function FilesPage() {
       });
     // loadMedia only depends on activeWorkspaceId, which is already listed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeWorkspaceId, deepPath, loadTree, setParams]);
+  }, [activeWorkspaceId, deepPath, deepDir, loadTree, setParams]);
 
   const MEDIA_EXTENSIONS = /\.(mp4|mkv|webm|mov|avi|mp3|wav|flac|ogg|m4a|aac)$/i;
 

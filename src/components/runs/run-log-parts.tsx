@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 
 import {
   Braces,
@@ -15,11 +15,17 @@ import {
   XCircle,
 } from "lucide-react";
 import type {
+  RunAttempt,
   RunTimeline,
+  TaskInteraction,
   TaskMessage,
   TimelineEvent,
   TimelineTool,
 } from "@/lib/types";
+import {
+  InteractionCard,
+  PermissionRequestCard,
+} from "@/components/interactions/InteractionCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EntityLink } from "@/components/ui/entity-link";
@@ -75,7 +81,7 @@ function Expandable({
       </div>
       <div
         className={cn(
-          "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
+          "grid transition-[grid-template-rows,opacity] duration-200 ease-out",
           open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
         )}
         aria-hidden={!open}
@@ -174,6 +180,23 @@ function GenericEventCard({ event }: { event: TimelineEvent }) {
   );
 }
 
+type InteractionPermission = {
+  request_id: string;
+  permission_action: string;
+  resources?: string | null;
+  task_id?: string | null;
+  run_id?: string | null;
+  created_at?: string;
+};
+
+type StreamBlock =
+  | { kind: "message"; message: TaskMessage }
+  | { kind: "event"; event: TimelineEvent }
+  | { kind: "tools"; events: TimelineEvent[] }
+  | { kind: "comments"; events: TimelineEvent[] }
+  | { kind: "interaction"; interaction: TaskInteraction }
+  | { kind: "permission"; permission: InteractionPermission };
+
 export function StreamView({
   timeline,
   messages,
@@ -181,6 +204,9 @@ export function StreamView({
   summary,
   failedRun,
   copy,
+  interactions = [],
+  permissions = [],
+  onInteractionsChanged,
 }: {
   timeline: RunTimeline | null;
   messages: TaskMessage[];
@@ -188,12 +214,17 @@ export function StreamView({
   summary?: string;
   failedRun: boolean;
   copy: (text: string) => Promise<void>;
+  interactions?: TaskInteraction[];
+  permissions?: InteractionPermission[];
+  onInteractionsChanged?: () => void;
 }) {
   const entries = useMemo(() => {
     const items: Array<{
       at: number;
       event?: TimelineEvent;
       message?: TaskMessage;
+      interaction?: TaskInteraction;
+      permission?: InteractionPermission;
     }> = [];
     for (const event of timeline?.events ?? []) {
       items.push({
@@ -204,8 +235,66 @@ export function StreamView({
     for (const message of messages) {
       items.push({ at: new Date(message.created_at).getTime(), message });
     }
+    for (const interaction of interactions) {
+      items.push({
+        at: new Date(interaction.created_at).getTime(),
+        interaction,
+      });
+    }
+    for (const permission of permissions) {
+      items.push({
+        at: permission.created_at
+          ? new Date(permission.created_at).getTime()
+          : 0,
+        permission,
+      });
+    }
     return items.sort((left, right) => left.at - right.at);
-  }, [messages, timeline?.events]);
+  }, [interactions, messages, permissions, timeline?.events]);
+
+  const blocks = useMemo<StreamBlock[]>(() => {
+    const output: StreamBlock[] = [];
+    for (const entry of entries) {
+      if (entry.message) {
+        output.push({ kind: "message", message: entry.message });
+        continue;
+      }
+      if (entry.interaction) {
+        output.push({ kind: "interaction", interaction: entry.interaction });
+        continue;
+      }
+      if (entry.permission) {
+        output.push({ kind: "permission", permission: entry.permission });
+        continue;
+      }
+      const event = entry.event!;
+      const last = output[output.length - 1];
+      if (event.kind === "tool") {
+        if (
+          last?.kind === "tools" &&
+          last.events[0]?.attempt_number === event.attempt_number
+        ) {
+          last.events.push(event);
+        } else {
+          output.push({ kind: "tools", events: [event] });
+        }
+        continue;
+      }
+      if (event.kind === "comment") {
+        if (
+          last?.kind === "comments" &&
+          last.events[0]?.attempt_number === event.attempt_number
+        ) {
+          last.events.push(event);
+        } else {
+          output.push({ kind: "comments", events: [event] });
+        }
+        continue;
+      }
+      output.push({ kind: "event", event });
+    }
+    return output;
+  }, [entries]);
 
   if (entries.length === 0) {
     return (
@@ -227,13 +316,45 @@ export function StreamView({
     );
   }
 
+  let lastAttempt: number | null = null;
   return (
     <div className="space-y-2">
-      {entries.map((entry, index) => {
-        if (entry.message) {
-          const message = entry.message;
-          return (
-            <div key={`message-${message.id}`} className="flex justify-end">
+      {blocks.map((block, index) => {
+        const blockAttempt =
+          block.kind === "message" ||
+          block.kind === "interaction" ||
+          block.kind === "permission"
+            ? null
+            : block.kind === "event"
+              ? (block.event.attempt_number ?? null)
+              : (block.events[0]?.attempt_number ?? null);
+        const attempt: RunAttempt | undefined =
+          blockAttempt === null
+            ? undefined
+            : timeline?.attempts?.find(
+                (item) => item.attempt_number === blockAttempt,
+              );
+        const divider =
+          blockAttempt !== null &&
+          blockAttempt !== lastAttempt &&
+          (timeline?.attempts?.length ?? 0) > 1 ? (
+            <div className="flex items-center gap-2 pt-1 font-mono text-[10px] uppercase tracking-wide text-zinc-500">
+              <span className="h-px flex-1 bg-zinc-800" />
+              Tentativa {blockAttempt}
+              {attempt ? ` · ${attempt.status}` : ""}
+              {attempt
+                ? ` · ↑${attempt.tokens_input} ↓${attempt.tokens_output}`
+                : ""}
+              <span className="h-px flex-1 bg-zinc-800" />
+            </div>
+          ) : null;
+        if (blockAttempt !== null) lastAttempt = blockAttempt;
+
+        let body: ReactNode = null;
+        if (block.kind === "message") {
+          const message = block.message;
+          body = (
+            <div className="flex justify-end">
               <div className="max-w-[85%] rounded-xl border border-blue-500/25 bg-blue-500/10 px-3 py-2 text-blue-100">
                 <div className="mb-1 flex items-center justify-end gap-1 font-mono text-[10px] text-blue-300/70">
                   <User size={10} />
@@ -245,56 +366,123 @@ export function StreamView({
               </div>
             </div>
           );
-        }
-
-        const event = entry.event!;
-        if (event.kind === "step") {
-          return (
-            <div
-              key={`step-${event.step_index}-${index}`}
-              className="flex items-center gap-2 py-1 font-mono text-[11px] font-semibold uppercase tracking-wide text-zinc-500"
-            >
-              <PlayCircle size={12} />
-              passo {event.step_index} · {formatDuration(event.duration_ms)}
-            </div>
-          );
-        }
-        if (event.kind === "thinking") {
-          return (
-            <Band
-              key={`thinking-${index}`}
-              title="Raciocínio"
-              icon={<BrainIcon />}
-              tooltip="Pensamento do modelo"
-              defaultOpen={false}
-              startedAt={event.started_at}
-              endedAt={event.ended_at}
-              durationMs={event.duration_ms}
-              summary={event.text.trim().split("\n")[0] || "pensamento sem texto"}
-              tone="purple"
-            >
-              <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-zinc-300">
-                {event.text || "Sem conteúdo de raciocínio."}
-              </pre>
-            </Band>
-          );
-        }
-        if (event.kind === "tool" && event.tool) {
-          return (
-            <ToolRow
-              key={`tool-${event.tool.id}-${index}`}
-              tool={event.tool}
-              workspaceRoot={workspaceRoot}
+        } else if (block.kind === "tools") {
+          const first = block.events[0]?.tool;
+          if (block.events.length === 1 && first) {
+            body = <ToolRow tool={first} workspaceRoot={workspaceRoot} />;
+          } else {
+            const duration = block.events.reduce(
+              (total, event) => total + event.duration_ms,
+              0,
+            );
+            body = (
+              <Band
+                title={`${block.events.length} ferramentas`}
+                icon={<Wrench size={14} />}
+                tooltip="Ferramentas executadas em sequência"
+                defaultOpen={false}
+                startedAt={block.events[0]?.started_at}
+                endedAt={block.events[block.events.length - 1]?.ended_at}
+                durationMs={duration}
+                summary={`${block.events.length} ferramentas · ${formatDuration(duration)}`}
+                tone="blue"
+              >
+                <div className="space-y-1.5">
+                  {block.events.map((event) =>
+                    event.tool ? (
+                      <ToolRow
+                        key={event.tool.id}
+                        tool={event.tool}
+                        workspaceRoot={workspaceRoot}
+                      />
+                    ) : null,
+                  )}
+                </div>
+              </Band>
+            );
+          }
+        } else if (block.kind === "interaction") {
+          body = (
+            <InteractionCard
+              interaction={block.interaction}
+              onResolved={onInteractionsChanged}
             />
           );
+        } else if (block.kind === "permission") {
+          body = (
+            <PermissionRequestCard
+              request={block.permission}
+              onDecided={onInteractionsChanged}
+            />
+          );
+        } else if (block.kind === "comments") {
+          if (block.events.length === 1) {
+            body = <CommentCard event={block.events[0]} />;
+          } else {
+            const duration = block.events.reduce(
+              (total, event) => total + event.duration_ms,
+              0,
+            );
+            body = (
+              <Band
+                title={`${block.events.length} mensagens`}
+                icon={<MessageSquare size={14} />}
+                tooltip="Mensagens consecutivas do modelo"
+                defaultOpen={false}
+                startedAt={block.events[0]?.started_at}
+                endedAt={block.events[block.events.length - 1]?.ended_at}
+                durationMs={duration}
+                summary={`${block.events.length} mensagens`}
+                tone="blue"
+              >
+                <div className="space-y-1.5">
+                  {block.events.map((event, eventIndex) => (
+                    <CommentCard key={`${index}-${eventIndex}`} event={event} />
+                  ))}
+                </div>
+              </Band>
+            );
+          }
+        } else {
+          const event = block.event;
+          if (event.kind === "step") {
+            body = (
+              <div className="flex items-center gap-2 py-1 font-mono text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                <PlayCircle size={12} />
+                passo {event.step_index} · {formatDuration(event.duration_ms)}
+              </div>
+            );
+          } else if (event.kind === "thinking") {
+            body = (
+              <Band
+                title="Raciocínio"
+                icon={<BrainIcon />}
+                tooltip="Pensamento do modelo"
+                defaultOpen={false}
+                startedAt={event.started_at}
+                endedAt={event.ended_at}
+                durationMs={event.duration_ms}
+                summary={
+                  event.text.trim().split("\n")[0] || "pensamento sem texto"
+                }
+                tone="purple"
+              >
+                <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-zinc-300">
+                  {event.text || "Sem conteúdo de raciocínio."}
+                </pre>
+              </Band>
+            );
+          } else if (event.kind === "event") {
+            body = <GenericEventCard event={event} />;
+          }
         }
-        if (event.kind === "comment") {
-          return <CommentCard key={`comment-${index}`} event={event} />;
-        }
-        if (event.kind === "event") {
-          return <GenericEventCard key={`event-${index}`} event={event} />;
-        }
-        return null;
+
+        return (
+          <Fragment key={`block-${index}`}>
+            {divider}
+            {body}
+          </Fragment>
+        );
       })}
       <ResultCard
         text={timeline?.result.text?.trim() ?? ""}

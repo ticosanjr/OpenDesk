@@ -126,7 +126,7 @@ test("phase 1 switches, explicit model and advanced options", async ({
   await modelInput.fill("opencode-go/glm-5.3");
 
   await dialog
-    .getByPlaceholder("Relatório executivo de vendas")
+    .getByPlaceholder("Se vazio, usamos o início da descrição")
     .fill("Tarefa com modelo fixo");
   await dialog
     .getByPlaceholder("Descreva o objetivo, as entradas e os critérios de aceite…")

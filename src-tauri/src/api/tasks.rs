@@ -3,7 +3,7 @@ use crate::{
     db::{
         self,
         queue::{self, EnqueueInput},
-        runs,
+        runs, settings,
         task_messages::{self, CreateTaskMessageInput},
         tasks::{self, CreateTaskInput, UpdateTaskInput},
         workspaces,
@@ -75,6 +75,11 @@ pub async fn create_task(
     validate_model_ref(input.preferred_model.as_deref())?;
     let workspace_id = resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
     let task = tasks::create(&state.db, &workspace_id, input).await?;
+    let task = if task.deduplicated {
+        task
+    } else {
+        try_autostart(&state, &task).await.unwrap_or(task)
+    };
     Ok(Json(task))
 }
 
@@ -184,8 +189,10 @@ pub async fn resolve_workspace_id(state: &AppState, requested: Option<&str>) -> 
 pub async fn fork_task(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
+    body: Option<Json<ForkBody>>,
 ) -> AppResult<Json<tasks::Task>> {
     let task = tasks::fork(&state.db, &id).await?;
+    let task = apply_fork_overrides(&state, task, body.map(|Json(body)| body)).await?;
     state.events.publish(OpenDeskWsEvent::TaskUpdated {
         task_id: task.id.clone(),
         workspace_id: task.workspace_id.clone(),
@@ -322,6 +329,7 @@ pub async fn swarm_task(
 pub async fn fork_from_run(
     State(state): State<Arc<AppState>>,
     Path(run_id): Path<String>,
+    body: Option<Json<ForkBody>>,
 ) -> AppResult<Json<tasks::Task>> {
     let run = runs::get(&state.db, &run_id).await?;
     let task_id = run
@@ -331,6 +339,7 @@ pub async fn fork_from_run(
     let source = tasks::get(&state.db, &task_id).await?;
     let workspace = workspaces::get(&state.db, &source.workspace_id).await?;
     let forked = tasks::fork_with_model(&state.db, &source.id, None).await?;
+    let forked = apply_fork_overrides(&state, forked, body.map(|Json(body)| body)).await?;
     let output =
         dsh_router::output_directory(std::path::Path::new(&workspace.root_path), &forked.title);
     std::fs::create_dir_all(&output)?;
@@ -429,6 +438,55 @@ pub async fn get_task_memory(
 #[derive(Debug, Deserialize)]
 pub struct MemoryBody {
     pub content: String,
+    #[serde(default)]
+    pub run_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct MemoryQuery {
+    pub run_id: Option<String>,
+}
+
+fn memory_marker(task_id: &str, run_id: Option<&str>) -> String {
+    format!(
+        "<!-- opendesk:memory task:{task_id} run:{} -->",
+        run_id.unwrap_or("-")
+    )
+}
+
+fn memory_block(marker: &str, content: &str) -> String {
+    format!(
+        "\n{marker}\n- [{}] {}\n<!-- /opendesk:memory -->\n",
+        chrono::Utc::now().format("%Y-%m-%d"),
+        content.replace('\n', " ")
+    )
+}
+
+fn remove_memory_blocks(content: &str, task_id: &str, run_id: Option<&str>) -> String {
+    let prefix = format!("<!-- opendesk:memory task:{task_id}");
+    let wanted = run_id.map(|run_id| memory_marker(task_id, Some(run_id)));
+    let mut output = String::new();
+    let mut skipping = false;
+    for line in content.lines() {
+        if line.starts_with(&prefix) {
+            let matches = wanted.as_deref().is_none_or(|marker| line.trim() == marker);
+            skipping = matches;
+            if !matches {
+                output.push_str(line);
+                output.push('\n');
+            }
+            continue;
+        }
+        if skipping {
+            if line.trim() == "<!-- /opendesk:memory -->" {
+                skipping = false;
+            }
+            continue;
+        }
+        output.push_str(line);
+        output.push('\n');
+    }
+    output.trim_end().to_string() + if output.trim().is_empty() { "" } else { "\n" }
 }
 
 pub async fn post_task_memory(
@@ -445,17 +503,40 @@ pub async fn post_task_memory(
     let dir = std::path::Path::new(&workspace.root_path).join(".opencode");
     std::fs::create_dir_all(&dir)?;
     let path = dir.join("MEMORY.md");
-    let mut existing = std::fs::read_to_string(&path).unwrap_or_default();
-    if !existing.ends_with('\n') && !existing.is_empty() {
-        existing.push('\n');
-    }
-    existing.push_str(&format!(
-        "- [{}] {}\n",
-        chrono::Utc::now().format("%Y-%m-%d"),
-        content.replace('\n', " ")
-    ));
-    std::fs::write(&path, existing)?;
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let cleaned = remove_memory_blocks(&existing, &id, body.run_id.as_deref());
+    let marker = memory_marker(&id, body.run_id.as_deref());
+    let next = format!("{}{}", cleaned.trim_end(), memory_block(&marker, content));
+    crate::config_sync::file_ops::write_text_atomic(&path, &next, None, &state.paths.backups_dir)?;
     Ok(Json(serde_json::json!({ "ok": true, "path": path })))
+}
+
+pub async fn delete_task_memory(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Query(query): Query<MemoryQuery>,
+) -> AppResult<Json<serde_json::Value>> {
+    let task = tasks::get(&state.db, &id).await?;
+    let workspace = workspaces::get(&state.db, &task.workspace_id).await?;
+    let path = std::path::Path::new(&workspace.root_path)
+        .join(".opencode")
+        .join("MEMORY.md");
+    if !path.exists() {
+        return Ok(Json(serde_json::json!({ "ok": true, "removed": false })));
+    }
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let next = remove_memory_blocks(&existing, &id, query.run_id.as_deref());
+    if next != existing {
+        crate::config_sync::file_ops::write_text_atomic(
+            &path,
+            &next,
+            None,
+            &state.paths.backups_dir,
+        )?;
+    }
+    Ok(Json(
+        serde_json::json!({ "ok": true, "removed": next != existing }),
+    ))
 }
 
 pub async fn list_task_messages(
@@ -542,7 +623,8 @@ pub async fn post_task_message(
         needs_browser,
     });
     let prompt = format!(
-        "{packed}\n\n## Conversa com o usuário\n\n{conversation}\n\nContinue a execução considerando a mensagem acima. Se precisar de uma decisão, pare e faça a pergunta."
+        "{packed}\n\n## Conversa com o usuário\n\n{conversation}\n\nContinue a execução considerando a mensagem acima. Task ID: `{}`. Se precisar de uma decisão, use a ferramenta MCP `ask_user` com este task_id antes de assumir.",
+        task.id
     );
 
     let session_id = runs::latest_session_for_task(&state.db, &task.id).await?;
@@ -662,11 +744,131 @@ fn read_tail(path: &std::path::Path, max_bytes: u64) -> Option<String> {
 pub struct TransitionBody {
     #[serde(alias = "column_stage")]
     pub status: String,
+    #[serde(default)]
+    pub reason: Option<String>,
 }
 
-/// Explicit status transition (Paperclip-style). Moving a card never starts a
-/// run by itself; dispatch is a separate action. Terminal states cancel any
-/// queued/running job for the task.
+#[derive(Debug, Deserialize)]
+pub struct HoldBody {
+    pub held: bool,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct ForkBody {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub assigned_agent: Option<String>,
+    pub preferred_model: Option<String>,
+    pub effort_level: Option<String>,
+    pub execution_mode: Option<String>,
+    pub priority: Option<i64>,
+    pub tags: Option<Vec<String>>,
+    pub notify_email: Option<String>,
+    pub export_to_gdocs: Option<bool>,
+}
+
+async fn apply_fork_overrides(
+    state: &AppState,
+    task: tasks::Task,
+    body: Option<ForkBody>,
+) -> AppResult<tasks::Task> {
+    let Some(body) = body else {
+        return Ok(task);
+    };
+    let title = body
+        .title
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let description = body
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let model = body
+        .preferred_model
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let agent = body
+        .assigned_agent
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let updated = tasks::update(
+        &state.db,
+        &task.id,
+        UpdateTaskInput {
+            title,
+            description,
+            assigned_agent: agent.clone(),
+            preferred_model: model.clone(),
+            effort_level: body.effort_level,
+            execution_mode: body.execution_mode,
+            priority: body.priority,
+            tags: body.tags,
+            notify_email: body.notify_email,
+            export_to_gdocs: body.export_to_gdocs,
+            agent_override: agent.map(|_| true),
+            model_override: model.map(|_| true),
+            ..Default::default()
+        },
+    )
+    .await?;
+    Ok(updated)
+}
+
+async fn cancel_active_jobs(state: &AppState, task: &tasks::Task) {
+    let jobs = queue::list(&state.db, Some(&task.workspace_id))
+        .await
+        .unwrap_or_default();
+    for job in jobs
+        .into_iter()
+        .filter(|job| job.task_id.as_deref() == Some(task.id.as_str()))
+        .filter(|job| matches!(job.status.as_str(), "RUNNING" | "QUEUED" | "PAUSED"))
+    {
+        let _ = state.queue.cancel(&job.id).await;
+    }
+}
+
+pub(crate) async fn autostart_enabled(state: &AppState) -> bool {
+    settings::bool_flag(&state.db, "tasks_autostart", true).await
+}
+
+/// Enqueue a READY task when auto-start is enabled and the engine is usable.
+/// Never fails the surrounding operation: if the engine is offline, the task
+/// stays in the queue and the reconciler retries later.
+pub(crate) async fn try_autostart(
+    state: &Arc<AppState>,
+    task: &tasks::Task,
+) -> Option<tasks::Task> {
+    if task.status != "TODO" || task.held {
+        return None;
+    }
+    if matches!(
+        task.phase_status.as_deref(),
+        Some("awaiting_approval") | Some("queued") | Some("follow_up_queued") | Some("running")
+    ) {
+        return None;
+    }
+    if !autostart_enabled(state).await || state.queue.is_paused() {
+        return None;
+    }
+    if let Err(error) = dispatch_task_internal(state, &task.id, DispatchBody::default(), None).await
+    {
+        tracing::debug!(task = %task.id, error = %error, "task autostart postponed");
+        return None;
+    }
+    tasks::get(&state.db, &task.id).await.ok()
+}
+
+/// Explicit status transition. Moving a card to Em execução dispatches a real
+/// job; moving to Fila re-opens and auto-starts it; terminal states cancel any
+/// queued/running job before changing the column.
 pub async fn transition_task(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
@@ -676,57 +878,97 @@ pub async fn transition_task(
     let target = body.status.trim().to_uppercase();
 
     match target.as_str() {
-        "BACKLOG" | "CANCELLED" | "BLOCKED" | "TODO" => {
-            let jobs = queue::list(&state.db, Some(&task.workspace_id)).await?;
-            for job in jobs
-                .into_iter()
-                .filter(|job| job.task_id.as_deref() == Some(task.id.as_str()))
-                .filter(|job| matches!(job.status.as_str(), "RUNNING" | "QUEUED" | "PAUSED"))
-            {
-                let _ = state.queue.cancel(&job.id).await;
-            }
-            let task = if target == "CANCELLED" {
-                tasks::set_cancelled(&state.db, &id).await?
-            } else {
-                let reason = if target == "BLOCKED" {
-                    Some("Bloqueada manualmente")
-                } else {
-                    None
-                };
-                tasks::set_blocked_reason(&state.db, &id, reason).await?;
-                tasks::replace_phase_status(
-                    &state.db,
-                    &id,
-                    if target == "BLOCKED" {
-                        Some("blocked")
-                    } else {
-                        None
-                    },
-                    Some(&target),
-                )
-                .await?
-            };
+        "BACKLOG" | "TODO" => {
+            cancel_active_jobs(&state, &task).await;
+            tasks::set_held(&state.db, &id, false).await?;
+            tasks::set_blocked_reason(&state.db, &id, None).await?;
+            let task = tasks::replace_phase_status(&state.db, &id, None, Some("TODO")).await?;
+            publish_task(&state, &task);
+            let task = try_autostart(&state, &task).await.unwrap_or(task);
             publish_task(&state, &task);
             Ok(Json(serde_json::json!({ "task": task, "job": null })))
         }
-        "IN_REVIEW" | "DONE" | "IN_PROGRESS" => {
+        "CANCELLED" => {
+            cancel_active_jobs(&state, &task).await;
+            let task = tasks::set_cancelled(&state.db, &id).await?;
+            tasks::set_held(&state.db, &id, false).await?;
+            publish_task(&state, &task);
+            Ok(Json(serde_json::json!({ "task": task, "job": null })))
+        }
+        "BLOCKED" => {
+            cancel_active_jobs(&state, &task).await;
+            tasks::set_held(&state.db, &id, false).await?;
+            tasks::set_blocked_reason(
+                &state.db,
+                &id,
+                Some(body.reason.as_deref().unwrap_or("Bloqueada manualmente")),
+            )
+            .await?;
+            let task =
+                tasks::replace_phase_status(&state.db, &id, Some("blocked"), Some("BLOCKED"))
+                    .await?;
+            publish_task(&state, &task);
+            Ok(Json(serde_json::json!({ "task": task, "job": null })))
+        }
+        "DONE" => {
+            cancel_active_jobs(&state, &task).await;
+            tasks::set_held(&state.db, &id, false).await?;
+            tasks::set_blocked_reason(&state.db, &id, None).await?;
+            let task =
+                tasks::replace_phase_status(&state.db, &id, Some("done"), Some("DONE")).await?;
+            publish_task(&state, &task);
+            Ok(Json(serde_json::json!({ "task": task, "job": null })))
+        }
+        "IN_REVIEW" => {
+            cancel_active_jobs(&state, &task).await;
+            tasks::set_held(&state.db, &id, false).await?;
             let task = tasks::replace_phase_status(
                 &state.db,
                 &id,
-                if target == "TODO" {
-                    Some("waiting")
-                } else {
-                    None
-                },
-                Some(&target),
+                Some("awaiting_input"),
+                Some("IN_REVIEW"),
             )
             .await?;
+            publish_task(&state, &task);
+            Ok(Json(serde_json::json!({ "task": task, "job": null })))
+        }
+        "IN_PROGRESS" => {
+            if task.active_job_status.is_some() {
+                return Ok(Json(serde_json::json!({ "task": task, "job": null })));
+            }
+            crate::api::engine::require_engine_strict(&state).await?;
+            dispatch_task_internal(&state, &id, DispatchBody::default(), None).await?;
+            let task = tasks::get(&state.db, &id).await?;
             publish_task(&state, &task);
             Ok(Json(serde_json::json!({ "task": task, "job": null })))
         }
         other => Err(AppError::BadRequest(format!(
             "invalid task status '{other}'"
         ))),
+    }
+}
+
+pub async fn hold_task(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<HoldBody>,
+) -> AppResult<Json<tasks::Task>> {
+    let task = tasks::get(&state.db, &id).await?;
+    if body.held {
+        cancel_active_jobs(&state, &task).await;
+        tasks::set_blocked_reason(&state.db, &id, None).await?;
+        tasks::replace_phase_status(&state.db, &id, None, Some("TODO")).await?;
+        tasks::set_held(&state.db, &id, true).await?;
+        let task = tasks::get(&state.db, &id).await?;
+        publish_task(&state, &task);
+        Ok(Json(task))
+    } else {
+        tasks::set_held(&state.db, &id, false).await?;
+        let task = tasks::replace_phase_status(&state.db, &id, None, Some("TODO")).await?;
+        publish_task(&state, &task);
+        let task = try_autostart(&state, &task).await.unwrap_or(task);
+        publish_task(&state, &task);
+        Ok(Json(task))
     }
 }
 

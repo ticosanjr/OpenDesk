@@ -71,6 +71,10 @@ pub struct AgendaItem {
     pub source: String,
     pub color: Option<String>,
     pub href: Option<String>,
+    pub execution_status: Option<String>,
+    pub run_id: Option<String>,
+    pub missed_id: Option<String>,
+    pub executed: bool,
     pub editable: bool,
 }
 
