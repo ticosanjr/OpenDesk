@@ -2147,3 +2147,15 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   Kanban, IA curta de Configurações e busca unificada).
 - Verificação: `npm run gate:fast` (158 Vitest), `governance-ui`, `cards`,
   `ui-audit` e `axe` verdes em 1440×900 e 1100×800. Sem release nesta onda.
+
+## 2026-11-12 — onda 8: filtros do Kanban
+
+- Agente e prioridade saíram da barra principal e foram para o popover
+  **Filtros**, que também ganhou **Somente atenção** (aprovação, pergunta,
+  permissão ou falha).
+- Filtros ativos aparecem como chips removíveis; o antigo “limpar filtros”
+  duplicado foi eliminado. A busca continua com limpeza própria.
+- O popover fecha ao clicar fora e com Esc, tem contagem no botão e estado
+  acessível (`aria-expanded`). O board continua com as setas de rolagem.
+- Verificação: `npm run gate:fast` (158 Vitest), `kanban-origins`, `cards`,
+  `ui-audit` e axe com o popover aberto. Sem release.

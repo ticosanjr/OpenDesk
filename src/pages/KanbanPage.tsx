@@ -14,6 +14,7 @@ import {
   Loader2,
   Plus,
   SlidersHorizontal,
+  X,
   XCircle,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
@@ -37,7 +38,7 @@ import { QueueController } from "@/components/queue/QueueController";
 import { PRIORITY_LABEL } from "@/lib/task-ui";
 import { workflowMeta } from "@/lib/workflow";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FilterSearch, FilterSelect } from "@/components/ui/filter-bar";
+import { FilterSearch } from "@/components/ui/filter-bar";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
@@ -146,6 +147,8 @@ export function KanbanPage() {
   const [query, setQuery] = useState("");
   const [agentFilter, setAgentFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
+  const [attentionOnly, setAttentionOnly] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [view, setView] = useState<"board" | "list" | "queue">("board");
   const [originFilter, setOriginFilter] = useState<"work" | "automations" | "all">(
     "work",
@@ -171,6 +174,7 @@ export function KanbanPage() {
   const [visibilityOpen, setVisibilityOpen] = useState(false);
   const draggedRef = useRef<string | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
+  const filtersRef = useRef<HTMLDivElement | null>(null);
   const [boardScroll, setBoardScroll] = useState({ left: false, right: false });
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -193,15 +197,36 @@ export function KanbanPage() {
       }
       if (agentFilter && (task.assigned_agent ?? "") !== agentFilter) return false;
       if (priorityFilter && String(task.priority) !== priorityFilter) return false;
+      if (
+        attentionOnly &&
+        !["NEEDS_APPROVAL", "WAITING_INPUT", "BLOCKED"].includes(
+          workflowMeta(task).state,
+        )
+      ) {
+        return false;
+      }
       return true;
     });
     return applyRetention(filtered, visibility);
-  }, [agentFilter, originFilter, priorityFilter, query, tasks, visibility]);
+  }, [
+    agentFilter,
+    attentionOnly,
+    originFilter,
+    priorityFilter,
+    query,
+    tasks,
+    visibility,
+  ]);
 
   const originCounts = useMemo(() => {
     const manual = tasks.filter((task) => (task.origin ?? "MANUAL") === "MANUAL").length;
     return { manual, automations: tasks.length - manual };
   }, [tasks]);
+
+  const advancedFilterCount =
+    (agentFilter ? 1 : 0) +
+    (priorityFilter ? 1 : 0) +
+    (attentionOnly ? 1 : 0);
 
   const boardAgents = useMemo(
     () =>
@@ -222,6 +247,24 @@ export function KanbanPage() {
       window.removeEventListener("resize", updateBoardScroll);
     };
   }, [view, filteredTasks.length, updateBoardScroll]);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const close = (event: PointerEvent) => {
+      if (!filtersRef.current?.contains(event.target as Node)) {
+        setFiltersOpen(false);
+      }
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFiltersOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [filtersOpen]);
 
   const load = useCallback(async () => {
     if (!activeWorkspaceId) {
@@ -544,30 +587,86 @@ export function KanbanPage() {
               placeholder="Buscar por título, descrição, tag ou agente…"
               ariaLabel="Buscar tarefas"
             />
-            <FilterSelect
-              value={agentFilter}
-              onChange={setAgentFilter}
-              ariaLabel="Filtrar por agente"
-            >
-              <option value="">todos os agentes</option>
-              {boardAgents.map((agent) => (
-                <option key={agent} value={agent}>
-                  @{agent}
-                </option>
-              ))}
-            </FilterSelect>
-            <FilterSelect
-              value={priorityFilter}
-              onChange={setPriorityFilter}
-              ariaLabel="Filtrar por prioridade"
-            >
-              <option value="">todas as prioridades</option>
-              {[4, 3, 2, 1].map((priority) => (
-                <option key={priority} value={priority}>
-                  {priority} — {PRIORITY_LABEL[priority]}
-                </option>
-              ))}
-            </FilterSelect>
+            <div ref={filtersRef} className="relative">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={() => setFiltersOpen((current) => !current)}
+                aria-expanded={filtersOpen}
+                title="Filtrar por agente, prioridade ou atenção"
+              >
+                <IconLabel icon={<SlidersHorizontal size={13} />}>
+                  Filtros{advancedFilterCount > 0 ? ` · ${advancedFilterCount}` : ""}
+                </IconLabel>
+              </Button>
+              {filtersOpen ? (
+                <div className="absolute right-0 top-9 z-40 w-[280px] space-y-3 rounded-xl border border-zinc-700 bg-zinc-950 p-3 shadow-2xl">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[12px] font-medium text-zinc-200">Filtros</p>
+                    <button
+                      type="button"
+                      className="text-[11px] text-zinc-500 hover:text-zinc-200 disabled:opacity-40"
+                      disabled={advancedFilterCount === 0}
+                      onClick={() => {
+                        setAgentFilter("");
+                        setPriorityFilter("");
+                        setAttentionOnly(false);
+                      }}
+                    >
+                      limpar
+                    </button>
+                  </div>
+                  <label className="block space-y-1">
+                    <span className="text-[11px] text-zinc-400">Agente</span>
+                    <select
+                      value={agentFilter}
+                      onChange={(event) => setAgentFilter(event.target.value)}
+                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[12px] text-zinc-200"
+                      aria-label="Filtrar por agente"
+                    >
+                      <option value="">todos os agentes</option>
+                      {boardAgents.map((agent) => (
+                        <option key={agent} value={agent}>
+                          @{agent}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-[11px] text-zinc-400">Prioridade</span>
+                    <select
+                      value={priorityFilter}
+                      onChange={(event) => setPriorityFilter(event.target.value)}
+                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[12px] text-zinc-200"
+                      aria-label="Filtrar por prioridade"
+                    >
+                      <option value="">todas as prioridades</option>
+                      {[4, 3, 2, 1].map((priority) => (
+                        <option key={priority} value={priority}>
+                          {priority} — {PRIORITY_LABEL[priority]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex items-center justify-between gap-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-2.5 py-2">
+                    <span className="text-[12px] text-zinc-300">
+                      Somente atenção
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={attentionOnly}
+                      onChange={(event) => setAttentionOnly(event.target.checked)}
+                      className="h-4 w-4 accent-blue-500"
+                    />
+                  </label>
+                  <p className="text-[11px] leading-snug text-zinc-500">
+                    Aprovação, pergunta, permissão ou falha. Bom para revisar o
+                    que está parado.
+                  </p>
+                </div>
+              ) : null}
+            </div>
             <Badge variant="default">
               {filteredTasks.length} de {tasks.length}
             </Badge>
@@ -657,19 +756,6 @@ export function KanbanPage() {
                 </div>
               ) : null}
             </div>
-            {query || agentFilter || priorityFilter ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setQuery("");
-                  setAgentFilter("");
-                  setPriorityFilter("");
-                }}
-                className="text-[10px] text-zinc-500 hover:text-zinc-200"
-              >
-                limpar filtros
-              </button>
-            ) : null}
             <label className="ml-auto flex items-center gap-2 text-[10px] text-zinc-500">
               concorrência
               <select
@@ -694,6 +780,45 @@ export function KanbanPage() {
           </span>
         )}
       </div>
+
+      {advancedFilterCount > 0 ? (
+        <div className="flex flex-wrap items-center gap-1.5 px-1">
+          <span className="text-[11px] text-zinc-500">Filtros ativos:</span>
+          {agentFilter ? (
+            <button
+              type="button"
+              onClick={() => setAgentFilter("")}
+              aria-label={`Remover filtro do agente @${agentFilter}`}
+              className="inline-flex items-center gap-1 rounded-full border border-zinc-700/70 bg-zinc-900/60 px-2 py-0.5 text-[11px] text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
+            >
+              @{agentFilter}
+              <X size={11} />
+            </button>
+          ) : null}
+          {priorityFilter ? (
+            <button
+              type="button"
+              onClick={() => setPriorityFilter("")}
+              aria-label={`Remover filtro de prioridade ${PRIORITY_LABEL[Number(priorityFilter)] ?? priorityFilter}`}
+              className="inline-flex items-center gap-1 rounded-full border border-zinc-700/70 bg-zinc-900/60 px-2 py-0.5 text-[11px] text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
+            >
+              prioridade {PRIORITY_LABEL[Number(priorityFilter)] ?? priorityFilter}
+              <X size={11} />
+            </button>
+          ) : null}
+          {attentionOnly ? (
+            <button
+              type="button"
+              onClick={() => setAttentionOnly(false)}
+              aria-label="Remover filtro de atenção"
+              className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-200 hover:border-amber-500/50"
+            >
+              atenção
+              <X size={11} />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {selected.size > 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-500/25 bg-blue-500/[0.06] px-3 py-2">

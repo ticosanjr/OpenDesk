@@ -51,13 +51,12 @@ Princípios:
 
 ## Próximas fases recomendadas
 
-### 1. Kanban com views salvas (P1)
+### 1. Kanban com views salvas (P1) — parcialmente feito na onda 8
 
-O board já cabe em 1440px, mas a barra ainda mostra view, origem, busca, dois
-filtros, contagem, visibilidade e concorrência ao mesmo tempo. Agrupar filtros
-secundários em um popover “Filtros (2)” com chips ativos e permitir salvar
-“Minhas tarefas / Automações / Revisão” reduz o custo de decisão por visita.
-Adicionar setas de rolagem nas bordas do board para telas de 1100px.
+Agente e prioridade foram para o popover **Filtros**, com chips ativos e o
+preset **Somente atenção**; as setas de rolagem cobrem telas de 1100px. Ainda
+falta salvar combinações nomeadas (Minhas tarefas / Automações / Revisão) e
+transformar a concorrência em um ajuste da fila.
 
 ### 2. Configurações com IA mais curta (P1)
 
