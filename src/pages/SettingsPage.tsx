@@ -28,7 +28,7 @@ import { EngineCard } from "@/components/settings/EngineCard";
 import { UpdatesCard } from "@/components/settings/UpdatesCard";
 import { AboutCard } from "@/components/settings/AboutCard";
 import { NotificationCard } from "@/components/settings/NotificationCard";
-import { SectionTabs } from "@/components/ui/section-tabs";
+import type { LucideIcon } from "lucide-react";
 import { ToolsCard } from "@/components/settings/ToolsCard";
 import { QueueSettingsCard } from "@/components/settings/QueueSettingsCard";
 import { BackupsCard } from "@/components/settings/BackupsCard";
@@ -141,8 +141,9 @@ export function SettingsPage() {
         }
       />
 
-      <SectionTabs items={[...tabs]} value={activeTab} onChange={selectTab} />
-
+      <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
+        <SettingsNav items={tabs} value={activeTab} onChange={selectTab} />
+        <div className="min-w-0 space-y-4">
       {activeTab === "engine" ? (
         <div id="settings-engine">
           <EngineCard />
@@ -402,6 +403,8 @@ export function SettingsPage() {
       </Card>
 
       ) : null}
+        </div>
+      </div>
 
       <WorkspaceEditModal
         workspace={editing}
@@ -417,6 +420,63 @@ export function SettingsPage() {
         }}
       />
     </PageBody>
+  );
+}
+
+function SettingsNav({
+  items,
+  value,
+  onChange,
+}: {
+  items: ReadonlyArray<{
+    id: string;
+    label: string;
+    icon: LucideIcon;
+    group: string;
+  }>;
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const groups = Array.from(new Set(items.map((item) => item.group)));
+  return (
+    <nav
+      role="tablist"
+      aria-label="Seções de configuração"
+      aria-orientation="vertical"
+      className="space-y-1 lg:sticky lg:top-0"
+    >
+      {groups.map((group) => (
+        <div key={group} className="space-y-0.5">
+          <p className="px-2.5 pb-1 pt-3 font-mono text-[11px] uppercase tracking-[0.1em] text-zinc-500 first:pt-0">
+            {group}
+          </p>
+          {items
+            .filter((item) => item.group === group)
+            .map((item) => {
+              const Icon = item.icon;
+              const active = item.id === value;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => onChange(item.id)}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] font-medium transition-colors",
+                    active
+                      ? "workspace-nav-active text-zinc-100"
+                      : "text-zinc-500 hover:bg-zinc-900/70 hover:text-zinc-200",
+                  )}
+                >
+                  <Icon size={15} strokeWidth={1.8} className="shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </button>
+              );
+            })}
+        </div>
+      ))}
+    </nav>
   );
 }
 

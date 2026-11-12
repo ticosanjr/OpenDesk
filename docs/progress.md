@@ -2212,3 +2212,7 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Rodapés de instalação de pacote/skill ficaram sticky para manter a ação
   visível em listas longas, e o formulário de rotina manteve o rodapé no fluxo
   para não cobrir campos no viewport compacto.
+- Configurações trocou a barra horizontal de dez abas por um trilho vertical
+  agrupado (Geral, Motor, Operação, Workspace, Sobre). O conteúdo ganhou largura
+  e a navegação continua com os mesmos `role="tab"` e nomes, preservando os
+  testes e deep links.
