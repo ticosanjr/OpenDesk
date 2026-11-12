@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Switch } from "@/components/ui/switch";
 import { SignalCard } from "@/components/settings/SignalCard";
-import { SectionTabs } from "@/components/ui/section-tabs";
+import { SectionNav } from "@/components/ui/section-nav";
 import { InboundSourcesCard } from "@/components/integrations/InboundSourcesCard";
 import { OutboundSinksCard } from "@/components/integrations/OutboundSinksCard";
 import { BrowserCard } from "@/components/integrations/BrowserCard";
@@ -330,7 +330,14 @@ export function IntegrationsPage() {
         </p>
       ) : null}
 
-      <SectionTabs items={[...tabs]} value={activeTab} onChange={selectTab} />
+      <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
+        <SectionNav
+          items={tabs}
+          value={activeTab}
+          onChange={selectTab}
+          ariaLabel="Seções de integrações"
+        />
+        <div className="min-w-0 space-y-4">
 
       {activeTab === "smtp" ? (
         <Card id="integrations-smtp">
@@ -652,6 +659,8 @@ export function IntegrationsPage() {
       </Card>
         </>
       ) : null}
+        </div>
+      </div>
     </PageBody>
   );
 }

@@ -2219,3 +2219,6 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Kanban ganhou **views salvas**: nome, origem, busca, agente, prioridade e
   “somente atenção” são persistidos em `localStorage`, com aplicar/remover no
   popover de filtros e teste E2E de persistência.
+- Integrações adotou o mesmo trilho vertical agrupado de Configurações
+  (Mensageria, I/O, Sistema), com `role="tab"` preservado e largura maior para
+  formulários e cartões.

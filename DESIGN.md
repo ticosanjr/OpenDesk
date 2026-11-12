@@ -26,7 +26,7 @@ should use it instead of inventing local variants.
 | Role | Value |
 |---|---|
 | Sidebar | 236px expanded, 64px collapsed |
-| Settings rail | 220px vertical, grouped |
+| Settings / Integrations rail | 220px vertical, grouped |
 | Topbar | 56px |
 | Page gutter | 20px (default), 28px at ≥1024px |
 | Maximum content width | 1440px, centered |
