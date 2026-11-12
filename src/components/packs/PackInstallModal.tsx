@@ -130,8 +130,8 @@ export function PackInstallModal({
                     onClick={() => setItemKind(kind.id)}
                     className={
                       itemKind === kind.id
-                        ? "rounded-md bg-zinc-800 px-2 py-1 text-[10px] text-zinc-100"
-                        : "rounded-md px-2 py-1 text-[10px] text-zinc-500 hover:text-zinc-200"
+                        ? "inline-flex h-8 items-center rounded-md bg-zinc-800 px-2.5 text-[12px] text-zinc-100"
+                        : "inline-flex h-8 items-center rounded-md px-2.5 text-[12px] text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200"
                     }
                   >
                     {kind.label} <span className="font-mono text-zinc-500">{count}</span>
@@ -152,8 +152,8 @@ export function PackInstallModal({
                   onClick={() => setItemStatus(value)}
                   className={
                     itemStatus === value
-                      ? "rounded-md bg-zinc-800 px-2 py-1 text-[9px] text-zinc-100"
-                      : "rounded-md px-2 py-1 text-[9px] text-zinc-500 hover:text-zinc-200"
+                      ? "rounded-md bg-zinc-800 px-2 py-1 text-[11px] text-zinc-100"
+                      : "rounded-md px-2 py-1 text-[11px] text-zinc-500 hover:text-zinc-200"
                   }
                 >
                   {label}
@@ -171,7 +171,7 @@ export function PackInstallModal({
                     key={`${item.kind}:${item.id}`}
                     className="rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-2 [&_summary::-webkit-details-marker]:hidden"
                   >
-                    <summary className="flex cursor-pointer items-center gap-2 text-[10px] text-zinc-300">
+                    <summary className="flex cursor-pointer items-center gap-2 text-[12px] text-zinc-300">
                       <span className="min-w-0 flex-1 truncate">{item.name}</span>
                       <Badge variant="default">{item.kind}</Badge>
                       <Badge
@@ -198,8 +198,7 @@ export function PackInstallModal({
                       </Badge>
                       <Button
                         variant="outline"
-                        size="sm"
-                        className="h-6 px-2 text-[9px]"
+                        size="xs"
                         disabled={!activeWorkspaceId || installingItem === `${item.kind}:${item.id}`}
                         onClick={(event) => {
                           event.preventDefault();
@@ -215,15 +214,15 @@ export function PackInstallModal({
                       </Button>
                     </summary>
                     {item.description ? (
-                      <p className="mt-1 text-[9px] leading-snug text-zinc-500">
+                      <p className="mt-1 text-[11px] leading-snug text-zinc-500">
                         {item.description}
                       </p>
                     ) : null}
-                    <pre className="mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap rounded border border-zinc-800/70 bg-black/25 p-2 font-mono text-[9px] leading-relaxed text-zinc-400">
+                    <pre className="mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap rounded border border-zinc-800/70 bg-black/25 p-2 font-mono text-[11px] leading-relaxed text-zinc-400">
                       {item.content}
                     </pre>
                     {item.files.length > 0 ? (
-                      <p className="mt-1 font-mono text-[8px] text-zinc-500">
+                      <p className="mt-1 font-mono text-[11px] text-zinc-500">
                         Arquivos: {item.files.join(", ")}
                       </p>
                     ) : null}

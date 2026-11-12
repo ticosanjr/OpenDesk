@@ -37,6 +37,7 @@ import {
 import { QueueController } from "@/components/queue/QueueController";
 import { PRIORITY_LABEL } from "@/lib/task-ui";
 import { workflowMeta } from "@/lib/workflow";
+import { useDismissable } from "@/lib/use-dismissable";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterSearch } from "@/components/ui/filter-bar";
 import { useAppStore } from "@/store/app-store";
@@ -48,7 +49,9 @@ import type {
   Artifact,
   QueueStatus,
   Task,
+  TaskInteraction,
 } from "@/lib/types";
+import type { TaskPermissionRequest } from "@/components/kanban/task-attention-modal";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -125,6 +128,7 @@ export function KanbanPage() {
   const daemon = useAppStore((state) => state.daemon);
   const lastTaskEvent = useAppStore((state) => state.lastTaskEvent);
   const lastRunEvent = useAppStore((state) => state.lastRunEvent);
+  const lastPermissionEvent = useAppStore((state) => state.lastPermissionEvent);
   const setWorkspaceDialogOpen = useUiStore(
     (state) => state.setWorkspaceDialogOpen,
   );
@@ -132,6 +136,10 @@ export function KanbanPage() {
   const setTaskDialogOpen = useUiStore((state) => state.setTaskDialogOpen);
 
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [attention, setAttention] = useState<{
+    task_interactions: TaskInteraction[];
+    requests: TaskPermissionRequest[];
+  }>({ task_interactions: [], requests: [] });
   const [pinned, setPinned] = useState<Record<string, number>>({});
   const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
   const [loading, setLoading] = useState(false);
@@ -175,6 +183,7 @@ export function KanbanPage() {
   const draggedRef = useRef<string | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
   const filtersRef = useRef<HTMLDivElement | null>(null);
+  const visibilityRef = useRef<HTMLDivElement | null>(null);
   const [boardScroll, setBoardScroll] = useState({ left: false, right: false });
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -184,6 +193,27 @@ export function KanbanPage() {
     () => (activeWorkspaceId ? `?workspace_id=${encodeURIComponent(activeWorkspaceId)}` : ""),
     [activeWorkspaceId],
   );
+
+  const attentionByTask = useMemo(() => {
+    const map = new Map<
+      string,
+      { interaction?: TaskInteraction; permission?: TaskPermissionRequest }
+    >();
+    for (const interaction of attention.task_interactions) {
+      map.set(interaction.task_id, {
+        ...(map.get(interaction.task_id) ?? {}),
+        interaction,
+      });
+    }
+    for (const request of attention.requests) {
+      if (!request.task_id) continue;
+      map.set(request.task_id, {
+        ...(map.get(request.task_id) ?? {}),
+        permission: request,
+      });
+    }
+    return map;
+  }, [attention]);
 
   const filteredTasks = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -197,19 +227,22 @@ export function KanbanPage() {
       }
       if (agentFilter && (task.assigned_agent ?? "") !== agentFilter) return false;
       if (priorityFilter && String(task.priority) !== priorityFilter) return false;
-      if (
-        attentionOnly &&
-        !["NEEDS_APPROVAL", "WAITING_INPUT", "BLOCKED"].includes(
-          workflowMeta(task).state,
-        )
-      ) {
-        return false;
+      if (attentionOnly) {
+        const pending = attentionByTask.get(task.id);
+        const effective =
+          pending?.interaction || pending?.permission
+            ? "WAITING_INPUT"
+            : workflowMeta(task).state;
+        if (!["NEEDS_APPROVAL", "WAITING_INPUT", "BLOCKED"].includes(effective)) {
+          return false;
+        }
       }
       return true;
     });
     return applyRetention(filtered, visibility);
   }, [
     agentFilter,
+    attentionByTask,
     attentionOnly,
     originFilter,
     priorityFilter,
@@ -222,6 +255,7 @@ export function KanbanPage() {
     const manual = tasks.filter((task) => (task.origin ?? "MANUAL") === "MANUAL").length;
     return { manual, automations: tasks.length - manual };
   }, [tasks]);
+
 
   const advancedFilterCount =
     (agentFilter ? 1 : 0) +
@@ -248,39 +282,34 @@ export function KanbanPage() {
     };
   }, [view, filteredTasks.length, updateBoardScroll]);
 
-  useEffect(() => {
-    if (!filtersOpen) return;
-    const close = (event: PointerEvent) => {
-      if (!filtersRef.current?.contains(event.target as Node)) {
-        setFiltersOpen(false);
-      }
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setFiltersOpen(false);
-    };
-    document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [filtersOpen]);
+  useDismissable(filtersRef, filtersOpen, () => setFiltersOpen(false));
+  useDismissable(visibilityRef, visibilityOpen, () => setVisibilityOpen(false));
 
   const load = useCallback(async () => {
     if (!activeWorkspaceId) {
       setTasks([]);
       setQueueStatus(null);
+      setAttention({ task_interactions: [], requests: [] });
       return;
     }
     setLoading(true);
     try {
-      const [taskList, jobs, status, pinnedArtifacts] = await Promise.all([
-        apiGet<Task[]>(`/api/tasks${workspaceQuery}`),
-        apiGet<QueueJob[]>(`/api/queue${workspaceQuery}`),
-        apiGet<QueueStatus>(`/api/queue/status${workspaceQuery}`),
-        apiGet<Artifact[]>(`/api/artifacts/pinned${workspaceQuery}`).catch(() => []),
-      ]);
+      const [taskList, jobs, status, pinnedArtifacts, taskAttention] =
+        await Promise.all([
+          apiGet<Task[]>(`/api/tasks${workspaceQuery}`),
+          apiGet<QueueJob[]>(`/api/queue${workspaceQuery}`),
+          apiGet<QueueStatus>(`/api/queue/status${workspaceQuery}`),
+          apiGet<Artifact[]>(`/api/artifacts/pinned${workspaceQuery}`).catch(() => []),
+          apiGet<{
+            task_interactions: TaskInteraction[];
+            requests: TaskPermissionRequest[];
+          }>(`/api/attention${workspaceQuery}`).catch(() => ({
+            task_interactions: [],
+            requests: [],
+          })),
+        ]);
       setTasks(taskList);
+      setAttention(taskAttention);
       setPinned(
         pinnedArtifacts.reduce<Record<string, number>>((accumulator, artifact) => {
           if (artifact.task_id) {
@@ -301,7 +330,13 @@ export function KanbanPage() {
 
   useEffect(() => {
     void load();
-  }, [load, lastTaskEvent?.task_id, lastRunEvent?.run_id, lastRunEvent?.status]);
+  }, [
+    load,
+    lastTaskEvent?.task_id,
+    lastRunEvent?.run_id,
+    lastRunEvent?.status,
+    lastPermissionEvent?.request_id,
+  ]);
 
   useEffect(() => {
     setVisibility(loadVisibility(activeWorkspaceId));
@@ -670,7 +705,7 @@ export function KanbanPage() {
             <Badge variant="default">
               {filteredTasks.length} de {tasks.length}
             </Badge>
-            <div className="relative">
+            <div ref={visibilityRef} className="relative">
               <Button
                 variant="outline"
                 size="sm"
@@ -869,9 +904,14 @@ export function KanbanPage() {
         }}
       >
         {COLUMNS.map((column) => {
-          const columnTasks = filteredTasks.filter((task) =>
-            column.states.includes(workflowMeta(task).state),
-          );
+          const columnTasks = filteredTasks.filter((task) => {
+            const pending = attentionByTask.get(task.id);
+            const effective =
+              pending?.interaction || pending?.permission
+                ? "WAITING_INPUT"
+                : workflowMeta(task).state;
+            return column.states.includes(effective);
+          });
           return (
             <Card
               key={column.id}
@@ -941,6 +981,9 @@ export function KanbanPage() {
                         onCancel={() => void transitionTask(task, "CANCELLED")}
                         onApprove={() => void approve(task)}
                         onLogs={() => setLogTask(task)}
+                        interaction={attentionByTask.get(task.id)?.interaction}
+                        permission={attentionByTask.get(task.id)?.permission}
+                        onAttentionResolved={() => void load()}
                         onDragStart={(event) => {
                           draggedRef.current = task.id;
                           event.dataTransfer.setData("text/task-id", task.id);

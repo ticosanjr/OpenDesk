@@ -448,9 +448,17 @@ export function FilesPage() {
                 <FileText size={14} className="text-zinc-500" />
                 {selected?.name ?? "Pré-visualização"}
               </CardTitle>
-              <p className="mt-0.5 truncate font-mono text-[9px] text-zinc-500">
-                {content?.path ?? selected?.path ?? "selecione um arquivo"}
-              </p>
+              {content || selected ? (
+                (content?.path ?? selected?.path) !== selected?.name ? (
+                  <p className="mt-0.5 truncate font-mono text-[11px] text-zinc-500">
+                    {content?.path ?? selected?.path}
+                  </p>
+                ) : null
+              ) : (
+                <p className="mt-0.5 font-mono text-[11px] text-zinc-500">
+                  selecione um arquivo
+                </p>
+              )}
               {media ? (
                 <p className="mt-1 flex flex-wrap items-center gap-1 text-[9px] text-zinc-500">
                   {media.duration_secs ? (
@@ -489,7 +497,7 @@ export function FilesPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
+                  className="h-8 w-8"
                   aria-label="Copiar caminho"
                   title="Copiar caminho"
                   onClick={() => void copyPath(content.path)}
@@ -499,7 +507,7 @@ export function FilesPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
+                  className="h-8 w-8"
                   aria-label="Abrir arquivo"
                   title="Abrir arquivo"
                   onClick={() => void reveal(content.path)}
@@ -517,10 +525,12 @@ export function FilesPage() {
                 icon={FileText}
                 title="Escolha um arquivo"
                 description="Navegue pela árvore à esquerda para visualizar Markdown, HTML, imagens, PDF, vídeo, áudio, JSON e código."
+                compact
                 className="border-0 bg-transparent"
               />
             ) : content ? (
               <LazyFileViewer
+                embedded
                 name={selected.name}
                 path={content.path}
                 content={content.content}

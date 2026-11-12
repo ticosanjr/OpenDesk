@@ -73,3 +73,17 @@ test("workspace color drives the theme and kanban retention persists", async ({
   await expect(page.getByText("Retenção UI E2E").first()).toBeVisible();
 
 });
+
+
+test("visibility popover closes on outside click and Escape", async ({ page }) => {
+  await page.goto("/#/kanban");
+  await page.getByRole("button", { name: /Visibilidade/ }).click();
+  await expect(page.getByText("Concluídas e canceladas")).toBeVisible();
+  await page.getByRole("main").getByRole("heading", { name: "Kanban & Fila" }).click();
+  await expect(page.getByText("Concluídas e canceladas")).toHaveCount(0);
+
+  await page.getByRole("button", { name: /Visibilidade/ }).click();
+  await expect(page.getByText("Concluídas e canceladas")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("Concluídas e canceladas")).toHaveCount(0);
+});

@@ -3,10 +3,10 @@ import {
   Boxes,
   CheckCircle2,
   FolderPlus,
-  Package,
   RefreshCw,
   Search,
   Sparkles,
+  Star,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { IconLabel } from "@/components/ui/icon-label";
 import { LoadingState } from "@/components/ui/loading-state";
 import { ExternalResources } from "@/components/packs/ExternalResources";
+import { RecommendedSkills } from "@/components/packs/RecommendedSkills";
+import { StudioInstallModal } from "@/components/studio/StudioInstallModal";
 import { PackInstallModal } from "@/components/packs/PackInstallModal";
 import { WorkspaceTemplateModal } from "@/components/packs/WorkspaceTemplateModal";
 import type {
@@ -28,9 +30,12 @@ import type {
   WorkspaceTemplate,
 } from "@/components/packs/pack-types";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
+import { useFavorites } from "@/lib/favorites";
+import type { RecommendedSkill } from "@/lib/recommended-skills";
 import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
 import { useAppStore } from "@/store/app-store";
+import { useUiStore } from "@/store/ui-store";
 import { cn } from "@/lib/utils";
 
 const ONBOARDING_KEY = "opendesk.starter-packs.onboarding-dismissed";
@@ -45,8 +50,18 @@ export function PacksPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
-  const [installFilter, setInstallFilter] = useState<"all" | "installed" | "available">("all");
-  const [tab, setTab] = useState<"all" | "workspaces" | "packs" | "resources">("all");
+  const [installFilter, setInstallFilter] = useState<
+    "all" | "installed" | "available" | "favorites"
+  >("all");
+  const [tab, setTab] = useState<
+    "all" | "workspaces" | "packs" | "resources" | "recommended"
+  >("all");
+  const [installRecommendation, setInstallRecommendation] =
+    useState<RecommendedSkill | null>(null);
+  const { toggle: toggleFavorite, isFavorite } = useFavorites();
+  const setWorkspaceDialogOpen = useUiStore(
+    (state) => state.setWorkspaceDialogOpen,
+  );
   const [selected, setSelected] = useState<PackSummary | null>(null);
   const [plan, setPlan] = useState<InstallPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
@@ -105,12 +120,15 @@ export function PacksPage() {
       if (category !== "all" && pack.category !== category) return false;
       if (installFilter === "installed" && !pack.installed) return false;
       if (installFilter === "available" && pack.installed) return false;
+      if (installFilter === "favorites" && !isFavorite("pack", pack.id)) {
+        return false;
+      }
       if (!needle) return true;
       return `${pack.name} ${pack.description} ${pack.id}`
         .toLowerCase()
         .includes(needle);
     });
-  }, [category, installFilter, packs, query]);
+  }, [category, installFilter, isFavorite, packs, query]);
 
   const filteredTemplates = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -331,6 +349,19 @@ export function PacksPage() {
     }
   }
 
+  function installRecommended(skill: RecommendedSkill) {
+    if (!activeWorkspaceId) {
+      toast({
+        tone: "warning",
+        title: "Selecione um workspace",
+        description: "A skill precisa de um workspace ativo para ser instalada.",
+      });
+      setWorkspaceDialogOpen(true);
+      return;
+    }
+    setInstallRecommendation(skill);
+  }
+
   function dismissOnboarding() {
     setOnboardingDismissed(true);
     try {
@@ -404,6 +435,7 @@ export function PacksPage() {
             { id: "workspaces", label: `Workspaces (${templates.length})` },
             { id: "packs", label: `Pacotes (${packs.length})` },
             { id: "resources", label: "Capacidades externas" },
+            { id: "recommended", label: "Recomendados" },
           ].map((item) => (
             <button
               key={item.id}
@@ -432,8 +464,8 @@ export function PacksPage() {
         </div>
         {searching ? (
           <p className="text-[11.5px] text-zinc-500">
-            Resultados em {filteredTemplates.length} workspace(s), {filtered.length} pacote(s)
-            e capacidades externas.
+            Resultados em {filteredTemplates.length} workspace(s), {filtered.length} pacote(s),
+            capacidades externas e recomendações.
           </p>
         ) : null}
       </div>
@@ -465,6 +497,15 @@ export function PacksPage() {
             ))}
           </CardContent>
         </Card>
+      ) : null}
+
+      {!searching && tab === "recommended" ? (
+        <RecommendedSkills
+          query={query}
+          isFavorite={(id) => isFavorite("skill", id)}
+          onToggleFavorite={(id) => toggleFavorite("skill", id)}
+          onInstall={installRecommended}
+        />
       ) : null}
 
       {(!searching && (tab === "all" || tab === "resources")) || searching ? (
@@ -509,6 +550,7 @@ export function PacksPage() {
             ["all", "Todos"],
             ["installed", `Instalados (${installedCount})`],
             ["available", "Disponíveis"],
+            ["favorites", "Favoritos"],
           ] as const).map(([value, label]) => (
             <button
               key={value}
@@ -516,7 +558,7 @@ export function PacksPage() {
               aria-pressed={installFilter === value}
               onClick={() => setInstallFilter(value)}
               className={cn(
-                "rounded-md px-2.5 py-1 text-[10px] transition-colors",
+                "inline-flex h-8 items-center rounded-md px-2.5 text-[12px] transition-colors",
                 installFilter === value
                   ? "bg-zinc-800 text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-200",
@@ -543,16 +585,19 @@ export function PacksPage() {
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((pack) => (
-            <button
+            <article
               key={pack.id}
-              type="button"
-              onClick={() => void openPack(pack)}
               className={cn(
-                "rounded-xl border bg-zinc-950/40 p-3 text-left transition-colors hover:border-zinc-600",
+                "relative rounded-xl border bg-zinc-950/40 transition-colors hover:border-zinc-600",
                 pack.installed ? "border-emerald-500/30" : "border-zinc-800/70",
               )}
             >
-              <div className="flex items-start gap-2">
+              <button
+                type="button"
+                onClick={() => void openPack(pack)}
+                className="block w-full rounded-xl p-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+              >
+              <div className="flex items-start gap-2 pr-7">
                 <span
                   className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full"
                   style={{ background: pack.color }}
@@ -618,9 +663,34 @@ export function PacksPage() {
                     </div>
                   ) : null}
                 </div>
-                <Package size={15} className="shrink-0 text-zinc-500" />
               </div>
-            </button>
+              </button>
+              <button
+                type="button"
+                aria-label={
+                  isFavorite("pack", pack.id)
+                    ? `Remover ${pack.name} dos favoritos`
+                    : `Favoritar ${pack.name}`
+                }
+                title={
+                  isFavorite("pack", pack.id)
+                    ? "Remover dos favoritos"
+                    : "Favoritar"
+                }
+                onClick={() => toggleFavorite("pack", pack.id)}
+                className={cn(
+                  "absolute right-2 top-2 rounded-md p-1.5 transition-colors",
+                  isFavorite("pack", pack.id)
+                    ? "text-amber-300 hover:bg-amber-500/10"
+                    : "text-zinc-500 hover:bg-zinc-800/60 hover:text-zinc-200",
+                )}
+              >
+                <Star
+                  size={15}
+                  fill={isFavorite("pack", pack.id) ? "currentColor" : "none"}
+                />
+              </button>
+            </article>
           ))}
         </div>
       )}
@@ -655,6 +725,36 @@ export function PacksPage() {
         onInstall={() => void installPack()}
         onRemove={() => void removePack()}
         onInstallItem={(kind, id) => void installItem(kind, id)}
+      />
+
+      <StudioInstallModal
+        open={installRecommendation !== null}
+        workspaceId={activeWorkspaceId}
+        defaultScope="workspace"
+        initialSource={
+          installRecommendation
+            ? {
+                sourceType: installRecommendation.sourceType,
+                value: installRecommendation.source,
+                kind: "skill",
+              }
+            : undefined
+        }
+        preselectIds={
+          installRecommendation ? [installRecommendation.skillId] : undefined
+        }
+        lockSource
+        onClose={() => setInstallRecommendation(null)}
+        onInstalled={async () => {
+          const name = installRecommendation?.name ?? "Skill";
+          setInstallRecommendation(null);
+          toast({
+            tone: "success",
+            title: `${name} instalada`,
+            description: "A skill foi gravada no workspace ativo.",
+          });
+          await refresh();
+        }}
       />
 
       <WorkspaceTemplateModal

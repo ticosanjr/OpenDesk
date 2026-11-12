@@ -313,6 +313,7 @@ export function TaskDetailsModal({
           : undefined
       }
       size="lg"
+      initialFocus="dialog"
     >
       {task ? (
         <div className="space-y-4">
@@ -568,7 +569,7 @@ export function TaskDetailsModal({
             </div>
           ) : null}
 
-          <div className="sticky bottom-0 z-10 -mx-5 -mb-5 mt-4 flex flex-wrap items-center justify-center gap-2 border-t border-zinc-800/70 bg-zinc-950/95 px-5 py-3 backdrop-blur">
+          <div className="sticky bottom-0 z-10 -mx-6 -mb-6 mt-4 flex flex-wrap items-center justify-center gap-2 border-t border-zinc-800/70 bg-zinc-950/95 px-6 py-3 backdrop-blur">
             {task.output_dir_path || diagnostics?.runs.length ? (
               <Button
                 variant="outline"

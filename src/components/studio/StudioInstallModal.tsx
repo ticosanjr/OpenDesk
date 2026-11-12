@@ -74,12 +74,20 @@ export function StudioInstallModal({
   defaultScope,
   onClose,
   onInstalled,
+  initialSource,
+  preselectIds,
+  lockSource = false,
 }: {
   open: boolean;
   workspaceId: string | null;
   defaultScope: "workspace" | "global";
   onClose: () => void;
   onInstalled: (preview: StudioInstallPreview) => Promise<void>;
+  /** Prefill the source and optionally lock the chooser (recommended skills). */
+  initialSource?: { sourceType: SourceType; value: string; kind?: string };
+  /** Keep only the matching IDs after preview (one installed skill). */
+  preselectIds?: string[];
+  lockSource?: boolean;
 }) {
   const workspaces = useAppStore((state) => state.workspaces);
   const [sourceType, setSourceType] = useState<SourceType>("catalog");
@@ -102,7 +110,21 @@ export function StudioInstallModal({
     setError(null);
     setScope(defaultScope);
     setTargetWorkspace(workspaceId ?? "");
-  }, [open, defaultScope, workspaceId]);
+    if (initialSource) {
+      setSourceType(initialSource.sourceType);
+      setValue(initialSource.value);
+      setKind(initialSource.kind ?? "skill");
+      setName("");
+      void previewSource({
+        sourceType: initialSource.sourceType,
+        value: initialSource.value,
+        kind: initialSource.kind ?? "skill",
+        name: "",
+      });
+    }
+    // The source fields are intentionally read once per open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, defaultScope, workspaceId, initialSource?.sourceType, initialSource?.value, initialSource?.kind]);
 
   useEffect(() => {
     if (!open || catalog) return;
@@ -112,12 +134,28 @@ export function StudioInstallModal({
   }, [open, catalog]);
 
   function setPreviewItems(items: StudioInstallItem[], warnings: string[] = []) {
-    setPreview({ items, warnings });
-    setSelected(new Set(items.map((_, index) => index)));
+    const seen = new Set<string>();
+    const unique = items.filter((item) => {
+      const key = `${item.kind}:${item.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    const visible = preselectIds?.length
+      ? unique.filter((item) => preselectIds.includes(item.id))
+      : unique;
+    setPreview({ items: visible, warnings });
+    setSelected(new Set(visible.map((_, index) => index)));
   }
 
-  async function previewSource() {
-    if (!value.trim()) {
+  async function previewSource(override?: {
+    sourceType: SourceType;
+    value: string;
+    kind?: string;
+    name?: string;
+  }) {
+    const next = override ?? { sourceType, value, kind, name };
+    if (!next.value.trim()) {
       setError("Informe a fonte.");
       return;
     }
@@ -127,10 +165,10 @@ export function StudioInstallModal({
       const response = await apiPost<StudioInstallPreview>(
         "/api/studio/install/preview",
         {
-          source_type: sourceType,
-          value: value.trim(),
-          kind: kind || null,
-          name: name.trim() || null,
+          source_type: next.sourceType,
+          value: next.value.trim(),
+          kind: next.kind || null,
+          name: next.name?.trim() || null,
         },
       );
       setPreviewItems(response.items, response.warnings);
@@ -183,6 +221,26 @@ export function StudioInstallModal({
       size="lg"
     >
       <div className="space-y-3">
+        {lockSource && initialSource ? (
+          <div className="flex items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5">
+            {initialSource.sourceType === "url" ? (
+              <Globe size={15} className="shrink-0 text-zinc-400" />
+            ) : (
+              <Github size={15} className="shrink-0 text-zinc-400" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] font-medium text-zinc-200">
+                {initialSource.sourceType === "url"
+                  ? "URL direta"
+                  : "Repositório GitHub"}
+              </p>
+              <p className="truncate font-mono text-[11px] text-zinc-500">
+                {initialSource.value}
+              </p>
+            </div>
+            <Badge variant="blue">skill</Badge>
+          </div>
+        ) : (
         <div className="grid gap-1 sm:grid-cols-3">
           {SOURCES.map((source) => (
             <button
@@ -202,16 +260,17 @@ export function StudioInstallModal({
             >
               <source.icon size={14} className="mt-0.5 text-zinc-400" />
               <div>
-                <p className="text-[11px] font-medium text-zinc-200">{source.label}</p>
-                <p className="mt-0.5 text-[9px] leading-relaxed text-zinc-500">
+                <p className="text-[12px] font-medium text-zinc-200">{source.label}</p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-zinc-500">
                   {source.hint}
                 </p>
               </div>
             </button>
           ))}
         </div>
+        )}
 
-        {sourceType === "catalog" ? (
+        {!lockSource && sourceType === "catalog" ? (
           <div className="space-y-3">
             {catalog?.repos?.length ? (
               <div className="space-y-1.5">
@@ -232,10 +291,10 @@ export function StudioInstallModal({
                     title={`${repo.source_type}: ${repo.source}`}
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-[12px] font-medium text-zinc-200">
+                      <p className="text-[13px] font-medium text-zinc-200">
                         {repo.name}
                       </p>
-                      <p className="truncate text-[10px] text-zinc-500">
+                      <p className="truncate text-[11.5px] text-zinc-500">
                         {repo.description}
                       </p>
                     </div>
@@ -281,7 +340,7 @@ export function StudioInstallModal({
               </div>
             ))}
           </div>
-        ) : (
+        ) : !lockSource ? (
           <div className="space-y-2">
             <div className="flex gap-2">
               <input
@@ -323,6 +382,7 @@ export function StudioInstallModal({
                 value={kind}
                 onChange={(event) => setKind(event.target.value)}
                 className={inputClass}
+                aria-label="Tipo do item"
               >
                 <option value="">tipo automático</option>
                 <option value="agent">agente</option>
@@ -344,7 +404,7 @@ export function StudioInstallModal({
               </Button>
             </div>
           </div>
-        )}
+        ) : null}
 
         {preview ? (
           <div className="space-y-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3">
@@ -357,7 +417,7 @@ export function StudioInstallModal({
             {preview.items.map((item, index) => (
               <label
                 key={`${item.kind}:${item.id}:${index}`}
-                className="flex items-center gap-2 text-[10px] text-zinc-400"
+                className="flex items-center gap-2 text-[12px] text-zinc-400"
               >
                 <input
                   type="checkbox"
@@ -376,7 +436,7 @@ export function StudioInstallModal({
               </label>
             ))}
             {preview.warnings.length > 0 ? (
-              <div className="text-[9px] text-amber-300/80">
+              <div className="text-[11px] text-amber-300/80">
                 {preview.warnings.slice(0, 5).map((warning) => (
                   <p key={warning}>⚠ {warning}</p>
                 ))}
@@ -387,6 +447,7 @@ export function StudioInstallModal({
                 value={scope}
                 onChange={(event) => setScope(event.target.value as "workspace" | "global")}
                 className={inputClass}
+                aria-label="Escopo da instalação"
               >
                 <option value="workspace">workspace</option>
                 <option value="global">global</option>
@@ -396,6 +457,7 @@ export function StudioInstallModal({
                   value={targetWorkspace}
                   onChange={(event) => setTargetWorkspace(event.target.value)}
                   className={inputClass}
+                  aria-label="Workspace de destino"
                 >
                   {workspaces.map((workspace) => (
                     <option key={workspace.id} value={workspace.id}>
@@ -406,7 +468,7 @@ export function StudioInstallModal({
               ) : (
                 <div />
               )}
-              <label className="flex items-center gap-2 text-[10px] text-zinc-400">
+              <label className="flex items-center gap-2 text-[12px] text-zinc-400">
                 <input
                   type="checkbox"
                   checked={overwrite}
@@ -420,7 +482,7 @@ export function StudioInstallModal({
         ) : null}
 
         {error ? (
-          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-300">
+          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">
             {error}
           </p>
         ) : null}
@@ -448,4 +510,4 @@ export function StudioInstallModal({
 }
 
 const inputClass =
-  "h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[11px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[13px] text-zinc-100 outline-none placeholder:text-zinc-500 transition-colors hover:border-zinc-700 focus:border-blue-500/60";

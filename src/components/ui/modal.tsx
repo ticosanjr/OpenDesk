@@ -10,6 +10,7 @@ export function Modal({
   children,
   className,
   size = "lg",
+  initialFocus = "field",
 }: {
   open: boolean;
   onClose: () => void;
@@ -19,6 +20,8 @@ export function Modal({
   className?: string;
   /** Dialog width. `xl` keeps the large working dialogs; short confirms use `sm`. */
   size?: "sm" | "md" | "lg" | "xl";
+  /** "field" focuses the first form control; "dialog" avoids scrolling long detail views. */
+  initialFocus?: "field" | "dialog";
 }) {
   const dialogRef = React.useRef<HTMLDivElement | null>(null);
   const onCloseRef = React.useRef(onClose);
@@ -48,11 +51,15 @@ export function Modal({
       if (active && active !== document.body && dialog?.contains(active)) {
         return;
       }
+      if (initialFocus === "dialog") {
+        dialog?.focus({ preventScroll: true });
+        return;
+      }
       const items = focusable();
       const preferred = items.find((element) =>
         element.matches("input, textarea, select, [autofocus]"),
       );
-      (preferred ?? dialog)?.focus();
+      (preferred ?? dialog)?.focus({ preventScroll: true });
     }, 0);
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -87,7 +94,7 @@ export function Modal({
       window.removeEventListener("keydown", onKeyDown);
       previous?.focus?.();
     };
-  }, [open]);
+  }, [initialFocus, open]);
 
   if (!open) return null;
 
@@ -114,13 +121,13 @@ export function Modal({
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         className={cn(
-          "relative max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-zinc-800 bg-zinc-950/95 p-6 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.85)] outline-none backdrop-blur-xl",
+          "relative max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-zinc-800 bg-zinc-950/95 p-0 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.85)] outline-none backdrop-blur-xl",
           widthClass,
           className,
         )}
       >
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div>
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-zinc-800/70 bg-zinc-950/95 px-6 py-4 backdrop-blur">
+          <div className="min-w-0">
             <h2 id={titleId} className="text-lg font-semibold tracking-tight text-zinc-100">
               {title}
             </h2>
@@ -139,7 +146,7 @@ export function Modal({
             <X size={18} />
           </button>
         </div>
-        {children}
+        <div className="px-6 pb-6">{children}</div>
       </div>
     </div>
   );

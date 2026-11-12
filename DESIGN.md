@@ -129,11 +129,41 @@ same tones and human labels.
 - `size="sm"` (28rem): confirmations.
 - `size="md"` (42rem): short forms.
 - `size="lg"` (56rem): detail and history.
-- `size="xl"` (64rem): complex editors.
+- `size="xl"` (64rem): complex editors and viewers.
 
 No forced minimum width or height. Max height is `100dvh - 24px`; the dialog
-scrolls internally. Header focus goes to the first field, never the close
-button.
+scrolls internally. The header is sticky and bordered. Focus goes to the first
+field by default; detail-heavy dialogs use `initialFocus="dialog"` so focusing
+an embedded form does not scroll the header content away.
+
+### HITL no card
+A task with a pending interaction, permission, approval, failure or manual
+block shows an amber panel inside the card, with:
+- a reason-specific title;
+- a one-line detail (question, permission/action, failure or block reason);
+- one primary action.
+
+“Responder” opens a focused modal with the full `InteractionCard` or
+`PermissionRequestCard`. Resolving reloads the board and removes the pending
+state. Approval is direct from the card. The card itself is not a `button`;
+its title and the “Abrir tarefa” action are buttons, avoiding nested
+interactive controls.
+
+### Viewers
+- The parent page owns the path, size, metadata and actions.
+- Embedded viewers render only preview/source tabs, warnings and download.
+- The artifact viewer uses the shared `Modal` with a sticky header, tabs,
+  metadata and actions; Escape and focus trapping come from the modal.
+- Empty, loading and error states inside a viewer must keep the same frame and
+  offer a recovery action.
+
+### Favoritos e recomendados
+- Favorites are global (`opendesk.favorites.v1`) and apply to packs and
+  recommended skills.
+- The recommended list reuses the Studio preview/apply pipeline; only the
+  selected skill is previewed and installed after confirmation.
+- Projects with their own installer (Impeccable) show “Abrir instalador”
+  instead of pretending to install an incomplete skill.
 
 ### Empty states
 Icon, title, one sentence of guidance, and a next action when one exists. Keep

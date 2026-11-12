@@ -22,3 +22,19 @@ test("artifact can be opened and pinned from the provenance page", async ({
   const list = (await pinned.json()) as Array<{ id: string }>;
   expect(list.some((artifact) => artifact.id === seeded.artifactIds?.[0])).toBe(true);
 });
+
+test("artifact viewer opens in the shared modal and closes with Escape", async ({
+  page,
+  request,
+}) => {
+  const company = await seedCompany(request, "Artifacts Viewer");
+  await seedOperational(request, company);
+  await page.goto("/#/artifacts");
+  await page.getByText("relatorio-executivo.md").first().click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("relatorio-executivo.md");
+  await expect(dialog.getByRole("button", { name: "Fixar" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+});

@@ -2180,3 +2180,26 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   grupo; sem grupo, o comportamento anterior é preservado.
 - Detector Impeccable sem achados e suíte Playwright completa verde (78).
 - Release 0.49.0 com notas em `docs/releases/0.49.0.md`.
+
+## 2026-11-12 — onda 11: HITL no Kanban, favoritos e visualizadores
+
+- Kanban passou a carregar `/api/attention` junto com tarefas e fila. Cards com
+  interação ou permissão pendente vão para **Atenção**, ganham o selo
+  “aguardando você” e mostram um painel com o motivo real e a ação primária.
+- “Responder” abre um modal focado com `InteractionCard`/`PermissionRequestCard`;
+  ao resolver, o board recarrega e o card sai da atenção. Aprovação de plano
+  continua direta no card. O card deixou de ser `role="button"`; título e ação
+  “Abrir tarefa” são botões, eliminando controles interativos aninhados.
+- Popovers de visibilidade e filtros usam `useDismissable`: fecham com clique
+  fora e Esc, com teste E2E específico.
+- Modais ganharam header sticky, `initialFocus="dialog"` para detalhes longos e
+  foco sem scroll forçado. O visualizador de artefatos usa o `Modal`
+  compartilhado; arquivos usam `FileViewer` embutido sem duplicar caminho/tamanho.
+- Receitas e rotinas receberam hierarquia e estados mais legíveis; execuções
+  mantêm status, custo e navegação direta.
+- Pacotes ganharam favoritos globais, filtro **Favoritos** e a aba
+  **Recomendados** com 11 skills curadas. A instalação reutiliza o preview/apply
+  do Studio e pré-seleciona a skill pedida; Impeccable usa o instalador oficial.
+- Verificação: `npm run gate:fast` (161 Vitest), suíte Playwright completa
+  (84 testes), axe nas novas superfícies e detector Impeccable sem achados.
+  Sem release.

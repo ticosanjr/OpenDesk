@@ -5,7 +5,6 @@ import {
   ExternalLink,
   FileText,
   GitCompare,
-  Mail,
   RefreshCw,
   RotateCcw,
   Star,
@@ -18,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterSearch, FilterSelect } from "@/components/ui/filter-bar";
+import { Modal } from "@/components/ui/modal";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiGet, apiPost } from "@/lib/api";
@@ -30,6 +30,13 @@ import { LazyFileViewer } from "@/components/viewer/LazyFileViewer";
 import { DiffView } from "@/components/viewer/DiffView";
 import { toast } from "@/store/toast-store";
 import { confirmAction } from "@/store/confirm-store";
+
+function artifactActionLabel(action: string): string {
+  if (action === "CREATED") return "criado";
+  if (action === "DELETED") return "excluído";
+  if (action === "MODIFIED") return "alterado";
+  return action;
+}
 
 interface ArtifactContent {
   path: string;
@@ -435,46 +442,43 @@ export function ArtifactsPage() {
         </CardContent>
       </Card>
 
-      {selected ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-5">
-          <button
-            type="button"
-            aria-label="Fechar artefato"
-            className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
-            onClick={() => setSelected(null)}
-          />
-          <aside className="relative flex h-[min(88dvh,64rem)] w-[min(94vw,72rem)] flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/95 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.85)] backdrop-blur-xl">
-            <div className="flex items-start justify-between gap-3 border-b border-zinc-800/70 px-4 py-3">
-              <div className="min-w-0">
-                <p className="truncate font-mono text-[11px] text-zinc-200">
-                  {selected.file_path}
-                </p>
-                <p className="mt-0.5 truncate font-mono text-[9px] text-zinc-500">
-                  {shortPath(selected.absolute_path, 90)}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <EntityLink
-                    to={links.agent(
-                      selected.created_by_agent,
-                      "workspace",
-                      selected.workspace_id,
-                    )}
-                    chip
-                  >
-                    @{selected.created_by_agent}
-                  </EntityLink>
-                  <Badge variant="default">{selected.action_type}</Badge>
-                  <Badge variant="default">{relativeTime(selected.created_at)}</Badge>
-                </div>
+      <Modal
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        title={selected?.file_path ?? "Artefato"}
+        description={
+          selected ? shortPath(selected.absolute_path, 90) : undefined
+        }
+        size="xl"
+        className="max-w-[72rem]"
+      >
+        {selected ? (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <EntityLink
+                  to={links.agent(
+                    selected.created_by_agent,
+                    "workspace",
+                    selected.workspace_id,
+                  )}
+                  chip
+                >
+                  @{selected.created_by_agent}
+                </EntityLink>
+                <Badge variant="default">
+                  {artifactActionLabel(selected.action_type)}
+                </Badge>
+                <Badge variant="default">{relativeTime(selected.created_at)}</Badge>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => void togglePin(selected)}
                   title={selected.pinned ? "Desafixar entregável" : "Fixar como entregável"}
                 >
-                  <Star size={12} fill={selected.pinned ? "currentColor" : "none"} />
+                  <Star size={13} fill={selected.pinned ? "currentColor" : "none"} />
                   {selected.pinned ? "Fixado" : "Fixar"}
                 </Button>
                 {selected.diff_patch || selected.action_type === "CREATED" ? (
@@ -485,7 +489,7 @@ export function ArtifactsPage() {
                     onClick={() => void rollback(selected)}
                     title="Reverter esta alteração no arquivo"
                   >
-                    <RotateCcw size={12} />
+                    <RotateCcw size={13} />
                     Reverter
                   </Button>
                 ) : null}
@@ -503,68 +507,50 @@ export function ArtifactsPage() {
                   size="sm"
                   onClick={() => void reveal(selected.absolute_path)}
                 >
-                  <ExternalLink size={12} />
+                  <ExternalLink size={13} />
                   Abrir pasta
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Fechar visualizador"
-                  onClick={() => setSelected(null)}
-                  className="h-8 w-8"
-                >
-                  <X size={15} />
                 </Button>
               </div>
             </div>
 
-            <div className="flex items-center gap-1 border-b border-zinc-800/70 px-3 py-1.5">
+            <div className="flex items-center gap-1 border-b border-zinc-800/70 pb-1">
               <button
                 type="button"
                 onClick={() => setTab("content")}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px]",
+                  "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[12px] transition-colors",
                   tab === "content"
                     ? "bg-zinc-800 text-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-200",
+                    : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200",
                 )}
               >
-                <FileText size={12} />
+                <FileText size={14} />
                 Conteúdo
               </button>
               <button
                 type="button"
                 onClick={() => setTab("diff")}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px]",
+                  "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[12px] transition-colors",
                   tab === "diff"
                     ? "bg-zinc-800 text-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-200",
+                    : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200",
                 )}
               >
-                <GitCompare size={12} />
+                <GitCompare size={14} />
                 Diff
               </button>
-              <div className="ml-auto flex gap-1">
-                <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[9px]" disabled>
-                  <Mail size={10} />
-                  Enviar
-                </Button>
-                <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[9px]" disabled>
-                  Google Docs
-                </Button>
-              </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex h-[min(64dvh,52rem)] min-h-[360px] flex-col overflow-hidden rounded-xl border border-zinc-800/70 bg-zinc-950/30">
               {tab === "content" ? (
                 contentLoading ? (
-                  <p className="p-4 text-[11px] text-zinc-500">
+                  <p className="p-4 text-[12px] text-zinc-500">
                     Carregando visualizador…
                   </p>
                 ) : contentError ? (
                   <div className="space-y-2 p-4">
-                    <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+                    <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">
                       Não foi possível carregar a prévia: {contentError}
                     </p>
                     <Button
@@ -578,6 +564,7 @@ export function ArtifactsPage() {
                   </div>
                 ) : content ? (
                   <LazyFileViewer
+                    embedded
                     name={selected.file_path}
                     path={content.path}
                     content={content.content}
@@ -589,22 +576,32 @@ export function ArtifactsPage() {
                     onOpenExternal={() => void reveal(selected.absolute_path)}
                   />
                 ) : (
-                  <p className="p-4 text-[11px] text-zinc-500">
+                  <p className="p-4 text-[12px] text-zinc-500">
                     Sem prévia para este artefato.
                   </p>
                 )
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                  <p className="mx-3 mt-2 text-[11px] leading-relaxed text-zinc-500">
+                  <p className="mx-4 mt-3 text-[12px] leading-relaxed text-zinc-400">
                     {selected.creation_reason}
                   </p>
-                  <DiffView patch={selected.diff_patch ?? ""} />
+                  {selected.diff_patch ? (
+                    <DiffView patch={selected.diff_patch} />
+                  ) : (
+                    <EmptyState
+                      icon={GitCompare}
+                      title="Sem diff registrado"
+                      description="Este artefato não tem patch para comparar."
+                      compact
+                      className="m-4 border-0 bg-transparent"
+                    />
+                  )}
                 </div>
               )}
             </div>
-          </aside>
-        </div>
-      ) : null}
+          </div>
+        ) : null}
+      </Modal>
     </PageBody>
   );
 }

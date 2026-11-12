@@ -111,6 +111,7 @@ export function FileViewer({
   size,
   rawUrl,
   onOpenExternal,
+  embedded = false,
 }: {
   name: string;
   path: string;
@@ -121,6 +122,8 @@ export function FileViewer({
   size?: number;
   rawUrl?: string;
   onOpenExternal?: () => void;
+  /** Parent already renders the file path, size and actions. */
+  embedded?: boolean;
 }) {
   const kind = useMemo(() => kindFor(name, mime), [mime, name]);
   const needsBlob = ["image", "pdf", "video", "audio"].includes(kind);
@@ -129,21 +132,29 @@ export function FileViewer({
   const [zoom, setZoom] = useState(100);
   const textSource = kind === "text" || kind === "markdown" || kind === "html";
 
+  const showToolbar =
+    !embedded || truncated || kind === "html" || textSource || Boolean(blobUrl);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {showToolbar ? (
       <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800/70 px-3 py-2">
-        <FileText size={13} className="text-zinc-500" />
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-zinc-300">
-          {path || name}
-        </span>
-        <Badge variant="default">{kind}</Badge>
-        {size !== undefined ? (
-          <Badge variant="default">{formatNumber(size)} B</Badge>
-        ) : null}
+        {embedded ? null : (
+          <>
+            <FileText size={13} className="text-zinc-500" />
+            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-zinc-300">
+              {path || name}
+            </span>
+            <Badge variant="default">{kind}</Badge>
+            {size !== undefined ? (
+              <Badge variant="default">{formatNumber(size)} B</Badge>
+            ) : null}
+          </>
+        )}
         {truncated ? <Badge variant="yellow">truncado</Badge> : null}
         {kind === "html" ? <Badge variant="yellow">scripts bloqueados</Badge> : null}
         {textSource ? (
-          <span className="flex items-center gap-1 rounded-md border border-zinc-800 p-0.5">
+          <span className={cn("flex items-center gap-1 rounded-md border border-zinc-800 p-0.5", embedded && "ml-auto")}>
             {(["preview", "source"] as const).map((value) => (
               <button
                 key={value}
@@ -161,7 +172,7 @@ export function FileViewer({
             ))}
           </span>
         ) : null}
-        {onOpenExternal ? (
+        {!embedded && onOpenExternal ? (
           <Button variant="ghost" size="sm" className="h-7" onClick={onOpenExternal}>
             <ExternalLink size={11} />
             abrir
@@ -178,6 +189,7 @@ export function FileViewer({
           </a>
         ) : null}
       </div>
+      ) : null}
 
       <div className="min-h-0 flex-1 overflow-auto bg-zinc-950/40 p-3">
         {tab === "source" ? (

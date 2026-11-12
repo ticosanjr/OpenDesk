@@ -1,10 +1,15 @@
+import { useState } from "react";
 import {
-  CheckCircle2,
+  AlertTriangle,
+  ArrowUpRight,
+  ClipboardCheck,
   FileText,
   FolderOpen,
   Globe,
   GripVertical,
+  MessageCircleQuestion,
   Play,
+  ShieldAlert,
   Square,
   Star,
 } from "lucide-react";
@@ -22,8 +27,13 @@ import {
   STATUS_LABEL,
 } from "@/lib/task-ui";
 import { isTaskAwaitingApproval, taskState } from "@/lib/task-state";
-import type { Task } from "@/lib/types";
+import { workflowMeta } from "@/lib/workflow";
+import type { Task, TaskInteraction } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import {
+  TaskAttentionModal,
+  type TaskPermissionRequest,
+} from "@/components/kanban/task-attention-modal";
 
 export function TaskCard({
   task,
@@ -37,6 +47,9 @@ export function TaskCard({
   onLogs,
   onDragStart,
   onDragEnd,
+  interaction,
+  permission,
+  onAttentionResolved,
 }: {
   task: Task;
   pinned: number;
@@ -49,16 +62,85 @@ export function TaskCard({
   onLogs: () => void;
   onDragStart: (event: React.DragEvent<HTMLElement>) => void;
   onDragEnd: () => void;
+  interaction?: TaskInteraction;
+  permission?: TaskPermissionRequest;
+  onAttentionResolved?: () => void;
 }) {
+  const [attentionOpen, setAttentionOpen] = useState(false);
   const state = taskState(task);
+  const workflow = workflowMeta(task);
   const running = state === "running";
   const attention =
-    state === "blocked" || state === "needs_approval" || state === "waiting_input";
+    state === "blocked" ||
+    state === "needs_approval" ||
+    state === "waiting_input" ||
+    Boolean(interaction) ||
+    Boolean(permission);
+  const badgeTask =
+    interaction || permission
+      ? {
+          ...task,
+          workflow_state: "WAITING_INPUT",
+          workflow_reason: permission ? "permission" : "hitl",
+        }
+      : task;
   const queued = state === "queued";
   const held = state === "held";
   const waitingInput = state === "waiting_input";
   const hasOutput = Boolean(task.output_dir_path || task.last_run_id);
   const webTask = task.tags_json.includes('"needs-browser"');
+
+  const attentionInfo = interaction
+    ? {
+        icon: MessageCircleQuestion,
+        title: "O agente perguntou",
+        detail: interaction.question,
+        action: "Responder",
+        run: () => setAttentionOpen(true),
+      }
+    : permission
+      ? {
+          icon: ShieldAlert,
+          title: `Permissão para ${permission.permission_action}`,
+          detail:
+            permission.resources ||
+            "O agente precisa de acesso para continuar a execução.",
+          action: "Responder",
+          run: () => setAttentionOpen(true),
+        }
+      : isTaskAwaitingApproval(task)
+        ? {
+            icon: ClipboardCheck,
+            title: "Plano aguardando aprovação",
+            detail: workflow.description,
+            action: "Aprovar plano",
+            run: onApprove,
+          }
+        : task.workflow_reason === "failed"
+          ? {
+              icon: AlertTriangle,
+              title: "A última execução falhou",
+              detail: task.blocked_reason || workflow.description,
+              action: "Abrir diagnóstico",
+              run: onOpen,
+            }
+          : state === "blocked"
+            ? {
+                icon: AlertTriangle,
+                title: "Tarefa bloqueada",
+                detail: task.blocked_reason || workflow.description,
+                action: "Abrir tarefa",
+                run: onOpen,
+              }
+            : waitingInput
+              ? {
+                  icon: MessageCircleQuestion,
+                  title: "Aguardando sua resposta",
+                  detail: workflow.description,
+                  action: "Abrir tarefa",
+                  run: onOpen,
+                }
+              : null;
 
   const meta = [
     task.assigned_agent ? (
@@ -110,25 +192,17 @@ export function TaskCard({
   ].filter(Boolean) as React.ReactNode[];
 
   return (
+    <>
     <article
       data-card="task"
       data-workflow-state={task.workflow_state ?? "UNKNOWN"}
       data-workflow-reason={task.workflow_reason ?? ""}
-      role="button"
-      tabIndex={0}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      aria-label={`Abrir tarefa ${task.title}`}
       onClick={onOpen}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onOpen();
-        }
-      }}
       className={cn(
-        "flex min-h-[176px] flex-col gap-1.5 rounded-lg border bg-zinc-950/50 p-3 text-left outline-none transition-colors hover:border-zinc-700 hover:bg-zinc-900/40 focus-visible:ring-2 focus-visible:ring-blue-500/60",
+        "flex min-h-[176px] flex-col gap-1.5 rounded-lg border bg-zinc-950/50 p-3 text-left transition-colors hover:border-zinc-700 hover:bg-zinc-900/40",
         attention
           ? "border-amber-500/30"
           : state === "running"
@@ -146,13 +220,20 @@ export function TaskCard({
         >
           <GripVertical size={13} />
         </span>
-        <p className="line-clamp-2 min-w-0 flex-1 text-[13.5px] font-semibold leading-snug text-zinc-100">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpen();
+          }}
+          className="line-clamp-2 min-w-0 flex-1 rounded text-left text-[13.5px] font-semibold leading-snug text-zinc-100 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+        >
           {task.title}
-        </p>
+        </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <WorkflowStatusBadge task={task} />
+        <WorkflowStatusBadge task={badgeTask} />
         {meta.slice(0, 2)}
         {meta.length > 2 ? (
           <Badge variant="default" title={`${meta.length - 2} metadados ocultos`}>
@@ -164,6 +245,40 @@ export function TaskCard({
       <p className="line-clamp-3 text-[12px] leading-relaxed text-zinc-400">
         {task.description || "—"}
       </p>
+
+      {attentionInfo ? (
+        <div
+          data-task-attention
+          className="rounded-lg border border-amber-500/25 bg-amber-500/[0.055] p-2.5"
+        >
+          <div className="flex items-start gap-2">
+            <attentionInfo.icon
+              size={14}
+              className="mt-0.5 shrink-0 text-amber-300"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-[11.5px] font-semibold text-amber-100">
+                {attentionInfo.title}
+              </p>
+              <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-amber-100/70">
+                {attentionInfo.detail}
+              </p>
+            </div>
+          </div>
+          <div className="mt-2 flex justify-end">
+            <Button
+              size="xs"
+              className="px-2"
+              onClick={(event) => {
+                event.stopPropagation();
+                attentionInfo.run();
+              }}
+            >
+              {attentionInfo.action}
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-auto flex min-h-8 items-center gap-1 border-t border-zinc-800/60 pt-2">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -177,12 +292,6 @@ export function TaskCard({
               <FolderOpen size={12} />
               arquivos
             </Link>
-          ) : attention ? (
-            <span className="truncate text-[11px] text-amber-300/90">
-              {task.workflow_reason === "in_progress_without_run"
-                ? "sem execução ativa"
-                : "precisa de atenção"}
-            </span>
           ) : task.status === "DONE" || task.status === "CANCELLED" ? (
             <span className="truncate text-[11px] text-zinc-500">
               {STATUS_LABEL[task.status] ?? task.status}
@@ -190,20 +299,7 @@ export function TaskCard({
           ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {isTaskAwaitingApproval(task) ? (
-            <Button
-              size="xs"
-              className="px-2"
-              title="Aprovar o plano e iniciar o Build"
-              onClick={(event) => {
-                event.stopPropagation();
-                onApprove();
-              }}
-            >
-              <CheckCircle2 size={12} />
-              Aprovar
-            </Button>
-          ) : held ? (
+          {held ? (
             <Button
               variant="outline"
               size="xs"
@@ -231,19 +327,6 @@ export function TaskCard({
               <Square size={11} />
               Cancelar
             </Button>
-          ) : waitingInput ? (
-            <Button
-              variant="outline"
-              size="xs"
-              className="px-2"
-              title="Abrir a tarefa para responder ao agente"
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpen();
-              }}
-            >
-              Responder
-            </Button>
           ) : task.status !== "DONE" && task.status !== "CANCELLED" ? (
             <Button
               variant="outline"
@@ -268,6 +351,19 @@ export function TaskCard({
             variant="ghost"
             size="xs"
             className="w-7 px-0"
+            aria-label={`Abrir tarefa ${task.title}`}
+            title="Abrir tarefa"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpen();
+            }}
+          >
+            <ArrowUpRight size={13} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            className="w-7 px-0"
             aria-label="Abrir logs da tarefa"
             title="Abrir a execução e o log completo"
             onClick={(event) => {
@@ -280,5 +376,18 @@ export function TaskCard({
         </div>
       </div>
     </article>
+    <TaskAttentionModal
+      open={attentionOpen}
+      task={task}
+      interactions={interaction ? [interaction] : []}
+      permissions={permission ? [permission] : []}
+      onClose={() => setAttentionOpen(false)}
+      onResolved={() => onAttentionResolved?.()}
+      onOpenTask={() => {
+        setAttentionOpen(false);
+        onOpen();
+      }}
+    />
+    </>
   );
 }

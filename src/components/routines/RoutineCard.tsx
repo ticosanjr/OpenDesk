@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  CalendarClock,
   Copy,
   FlaskConical,
   History,
@@ -178,9 +179,7 @@ export function RoutineCard({
                 : `Ativar rotina ${schedule.name}`
             }
           />
-          <span className="text-[11px] text-zinc-500">
-            {schedule.is_active ? "ligada" : "desligada"}
-          </span>
+
         </div>
       </div>
 
@@ -199,30 +198,34 @@ export function RoutineCard({
           : schedule.command_or_prompt || "—"}
       </p>
 
-      <div className="mt-1 flex min-h-4 flex-wrap items-center gap-x-3 gap-y-1 overflow-hidden font-mono text-[11px] text-zinc-500">
-        <span className="truncate">
-          próxima:{" "}
-          {schedule.next_run_at
-            ? new Date(schedule.next_run_at).toLocaleString("pt-BR")
-            : "—"}
+      <div className="mt-1 flex min-h-4 flex-wrap items-center gap-x-3 gap-y-1 overflow-hidden text-[11.5px] text-zinc-400">
+        <span className="inline-flex min-w-0 items-center gap-1.5">
+          <CalendarClock size={12} className="shrink-0 text-zinc-500" />
+          <span className="truncate">
+            {schedule.next_run_at
+              ? `próxima ${new Date(schedule.next_run_at).toLocaleString("pt-BR")}`
+              : "sem próxima execução"}
+          </span>
         </span>
         <span
-          className="truncate"
+          className="inline-flex min-w-0 items-center gap-1.5"
           title={
             schedule.last_run_at
               ? `Última execução: ${schedule.last_run_status ?? "sem status"}`
               : "Ainda não executou"
           }
         >
-          última:{" "}
-          {schedule.last_run_at
-            ? `${relativeTime(schedule.last_run_at)} (${schedule.last_run_status ?? "—"})`
-            : "—"}
+          <History size={12} className="shrink-0 text-zinc-500" />
+          <span className="truncate">
+            {schedule.last_run_at
+              ? `${relativeTime(schedule.last_run_at)} · ${schedule.last_run_status ?? "—"}`
+              : "nunca executou"}
+          </span>
         </span>
         {schedule.notify_email_recipients ? (
           <Tooltip content={schedule.notify_email_recipients}>
             <span className="flex items-center gap-1 text-zinc-500">
-              <Mail size={10} />
+              <Mail size={11} />
               e-mail
             </span>
           </Tooltip>
@@ -230,11 +233,7 @@ export function RoutineCard({
       </div>
 
       <div className="mt-auto flex min-h-9 items-center justify-end gap-1.5 border-t border-zinc-800/60 pt-2">
-        <Button
-          variant="outline"
-          size="xs"
-          onClick={onRun}
-        >
+        <Button size="xs" onClick={onRun}>
           <IconLabel icon={<Play size={13} />} gap="tight">
             Executar agora
           </IconLabel>

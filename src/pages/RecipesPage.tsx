@@ -71,6 +71,15 @@ flow:
 `;
 
 
+function recipeRunStatusLabel(status: string): string {
+  if (status === "COMPLETED") return "concluída";
+  if (status === "FAILED") return "falhou";
+  if (status === "REJECTED") return "rejeitada";
+  if (status === "RUNNING") return "executando";
+  if (status.includes("WAITING")) return "aguardando";
+  return status.toLowerCase();
+}
+
 export function RecipesPage() {
   const workspaceId = useAppStore((state) => state.activeWorkspaceId);
   const [params] = useSearchParams();
@@ -309,8 +318,8 @@ export function RecipesPage() {
       <div className="grid min-h-0 gap-3 lg:grid-cols-[260px_1fr]">
         <Card className="min-h-0">
           <CardHeader className="py-3">
-            <CardTitle className="flex items-center gap-2 text-[12px]">
-              <Workflow size={14} className="text-zinc-500" />
+            <CardTitle className="flex items-center gap-2">
+              <Workflow size={15} className="text-zinc-400" />
               Receitas
             </CardTitle>
             <CountPill value={recipes.length} />
@@ -331,7 +340,7 @@ export function RecipesPage() {
                 <div
                   key={item.id}
                   className={cn(
-                    "flex items-start gap-2 rounded-lg px-2.5 py-2 transition-colors",
+                    "flex items-start gap-2 rounded-lg px-3 py-2.5 transition-colors",
                     selected === item.id
                       ? "workspace-nav-active"
                       : "hover:bg-zinc-900",
@@ -346,12 +355,12 @@ export function RecipesPage() {
                       selected === item.id ? "text-zinc-100" : "text-zinc-400",
                     )}
                   >
-                    <p className="truncate text-[11px] font-medium">{item.name}</p>
-                    <p className="truncate font-mono text-[9px] text-zinc-500">
+                    <p className="truncate text-[13.5px] font-medium">{item.name}</p>
+                    <p className="truncate font-mono text-[11px] text-zinc-500">
                       {item.trigger_type} · {item.total_runs} execuções
                     </p>
                     {item.last_error ? (
-                      <p className="truncate text-[9px] text-red-300">{item.last_error}</p>
+                      <p className="truncate text-[11px] text-red-300">{item.last_error}</p>
                     ) : null}
                   </button>
                   <Switch
@@ -374,15 +383,14 @@ export function RecipesPage() {
         <div className="grid min-h-0 gap-3 xl:grid-cols-2">
           <Card className="min-h-0">
             <CardHeader className="py-3">
-              <CardTitle className="flex items-center gap-2 text-[12px]">
-                <GitBranch size={13} className="text-zinc-500" />
+              <CardTitle className="flex items-center gap-2">
+                <GitBranch size={15} className="text-zinc-400" />
                 Fluxo visual
               </CardTitle>
               <div className="flex gap-1">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7"
                   onClick={() => setRunMode("dry")}
                   disabled={!selected}
                 >
@@ -390,7 +398,6 @@ export function RecipesPage() {
                 </Button>
                 <Button
                   size="sm"
-                  className="h-7"
                   onClick={() => setRunMode("run")}
                   disabled={!selected}
                 >
@@ -417,11 +424,11 @@ export function RecipesPage() {
 
           <Card className="min-h-0">
             <CardHeader className="py-3">
-              <CardTitle className="flex items-center gap-2 text-[12px]">
+              <CardTitle className="flex items-center gap-2">
                 YAML
                 <FieldHint hint="Editor simples local. Sempre abre offline e nunca fica carregando." />
               </CardTitle>
-              <Button size="sm" className="h-7" onClick={() => void save()} disabled={!selected || saving}>
+              <Button size="sm" onClick={() => void save()} disabled={!selected || saving}>
                 <IconLabel icon={saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}>
                   Salvar
                 </IconLabel>
@@ -436,7 +443,7 @@ export function RecipesPage() {
 
       <Card>
         <CardHeader className="py-3">
-          <CardTitle className="text-[12px]">Execuções de receitas</CardTitle>
+          <CardTitle>Execuções de receitas</CardTitle>
           <CountPill value={runs.length} />
         </CardHeader>
         <CardContent className="space-y-1">
@@ -444,13 +451,13 @@ export function RecipesPage() {
             <p className="p-2 text-[11px] text-zinc-500">Nenhuma execução ainda.</p>
           ) : (
             runs.map((run) => (
-              <div key={run.id} className="flex flex-wrap items-center gap-2 rounded border border-zinc-800/70 px-2.5 py-1.5">
+              <div key={run.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2">
                 <Badge variant={run.status === "COMPLETED" ? "green" : run.status.includes("WAITING") ? "yellow" : run.status.includes("FAILED") || run.status === "REJECTED" ? "red" : "blue"}>
-                  {run.status}
+                  {recipeRunStatusLabel(run.status)}
                 </Badge>
-                <span className="font-mono text-[9px] text-zinc-500">{run.recipe_id}</span>
-                <span className="min-w-0 flex-1 truncate font-mono text-[9px] text-zinc-500">{run.current_step_id ?? "—"}</span>
-                <span className="text-[9px] text-zinc-500">{relativeTime(run.started_at)}</span>
+                <span className="font-mono text-[11px] text-zinc-400">{run.recipe_id}</span>
+                <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-zinc-500">{run.current_step_id ?? "—"}</span>
+                <span className="text-[11px] text-zinc-500">{relativeTime(run.started_at)}</span>
               </div>
             ))
           )}

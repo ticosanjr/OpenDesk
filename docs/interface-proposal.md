@@ -51,11 +51,12 @@ Princípios:
 
 ## Próximas fases recomendadas
 
-### 1. Kanban com views salvas (P1) — parcialmente feito na onda 8
+### 1. Kanban com views salvas (P1) — parcialmente feito nas ondas 8 e 11
 
 Agente e prioridade foram para o popover **Filtros**, com chips ativos e o
-preset **Somente atenção**; as setas de rolagem cobrem telas de 1100px. Ainda
-falta salvar combinações nomeadas (Minhas tarefas / Automações / Revisão) e
+preset **Somente atenção**; as setas de rolagem cobrem telas de 1100px. Cards
+com HITL agora mostram o motivo e respondem por um modal focado. Ainda falta
+salvar combinações nomeadas (Minhas tarefas / Automações / Revisão) e
 transformar a concorrência em um ajuste da fila.
 
 ### 2. Configurações com IA mais curta (P1) — parcialmente feito na onda 10
