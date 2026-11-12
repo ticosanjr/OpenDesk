@@ -4,6 +4,8 @@ import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Columns3,
   GripVertical,
   Inbox,
@@ -150,12 +152,26 @@ export function KanbanPage() {
   );
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [blockingTask, setBlockingTask] = useState<Task | null>(null);
+
+  const updateBoardScroll = useCallback(() => {
+    const element = boardRef.current;
+    if (!element) {
+      setBoardScroll({ left: false, right: false });
+      return;
+    }
+    setBoardScroll({
+      left: element.scrollLeft > 4,
+      right:
+        element.scrollLeft + element.clientWidth < element.scrollWidth - 4,
+    });
+  }, []);
   const [blockReason, setBlockReason] = useState("");
   const [forkSource, setForkSource] = useState<Task | null>(null);
   const [visibility, setVisibility] = useState<TaskVisibility>(DEFAULT_VISIBILITY);
   const [visibilityOpen, setVisibilityOpen] = useState(false);
   const draggedRef = useRef<string | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
+  const [boardScroll, setBoardScroll] = useState({ left: false, right: false });
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -194,6 +210,18 @@ export function KanbanPage() {
       ).sort() as string[],
     [tasks],
   );
+
+  useEffect(() => {
+    if (view !== "board") return;
+    updateBoardScroll();
+    const element = boardRef.current;
+    element?.addEventListener("scroll", updateBoardScroll, { passive: true });
+    window.addEventListener("resize", updateBoardScroll);
+    return () => {
+      element?.removeEventListener("scroll", updateBoardScroll);
+      window.removeEventListener("resize", updateBoardScroll);
+    };
+  }, [view, filteredTasks.length, updateBoardScroll]);
 
   const load = useCallback(async () => {
     if (!activeWorkspaceId) {
@@ -699,6 +727,7 @@ export function KanbanPage() {
       ) : null}
 
       {view === "board" ? (
+      <div className="relative">
       <div
         ref={boardRef}
         role="region"
@@ -803,6 +832,33 @@ export function KanbanPage() {
             </Card>
           );
         })}
+      </div>
+      {boardScroll.left ? (
+        <button
+          type="button"
+          aria-label="Rolar o quadro para a esquerda"
+          title="Rolar para a esquerda"
+          onClick={() =>
+            boardRef.current?.scrollBy({ left: -320, behavior: "smooth" })
+          }
+          className="absolute left-1 top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/95 text-zinc-300 shadow-lg md:flex"
+        >
+          <ChevronLeft size={17} />
+        </button>
+      ) : null}
+      {boardScroll.right ? (
+        <button
+          type="button"
+          aria-label="Rolar o quadro para a direita"
+          title="Rolar para a direita"
+          onClick={() =>
+            boardRef.current?.scrollBy({ left: 320, behavior: "smooth" })
+          }
+          className="absolute right-1 top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/95 text-zinc-300 shadow-lg md:flex"
+        >
+          <ChevronRight size={17} />
+        </button>
+      ) : null}
       </div>
       ) : view === "list" ? (
         <Card>

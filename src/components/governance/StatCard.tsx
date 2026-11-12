@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 
 export function StatCard({
   icon,
@@ -13,15 +12,17 @@ export function StatCard({
   hint: string;
 }) {
   return (
-    <Card>
-      <CardContent className="p-3">
-        <div className="flex items-center gap-1.5 text-zinc-500">
-          {icon}
-          <span className="text-[9px] uppercase tracking-[0.12em]">{label}</span>
-        </div>
-        <p className="mt-1 font-mono text-lg text-zinc-100">{value}</p>
-        <p className="text-[9px] text-zinc-500">{hint}</p>
-      </CardContent>
-    </Card>
+    <div className="bg-zinc-950/25 p-3.5">
+      <div className="flex items-center gap-1.5 text-zinc-400">
+        {icon}
+        <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
+          {label}
+        </span>
+      </div>
+      <p className="mt-1.5 font-mono text-[24px] leading-tight tracking-[-0.02em] text-zinc-100 [font-variant-numeric:tabular-nums]">
+        {value}
+      </p>
+      <p className="mt-0.5 text-[12px] text-zinc-400">{hint}</p>
+    </div>
   );
 }

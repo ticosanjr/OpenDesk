@@ -2126,3 +2126,24 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   completa (78 testes) verdes. Detector Impeccable sem achados. O gate rápido
   `npm run gate:fast` passa a ser o padrão do dia a dia; o gate completo fica
   sob demanda.
+
+## 2026-11-12 — onda 7: governança compacta, dashboard em faixa e shell responsivo
+
+- Governança trocou os cards aninhados por uma tabela compacta com hierarquia
+  por indentação, colunas de escopo, execuções 30d, sucesso, budget e ações.
+  Metas, delegações e performance continuam abaixo; o check-in e a edição
+  seguem acessíveis por linha.
+- O resumo da Governança virou uma faixa única com divisores, no mesmo padrão
+  do Dashboard; os números usam fonte tabular e alinhamento consistente.
+- O Dashboard trocou quatro cards iguais por uma faixa de status com divisores
+  (gasto, execuções, cache, fila), reduzindo a altura e antecipando o conteúdo
+  operacional. O Attention Card continua acima quando há decisão pendente.
+- A sidebar agora volta a expandir quando a janela cresce acima de 1200px,
+  desde que o recolhimento tenha sido automático; a preferência manual continua
+  preservada.
+- O Kanban ganhou setas de rolagem nas bordas quando o quadro não cabe
+  (1100px), com estado calculado pelo scroll real e sem overflow da página.
+- `docs/interface-proposal.md` mantém as próximas fases (views salvas no
+  Kanban, IA curta de Configurações e busca unificada).
+- Verificação: `npm run gate:fast` (158 Vitest), `governance-ui`, `cards`,
+  `ui-audit` e `axe` verdes em 1440×900 e 1100×800. Sem release nesta onda.

@@ -313,7 +313,8 @@ export function DashboardPage() {
         </Card>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <Card className="overflow-hidden">
+        <div className="grid gap-px bg-zinc-800/50 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           icon={CircleDollarSign}
           label="Gasto hoje"
@@ -348,7 +349,8 @@ export function DashboardPage() {
           } artefatos`}
           active={(dashboard?.queue_running ?? 0) > 0}
         />
-      </div>
+        </div>
+      </Card>
 
       <div className="flex flex-wrap items-center gap-2 px-1 text-[10px] text-zinc-500">
         <Badge
@@ -737,28 +739,24 @@ function KpiCard({
   active?: boolean;
 }) {
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/60 text-zinc-400">
-            <Icon size={16} strokeWidth={1.7} />
-          </div>
-          {tone === "warning" ? <Badge variant="yellow">atenção</Badge> : null}
-        </div>
-        <p className="mt-3.5 text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-400">
+    <div className="bg-zinc-950/25 p-4">
+      <div className="flex items-center gap-2">
+        <Icon size={15} strokeWidth={1.7} className="shrink-0 text-zinc-400" />
+        <p className="min-w-0 flex-1 truncate text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-400">
           {label}
         </p>
-        <p className="mt-1 font-mono text-[28px] font-medium leading-tight tracking-[-0.03em] text-zinc-50 [font-variant-numeric:tabular-nums]">
-          {value}
-        </p>
-        <p className="mt-1.5 text-[12px] leading-relaxed text-zinc-400">{hint}</p>
-        {active ? (
-          <div className="mt-2">
-            <WorkingIndicator label="em execução" />
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+        {tone === "warning" ? <Badge variant="yellow">atenção</Badge> : null}
+      </div>
+      <p className="mt-2 font-mono text-[28px] font-medium leading-tight tracking-[-0.03em] text-zinc-50 [font-variant-numeric:tabular-nums]">
+        {value}
+      </p>
+      <p className="mt-1 text-[12px] leading-relaxed text-zinc-400">{hint}</p>
+      {active ? (
+        <div className="mt-2">
+          <WorkingIndicator label="em execução" />
+        </div>
+      ) : null}
+    </div>
   );
 }
 

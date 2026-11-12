@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { DelegationsSection } from "@/components/governance/DelegationsSection";
@@ -326,7 +327,8 @@ export function GovernancePage() {
         </p>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <Card className="overflow-hidden">
+        <div className="grid grid-cols-2 gap-px bg-zinc-800/50 lg:grid-cols-4">
         <StatCard
           icon={<Users size={13} />}
           label="Agentes"
@@ -351,7 +353,8 @@ export function GovernancePage() {
           value={String(pending.length)}
           hint={`${delegations.length} registradas`}
         />
-      </div>
+        </div>
+      </Card>
 
       {loading && !data ? (
         <LoadingState rows={3} label="Carregando governança…" />

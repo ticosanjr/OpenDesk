@@ -54,6 +54,7 @@ function routeLabel(pathname: string): string {
 
 export function AppShell() {
   const mainRef = useRef<HTMLElement | null>(null);
+  const autoCollapsedRef = useRef(false);
   const boot = useAppStore((state) => state.boot);
   const loading = useAppStore((state) => state.loading);
   const error = useAppStore((state) => state.error);
@@ -87,7 +88,15 @@ export function AppShell() {
   useEffect(() => {
     const query = window.matchMedia("(max-width: 1199px)");
     const apply = () => {
-      if (query.matches) setSidebarCollapsed(true);
+      if (query.matches) {
+        if (!useUiStore.getState().sidebarCollapsed) {
+          autoCollapsedRef.current = true;
+          setSidebarCollapsed(true);
+        }
+      } else if (autoCollapsedRef.current) {
+        autoCollapsedRef.current = false;
+        setSidebarCollapsed(false);
+      }
     };
     apply();
     query.addEventListener("change", apply);

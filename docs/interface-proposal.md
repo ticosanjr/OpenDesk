@@ -66,19 +66,17 @@ Agrupar em quatro blocos — **Geral**, **Motor e execução**, **Dados e
 segurança**, **Sobre** — com uma navegação secundária vertical ou um select
 compacto. O conteúdo ganha largura e a pessoa não precisa varrer dez rótulos.
 
-### 3. Governança como organograma real (P1)
+### 3. Governança como organograma real (P1) — feito na onda 7
 
-A lista atual repete “sem runs em 30d · sem budget definido” em todas as linhas.
-Trocar por uma tabela compacta (Agente, Escopo, Runs 30d, Sucesso, Budget,
-Ações) e reservar o organograma para relações de delegação. Metas e performance
-podem abrir em um painel lateral sem sair da árvore.
+A tabela compacta (Agente, Escopo, Execuções 30d, Sucesso, Budget, Ações)
+substituiu os cards aninhados; a hierarquia aparece por indentação e o
+organograma fica reservado às relações de delegação.
 
-### 4. Dashboard com uma faixa de status (P2)
+### 4. Dashboard com uma faixa de status (P2) — feito na onda 7
 
-Os quatro KPIs funcionam, mas ainda são quatro cards iguais. Uma única faixa
-com divisores — gasto, execuções, cache, fila — reduz altura e faz o conteúdo
-operacional aparecer antes. O Attention Card continua acima de tudo quando
-existe uma decisão pendente.
+Os quatro KPIs viraram uma faixa única com divisores, reduzindo altura e
+antecipando o conteúdo operacional. O Attention Card continua acima de tudo
+quando existe uma decisão pendente.
 
 ### 5. Busca única (P2)
 

@@ -38,11 +38,8 @@ test("governance edits profiles, creates goals and delegates with approval", asy
   ).toBeVisible();
   await expect(page.getByText("@lead").first()).toBeVisible();
 
-  const leadCard = page
-    .getByText("Líder", { exact: true })
-    .first()
-    .locator("xpath=ancestor::div[contains(@class,'rounded-xl')][1]");
-  await leadCard.getByRole("button", { name: "Editar" }).click();
+  const leadRow = page.locator('[data-agent-id="lead"]');
+  await leadRow.getByRole("button", { name: "Editar" }).click();
   const profile = page.getByRole("dialog");
   await profile.getByLabel("Cargo / papel").fill("Líder de entrega");
   await profile.getByLabel("Time").fill("Operações");
