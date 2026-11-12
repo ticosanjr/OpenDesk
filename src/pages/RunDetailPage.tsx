@@ -44,7 +44,7 @@ export function RunDetailPage() {
       <div className="shrink-0">
         <PageHeader
           title="Execução"
-          description={`run ${runId}`}
+          description={`ID ${runId.slice(0, 12)}… · sessão, tentativas, ferramentas e resultado.`}
           actions={
             <>
               {(["md", "html", "json"] as const).map((format) => (

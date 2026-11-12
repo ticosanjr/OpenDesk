@@ -127,6 +127,14 @@ export function RunsPage() {
     () => new Set(runs.map((run) => run.task_id ?? run.id)).size,
     [runs],
   );
+  const summary = useMemo(
+    () => ({
+      success: grouped.filter((item) => item.latest.status === "SUCCESS").length,
+      failed: grouped.filter((item) => item.latest.status === "FAILED").length,
+      running: grouped.filter((item) => item.latest.status === "RUNNING").length,
+    }),
+    [grouped],
+  );
 
   if (!activeWorkspaceId) {
     return (
@@ -183,9 +191,22 @@ export function RunsPage() {
             </option>
           ))}
         </FilterSelect>
-        <Badge variant="default">
-          {grouped.length} de {threadCount} execuções
-        </Badge>
+        <div className="flex items-center gap-2 text-[12px] text-zinc-500">
+          <Badge variant="default">
+            {grouped.length} de {threadCount} execuções
+          </Badge>
+          <span className="hidden items-center gap-1 text-emerald-300/80 sm:inline-flex">
+            {summary.success} sucesso
+          </span>
+          <span className="hidden items-center gap-1 text-red-300/80 sm:inline-flex">
+            {summary.failed} falhas
+          </span>
+          {summary.running > 0 ? (
+            <span className="inline-flex items-center gap-1 text-blue-300/80">
+              {summary.running} em andamento
+            </span>
+          ) : null}
+        </div>
       </FilterBar>
 
       <Card>

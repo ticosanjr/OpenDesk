@@ -2203,3 +2203,7 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Verificação: `npm run gate:fast` (161 Vitest), suíte Playwright completa
   (84 testes), axe nas novas superfícies e detector Impeccable sem achados.
   Sem release.
+- Execuções ganharam resumo de sucesso/falhas/em andamento no filtro, cabeçalho
+  do detalhe com ID curto e status traduzido no topo do RunLog. O teste real do
+  fluxo de instalação de uma skill recomendada (Ponytail) foi validado contra a
+  URL raw, além do teste de UI com preview mockado.

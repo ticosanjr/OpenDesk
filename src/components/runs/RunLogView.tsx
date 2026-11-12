@@ -39,6 +39,7 @@ import {
   PermissionRequestCard,
 } from "@/components/interactions/InteractionCard";
 import { links } from "@/lib/links";
+import { runStatusLabel } from "@/lib/task-ui";
 import {
   formatClock,
   formatDuration,
@@ -430,10 +431,10 @@ export function RunLogView({
     <div className={cn("flex h-full min-h-0 flex-col", compact ? "" : "gap-3")}>
       <div className="shrink-0 border-b border-zinc-800/70 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={statusVariant(status)}>{status}</Badge>
+          <Badge variant={statusVariant(status)}>{runStatusLabel(status)}</Badge>
           {status === "RUNNING" ? <WorkingIndicator label="executando" /> : null}
           {timeline?.status === "RUNNING" || timeline?.log_missing === false ? (
-            <span className="inline-flex items-center gap-1 font-mono text-[9px] text-zinc-500">
+            <span className="inline-flex items-center gap-1 font-mono text-[11px] text-zinc-500">
               <span
                 className={cn(
                   "h-1.5 w-1.5 rounded-full",
@@ -443,7 +444,7 @@ export function RunLogView({
               {status === "RUNNING" ? "ao vivo" : "encerrado"}
             </span>
           ) : null}
-          <span className="font-mono text-[10px] text-zinc-500">
+          <span className="font-mono text-[11.5px] text-zinc-500">
             {formatDuration(timeline?.duration_ms ?? run?.duration_ms)}
           </span>
           {attempts.length > 1 ? (
@@ -482,7 +483,7 @@ export function RunLogView({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7"
+                  className="h-8"
                   onClick={() => void openOutputFolder()}
                   disabled={openingFolder}
                   title={
