@@ -89,6 +89,18 @@ export function SearchPage() {
     [activeTab, hits],
   );
 
+  const groups = useMemo(() => {
+    if (tab !== "all") return [];
+    return TABS.filter((item) => item.kinds)
+      .map((item) => ({
+        ...item,
+        items: filtered.filter((hit) =>
+          (item.kinds as readonly string[]).includes(hit.kind),
+        ),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [filtered, tab]);
+
   function countFor(kinds: readonly string[] | null) {
     return kinds
       ? hits.filter((hit) => kinds.includes(hit.kind)).length
@@ -166,42 +178,71 @@ export function SearchPage() {
           title="Nada encontrado"
           description="Tente outro termo ou outra aba."
         />
-      ) : (
-        <div className="space-y-1.5">
-          {filtered.map((hit) => {
-            const meta = KIND_META[hit.kind] ?? {
-              label: hit.kind,
+      ) : tab === "all" && groups.length > 0 ? (
+        <div className="space-y-4">
+          {groups.map((group) => {
+            const meta = KIND_META[group.kinds?.[0] ?? ""] ?? {
+              label: group.label,
               icon: FileText,
             };
             const Icon = meta.icon;
             return (
-              <Link
-                key={`${hit.kind}:${hit.id}`}
-                to={hit.link}
-                className="flex items-start gap-3 rounded-xl border border-zinc-800/70 bg-zinc-900/25 px-3.5 py-3 transition-colors hover:border-blue-500/30 hover:bg-zinc-900/50"
-              >
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950/50 text-zinc-500">
-                  <Icon size={14} />
+              <section key={group.id} className="space-y-1.5">
+                <header className="flex items-center gap-2 px-1">
+                  <Icon size={13} className="text-zinc-500" />
+                  <h2 className="text-[11px] font-medium uppercase tracking-[0.08em] text-zinc-400">
+                    {group.label}
+                  </h2>
+                  <span className="font-mono text-[11px] text-zinc-500">
+                    {group.items.length}
+                  </span>
+                </header>
+                <div className="space-y-1.5">
+                  {group.items.map((hit) => (
+                    <SearchHitRow key={`${hit.kind}:${hit.id}`} hit={hit} />
+                  ))}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="default">{meta.label}</Badge>
-                    <p className="truncate text-[13px] font-semibold text-zinc-200">
-                      {hit.title}
-                    </p>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-zinc-500">
-                    {hit.snippet}
-                  </p>
-                </div>
-                <span className="shrink-0 font-mono text-[10px] text-zinc-500">
-                  {relativeTime(hit.updated_at)}
-                </span>
-              </Link>
+              </section>
             );
           })}
         </div>
+      ) : (
+        <div className="space-y-1.5">
+          {filtered.map((hit) => (
+            <SearchHitRow key={`${hit.kind}:${hit.id}`} hit={hit} />
+          ))}
+        </div>
       )}
     </PageBody>
+  );
+}
+
+
+function SearchHitRow({ hit }: { hit: SearchHit }) {
+  const meta = KIND_META[hit.kind] ?? { label: hit.kind, icon: FileText };
+  const Icon = meta.icon;
+  return (
+    <Link
+      to={hit.link}
+      className="flex items-start gap-3 rounded-xl border border-zinc-800/70 bg-zinc-900/25 px-3.5 py-3 transition-colors hover:border-blue-500/30 hover:bg-zinc-900/50"
+    >
+      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950/50 text-zinc-500">
+        <Icon size={14} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="default">{meta.label}</Badge>
+          <p className="truncate text-[13.5px] font-semibold text-zinc-200">
+            {hit.title}
+          </p>
+        </div>
+        <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-zinc-400">
+          {hit.snippet}
+        </p>
+      </div>
+      <span className="shrink-0 font-mono text-[11px] text-zinc-500">
+        {relativeTime(hit.updated_at)}
+      </span>
+    </Link>
   );
 }

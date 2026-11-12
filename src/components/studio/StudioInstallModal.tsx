@@ -487,7 +487,7 @@ export function StudioInstallModal({
           </p>
         ) : null}
 
-        <div className="flex justify-end gap-2 border-t border-zinc-800/70 pt-3">
+        <div className="sticky bottom-0 z-10 -mx-6 -mb-6 mt-4 flex justify-end gap-2 border-t border-zinc-800/70 bg-zinc-950/95 px-6 py-3 backdrop-blur">
           <Button variant="ghost" size="sm" onClick={onClose}>
             Cancelar
           </Button>

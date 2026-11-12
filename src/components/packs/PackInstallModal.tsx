@@ -324,7 +324,20 @@ export function PackInstallModal({
             </>
           ) : null}
 
-          <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-800/70 pt-3">
+          {selected.installed ? (
+            <div className="flex flex-wrap gap-2 text-[10px] text-zinc-500">
+              <Link to="/studio" className="hover:text-zinc-200">
+                ver agentes
+              </Link>
+              <Link to="/recipes" className="hover:text-zinc-200">
+                ver receitas
+              </Link>
+              <Link to="/routines" className="hover:text-zinc-200">
+                ver rotinas
+              </Link>
+            </div>
+          ) : null}
+          <div className="sticky bottom-0 z-10 -mx-6 -mb-6 mt-4 flex flex-wrap justify-end gap-2 border-t border-zinc-800/70 bg-zinc-950/95 px-6 py-3 backdrop-blur">
             {selected.installed ? (
               <Button
                 variant="outline"
@@ -360,19 +373,6 @@ export function PackInstallModal({
               </IconLabel>
             </Button>
           </div>
-          {selected.installed ? (
-            <div className="flex flex-wrap gap-2 text-[10px] text-zinc-500">
-              <Link to="/studio" className="hover:text-zinc-200">
-                ver agentes
-              </Link>
-              <Link to="/recipes" className="hover:text-zinc-200">
-                ver receitas
-              </Link>
-              <Link to="/routines" className="hover:text-zinc-200">
-                ver rotinas
-              </Link>
-            </div>
-          ) : null}
         </div>
       ) : null}
     </Modal>

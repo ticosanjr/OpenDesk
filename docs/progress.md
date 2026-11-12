@@ -2207,3 +2207,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   do detalhe com ID curto e status traduzido no topo do RunLog. O teste real do
   fluxo de instalação de uma skill recomendada (Ponytail) foi validado contra a
   URL raw, além do teste de UI com preview mockado.
+- Busca global agrupa os resultados por tipo na aba **Todos**, com cabeçalho,
+  ícone e contagem por grupo; a lista plana continua nas abas específicas.
+- Rodapés de instalação de pacote/skill ficaram sticky para manter a ação
+  visível em listas longas, e o formulário de rotina manteve o rodapé no fluxo
+  para não cobrir campos no viewport compacto.
