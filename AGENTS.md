@@ -41,6 +41,8 @@ npm run build          # frontend
 npm run test:rust      # testes Rust
 npm run test:e2e       # Playwright Chromium (npx playwright install chromium)
 npm run test:features  # suíte funcional completa (sob demanda, fora do gate)
+npm run test:visual    # goldens 1024/1440/1920 (sob demanda)
+npm run test:visual:update  # regravar goldens após mudança visual intencional
 npm run check:changed  # verificação proporcional (sem release)
 npm run gate:fast      # gate rápido: fmt Rust, TS, lint e Vitest
 scripts/gate-fast.sh --rust  # inclui clippy e testes Rust

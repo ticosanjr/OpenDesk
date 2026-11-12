@@ -67,3 +67,41 @@ test("main routes and key modals have no critical or serious accessibility viola
   await expect(page.getByRole("dialog")).toBeVisible();
   expect(await criticalViolations(page), "routine modal").toEqual([]);
 });
+
+test("main routes keep axe clean at compact and wide viewports", async ({
+  page,
+  request,
+}) => {
+  await seedWorkspace(request, "A11y Viewports");
+  for (const viewport of [
+    { width: 1024, height: 768 },
+    { width: 1920, height: 1080 },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const route of [
+      "/#/",
+      "/#/kanban",
+      "/#/studio",
+      "/#/settings",
+      "/#/chat",
+      "/#/calendar",
+      "/#/files",
+      "/#/artifacts",
+      "/#/recipes",
+      "/#/routines",
+      "/#/runs",
+      "/#/observability",
+      "/#/learning",
+      "/#/governance",
+      "/#/integrations",
+      "/#/packs",
+      "/#/router",
+    ]) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      expect(await criticalViolations(page), `${route} @ ${viewport.width}`).toEqual(
+        [],
+      );
+    }
+  }
+});

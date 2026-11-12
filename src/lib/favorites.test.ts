@@ -1,5 +1,6 @@
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { readFavorites, writeFavorites } from "./favorites";
+import { readFavorites, useFavorites, writeFavorites } from "./favorites";
 
 describe("favorites", () => {
   beforeEach(() => {
@@ -31,5 +32,29 @@ describe("favorites", () => {
     expect(() => writeFavorites({ packs: ["x"], skills: [] })).not.toThrow();
     expect(readFavorites()).toEqual({ packs: [], skills: [] });
     vi.unstubAllGlobals();
+  });
+});
+
+
+describe("useFavorites", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("toggles packs and skills and persists the result", () => {
+    const { result } = renderHook(() => useFavorites());
+    act(() => result.current.toggle("pack", "essenciais"));
+    expect(result.current.isFavorite("pack", "essenciais")).toBe(true);
+    expect(result.current.isFavorite("skill", "essenciais")).toBe(false);
+
+    act(() => result.current.toggle("skill", "caveman"));
+    expect(result.current.isFavorite("skill", "caveman")).toBe(true);
+    expect(readFavorites()).toEqual({
+      packs: ["essenciais"],
+      skills: ["caveman"],
+    });
+
+    act(() => result.current.toggle("skill", "caveman"));
+    expect(result.current.isFavorite("skill", "caveman")).toBe(false);
   });
 });

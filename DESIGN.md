@@ -216,5 +216,8 @@ errors near the affected control; use a toast only for cross-screen results.
 
 - `npm run check`, `npm run lint`, `npm run test:ui` for daily work.
 - Visual review at 1024×768, 1440×900, and 1920×1080.
+- `npm run test:visual` compares screenshot goldens for the main surfaces at
+  those three widths; `npm run test:visual:update` is only for intentional
+  visual changes.
 - `npm run test:features` and the full gate only on request/release.
 - Impeccable detector: no warnings, or documented false positives.

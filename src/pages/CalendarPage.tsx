@@ -430,7 +430,9 @@ export function CalendarPage() {
                       selected
                         ? "workspace-selected"
                         : "border-zinc-800/70 bg-zinc-950/30 hover:border-zinc-700",
-                      isSameMonth(day, month) ? undefined : "opacity-45",
+                      isSameMonth(day, month)
+                        ? undefined
+                        : "border-zinc-800/40 bg-zinc-950/10",
                     )}
                   >
                     <div className="flex items-center justify-between">

@@ -77,7 +77,7 @@ test("permission requests are answerable from the Kanban card", async ({
 }) => {
   const workspace = await seedWorkspace(request, "Kanban Permission");
   const auth = api();
-  const seeded = await request.post(`${auth.baseURL}/api/test/seed`, {
+  let seeded = await request.post(`${auth.baseURL}/api/test/seed`, {
     headers: auth.headers,
     data: {
       workspace_id: workspace.id,
@@ -93,7 +93,27 @@ test("permission requests are answerable from the Kanban card", async ({
       },
     },
   });
-  expect(seeded.ok()).toBeTruthy();
+  // Another worker may still be releasing SQLite during teardown; retry once.
+  for (let attempt = 0; !seeded.ok() && attempt < 3; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+    seeded = await request.post(`${auth.baseURL}/api/test/seed`, {
+      headers: auth.headers,
+      data: {
+        workspace_id: workspace.id,
+        task: {
+          title: "Permissão no Kanban",
+          description: "O agente precisa de um comando.",
+          status: "IN_REVIEW",
+        },
+        permission: {
+          action: "bash",
+          resources: ["npm install"],
+          session_id: "kanban-hitl",
+        },
+      },
+    });
+  }
+  expect(seeded.ok(), await seeded.text()).toBeTruthy();
 
   await page.goto("/#/kanban");
   await expect(page.locator('[data-column="ATTENTION"]')).toContainText(

@@ -25,7 +25,9 @@
     "audit:prod": "npm audit --omit=dev",
     "contract:google": "scripts/contract-google.sh",
     "verify:model": "bash scripts/verify-model.sh",
-    "gate:fast": "bash scripts/gate-fast.sh"
+    "gate:fast": "bash scripts/gate-fast.sh",
+    "test:visual": "playwright test -c playwright.visual.config.ts",
+    "test:visual:update": "playwright test -c playwright.visual.config.ts --update-snapshots"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

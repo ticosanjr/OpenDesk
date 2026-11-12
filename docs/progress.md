@@ -2236,3 +2236,17 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   RunLog.
 - Release 0.50.0 com notas em `docs/releases/0.50.0.md`.
 - Verificação: gate rápido, suíte Playwright completa, axe e detector limpos.
+
+## 2026-11-13 — P1: gate completo, features, axe e goldens visuais
+
+- Gate completo verde: cobertura de branches em 91,51%, statements 96,77%,
+  functions 98,43% e lines 97,56%; clippy, testes Rust, build e Playwright.
+- Suíte funcional completa: **74/74 features (100%)**.
+- Axe estendido para **1024×768** e **1920×1080** em todas as rotas principais;
+  corrigido contraste dos dias de outro mês no calendário.
+- Novo harness de goldens visuais em `tests/visual/` para Dashboard, Kanban,
+  Execuções, Pacotes/Recomendados, Configurações e Artefatos em 1024, 1440 e
+  1920. Comandos: `npm run test:visual` e `npm run test:visual:update`.
+- Testes unitários adicionais cobrem favoritos, views do Kanban, dismissable,
+  lista de recomendadas e o store de UI; a cobertura voltou a passar do gate.
+- Playwright completo: **87 testes**.
