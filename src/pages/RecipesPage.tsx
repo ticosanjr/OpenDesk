@@ -30,6 +30,10 @@ import { toast } from "@/store/toast-store";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  recipeRunStatusLabel,
+  recipeRunStatusTone,
+} from "@/lib/status";
+import {
   LocalYamlEditor,
   RecipeStepper,
   type Dictionary,
@@ -70,15 +74,6 @@ flow:
       Execute o primeiro passo e salve o resultado em {{run.output_dir}}.
 `;
 
-
-function recipeRunStatusLabel(status: string): string {
-  if (status === "COMPLETED") return "concluída";
-  if (status === "FAILED") return "falhou";
-  if (status === "REJECTED") return "rejeitada";
-  if (status === "RUNNING") return "executando";
-  if (status.includes("WAITING")) return "aguardando";
-  return status.toLowerCase();
-}
 
 export function RecipesPage() {
   const workspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -452,7 +447,7 @@ export function RecipesPage() {
           ) : (
             runs.map((run) => (
               <div key={run.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2">
-                <Badge variant={run.status === "COMPLETED" ? "green" : run.status.includes("WAITING") ? "yellow" : run.status.includes("FAILED") || run.status === "REJECTED" ? "red" : "blue"}>
+                <Badge variant={recipeRunStatusTone(run.status)}>
                   {recipeRunStatusLabel(run.status)}
                 </Badge>
                 <span className="font-mono text-[13px] text-zinc-400">{run.recipe_id}</span>

@@ -31,7 +31,7 @@ import { toast } from "@/store/toast-store";
 import { useFocusParam } from "@/lib/use-focus-param";
 import { links } from "@/lib/links";
 import { RoutineCard } from "@/components/routines/RoutineCard";
-import { runStatusLabel } from "@/lib/task-ui";
+import { runStatusLabel } from "@/lib/status";
 import { CreateScheduleModal } from "@/components/routines/RoutineFormModal";
 
 export function RoutinesPage() {

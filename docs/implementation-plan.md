@@ -90,7 +90,8 @@ Correções aplicadas em relação à spec original:
 
 ## 5. API interna
 
-Rotas atuais (Fase 1):
+Rotas iniciais (histórico da Fase 1; a lista completa vive em
+`src-tauri/src/api/mod.rs`):
 
 ```text
 GET    /healthz
@@ -116,8 +117,9 @@ GET    /ws?token=
 Todas as rotas `/api/*` exigem `Authorization: Bearer <token>`. O token é
 gerado no boot e gravado em `api.json` 0600 para ferramentas locais.
 
-Próximas rotas: tasks, fila, runs, artefatos, schedules, router rules, budget,
-Studio, integrações e ações de entrega.
+As fases seguintes adicionaram tasks, fila, runs, artefatos, schedules, router
+rules, budget, Studio, integrações, governança, aprendizado, observabilidade,
+busca, arquivos e o MCP de controle.
 
 ## 6. Fases e status
 
@@ -129,8 +131,8 @@ Studio, integrações e ações de entrega.
 - [x] Axum + token + CORS + WebSocket + eventos.
 - [x] Daemon manager V2 com auth Basic, healthcheck, restart e reattach.
 - [x] Bandeja com status e ações básicas.
-- [x] Shell React: sidebar 9 views, topbar, workspace switcher, budget, fila,
-      command bar e dashboard.
+- [x] Shell React: sidebar com navegação agrupada (18 rotas), topbar,
+      workspace switcher, budget, fila, command bar e dashboard.
 - [x] Criação de workspace com `input/`, `output/`, `.opencode/`.
 - [x] Endpoints de agentes/modelos scoped por workspace.
 
@@ -160,7 +162,7 @@ workspace persiste, API responde com e sem token.
 - [x] Stream interceptor + proveniência + logs + custo/tokens.
 - [x] Kanban, aprovação de plano, controlador de fila, Chat e Meta-Builder.
 - [x] Auditoria automática na política BEST_QUALITY.
-- [x] Concorrência configurável (pendente; hoje 1 job por vez).
+- [x] Concorrência configurável na fila (1–4 jobs, lease/heartbeat).
 
 ### Fase 4 — Automação (concluída)
 
@@ -169,7 +171,7 @@ workspace persiste, API responde com e sem token.
 - [x] SMTP com templates HTML, anexos e segredo criptografado.
 - [x] Pipeline pós-run com `integration_deliveries` e idempotência.
 - [x] UI de Rotinas e Integrações SMTP.
-- [ ] Retry automático de entregas falhas (próxima iteração).
+- [x] Retry durável de entregas Google Docs/Drive e de jobs da fila.
 
 ### Fase 5 — Google + MCP (concluída)
 
@@ -178,15 +180,32 @@ workspace persiste, API responde com e sem token.
 - [x] Subcomando `opendesk mcp-google` via stdio.
 - [x] Registro em `mcp.servers` e UI de Integrações.
 - [x] Export pós-run para Google Docs/Drive.
-- [ ] Teste com conta Google real (depende de credenciais do usuário).
+- [ ] Contrato real com conta dedicada (infra pronta em
+      `docs/google-contract.md`; falta executar com credenciais).
 
-### Fase 6 — Observabilidade e polimento
+### Fase 6 — Observabilidade e polimento (concluída)
 
-- [ ] Custo por modelo, janela de 5 h, cache hit e snapshot de preço.
-- [ ] Dashboard completo, Provenance Explorer e File Explorer.
-- [ ] Janela rápida da bandeja, notificações e atalho global.
-- [ ] Retenção, backup, segurança, empacotamento e assinatura.
-- [ ] Critérios de aceite 1–4 verdes.
+- [x] Custo por modelo, janela de 5 h, cache hit e snapshot de preço.
+- [x] Dashboard completo, Provenance Explorer e File Explorer.
+- [x] Janela rápida da bandeja, notificações e atalho global.
+- [x] Retenção, backup, segurança, empacotamento e assinatura.
+- [x] Critérios de aceite 1–4 verdes.
+
+### Fase 7 — Governança, aprendizado e plataforma (em andamento)
+
+- [x] Governança de agentes (organograma, metas, budgets, quota, performance,
+      delegação HITL e heartbeat opt-in).
+- [x] Aprendizado contínuo com propostas de skill aprovadas por humano.
+- [x] Observabilidade operacional e CLI headless.
+- [x] OpenCode Browse, export de sessão e backup/restore em ZIP.
+- [x] UEN, sinks determinísticos, receitas YAML e Rsync.
+- [x] Rate limit e auditoria da API local.
+- [x] Goldens visuais de todas as rotas e modais principais.
+- [x] Builds multiplataforma documentados e coleta por SO no release.
+- [ ] Cobertura Rust ≥80% (64,2% total / 70,8% core; plano em
+      `docs/coverage-plan.md`).
+- [ ] Builds Windows/macOS executados e assinados nas máquinas nativas.
+- [ ] Contrato Google real com conta dedicada.
 
 ## 7. Critérios de aceite
 
@@ -216,7 +235,8 @@ workspace persiste, API responde com e sem token.
 
 `scripts/release.sh` compila, empacota e mantém no máximo 3 versões em
 `releases/<versão>/` com `manifest.json`, `latest.json`, `SHA256SUMS` e
-`LATEST`. Não há CI. Binários são ignorados pelo git; metadados e checksums são
+`LATEST`. A coleta detecta Linux/macOS/Windows e o manifesto grava a
+plataforma; `npm run build:platform` gera instaladores sem publicar. Não há CI. Binários são ignorados pelo git; metadados e checksums são
 versionados. O script cria commit, tag, GitHub Release privada e envia os assets
 com `gh` quando o remoto é GitHub.
 
@@ -228,8 +248,9 @@ com `gh` quando o remoto é GitHub.
 - [x] Preflight 503 em dispatch/aprovação/run-now.
 - [x] Atualização do OpenCode V2 pela UI.
 - [x] Auto-atualização do OpenDesk via release privada, SHA256 e backup.
-- [ ] Cobertura ≥80% nos módulos de lógica.
-- [ ] Rollback automático de versão e retry de entregas.
+- [ ] Cobertura ≥80% nos módulos de lógica (hoje 64,2%/70,8%).
+- [x] Retry durável de entregas.
+- [x] Rollback de artefato e restauração por backup.
 
 ## 10. Como contribuir
 

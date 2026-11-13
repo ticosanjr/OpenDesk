@@ -56,18 +56,22 @@ async fn unauthenticated(ctx: &TestContext, uri: &str) -> StatusCode {
         .status()
 }
 
+mod artifact_archive;
 mod attention;
 mod audit;
 mod backups;
 mod browse;
 mod calendar;
 mod core;
+mod dedupe;
 mod export;
 mod governance;
 mod io_bus;
 mod learning;
 mod metrics;
+mod missed_runs;
 mod resources;
 mod schedules;
+mod seed;
 mod studio;
 mod tasks;

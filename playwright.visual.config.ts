@@ -40,6 +40,7 @@ export default defineConfig({
     baseURL: "http://localhost:1420",
     headless: true,
     viewport: { width: 1440, height: 900 },
+    timezoneId: "America/Sao_Paulo",
     trace: "off",
     screenshot: "off",
   },

@@ -5,9 +5,38 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 VERSION="$(node -p "require('./package.json').version")"
+TAURI_VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+CARGO_VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n 1)"
+if [[ "$VERSION" != "$TAURI_VERSION" || "$VERSION" != "$CARGO_VERSION" ]]; then
+  echo "release: versão divergente (package=$VERSION tauri=$TAURI_VERSION cargo=$CARGO_VERSION)" >&2
+  exit 2
+fi
 DEST="$ROOT/releases/${VERSION}"
 NOTES_FILE="$ROOT/docs/releases/${VERSION}.md"
 SKIP_BUILD=0
+
+detect_platform() {
+  local os arch
+  os="$(uname -s)"
+  arch="$(uname -m)"
+  case "$os" in
+    Linux) printf 'linux-%s\n' "$arch" ;;
+    Darwin)
+      if [[ "$arch" == "arm64" ]]; then
+        arch="aarch64"
+      fi
+      printf 'macos-%s\n' "$arch"
+      ;;
+    MINGW*|MSYS*|CYGWIN*) printf 'windows-%s\n' "$arch" ;;
+    *) printf '%s-%s\n' "$(printf '%s' "$os" | tr '[:upper:]' '[:lower:]')" "$arch" ;;
+  esac
+}
+
+PLATFORM="${OPENDESK_PLATFORM:-$(detect_platform)}"
+BIN_NAME="opendesk"
+case "$PLATFORM" in
+  windows-*) BIN_NAME="opendesk.exe" ;;
+esac
 SKIP_GATE=0
 FULL_GATE=0
 
@@ -39,32 +68,83 @@ else
 fi
 
 if [[ "$SKIP_BUILD" != "1" ]]; then
-  echo "==> Building OpenDesk v${VERSION}"
+  echo "==> Building OpenDesk v${VERSION} for ${PLATFORM}"
   npm run tauri build
 fi
 
 echo "==> Collecting v${VERSION} artifacts"
+if [[ -f "$DEST/manifest.json" ]]; then
+  existing_platform="$(node -e 'console.log(require(process.argv[1]).platform || "")' "$DEST/manifest.json")"
+  if [[ -n "$existing_platform" && "$existing_platform" != "$PLATFORM" ]]; then
+    echo "release: releases/${VERSION} já foi gerado para ${existing_platform}; use outra versão ou mescle os manifests manualmente" >&2
+    exit 2
+  fi
+fi
 rm -rf "$DEST"
 mkdir -p "$DEST"
 
-for pattern in deb rpm appimage; do
-  bundle="$ROOT/src-tauri/target/release/bundle/$pattern"
-  [[ -d "$bundle" ]] || continue
-  find "$bundle" -maxdepth 1 -type f \
-    \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) \
-    -name "*${VERSION}*" \
-    -exec cp -f {} "$DEST/" \;
-done
+case "$PLATFORM" in
+  linux-*)
+    for pattern in deb rpm appimage; do
+      bundle="$ROOT/src-tauri/target/release/bundle/$pattern"
+      [[ -d "$bundle" ]] || continue
+      find "$bundle" -type f \
+        \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) \
+        -name "*${VERSION}*" \
+        -exec cp -f {} "$DEST/" \;
+    done
+    cp -f "$ROOT/src-tauri/target/release/opendesk" "$DEST/opendesk-${PLATFORM}"
+    ;;
+  macos-*)
+    for pattern in dmg macos app; do
+      bundle="$ROOT/src-tauri/target/release/bundle/$pattern"
+      [[ -d "$bundle" ]] || continue
+      find "$bundle" -type f -name "*.dmg" -name "*${VERSION}*" \
+        -exec cp -f {} "$DEST/" \;
+      find "$bundle" -type f -name "*.app.tar.gz" \
+        -exec cp -f {} "$DEST/" \;
+    done
+    cp -f "$ROOT/src-tauri/target/release/opendesk" "$DEST/opendesk-${PLATFORM}"
+    ;;
+  windows-*)
+    for pattern in msi nsis; do
+      bundle="$ROOT/src-tauri/target/release/bundle/$pattern"
+      [[ -d "$bundle" ]] || continue
+      find "$bundle" -type f \
+        \( -name '*.msi' -o -name '*.exe' \) \
+        -name "*${VERSION}*" \
+        -exec cp -f {} "$DEST/" \;
+    done
+    cp -f "$ROOT/src-tauri/target/release/opendesk.exe" "$DEST/opendesk-${PLATFORM}.exe"
+    ;;
+  *)
+    echo "release: plataforma ${PLATFORM} sem coleção de artefatos configurada" >&2
+    exit 2
+    ;;
+esac
 
-cp -f "$ROOT/src-tauri/target/release/opendesk" "$DEST/opendesk-linux-x86_64"
+shopt -s nullglob
+case "$PLATFORM" in
+  linux-*) installers=("$DEST"/*.deb "$DEST"/*.rpm "$DEST"/*.AppImage) ;;
+  macos-*) installers=("$DEST"/*.dmg "$DEST"/*.app.tar.gz) ;;
+  windows-*) installers=("$DEST"/*.msi "$DEST"/*setup.exe) ;;
+  *) installers=() ;;
+esac
+shopt -u nullglob
+if (( ${#installers[@]} == 0 )); then
+  echo "release: nenhum instalador foi gerado em $DEST (rode npm run tauri build antes)" >&2
+  exit 1
+fi
+unset installers
 
-node - "$DEST" "$VERSION" "$NOTES_FILE" <<'NODE'
+node - "$DEST" "$VERSION" "$NOTES_FILE" "$PLATFORM" <<'NODE'
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const dest = process.argv[2];
 const version = process.argv[3];
 const notesFile = process.argv[4];
+const platform = process.argv[5];
 const notes = fs.existsSync(notesFile)
   ? fs.readFileSync(notesFile, "utf8").trim()
   : `OpenDesk v${version}`;
@@ -86,7 +166,7 @@ function entry(file) {
 const manifest = {
   name: "OpenDesk",
   version,
-  platform: "linux-x86_64",
+  platform,
   built_at: new Date().toISOString(),
   artifacts,
 };
@@ -100,7 +180,7 @@ const latest = {
   version,
   tag: `v${version}`,
   repo: "ticosanjr/OpenDesk",
-  platform: "linux-x86_64",
+  platform,
   published_at: manifest.built_at,
   notes,
   assets: artifacts.map(entry),
@@ -112,7 +192,7 @@ fs.writeFileSync(
 NODE
 
 echo "==> Signing update manifest"
-SIGNER="$ROOT/src-tauri/target/release/opendesk"
+SIGNER="$ROOT/src-tauri/target/release/${BIN_NAME}"
 if [[ ! -x "$SIGNER" ]]; then
   echo "release: binário $SIGNER ausente; não é possível assinar latest.json" >&2
   exit 1
@@ -124,26 +204,39 @@ fi
 "$SIGNER" sign-update "${SIGN_ARGS[@]}"
 "$SIGNER" verify-update "$DEST/latest.json" "$DEST/latest.json.sig"
 
-(
-  cd "$DEST"
-  find . -maxdepth 1 -type f ! -name 'SHA256SUMS' -printf '%f\n' \
-    | sort \
-    | xargs sha256sum > SHA256SUMS
-)
+node - "$DEST" <<'NODE'
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+const dest = process.argv[2];
+const files = fs
+  .readdirSync(dest)
+  .filter((file) => file !== "SHA256SUMS" && fs.statSync(path.join(dest, file)).isFile())
+  .sort();
+const lines = files.map(
+  (file) =>
+    `${crypto.createHash("sha256").update(fs.readFileSync(path.join(dest, file))).digest("hex")}  ${file}`,
+);
+fs.writeFileSync(path.join(dest, "SHA256SUMS"), `${lines.join("\n")}\n`);
+NODE
 
 printf '%s\n' "$VERSION" > "$ROOT/releases/LATEST"
 
 echo "==> Keeping at most 3 releases"
-mapfile -t versions < <(
-  find "$ROOT/releases" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -V
-)
-if (( ${#versions[@]} > 3 )); then
-  keep_from=$(( ${#versions[@]} - 3 ))
-  for old in "${versions[@]:0:keep_from}"; do
-    echo "    prune releases/$old"
-    rm -rf "$ROOT/releases/$old"
-  done
-fi
+node - "$ROOT/releases" <<'NODE'
+const fs = require("fs");
+const path = require("path");
+const root = process.argv[2];
+const versions = fs
+  .readdirSync(root, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name)
+  .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+for (const old of versions.slice(0, Math.max(0, versions.length - 3))) {
+  console.log(`    prune releases/${old}`);
+  fs.rmSync(path.join(root, old), { recursive: true, force: true });
+}
+NODE
 
 echo "==> Git commit, tag and optional push"
 git add -A
@@ -167,7 +260,7 @@ if command -v gh >/dev/null 2>&1 && git remote get-url "$remote" 2>/dev/null | g
   if [[ -f "$NOTES_FILE" ]]; then
     notes_args=(--notes-file "$NOTES_FILE")
   else
-    notes_args=(--notes "OpenDesk v${VERSION}. Assets: AppImage, .deb, .rpm, portable binary, SHA256SUMS and latest.json.")
+    notes_args=(--notes "OpenDesk v${VERSION} (${PLATFORM}). Assets: installers, portable binary, SHA256SUMS and latest.json.")
   fi
   if gh release view "v${VERSION}" >/dev/null 2>&1; then
     echo "    release v${VERSION} already exists; updating notes and assets with --clobber"

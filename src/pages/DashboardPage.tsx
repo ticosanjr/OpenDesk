@@ -6,7 +6,6 @@ import {
   Bot,
   CircleDollarSign,
   Clock3,
-  Cog,
   Cpu,
   Database,
   FileText,
@@ -15,7 +14,6 @@ import {
   RefreshCw,
   RotateCw,
   Server,
-  Sparkles,
   TerminalSquare,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
@@ -33,6 +31,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { StatusDot, statusTone } from "@/components/ui/status-dot";
 import { WorkingIndicator } from "@/components/ui/working-indicator";
 import { AttentionCard } from "@/components/dashboard/AttentionCard";
+import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { CostMixCard } from "@/components/dashboard/CostMixCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
@@ -47,7 +46,6 @@ import {
   shortPath,
 } from "@/lib/format";
 import type { LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { links } from "@/lib/links";
 import { EntityLink } from "@/components/ui/entity-link";
 
@@ -590,118 +588,10 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles size={15} className="text-zinc-500" />
-                Atividades recentes
-              </CardTitle>
-              <CardDescription>
-                Clique em um run ou artefato para abrir o detalhe.
-              </CardDescription>
-            </div>
-            <Badge variant="default">{activities.length}</Badge>
-          </CardHeader>
-          <CardContent>
-            {activities.length === 0 ? (
-              <EmptyState
-                icon={Archive}
-                title="Nenhuma atividade ainda"
-                description="Runs e artefatos aparecerão aqui em tempo real via WebSocket."
-                compact
-                action={
-                  <Button size="sm" onClick={() => setTaskDialogOpen(true)}>
-                    Criar tarefa
-                  </Button>
-                }
-              />
-            ) : (
-              <div className="space-y-2">
-                {activities.map((activity) =>
-                  activity.kind === "artifact" ? (
-                    <button
-                      type="button"
-                      key={`artifact-${activity.artifact.id}`}
-                      onClick={() => navigate(`/artifacts?id=${activity.artifact.id}`)}
-                      className="flex w-full items-center gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-left transition hover:border-emerald-500/30 hover:bg-emerald-500/[0.04]"
-                    >
-                      <Archive size={13} className="shrink-0 text-emerald-400/70" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-mono text-[12px] text-zinc-300">
-                          {activity.artifact.file_path}
-                        </p>
-                        <p className="truncate text-[11.5px] text-zinc-500">
-                          @{activity.artifact.created_by_agent} ·{" "}
-                          {activity.artifact.creation_reason}
-                        </p>
-                      </div>
-                      <span className="shrink-0 font-mono text-[11px] text-zinc-500">
-                        {relativeTime(activity.at)}
-                      </span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      key={`run-${activity.run.id}`}
-                      onClick={() => navigate(links.run(activity.run.id))}
-                      className={cn(
-                        "flex w-full items-center gap-3 rounded-lg border bg-zinc-950/40 px-3 py-2 text-left transition hover:bg-zinc-900/60",
-                        activity.run.status === "FAILED"
-                          ? "border-red-500/40"
-                          : activity.run.status === "SUCCESS"
-                            ? "border-emerald-500/25"
-                            : "border-zinc-800/70",
-                      )}
-                    >
-                      {activity.run.status === "RUNNING" ? (
-                        <Cog size={13} className="opendesk-gear shrink-0 text-blue-400" />
-                      ) : (
-                        <Cpu
-                          size={13}
-                          className={cn(
-                            "shrink-0",
-                            activity.run.status === "FAILED"
-                              ? "text-red-400"
-                              : activity.run.status === "SUCCESS"
-                                ? "text-emerald-400/80"
-                                : "text-blue-400/70",
-                          )}
-                        />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[12px] text-zinc-300">
-                          {activity.run.task_title ?? activity.run.agent_name} ·{" "}
-                          {activity.run.phase ?? activity.run.execution_mode}
-                        </p>
-                        <p
-                          className={cn(
-                            "truncate font-mono text-[11.5px]",
-                            activity.run.status === "FAILED"
-                              ? "text-red-300/80"
-                              : "text-zinc-500",
-                          )}
-                        >
-                          {activity.run.status} · {formatUsd(activity.run.estimated_cost_usd)} ·{" "}
-                          {formatNumber(
-                            activity.run.tokens_input + activity.run.tokens_output,
-                          )}{" "}
-                          tokens
-                          {activity.run.error_message
-                            ? ` · ${activity.run.error_message}`
-                            : ""}
-                        </p>
-                      </div>
-                      <span className="shrink-0 font-mono text-[11px] text-zinc-500">
-                        {relativeTime(activity.at)}
-                      </span>
-                    </button>
-                  ),
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <ActivityFeed
+          activities={activities}
+          onCreateTask={() => setTaskDialogOpen(true)}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/20 px-4 py-3 text-[13px] text-zinc-500">

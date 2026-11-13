@@ -69,6 +69,30 @@ pub fn current_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// Canonical platform identifier shared with `scripts/release.sh`.
+pub fn platform_id() -> String {
+    let os = if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        "linux"
+    };
+    format!("{os}-{}", std::env::consts::ARCH)
+}
+
+fn portable_asset_name() -> String {
+    if cfg!(target_os = "windows") {
+        format!("opendesk-{}.exe", platform_id())
+    } else {
+        format!("opendesk-{}", platform_id())
+    }
+}
+
+fn manifest_matches_platform(manifest: &LatestManifest) -> bool {
+    manifest.platform.trim().is_empty() || manifest.platform.trim() == platform_id()
+}
+
 /// How this install can be updated. The AppImage and the portable binary can
 /// replace themselves; a system package must go through the package manager.
 pub fn installer_kind() -> &'static str {
@@ -326,7 +350,24 @@ pub async fn download_and_stage(state: &AppState) -> AppResult<DownloadResult> {
         ));
     };
 
+    if !cfg!(target_os = "linux") {
+        return Ok(DownloadResult {
+            ok: false,
+            action: "unsupported".into(),
+            path: None,
+            message: "A auto-atualização no app é suportada no Linux. Baixe o instalador da release para atualizar no macOS ou Windows.".into(),
+        });
+    }
+
     let manifest = fetch_latest(&token).await?;
+    if !manifest_matches_platform(&manifest) {
+        return Err(AppError::BadRequest(format!(
+            "a release {} é para a plataforma {}; esta instalação é {}",
+            manifest.version,
+            manifest.platform,
+            platform_id()
+        )));
+    }
     if !compare(&current_version(), &manifest.version) {
         return Ok(DownloadResult {
             ok: false,
@@ -431,11 +472,12 @@ pub async fn download_and_stage(state: &AppState) -> AppResult<DownloadResult> {
 }
 
 fn select_asset<'a>(manifest: &'a LatestManifest, installer: &str) -> Option<&'a UpdateAsset> {
+    let portable = portable_asset_name();
     let matches = |asset: &UpdateAsset| match installer {
         "appimage" => asset.name.ends_with(".AppImage"),
         "system" => asset.name.ends_with(".deb"),
         "development" => false,
-        _ => asset.name == "opendesk-linux-x86_64" || !asset.name.contains('.'),
+        _ => asset.name == portable,
     };
     manifest.assets.iter().find(|asset| matches(asset))
 }
@@ -539,7 +581,7 @@ mod tests {
             version: "0.7.0".into(),
             tag: "v0.7.0".into(),
             repo: REPO.into(),
-            platform: "linux-x86_64".into(),
+            platform: platform_id(),
             published_at: String::new(),
             notes: String::new(),
             assets: assets
@@ -572,6 +614,31 @@ mod tests {
             select_asset(&value, "portable").unwrap().name,
             "opendesk-linux-x86_64"
         );
+    }
+
+    #[test]
+    fn portable_asset_must_match_the_current_platform() {
+        let value = manifest(vec![
+            ("opendesk-macos-arm64", "a"),
+            ("opendesk-windows-x86_64.exe", "b"),
+            ("opendesk-linux-x86_64", "c"),
+        ]);
+        let selected = select_asset(&value, "portable");
+        if cfg!(target_os = "linux") {
+            assert_eq!(selected.unwrap().name, "opendesk-linux-x86_64");
+        } else {
+            assert!(selected.is_none());
+        }
+    }
+
+    #[test]
+    fn rejects_manifests_from_other_platforms() {
+        let mut value = manifest(vec![("opendesk-linux-x86_64", "c")]);
+        assert!(manifest_matches_platform(&value));
+        value.platform = "macos-arm64".into();
+        assert!(!manifest_matches_platform(&value));
+        value.platform.clear();
+        assert!(manifest_matches_platform(&value));
     }
 
     #[test]

@@ -6,8 +6,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-MIN_LINES="${OPENDESK_MIN_LINES:-61}"
-CORE_MIN_LINES="${OPENDESK_CORE_MIN_LINES:-67}"
+MIN_LINES="${OPENDESK_MIN_LINES:-64}"
+CORE_MIN_LINES="${OPENDESK_CORE_MIN_LINES:-70.5}"
 
 echo "==> TypeScript"
 npm run check
@@ -47,6 +47,13 @@ if [[ "${OPENDESK_SKIP_E2E:-0}" != "1" ]]; then
   npm run test:e2e
 else
   echo "    Playwright skipped (OPENDESK_SKIP_E2E=1)"
+fi
+
+if [[ "${OPENDESK_SKIP_VISUAL:-0}" != "1" ]]; then
+  echo "==> Visual goldens"
+  npm run test:visual
+else
+  echo "    Visual goldens skipped (OPENDESK_SKIP_VISUAL=1)"
 fi
 
 if [[ "${OPENDESK_REAL_TASK:-0}" == "1" ]]; then

@@ -20,6 +20,11 @@ import { apiGet } from "@/lib/api";
 import type { SearchHit } from "@/lib/types";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import {
+  loadRecentSearches,
+  pushRecentSearch,
+  saveRecentSearches,
+} from "@/lib/recent-searches";
 
 const TABS = [
   { id: "all", label: "Todos", kinds: null },
@@ -58,9 +63,15 @@ export function SearchPage() {
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recent, setRecent] = useState<string[]>([]);
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
 
   useEffect(() => {
+    setRecent(loadRecentSearches(window.localStorage));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     const handle = window.setTimeout(() => {
       // A pending debounce must not rewrite the hash after the user opened
       // another route from a search result.
@@ -79,13 +90,23 @@ export function SearchPage() {
         `/api/search?workspace_id=${encodeURIComponent(activeWorkspaceId)}&q=${encodeURIComponent(value)}`,
       )
         .then((results) => {
+          if (cancelled) return;
           setHits(results);
           setError(null);
         })
-        .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
-        .finally(() => setLoading(false));
+        .catch((cause) => {
+          if (!cancelled) {
+            setError(cause instanceof Error ? cause.message : String(cause));
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
     }, 250);
-    return () => window.clearTimeout(handle);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
   }, [activeWorkspaceId, query, setParams, tab]);
 
   useEffect(() => {
@@ -99,6 +120,15 @@ export function SearchPage() {
       setTab(requested as (typeof TABS)[number]["id"]);
     }
   }, [params, tab]);
+
+  function remember(value: string) {
+    setRecent((current) => {
+      const next = pushRecentSearch(current, value);
+      if (next === current) return current;
+      saveRecentSearches(window.localStorage, next);
+      return next;
+    });
+  }
 
   function selectTab(id: string) {
     const next = new URLSearchParams(params);
@@ -166,6 +196,37 @@ export function SearchPage() {
           ) : null}
           <Badge variant="default">{filtered.length}</Badge>
         </div>
+        {!query && recent.length > 0 ? (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <span className="font-mono text-[11.5px] uppercase tracking-wide text-zinc-500">
+              recentes
+            </span>
+            {recent.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => {
+                  setQuery(item);
+                  selectTab("all");
+                }}
+                className="inline-flex h-7 items-center gap-1 rounded-md border border-zinc-800 bg-zinc-950/50 px-2 text-[12.5px] text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-100"
+              >
+                <Search size={10} />
+                {item}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="text-[11.5px] text-zinc-500 hover:text-zinc-200"
+              onClick={() => {
+                setRecent([]);
+                saveRecentSearches(window.localStorage, []);
+              }}
+            >
+              limpar
+            </button>
+          </div>
+        ) : null}
         <div
           role="tablist"
           aria-label="Tipos de resultado"
@@ -233,7 +294,11 @@ export function SearchPage() {
                 </header>
                 <div className="space-y-1.5">
                   {group.items.map((hit) => (
-                    <SearchHitRow key={`${hit.kind}:${hit.id}`} hit={hit} />
+                    <SearchHitRow
+                      key={`${hit.kind}:${hit.id}`}
+                      hit={hit}
+                      onOpen={() => remember(query)}
+                    />
                   ))}
                 </div>
               </section>
@@ -243,7 +308,11 @@ export function SearchPage() {
       ) : (
         <div className="space-y-1.5">
           {filtered.map((hit) => (
-            <SearchHitRow key={`${hit.kind}:${hit.id}`} hit={hit} />
+            <SearchHitRow
+              key={`${hit.kind}:${hit.id}`}
+              hit={hit}
+              onOpen={() => remember(query)}
+            />
           ))}
         </div>
       )}
@@ -252,12 +321,19 @@ export function SearchPage() {
 }
 
 
-function SearchHitRow({ hit }: { hit: SearchHit }) {
+function SearchHitRow({
+  hit,
+  onOpen,
+}: {
+  hit: SearchHit;
+  onOpen?: () => void;
+}) {
   const meta = KIND_META[hit.kind] ?? { label: hit.kind, icon: FileText };
   const Icon = meta.icon;
   return (
     <Link
       to={hit.link}
+      onClick={onOpen}
       className="flex items-start gap-3 rounded-xl border border-zinc-800/70 bg-zinc-900/25 px-3.5 py-3 transition-colors hover:border-blue-500/30 hover:bg-zinc-900/50"
     >
       <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950/50 text-zinc-500">

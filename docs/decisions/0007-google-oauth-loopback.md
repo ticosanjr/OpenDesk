@@ -17,7 +17,9 @@
 - Access tokens ficam em cache em memória com expiração; refresh é feito no
   primeiro uso após expirar.
 - Escopos: `openid email profile`, `drive.file`, `documents`,
-  `calendar.events`, `gmail.send`, `tasks`.
+  `calendar.events`, `calendar.readonly`, `gmail.send`, `gmail.readonly`,
+  `tasks`. Contas conectadas antes do `gmail.readonly` precisam reconectar para
+  liberar a busca de threads.
 
 ## Consequências
 

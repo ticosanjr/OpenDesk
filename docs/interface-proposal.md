@@ -77,12 +77,11 @@ Os quatro KPIs viraram uma faixa única com divisores, reduzindo altura e
 antecipando o conteúdo operacional. O Attention Card continua acima de tudo
 quando existe uma decisão pendente.
 
-### 5. Busca única (P2)
+### 5. Busca única (P2) — feita na onda 13
 
-A paleta navega e agora oferece a busca completa; a página `/search` ainda é
-outro lugar. Unificar o resultado em uma lista com filtros por tipo e manter a
-paleta como atalho torna a busca previsível. Medir o tempo até o primeiro
-resultado útil.
+A paleta agora consulta `/api/search` com o mesmo ranking da página e agrupa
+os resultados por tipo, com atalho para a busca completa. Buscas recentes são
+persistidas e compartilhadas entre a paleta e `/search`, com remoção por item.
 
 ### 6. Consistência de dados (P2)
 
@@ -90,6 +89,19 @@ Padronizar números tabulares, alinhamento à direita em tabelas, rótulos de
 status traduzidos (`RUNNING` → “executando”) e a mesma fonte para gasto do dia
 no topbar, dashboard e Budget Guard. Cores de status nunca devem carregar
 significado sozinhas.
+
+### 7. Produto operacional (P2) — feito na onda 13
+
+- Dashboard: Attention Card ganhou resumo por categoria e o modo compacto com
+  “ver detalhes”; atividades recentes agrupam por dia e filtram runs/artefatos.
+- Execuções: tabela opcional com status, agente, duração, tokens e custo, com
+  ordenação; o run detalhado filtra eventos por ferramenta/erro/conversa e
+  expande ou recolhe todas as seções.
+- Viewers: ZIP lista entradas sem extrair e oferece download autenticado;
+  artefato fora do workspace explica a política e mantém abrir/copiar caminho.
+- Pacotes: “Atualizar todos” para pacotes com atualização, gerenciamento em
+  lote com remoção confirmada e estado vazio próprio para favoritos. O
+  Impeccable segue externo por design e isso fica explícito na tela.
 
 ## Critérios de aceite da próxima onda
 
@@ -102,8 +114,12 @@ significado sozinhas.
 
 ## Verificação desta revisão
 
-- `npm run check:changed` — ESLint, TypeScript e 158 testes Vitest.
+- `npm run check:changed` — ESLint, TypeScript e Vitest (196 testes).
 - Detector Impeccable em `src` — sem achados.
 - Inspeção visual em 1440×900 e 1100×700, incluindo dashboard, Kanban,
   Execuções, Observabilidade, Configurações, Integrações, Roteador, Calendário,
   Artefatos, Arquivos e a paleta de comandos.
+- Goldens visuais de **18 rotas + 5 modais** em 700/1024/1100/1440/1920
+  (`npm run test:visual`), além do gate completo com 93 testes Playwright.
+- Axe em 1024/1440/1920 e suíte funcional 74/74; Rust em 377 testes, clippy e
+  cobertura 64,2% total/70,8% core.

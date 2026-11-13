@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Ban,
+  ChevronDown,
+  ChevronUp,
   ExternalLink,
   FileCheck2,
   RefreshCw,
@@ -24,6 +26,7 @@ import { EMPTY_ATTENTION, type Attention, type HitlRequest, type PermissionReque
 import { useAppStore } from "@/store/app-store";
 import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
+import { cn } from "@/lib/utils";
 import { InteractionCard } from "@/components/interactions/InteractionCard";
 
 export function AttentionCard() {
@@ -38,6 +41,7 @@ export function AttentionCard() {
   const [busy, setBusy] = useState<string | null>(null);
   const [feedbackToken, setFeedbackToken] = useState<string | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
+  const [expanded, setExpanded] = useState(false);
 
   const load = useCallback(async () => {
     if (!workspaceId) {
@@ -85,6 +89,17 @@ export function AttentionCard() {
     data.failed_runs.length;
 
   if (total === 0) return null;
+
+  const summary = [
+    { key: "proposals", label: "propostas", count: data.proposals.length },
+    { key: "missed", label: "perdidas", count: data.missed_runs.length },
+    { key: "questions", label: "perguntas", count: data.task_interactions.length },
+    { key: "hitl", label: "checkpoints", count: data.hitl.length },
+    { key: "permissions", label: "permissões", count: data.requests.length },
+    { key: "approvals", label: "aprovações", count: data.awaiting_approval.length },
+    { key: "blocked", label: "bloqueios", count: data.blocked.length },
+    { key: "failed", label: "falhas", count: data.failed_runs.length },
+  ].filter((item) => item.count > 0);
 
   function runMissed(id: string) {
     void run(`missed-${id}`, async () => {
@@ -266,6 +281,20 @@ export function AttentionCard() {
             variant="ghost"
             size="xs"
             className="ml-auto"
+            onClick={() => setExpanded((current) => !current)}
+            aria-expanded={expanded}
+          >
+            <IconLabel
+              icon={
+                expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />
+              }
+            >
+              {expanded ? "recolher" : "ver detalhes"}
+            </IconLabel>
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={() => void load()}
             disabled={busy === "refresh"}
           >
@@ -273,7 +302,26 @@ export function AttentionCard() {
           </Button>
         </div>
 
-        <div className="scroll-area max-h-[420px] space-y-3 pr-0.5">
+        <div className="flex flex-wrap gap-1">
+          {summary.map((item) => (
+            <span
+              key={item.key}
+              className="inline-flex items-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/[0.06] px-1.5 py-0.5 text-[11.5px] text-amber-200/90"
+            >
+              <span className="font-mono text-[11.5px] text-amber-300">
+                {item.count}
+              </span>
+              {item.label}
+            </span>
+          ))}
+        </div>
+
+        <div
+          className={cn(
+            "scroll-area space-y-3 pr-0.5",
+            expanded ? "" : "max-h-[280px] overflow-y-auto",
+          )}
+        >
           {data.proposals.length > 0 ? (
             <Section title="Propostas de configuração" count={data.proposals.length} tone="violet">
               {data.proposals.map((proposal) => (

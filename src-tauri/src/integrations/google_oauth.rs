@@ -29,6 +29,7 @@ https://www.googleapis.com/auth/documents \
 https://www.googleapis.com/auth/calendar.events \
 https://www.googleapis.com/auth/calendar.readonly \
 https://www.googleapis.com/auth/gmail.send \
+https://www.googleapis.com/auth/gmail.readonly \
 https://www.googleapis.com/auth/tasks";
 
 const AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -532,6 +533,28 @@ mod tests {
         assert!(!challenge.contains('='));
         assert!(GOOGLE_SCOPES.contains("drive.file"));
         assert!(GOOGLE_SCOPES.contains("gmail.send"));
+        assert!(GOOGLE_SCOPES.contains("gmail.readonly"));
         assert!(GOOGLE_SCOPES.contains("tasks"));
+    }
+
+    #[tokio::test]
+    async fn status_reports_a_disconnected_workspace_without_network() {
+        let ctx = crate::test_support::context().await;
+        let oauth = GoogleOAuth::new(
+            ctx.state.db.clone(),
+            Arc::new(crate::secrets::SecretStore::new(&ctx.state.paths)),
+            crate::events::EventBus::new(8),
+        );
+        let status = oauth.status(&ctx.workspace_id).await.expect("status");
+        assert!(!status.connected);
+        assert!(status.email.is_none());
+        assert!(status.callback_url.ends_with("/callback"));
+
+        let error = oauth
+            .access_token(&ctx.workspace_id)
+            .await
+            .expect_err("not connected");
+        assert!(format!("{error}").contains("not connected"));
+        assert!(oauth.disconnect(&ctx.workspace_id).await.is_ok());
     }
 }

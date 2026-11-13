@@ -4,13 +4,13 @@ Sistema operacional visual de governança, automação e observabilidade sobre o
 OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
-> **Status:** fases 1–11 prontas. O OpenDesk cobre fundação, Studio com gestão
-> completa (efetivo, copiar/mover, toggle, backup e instalação), execução,
-> automação, Google Workspace + MCP bridge, resiliência/atualizações, tarefas,
-> chat interativo com Signal e runtime inventory do OpenCode no Studio. Repositório privado:
-> <https://github.com/ticosanjr/OpenDesk>. Consulte
-> [docs/implementation-plan.md](docs/implementation-plan.md) e
-> [docs/progress.md](docs/progress.md).
+> **Status:** release 0.51.0. O OpenDesk cobre fundação, Studio SSOT, execução
+> V2, automação, Google Workspace + MCP, governança de agentes, aprendizado,
+> observabilidade, CLI headless, browse, backups, atualizações e o barramento
+> universal de I/O. A refatoração segura e as frentes de produto e plataforma
+> estão registradas em [docs/progress.md](docs/progress.md); o plano técnico
+> vive em [docs/implementation-plan.md](docs/implementation-plan.md).
+> Repositório privado: <https://github.com/ticosanjr/OpenDesk>.
 
 ## O que já funciona
 
@@ -77,6 +77,20 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Visualizador interno para Markdown, HTML, imagens, PDF, vídeo, áudio e código.
 - Busca global com abas por tipologia.
 - Contrato de scroll com auditoria Playwright em todas as rotas e tamanhos.
+- Governança de agentes com organograma, metas, budgets, quota, performance,
+  delegação HITL e heartbeat opt-in.
+- Aprendizado contínuo: lições de runs, MEMORY.md e propostas de skill com
+  aprovação humana.
+- Observabilidade operacional (p95, fila, falhas) e CLI headless
+  (`opendesk --headless`).
+- Integração com OpenCode Browse para tarefas de navegação web e backup/restore
+  completo do workspace em ZIP.
+- Contratos opt-in de OpenCode V2 e Google (`npm run contract:opencode`,
+  `npm run contract:google`).
+- Goldens visuais de **18 rotas + 5 modais** em 700/1024/1100/1440/1920, com
+  atualização via `npm run test:visual:update`.
+- Builds Windows/macOS com `npm run build:platform` e assinatura local
+  documentada em `docs/platform-builds.md`.
 - Versão do OpenDesk visível no menu da bandeja e no tooltip.
 - Modelos sem variante (`provider/modelo`) validados e aceitos em todas as
   chamadas, sem `variant: null`.
@@ -108,12 +122,13 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Workspaces padrão em `~/Documents/OpenDesk Workareas`.
 - Backup rotativo do SQLite antes de migrações.
 - Limpeza automática de artefatos de build após cada release.
-- Auto-atualização do OpenDesk por release privada com SHA256 e backup.
+- Auto-atualização do OpenDesk no Linux por release privada com assinatura,
+  SHA256 e backup; macOS/Windows usam o instalador da release.
 - Google Workspace: OAuth2 loopback + PKCE, Docs, Drive, Calendar, Gmail e
   Tasks; export pós-run para Google Docs/Drive.
 - MCP bridge `opendesk mcp-google` com ferramentas de Gmail, Docs, Drive,
   Calendar e Tasks, registrado em `mcp.servers`.
-- Dashboard executivo, shell de navegação com 10 views, command bar
+- Dashboard executivo, shell de navegação com 18 rotas, command bar
   (Cmd/Ctrl+K), seletor de workspace e indicadores de daemon, fila e orçamento.
 - Endpoints de leitura de agentes e modelos direto do OpenCode V2
   (`/api/agent`, `/api/model`), com escopo por workspace.
@@ -191,7 +206,7 @@ src-tauri/
     tray.rs                 menu da bandeja e status dinâmico
 src/
   components/               layout, UI primitives
-  pages/                    9 views do produto
+  pages/                    páginas roteadas do produto
   store/                    Zustand + WebSocket
   lib/                      API client, tipos e formatação
 docs/                       plano, decisões e histórico

@@ -26,6 +26,7 @@ import { formatNumber, relativeTime, shortPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "@/store/toast-store";
 import { LazyFileViewer } from "@/components/viewer/LazyFileViewer";
+import type { ArchiveEntry } from "@/components/viewer/FileViewer";
 import { LoadingState } from "@/components/ui/loading-state";
 
 export function FilesPage() {
@@ -46,6 +47,9 @@ export function FilesPage() {
   const [searching, setSearching] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingFile, setLoadingFile] = useState(false);
+  const [archive, setArchive] = useState<ArchiveEntry[] | null>(null);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
   const [media, setMedia] = useState<{
     format?: string | null;
     duration_secs?: number | null;
@@ -137,6 +141,36 @@ export function FilesPage() {
   }, [activeWorkspaceId, deepPath, deepDir, loadTree, setParams]);
 
   const MEDIA_EXTENSIONS = /\.(mp4|mkv|webm|mov|avi|mp3|wav|flac|ogg|m4a|aac)$/i;
+
+  useEffect(() => {
+    const path =
+      content?.binary && /\.zip$/i.test(content.path) ? content.path : null;
+    setArchive(null);
+    setArchiveError(null);
+    if (!path || !activeWorkspaceId) {
+      setArchiveLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setArchiveLoading(true);
+    void apiGet<ArchiveEntry[]>(
+      `/api/files/archive?workspace_id=${encodeURIComponent(activeWorkspaceId)}&path=${encodeURIComponent(path)}`,
+    )
+      .then((list) => {
+        if (!cancelled) setArchive(Array.isArray(list) ? list : []);
+      })
+      .catch((cause) => {
+        if (!cancelled) {
+          setArchiveError(cause instanceof Error ? cause.message : String(cause));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setArchiveLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspaceId, content]);
 
   async function loadMedia(path: string) {
     if (!MEDIA_EXTENSIONS.test(path)) {
@@ -540,6 +574,9 @@ export function FilesPage() {
                 size={content.size}
                 rawUrl={`/api/files/raw?workspace_id=${encodeURIComponent(activeWorkspaceId)}&path=${encodeURIComponent(content.path)}`}
                 onOpenExternal={() => void reveal(content.path)}
+                archive={archive}
+                archiveLoading={archiveLoading}
+                archiveError={archiveError}
               />
             ) : (
               <p className="p-3 text-[13px] text-zinc-500">Sem conteúdo.</p>

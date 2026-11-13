@@ -7,15 +7,18 @@ export function TimezoneSelect({
   onChange,
   className,
   disabled = false,
+  id,
 }: {
   value: string;
   onChange: (value: string) => void;
   className?: string;
   disabled?: boolean;
+  id?: string;
 }) {
   const options = useMemo(() => timezoneOptions(value), [value]);
   return (
     <select
+      id={id}
       value={value}
       onChange={(event) => onChange(event.target.value)}
       className={cn(className)}

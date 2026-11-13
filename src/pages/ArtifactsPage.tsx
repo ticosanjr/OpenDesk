@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { links } from "@/lib/links";
 import { EntityLink } from "@/components/ui/entity-link";
 import { LazyFileViewer } from "@/components/viewer/LazyFileViewer";
+import type { ArchiveEntry } from "@/components/viewer/FileViewer";
 import { DiffView } from "@/components/viewer/DiffView";
 import { toast } from "@/store/toast-store";
 import { confirmAction } from "@/store/confirm-store";
@@ -64,6 +65,9 @@ export function ArtifactsPage() {
   const [content, setContent] = useState<ArtifactContent | null>(null);
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
+  const [archive, setArchive] = useState<ArchiveEntry[] | null>(null);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
   const [tab, setTab] = useState<"content" | "diff">("content");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,6 +185,34 @@ export function ArtifactsPage() {
       cancelled = true;
     };
   }, [selected]);
+
+  useEffect(() => {
+    const path =
+      content?.binary && /\.zip$/i.test(content.path) ? content.path : null;
+    setArchive(null);
+    setArchiveError(null);
+    if (!path || !selected) {
+      setArchiveLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setArchiveLoading(true);
+    void apiGet<ArchiveEntry[]>(`/api/artifacts/${selected.id}/archive`)
+      .then((list) => {
+        if (!cancelled) setArchive(Array.isArray(list) ? list : []);
+      })
+      .catch((cause) => {
+        if (!cancelled) {
+          setArchiveError(cause instanceof Error ? cause.message : String(cause));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setArchiveLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [content, selected]);
 
   async function togglePin(artifact: Artifact) {
     try {
@@ -550,17 +582,41 @@ export function ArtifactsPage() {
                   </p>
                 ) : contentError ? (
                   <div className="space-y-2 p-4">
-                    <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13.5px] text-red-300">
-                      Não foi possível carregar a prévia: {contentError}
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void reveal(selected.absolute_path)}
-                      title="Abrir o arquivo no sistema"
-                    >
-                      Abrir arquivo
-                    </Button>
+                    {contentError.includes("outside the workspace") ? (
+                      <>
+                        <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[13.5px] text-amber-200">
+                          Este artefato está fora do workspace. Por segurança, a
+                          prévia interna fica desativada para arquivos que saem do
+                          diretório do workspace.
+                        </p>
+                        <p className="truncate font-mono text-[12px] text-zinc-500">
+                          {selected.absolute_path}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13.5px] text-red-300">
+                        Não foi possível carregar a prévia: {contentError}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void reveal(selected.absolute_path)}
+                        title="Abrir o arquivo no sistema"
+                      >
+                        Abrir arquivo externamente
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          void navigator.clipboard.writeText(selected.absolute_path)
+                        }
+                      >
+                        Copiar caminho
+                      </Button>
+                    </div>
                   </div>
                 ) : content ? (
                   <LazyFileViewer
@@ -574,6 +630,9 @@ export function ArtifactsPage() {
                     size={content.size}
                     rawUrl={`/api/artifacts/${selected.id}/raw`}
                     onOpenExternal={() => void reveal(selected.absolute_path)}
+                    archive={archive}
+                    archiveLoading={archiveLoading}
+                    archiveError={archiveError}
                   />
                 ) : (
                   <p className="p-4 text-[13.5px] text-zinc-500">

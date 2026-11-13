@@ -168,4 +168,76 @@ describe("RunLogView", () => {
 
     expect(screen.getByText("read · input/brief.md")).toBeInTheDocument();
   });
+
+  it("expands and collapses every section from the header", async () => {
+    render(
+      <MemoryRouter>
+        <RunLogView runId="run-1" />
+      </MemoryRouter>,
+    );
+
+    const thinking = await screen.findByRole("button", { name: /Raciocínio/ });
+    expect(thinking).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: "expandir" }));
+    expect(thinking).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "recolher" }));
+    expect(thinking).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("keeps actionable permission requests under any filter", async () => {
+    apiGet.mockImplementation((path: string) => {
+      if (path.includes("/messages")) return Promise.resolve([]);
+      if (path.includes("/interactions")) return Promise.resolve([]);
+      if (path.includes("/api/permissions")) {
+        return Promise.resolve({
+          requests: [
+            {
+              request_id: "perm-1",
+              permission_action: "bash",
+              resources: "rm -rf build",
+              task_id: "task-1",
+              run_id: "run-1",
+            },
+          ],
+        });
+      }
+      return Promise.resolve(timeline);
+    });
+
+    render(
+      <MemoryRouter>
+        <RunLogView runId="run-1" />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText("O agente pediu permissão"),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Filtrar eventos da execução"), {
+      target: { value: "errors" },
+    });
+    expect(screen.getByText("O agente pediu permissão")).toBeInTheDocument();
+  });
+
+  it("filters the stream by tools and errors", async () => {
+    render(
+      <MemoryRouter>
+        <RunLogView runId="run-1" />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Raciocínio");
+    const filter = screen.getByLabelText("Filtrar eventos da execução");
+    fireEvent.change(filter, { target: { value: "tools" } });
+    expect(screen.queryByText("Raciocínio")).not.toBeInTheDocument();
+    expect(screen.getByText("read · input/brief.md")).toBeInTheDocument();
+
+    fireEvent.change(filter, { target: { value: "errors" } });
+    expect(screen.queryByText("read · input/brief.md")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Nenhum evento corresponde a este filtro."),
+    ).toBeInTheDocument();
+  });
 });

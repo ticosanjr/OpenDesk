@@ -363,6 +363,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/files/tree", get(files::tree))
         .route("/api/files/search", get(files::search))
         .route("/api/files/content", get(files::content))
+        .route("/api/files/archive", get(files::archive))
         .route("/api/files/raw", get(files::raw))
         .route("/api/files/media", get(files::media))
         .route(
@@ -473,6 +474,10 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/artifacts/{id}/content",
             get(artifacts::artifact_content),
+        )
+        .route(
+            "/api/artifacts/{id}/archive",
+            get(artifacts::artifact_archive),
         )
         .route("/api/router/config", get(router::get_config))
         .route("/api/router/model", put(router::set_router_model))

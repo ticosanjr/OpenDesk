@@ -155,7 +155,7 @@ pub async fn seed(
     State(state): State<Arc<AppState>>,
     Json(body): Json<SeedBody>,
 ) -> AppResult<Json<Value>> {
-    if std::env::var("OPENDESK_E2E").as_deref() != Ok("1") {
+    if !cfg!(test) && std::env::var("OPENDESK_E2E").as_deref() != Ok("1") {
         return Err(AppError::NotFound("test seed endpoint disabled".into()));
     }
     let workspace_id = match body.workspace_id {

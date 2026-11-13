@@ -17,6 +17,7 @@ export function PathInput({
   hint,
   disabled,
   inputClassName,
+  id,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -26,6 +27,7 @@ export function PathInput({
   hint?: string;
   disabled?: boolean;
   inputClassName?: string;
+  id?: string;
 }) {
   async function choose() {
     const selected = await pickFolder(title, value || undefined);
@@ -35,6 +37,7 @@ export function PathInput({
   return (
     <div className={cn("flex min-w-0 items-center gap-1.5", className)}>
       <input
+        id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}

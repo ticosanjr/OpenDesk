@@ -2278,3 +2278,96 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Release 0.50.1 publica no binário as melhorias de P1/P2 (fila, busca, HITL,
   modais, viewers, navegação responsiva e tipografia), com notas em
   `docs/releases/0.50.1.md`.
+
+## 2026-11-13 — refatoração segura sem release
+
+- Status de execução e de receita centralizados em `src/lib/status.ts`
+  (labels + tons); Kanban, Execuções, Receitas e Rotinas deixaram de manter
+  mapas próprios. `task-ui` reexporta os labels antigos para não quebrar
+  imports.
+- Primitivas de formulário em `src/components/ui/field.tsx` (`Field`, `Input`,
+  `Select`, `Textarea`, `FormSection`, `FormError`) usando as classes
+  compartilhadas de `ui-classes`. Adotadas no workspace de Configurações, na
+  regra do roteador, em metas e governança de agentes e na criação de
+  workspace por template. `TimezoneSelect` e `PathInput` aceitam `id` para
+  rótulo acessível.
+- Kanban dividido em `kanban-columns.ts` (definição das colunas),
+  `KanbanBoard.tsx` (board + DnD) e `KanbanListView.tsx` (tabela com seleção
+  em lote); `KanbanPage` ficou com filtros, toolbar, fila e modais.
+- Roteador dividido em `RouterPolicyPicker`, `RouterModelsCard`,
+  `RouterPolicyTestCard`, `RouterCostCard`, `RouterBudgetCard`,
+  `RouterRulesCard` e `RouterRuleModal`, com tipos em `router-types.ts`; a
+  página manteve apenas estado, carregamento e ações.
+- Run log dividido em `RunLogHeader` (status, ações e contexto),
+  `RunLogBands` (passos, raciocínio, ferramentas e resultado),
+  `RunLogResult` e `RunLogComposer`; `RunLogView` ficou com dados e streaming.
+- Novos testes cobrem os labels/tons compartilhados e as primitivas de
+  formulário (associação de rótulo, hint/erro e estilos base).
+- Pacotes divididos em `PacksToolbar`, `PackCatalog`, `PackCard` e
+  `WorkspaceTemplateCard`.
+- Sem mudança de comportamento ou de visual: `tsc`, ESLint, 178 Vitest, 93
+  Playwright e os goldens visuais seguem verdes. Nenhuma release criada.
+
+## 2026-11-13 — onda 13: produto (dashboard, busca, execuções, viewers e pacotes)
+
+- Dashboard: Attention Card resume as pendências por categoria e abre em modo
+  compacto com “ver detalhes”; as atividades recentes agrupam por dia e têm
+  filtro runs/artefatos. O feed saiu para `ActivityFeed`.
+- Busca: a paleta de comandos passou a usar `/api/search` (mesmo ranking da
+  página), com resultados agrupados por tipo, contagem e atalho para a busca
+  completa. Buscas recentes são persistidas (`recent-searches.ts`) e aparecem
+  na paleta e em `/search`.
+- Execuções: nova visão em tabela (execução, status, agente, duração, tokens,
+  custo, quando) com ordenação por recentes/duração/custo/tokens. O run
+  detalhado filtra eventos (tudo, ferramentas, erros, conversa) e expande ou
+  recolhe todas as seções.
+- Viewers: ZIP lista as entradas sem extrair, com download autenticado; o
+  fallback binário oferece baixar. Artefato fora do workspace explica a
+  política de segurança e mantém abrir externamente/copiar caminho.
+- Pacotes: “Atualizar todos” reinstala pacotes com atualização preservando
+  arquivos modificados; modo de gerenciamento com seleção, “selecionar
+  instalados” e remoção em lote confirmada; favoritos têm estado vazio próprio.
+- Backend: `/api/files/archive` e `/api/artifacts/{id}/archive` listam ZIPs com
+  limite de 400 entradas, preservando a fronteira do workspace.
+- Verificação: 196 Vitest, 93 Playwright, **74/74 features**, 364 testes Rust,
+  clippy, build, goldens visuais e axe sem regressões. Sem release.
+
+## 2026-11-13 — onda 14: plataforma (builds, contrato Google e cobertura Rust)
+
+- Builds: `scripts/release.sh` detecta Linux/macOS/Windows, coleta `.deb`/`.rpm`/
+  `.AppImage`, `.dmg`/`.app` ou `.msi`/NSIS, usa binário `opendesk.exe` no
+  Windows, assina/verifica `latest.json` e grava a plataforma no manifesto.
+  Checksums e retenção de 3 releases deixaram de depender de `sha256sum`/
+  `sort -V` e usam Node, funcionando também no macOS.
+- Novo `npm run build:platform` (`scripts/build-platform.sh`) valida
+  pré-requisitos por SO, roda o gate rápido, executa `tauri build` e lista os
+  instaladores sem publicar. Guia em `docs/platform-builds.md`, incluindo
+  assinatura Apple, Authenticode, WebView2 e chave do updater.
+- Google: contrato expandido para Drive, Gmail (threads), Calendar, Tasks e
+  Docs opcional, com checagem de scopes e `tools/list`. `gmail.readonly` entrou
+  nos scopes (contas antigas precisam reconectar). Guia em
+  `docs/google-contract.md`; `disconnect` e workspace desconectado ganharam
+  testes sem rede.
+- Cobertura Rust: **64,20% total** e **70,82% core** (antes 62,50%/68,67%).
+  Ratchets do gate subiram para 64% e 70,5%; plano em
+  `docs/coverage-plan.md`. Novos testes cobrem seed E2E, dedupe, missed runs,
+  HITL (parse/resolve/dispatch), SQL sink, ZIP e OAuth desconectado.
+- Verificação: 377 testes Rust, clippy/fmt, 196 Vitest, 93 Playwright, 74/74
+  features, goldens e axe; sem release.
+
+## 2026-11-13 — onda 15: qualidade (goldens totais, gate e documentação)
+
+- Regressão visual ampliada de 6 superfícies para **18 rotas + 5 modais**
+  (nova tarefa, detalhes, rotina, pacote e command palette), em 700, 1024,
+  1100, 1440 e 1920 conforme densidade. 49 goldens, ~6 MB.
+- Determinismo: Calendário com data fixa, relógio congelado no modal de rotina
+  e fuso `America/Sao_Paulo` no contexto visual.
+- `scripts/gate.sh` passou a rodar os goldens (opt-out
+  `OPENDESK_SKIP_VISUAL=1`); guia em `docs/visual-regression.md` com política
+  de atualização.
+- Documentação sincronizada: README sem “fases 1–11”, plano com concorrência,
+  retry de entregas e Fase 7, interface-proposal com a verificação atual e
+  AGENTS apontando para os guias de cobertura, builds e contrato Google.
+- Verificação: gate completo (TypeScript, ESLint, cobertura JS, fmt/clippy,
+  377 testes Rust, cobertura Rust 64,2%/70,8%, build, 93 Playwright, goldens,
+  axe e 74/74 features). Sem release.

@@ -6,11 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { relativeTime } from "@/lib/format";
 import { profileFor } from "@/lib/governance";
 import type { AgentProfileRow, GovernanceAgent } from "@/lib/types";
-import { cn } from "@/lib/utils";
-import {
-  fieldInputClass as inputClass,
-  fieldLabelClass as labelClass,
-} from "@/lib/ui-classes";
+import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import {
   emptyProfile,
   type AgentProfileValues,
@@ -65,36 +61,33 @@ export function ProfileModal({
       {agent ? (
         <div className="space-y-3">
           <div className="grid gap-2 md:grid-cols-2">
-            <label>
-              <span className={labelClass}>Cargo / papel</span>
-              <input
+            <Field label="Cargo / papel" htmlFor="profile-role">
+              <Input
+                id="profile-role"
                 value={values.role}
                 onChange={(event) =>
                   setValues({ ...values, role: event.target.value })
                 }
                 placeholder="Líder de pesquisa"
-                className={inputClass}
               />
-            </label>
-            <label>
-              <span className={labelClass}>Time</span>
-              <input
+            </Field>
+            <Field label="Time" htmlFor="profile-team">
+              <Input
+                id="profile-team"
                 value={values.team}
                 onChange={(event) =>
                   setValues({ ...values, team: event.target.value })
                 }
                 placeholder="Inteligência"
-                className={inputClass}
               />
-            </label>
-            <label>
-              <span className={labelClass}>Reporta a</span>
-              <select
+            </Field>
+            <Field label="Reporta a" htmlFor="profile-manager">
+              <Select
+                id="profile-manager"
                 value={values.managerId}
                 onChange={(event) =>
                   setValues({ ...values, managerId: event.target.value })
                 }
-                className={inputClass}
               >
                 <option value="">sem líder</option>
                 {agents
@@ -104,11 +97,11 @@ export function ProfileModal({
                       @{item.id}
                     </option>
                   ))}
-              </select>
-            </label>
-            <label>
-              <span className={labelClass}>Budget mensal (US$)</span>
-              <input
+              </Select>
+            </Field>
+            <Field label="Budget mensal (US$)" htmlFor="profile-budget">
+              <Input
+                id="profile-budget"
                 type="number"
                 min={0}
                 step="0.01"
@@ -117,12 +110,11 @@ export function ProfileModal({
                   setValues({ ...values, budget: event.target.value })
                 }
                 placeholder="sem limite"
-                className={inputClass}
               />
-            </label>
-            <label>
-              <span className={labelClass}>Quota de concorrência</span>
-              <input
+            </Field>
+            <Field label="Quota de concorrência" htmlFor="profile-quota">
+              <Input
+                id="profile-quota"
                 type="number"
                 min={1}
                 max={32}
@@ -130,12 +122,14 @@ export function ProfileModal({
                 onChange={(event) =>
                   setValues({ ...values, quota: event.target.value })
                 }
-                className={inputClass}
               />
-            </label>
-            <label>
-              <span className={labelClass}>Intervalo do heartbeat (min)</span>
-              <input
+            </Field>
+            <Field
+              label="Intervalo do heartbeat (min)"
+              htmlFor="profile-heartbeat"
+            >
+              <Input
+                id="profile-heartbeat"
                 type="number"
                 min={5}
                 max={1440}
@@ -144,9 +138,8 @@ export function ProfileModal({
                 onChange={(event) =>
                   setValues({ ...values, heartbeatMinutes: event.target.value })
                 }
-                className={inputClass}
               />
-            </label>
+            </Field>
           </div>
           <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2">
             <div>
@@ -164,17 +157,17 @@ export function ProfileModal({
               label="Heartbeat autônomo"
             />
           </div>
-          <label>
-            <span className={labelClass}>Notas</span>
-            <textarea
+          <Field label="Notas" htmlFor="profile-notes">
+            <Textarea
+              id="profile-notes"
               value={values.notes}
               onChange={(event) =>
                 setValues({ ...values, notes: event.target.value })
               }
               rows={2}
-              className={cn(inputClass, "h-auto py-2")}
+              className="min-h-0"
             />
-          </label>
+          </Field>
           {existing?.last_heartbeat_at ? (
             <p className="text-[11.5px] text-zinc-500">
               Último heartbeat {relativeTime(existing.last_heartbeat_at)}

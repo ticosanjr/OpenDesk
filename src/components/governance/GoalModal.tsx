@@ -3,11 +3,7 @@ import { Loader2, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import type { AgentGoal, GovernanceAgent } from "@/lib/types";
-import { cn } from "@/lib/utils";
-import {
-  fieldInputClass as inputClass,
-  fieldLabelClass as labelClass,
-} from "@/lib/ui-classes";
+import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { emptyGoal, type GoalValues } from "./types";
 
 export function GoalModal({
@@ -60,112 +56,104 @@ export function GoalModal({
     >
       <div className="space-y-3">
         <div className="grid gap-2 md:grid-cols-2">
-          <label>
-            <span className={labelClass}>Agente</span>
-            <select
+          <Field label="Agente" htmlFor="goal-agent">
+            <Select
+              id="goal-agent"
               value={values.agentId}
               onChange={(event) =>
                 setValues({ ...values, agentId: event.target.value })
               }
-              className={inputClass}
             >
               {agents.map((agent) => (
                 <option key={agent.id} value={agent.id}>
                   @{agent.id}
                 </option>
               ))}
-            </select>
-          </label>
-          <label>
-            <span className={labelClass}>Status</span>
-            <select
+            </Select>
+          </Field>
+          <Field label="Status" htmlFor="goal-status">
+            <Select
+              id="goal-status"
               value={values.status}
               onChange={(event) =>
                 setValues({ ...values, status: event.target.value })
               }
-              className={inputClass}
             >
               <option value="ACTIVE">Ativa</option>
               <option value="PAUSED">Pausada</option>
               <option value="DONE">Concluída</option>
               <option value="CANCELLED">Cancelada</option>
-            </select>
-          </label>
+            </Select>
+          </Field>
         </div>
-        <label>
-          <span className={labelClass}>Título</span>
-          <input
+        <Field label="Título" htmlFor="goal-title">
+          <Input
+            id="goal-title"
             value={values.title}
             onChange={(event) => setValues({ ...values, title: event.target.value })}
             placeholder="Publicar 4 relatórios"
-            className={inputClass}
           />
-        </label>
-        <label>
-          <span className={labelClass}>Descrição</span>
-          <textarea
+        </Field>
+        <Field label="Descrição" htmlFor="goal-description">
+          <Textarea
+            id="goal-description"
             value={values.description}
             onChange={(event) =>
               setValues({ ...values, description: event.target.value })
             }
             rows={2}
-            className={cn(inputClass, "h-auto py-2")}
+            className="min-h-0"
           />
-        </label>
+        </Field>
         <div className="grid gap-2 md:grid-cols-4">
-          <label className="md:col-span-2">
-            <span className={labelClass}>Métrica</span>
-            <input
+          <Field label="Métrica" htmlFor="goal-metric" className="md:col-span-2">
+            <Input
+              id="goal-metric"
               value={values.metric}
               onChange={(event) =>
                 setValues({ ...values, metric: event.target.value })
               }
               placeholder="relatórios"
-              className={inputClass}
             />
-          </label>
-          <label>
-            <span className={labelClass}>Atual</span>
-            <input
+          </Field>
+          <Field label="Atual" htmlFor="goal-current">
+            <Input
+              id="goal-current"
               type="number"
               value={values.current}
               onChange={(event) =>
                 setValues({ ...values, current: event.target.value })
               }
-              className={inputClass}
             />
-          </label>
-          <label>
-            <span className={labelClass}>Meta</span>
-            <input
+          </Field>
+          <Field label="Meta" htmlFor="goal-target">
+            <Input
+              id="goal-target"
               type="number"
               value={values.target}
               onChange={(event) =>
                 setValues({ ...values, target: event.target.value })
               }
-              className={inputClass}
             />
-          </label>
+          </Field>
         </div>
         <div className="grid gap-2 md:grid-cols-2">
-          <label>
-            <span className={labelClass}>Unidade</span>
-            <input
+          <Field label="Unidade" htmlFor="goal-unit">
+            <Input
+              id="goal-unit"
               value={values.unit}
               onChange={(event) => setValues({ ...values, unit: event.target.value })}
               placeholder="relatórios"
-              className={inputClass}
             />
-          </label>
-          <label>
-            <span className={labelClass}>Prazo</span>
-            <input
+          </Field>
+          <Field label="Prazo" htmlFor="goal-due">
+            <Input
+              id="goal-due"
               type="date"
               value={values.dueAt}
               onChange={(event) => setValues({ ...values, dueAt: event.target.value })}
-              className={inputClass}
             />
-          </label>
+          </Field>
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={onClose}>

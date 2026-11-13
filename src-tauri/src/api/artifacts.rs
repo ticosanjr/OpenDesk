@@ -14,7 +14,7 @@ use axum::{
     response::Response,
 };
 use serde::Deserialize;
-use std::path::Path as FsPath;
+use std::path::{Path as FsPath, PathBuf};
 use std::sync::Arc;
 
 #[derive(Debug, Deserialize, Default)]
@@ -79,22 +79,31 @@ pub async fn get_artifact(
     Ok(Json(artifacts::get(&state.db, &id).await?))
 }
 
-pub async fn artifact_content(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> AppResult<Json<ArtifactContent>> {
-    let artifact = artifacts::get(&state.db, &id).await?;
+/// Resolve an artifact path and enforce the workspace boundary. Every read,
+/// stream, archive listing and rollback goes through this single policy.
+async fn artifact_file_in_workspace(
+    state: &AppState,
+    artifact: &ArtifactProvenance,
+) -> AppResult<PathBuf> {
     let workspace = workspaces::get(&state.db, &artifact.workspace_id).await?;
     let root = std::fs::canonicalize(&workspace.root_path)
         .map_err(|error| AppError::Internal(format!("workspace path: {error}")))?;
     let file = std::fs::canonicalize(&artifact.absolute_path)
         .map_err(|error| AppError::NotFound(format!("artifact file: {error}")))?;
-
     if !file.starts_with(&root) {
         return Err(AppError::BadRequest(
             "artifact path is outside the workspace".into(),
         ));
     }
+    Ok(file)
+}
+
+pub async fn artifact_content(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<ArtifactContent>> {
+    let artifact = artifacts::get(&state.db, &id).await?;
+    let file = artifact_file_in_workspace(&state, &artifact).await?;
 
     let bytes = std::fs::read(&file)
         .map_err(|error| AppError::Internal(format!("could not read artifact: {error}")))?;
@@ -151,16 +160,7 @@ pub async fn rollback_artifact(
     Path(id): Path<String>,
 ) -> AppResult<Json<RollbackResult>> {
     let artifact = artifacts::get(&state.db, &id).await?;
-    let workspace = workspaces::get(&state.db, &artifact.workspace_id).await?;
-    let root = std::fs::canonicalize(&workspace.root_path)
-        .map_err(|error| AppError::Internal(format!("workspace path: {error}")))?;
-    let file = std::fs::canonicalize(&artifact.absolute_path)
-        .map_err(|error| AppError::NotFound(format!("artifact file: {error}")))?;
-    if !file.starts_with(&root) {
-        return Err(AppError::BadRequest(
-            "artifact path is outside the workspace".into(),
-        ));
-    }
+    let file = artifact_file_in_workspace(&state, &artifact).await?;
 
     match artifact.action_type.as_str() {
         "CREATED" => {
@@ -215,22 +215,24 @@ fn split_patch(patch: &str) -> (String, String) {
     (old.join("\n"), new.join("\n"))
 }
 
+/// List the entries of a ZIP artifact. The same workspace boundary used by
+/// the preview applies, so outside files stay unreadable.
+pub async fn artifact_archive(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<Vec<crate::api::files::ArchiveEntry>>> {
+    let artifact = artifacts::get(&state.db, &id).await?;
+    let file = artifact_file_in_workspace(&state, &artifact).await?;
+    Ok(Json(crate::api::files::archive_entries(&file)?))
+}
+
 pub async fn artifact_raw(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     headers: HeaderMap,
 ) -> AppResult<Response> {
     let artifact = artifacts::get(&state.db, &id).await?;
-    let workspace = workspaces::get(&state.db, &artifact.workspace_id).await?;
-    let root = std::fs::canonicalize(&workspace.root_path)
-        .map_err(|error| AppError::Internal(format!("workspace path: {error}")))?;
-    let file = std::fs::canonicalize(&artifact.absolute_path)
-        .map_err(|error| AppError::NotFound(format!("artifact file: {error}")))?;
-    if !file.starts_with(&root) {
-        return Err(AppError::BadRequest(
-            "artifact path is outside the workspace".into(),
-        ));
-    }
+    let file = artifact_file_in_workspace(&state, &artifact).await?;
     let range_header = headers
         .get(header::RANGE)
         .and_then(|value| value.to_str().ok());

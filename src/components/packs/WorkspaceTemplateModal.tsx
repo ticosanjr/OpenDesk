@@ -3,10 +3,7 @@ import { Button } from "@/components/ui/button";
 import { IconLabel } from "@/components/ui/icon-label";
 import { Modal } from "@/components/ui/modal";
 import { PathInput } from "@/components/ui/path-input";
-import {
-  fieldInputClass as inputClass,
-  fieldLabelClass as labelClass,
-} from "@/lib/ui-classes";
+import { Field, Input } from "@/components/ui/field";
 import type { WorkspaceTemplate } from "./pack-types";
 
 export function WorkspaceTemplateModal({
@@ -44,33 +41,32 @@ export function WorkspaceTemplateModal({
     >
       {template ? (
         <div className="space-y-3">
-          <label className="block">
-            <span className={labelClass}>Nome do workspace</span>
-            <input
+          <Field label="Nome do workspace" htmlFor="template-name">
+            <Input
+              id="template-name"
               value={name}
               onChange={(event) => onName(event.target.value)}
-              className={inputClass}
             />
-          </label>
-          <label className="block">
-            <span className={labelClass}>Pasta</span>
+          </Field>
+          <Field label="Pasta" htmlFor="template-root">
             <PathInput
+              id="template-root"
               value={root}
               onChange={onRoot}
               title="Escolher pasta do novo workspace"
               placeholder="vazio usa OpenDesk Workareas/<nome>"
               hint="A pasta precisa estar fora de /tmp. O OpenDesk cria a estrutura .opencode nela."
             />
-          </label>
-          <label className="block">
-            <span className={labelClass}>Cor</span>
+          </Field>
+          <Field label="Cor" htmlFor="template-color">
             <input
+              id="template-color"
               type="color"
               value={color}
               onChange={(event) => onColor(event.target.value)}
               className="h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-1"
             />
-          </label>
+          </Field>
           <p className="text-[12px] leading-snug text-zinc-500">
             Pacotes: {template.packs.join(", ")}. Rotinas entram inativas.
           </p>

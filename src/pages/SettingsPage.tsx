@@ -29,6 +29,12 @@ import { UpdatesCard } from "@/components/settings/UpdatesCard";
 import { AboutCard } from "@/components/settings/AboutCard";
 import { NotificationCard } from "@/components/settings/NotificationCard";
 import { SectionNav } from "@/components/ui/section-nav";
+import {
+  Field,
+  FormError,
+  Input,
+  Select,
+} from "@/components/ui/field";
 import { ToolsCard } from "@/components/settings/ToolsCard";
 import { QueueSettingsCard } from "@/components/settings/QueueSettingsCard";
 import { BackupsCard } from "@/components/settings/BackupsCard";
@@ -46,7 +52,6 @@ import { toast } from "@/store/toast-store";
 import type { Workspace } from "@/lib/types";
 import { Modal } from "@/components/ui/modal";
 import { TimezoneSelect } from "@/components/ui/timezone-select";
-import { smallLabelClass as labelClass } from "@/lib/ui-classes";
 import { fieldInputClass as inputClass } from "@/lib/ui-classes";
 
 export function SettingsPage() {
@@ -489,18 +494,17 @@ function WorkspaceEditModal({
     >
       <div className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
-          <label>
-            <span className={labelClass}>Nome</span>
-            <input
+          <Field label="Nome" htmlFor="workspace-name">
+            <Input
+              id="workspace-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className={inputClass}
             />
-          </label>
-          <label>
-            <span className={labelClass}>Cor</span>
+          </Field>
+          <Field label="Cor" htmlFor="workspace-color">
             <div className="flex h-9 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2">
               <input
+                id="workspace-color"
                 type="color"
                 value={color}
                 onChange={(event) => setColor(event.target.value)}
@@ -508,44 +512,42 @@ function WorkspaceEditModal({
               />
               <span className="font-mono text-[12px] text-zinc-500">{color}</span>
             </div>
-          </label>
-          <label>
-            <span className={labelClass}>Política padrão</span>
-            <select
+          </Field>
+          <Field label="Política padrão" htmlFor="workspace-policy">
+            <Select
+              id="workspace-policy"
               value={policy}
               onChange={(event) => setPolicy(event.target.value)}
-              className={inputClass}
             >
               {Object.entries(ROUTER_POLICY_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>
               ))}
-            </select>
-          </label>
-          <label>
-            <span className={labelClass}>Fuso horário</span>
+            </Select>
+          </Field>
+          <Field label="Fuso horário" htmlFor="workspace-timezone">
             <TimezoneSelect
+              id="workspace-timezone"
               value={timezone}
               onChange={setTimezone}
               className={cn(inputClass, "text-[12px]")}
             />
-          </label>
-          <label className="sm:col-span-2">
-            <span className={labelClass}>E-mail padrão de notificação</span>
-            <input
+          </Field>
+          <Field
+            label="E-mail padrão de notificação"
+            htmlFor="workspace-email"
+            className="sm:col-span-2"
+          >
+            <Input
+              id="workspace-email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="ops@empresa.com"
-              className={inputClass}
             />
-          </label>
+          </Field>
         </div>
-        {error ? (
-          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
-            {error}
-          </p>
-        ) : null}
+        {error ? <FormError>{error}</FormError> : null}
         <div className="flex justify-end gap-2 border-t border-zinc-800/70 pt-4">
           <Button variant="ghost" size="sm" onClick={onClose}>
             Cancelar

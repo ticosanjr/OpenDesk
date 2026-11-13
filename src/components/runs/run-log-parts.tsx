@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import {
   Braces,
@@ -207,6 +207,8 @@ export function StreamView({
   interactions = [],
   permissions = [],
   onInteractionsChanged,
+  filter = "all",
+  bandForce,
 }: {
   timeline: RunTimeline | null;
   messages: TaskMessage[];
@@ -217,6 +219,8 @@ export function StreamView({
   interactions?: TaskInteraction[];
   permissions?: InteractionPermission[];
   onInteractionsChanged?: () => void;
+  filter?: RunEventFilter;
+  bandForce?: { signal: number; open: boolean };
 }) {
   const entries = useMemo(() => {
     const items: Array<{
@@ -249,8 +253,21 @@ export function StreamView({
         permission,
       });
     }
-    return items.sort((left, right) => left.at - right.at);
-  }, [interactions, messages, permissions, timeline?.events]);
+    const matches = (entry: (typeof items)[number]) => {
+      // Questions, permissions and user messages stay visible under every
+      // filter: they are the only actionable surfaces inside the run view.
+      if (entry.message || entry.interaction || entry.permission) return true;
+      if (filter === "all") return true;
+      if (filter === "tools") {
+        return entry.event?.kind === "tool";
+      }
+      if (filter === "errors") {
+        return Boolean(entry.event && isFailedTool(entry.event));
+      }
+      return entry.event?.kind === "comment";
+    };
+    return items.filter(matches).sort((left, right) => left.at - right.at);
+  }, [filter, interactions, messages, permissions, timeline?.events]);
 
   const blocks = useMemo<StreamBlock[]>(() => {
     const output: StreamBlock[] = [];
@@ -300,7 +317,9 @@ export function StreamView({
     return (
       <div className="space-y-2">
         <p className="rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-[13.5px] text-zinc-500">
-          Nenhum evento estruturado. Use “bruto” para ver o JSONL original.
+          {filter === "all"
+            ? "Nenhum evento estruturado. Use “bruto” para ver o JSONL original."
+            : "Nenhum evento corresponde a este filtro."}
         </p>
         <ResultCard
           text={timeline?.result.text?.trim() ?? ""}
@@ -386,6 +405,7 @@ export function StreamView({
                 durationMs={duration}
                 summary={`${block.events.length} ferramentas · ${formatDuration(duration)}`}
                 tone="blue"
+                forceOpen={bandForce}
               >
                 <div className="space-y-1.5">
                   {block.events.map((event) =>
@@ -434,6 +454,7 @@ export function StreamView({
                 durationMs={duration}
                 summary={`${block.events.length} mensagens`}
                 tone="blue"
+                forceOpen={bandForce}
               >
                 <div className="space-y-1.5">
                   {block.events.map((event, eventIndex) => (
@@ -466,6 +487,7 @@ export function StreamView({
                   event.text.trim().split("\n")[0] || "pensamento sem texto"
                 }
                 tone="purple"
+                forceOpen={bandForce}
               >
                 <pre className="whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-zinc-300">
                   {event.text || "Sem conteúdo de raciocínio."}
@@ -581,6 +603,15 @@ export function ResultCard({
   );
 }
 
+export type RunEventFilter = "all" | "tools" | "errors" | "conversation";
+
+const FAILED_TOOL_STATUS = new Set(["error", "failed", "failure", "timeout"]);
+
+function isFailedTool(event: TimelineEvent): boolean {
+  const status = event.tool?.status?.toLowerCase() ?? "";
+  return event.kind === "tool" && FAILED_TOOL_STATUS.has(status);
+}
+
 export function Band({
   title,
   icon,
@@ -591,6 +622,7 @@ export function Band({
   durationMs,
   summary,
   tone,
+  forceOpen,
   children,
 }: {
   title: string;
@@ -602,9 +634,16 @@ export function Band({
   durationMs: number;
   summary: string;
   tone: "purple" | "blue";
+  /** Header "colapsar/expandir tudo" signal. */
+  forceOpen?: { signal: number; open: boolean };
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const forceSignal = forceOpen?.signal ?? 0;
+  const forceValue = forceOpen?.open ?? false;
+  useEffect(() => {
+    if (forceSignal > 0) setOpen(forceValue);
+  }, [forceSignal, forceValue]);
   return (
     <Expandable
       open={open}

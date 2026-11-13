@@ -36,14 +36,4 @@ export const EFFORT_TONE: Record<string, "default" | "blue" | "purple"> = {
   high: "purple",
 };
 
-export const RUN_STATUS_LABEL: Record<string, string> = {
-  PENDING: "pendente",
-  RUNNING: "executando",
-  SUCCESS: "sucesso",
-  FAILED: "falhou",
-  CANCELLED: "cancelada",
-};
-
-export function runStatusLabel(status: string): string {
-  return RUN_STATUS_LABEL[status] ?? status.toLowerCase();
-}
+export { RUN_STATUS_LABEL, runStatusLabel } from "./status";

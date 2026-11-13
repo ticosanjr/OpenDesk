@@ -41,7 +41,7 @@ npm run build          # frontend
 npm run test:rust      # testes Rust
 npm run test:e2e       # Playwright Chromium (npx playwright install chromium)
 npm run test:features  # suíte funcional completa (sob demanda, fora do gate)
-npm run test:visual    # goldens 1024/1440/1920 (sob demanda)
+npm run test:visual    # goldens de 18 rotas + 5 modais (também no gate)
 npm run test:visual:update  # regravar goldens após mudança visual intencional
 npm run check:changed  # verificação proporcional (sem release)
 npm run gate:fast      # gate rápido: fmt Rust, TS, lint e Vitest
@@ -65,7 +65,7 @@ scripts/release.sh --skip-gate  # build já verificado externamente
 - `src-tauri/src/db/` — migrações, modelos e repositórios.
 - `src-tauri/src/events.rs` — contrato dos eventos em tempo real.
 - `src-tauri/src/paths.rs` — diretórios do app e layout de workspace.
-- `src/pages/` — as 9 views.
+- `src/pages/` — as 20 páginas roteadas.
 - `src/store/app-store.ts` — snapshot + WebSocket + ações.
 - `docs/` — plano, ADRs e histórico.
 - `PRODUCT.md` — verdade de produto e usuários.
@@ -128,8 +128,9 @@ aos agentes operar tarefas, execuções, rotinas, receitas, fila e artefatos; o
 pacote base `controle-opendesk` é instalado em novos workspaces e rotinas e
 receitas novas nascem desligadas (ADR 0044). A suíte funcional sob demanda vive
 em `npm run test:features`.
-Próxima frente: cobertura Rust ≥80%, builds Windows/macOS e contrato Google com
-conta dedicada.
+Próxima frente: cobertura Rust ≥80% (plano em `docs/coverage-plan.md`; hoje
+64,2% total/70,8% core), builds Windows/macOS (`docs/platform-builds.md`) e
+contrato Google com conta dedicada (`docs/google-contract.md`).
 
 Releases são locais (`releases/`, máximo 3 versões) e nunca via CI. O remoto é
 `origin` em https://github.com/ticosanjr/OpenDesk (privado); `scripts/release.sh`

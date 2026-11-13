@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { downloadBlob, downloadRun, exportFilename } from "./download";
+import { downloadBlob, downloadRun, downloadUrl, exportFilename } from "./download";
 
 vi.mock("./api", () => ({
   apiBlob: vi.fn(async () => new Blob(["conteúdo"], { type: "text/markdown" })),
@@ -43,6 +43,25 @@ describe("export downloads", () => {
       .spyOn(HTMLAnchorElement.prototype, "click")
       .mockImplementation(() => {});
     await downloadRun("run-1", "json");
+    expect(click).toHaveBeenCalled();
+    vi.runAllTimers();
+    vi.useRealTimers();
+  });
+
+  it("downloads any authenticated URL through the API blob", async () => {
+    const { apiBlob } = await import("./api");
+    vi.useFakeTimers();
+    vi.stubGlobal("URL", {
+      createObjectURL: () => "blob:file",
+      revokeObjectURL: () => {},
+    });
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+
+    await downloadUrl("/api/files/raw?path=doc.md", "doc.md");
+
+    expect(apiBlob).toHaveBeenCalledWith("/api/files/raw?path=doc.md");
     expect(click).toHaveBeenCalled();
     vi.runAllTimers();
     vi.useRealTimers();

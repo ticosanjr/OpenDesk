@@ -2,30 +2,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import {
-  AlertTriangle,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Columns3,
-  GripVertical,
-  Inbox,
   LayoutList,
   ListChecks,
-  Loader2,
   Plus,
   SlidersHorizontal,
   X,
-  XCircle,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CountPill } from "@/components/ui/count-pill";
 import { Modal } from "@/components/ui/modal";
 import { IconLabel } from "@/components/ui/icon-label";
-import { TaskCard } from "@/components/kanban/TaskCard";
-import { WorkflowStatusBadge } from "@/components/ui/workflow-status";
+import { KanbanBoard } from "@/components/kanban/KanbanBoard";
+import { KanbanListView } from "@/components/kanban/KanbanListView";
+import { KANBAN_COLUMNS } from "@/components/kanban/kanban-columns";
 import {
   CreateTaskModal,
   EditTaskModal,
@@ -53,7 +45,6 @@ import type {
   TaskInteraction,
 } from "@/lib/types";
 import type { TaskPermissionRequest } from "@/components/kanban/task-attention-modal";
-import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   applyRetention,
@@ -63,64 +54,6 @@ import {
   saveVisibility,
   type TaskVisibility,
 } from "@/lib/task-visibility";
-
-type WorkflowColumn = {
-  id: string;
-  label: string;
-  tone: "default" | "blue" | "green" | "yellow" | "red" | "purple";
-  icon: typeof Inbox;
-  states: string[];
-  dropStatus: string;
-  description: string;
-};
-
-const COLUMNS: WorkflowColumn[] = [
-  {
-    id: "QUEUE",
-    label: "Fila",
-    tone: "blue",
-    icon: Inbox,
-    states: ["READY", "QUEUED", "HELD"],
-    dropStatus: "TODO",
-    description: "Prontas, na fila ou em espera. Iniciam automaticamente.",
-  },
-  {
-    id: "RUNNING",
-    label: "Em execução",
-    tone: "purple",
-    icon: Loader2,
-    states: ["RUNNING"],
-    dropStatus: "IN_PROGRESS",
-    description: "Rodando de verdade, com job e run ativos.",
-  },
-  {
-    id: "ATTENTION",
-    label: "Atenção",
-    tone: "yellow",
-    icon: AlertTriangle,
-    states: ["NEEDS_APPROVAL", "WAITING_INPUT", "BLOCKED"],
-    dropStatus: "BLOCKED",
-    description: "Precisa de você: aprovação, pergunta, permissão ou falha.",
-  },
-  {
-    id: "DONE",
-    label: "Concluído",
-    tone: "green",
-    icon: CheckCircle2,
-    states: ["DONE"],
-    dropStatus: "DONE",
-    description: "Execução concluída.",
-  },
-  {
-    id: "CANCELLED",
-    label: "Cancelado",
-    tone: "default",
-    icon: XCircle,
-    states: ["CANCELLED"],
-    dropStatus: "CANCELLED",
-    description: "Execução interrompida.",
-  },
-];
 
 export function KanbanPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -167,28 +100,12 @@ export function KanbanPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [blockingTask, setBlockingTask] = useState<Task | null>(null);
 
-  const updateBoardScroll = useCallback(() => {
-    const element = boardRef.current;
-    if (!element) {
-      setBoardScroll({ left: false, right: false });
-      return;
-    }
-    setBoardScroll({
-      left: element.scrollLeft > 4,
-      right:
-        element.scrollLeft + element.clientWidth < element.scrollWidth - 4,
-    });
-  }, []);
   const [blockReason, setBlockReason] = useState("");
   const [forkSource, setForkSource] = useState<Task | null>(null);
   const [visibility, setVisibility] = useState<TaskVisibility>(DEFAULT_VISIBILITY);
   const [visibilityOpen, setVisibilityOpen] = useState(false);
-  const draggedRef = useRef<string | null>(null);
-  const boardRef = useRef<HTMLDivElement | null>(null);
   const filtersRef = useRef<HTMLDivElement | null>(null);
   const visibilityRef = useRef<HTMLDivElement | null>(null);
-  const [boardScroll, setBoardScroll] = useState({ left: false, right: false });
-  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
@@ -277,17 +194,6 @@ export function KanbanPage() {
     [tasks],
   );
 
-  useEffect(() => {
-    if (view !== "board") return;
-    updateBoardScroll();
-    const element = boardRef.current;
-    element?.addEventListener("scroll", updateBoardScroll, { passive: true });
-    window.addEventListener("resize", updateBoardScroll);
-    return () => {
-      element?.removeEventListener("scroll", updateBoardScroll);
-      window.removeEventListener("resize", updateBoardScroll);
-    };
-  }, [view, filteredTasks.length, updateBoardScroll]);
 
   useDismissable(filtersRef, filtersOpen, () => setFiltersOpen(false));
   useDismissable(visibilityRef, visibilityOpen, () => setVisibilityOpen(false));
@@ -937,7 +843,7 @@ export function KanbanPage() {
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-500/25 bg-blue-500/[0.06] px-3 py-2">
           <Badge variant="blue">{selected.size} selecionada(s)</Badge>
           <span className="text-[13px] text-zinc-400">mover para:</span>
-          {COLUMNS.map((column) => (
+          {KANBAN_COLUMNS.map((column) => (
             <Button
               key={column.id}
               variant="outline"
@@ -965,235 +871,43 @@ export function KanbanPage() {
       ) : null}
 
       {view === "board" ? (
-      <div className="relative">
-      <div
-        ref={boardRef}
-        role="region"
-        aria-label="Quadro Kanban"
-        tabIndex={0}
-        className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
-        onDragOver={(event) => {
-          event.preventDefault();
-          const element = boardRef.current;
-          if (!element) return;
-          const rect = element.getBoundingClientRect();
-          if (event.clientX < rect.left + 72) element.scrollLeft -= 18;
-          else if (event.clientX > rect.right - 72) element.scrollLeft += 18;
-        }}
-      >
-        {COLUMNS.map((column) => {
-          const columnTasks = filteredTasks.filter((task) => {
-            const pending = attentionByTask.get(task.id);
-            const effective =
-              pending &&
-              (pending.interactions.length > 0 || pending.permissions.length > 0)
-                ? "WAITING_INPUT"
-                : workflowMeta(task).state;
-            return column.states.includes(effective);
-          });
-          return (
-            <Card
-              key={column.id}
-              data-column={column.id}
-              className={cn(
-                "flex min-h-[440px] w-[280px] shrink-0 flex-col transition-colors xl:w-auto xl:min-w-[220px] xl:flex-1",
-                dragOverColumn === column.id &&
-                  "border-blue-500/50 bg-blue-500/[0.04]",
-              )}
-              onDragEnter={() => setDragOverColumn(column.id)}
-              onDragLeave={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                  setDragOverColumn((current) =>
-                    current === column.id ? null : current,
-                  );
-                }
-              }}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                const taskId =
-                  event.dataTransfer.getData("text/task-id") ||
-                  draggedRef.current;
-                draggedRef.current = null;
-                setDragOverColumn(null);
-                const task = tasks.find((item) => item.id === taskId);
-                if (!task) return;
-                if (column.dropStatus === "BLOCKED") {
-                  setBlockReason("");
-                  setBlockingTask(task);
-                } else {
-                  void transitionTask(task, column.dropStatus);
-                }
-              }}
-            >
-              <CardHeader className="px-3.5 py-3">
-                <CardTitle
-                  className="flex items-center gap-2 text-[13.5px]"
-                  title={column.description}
-                >
-                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" />
-                  {column.label}
-                </CardTitle>
-                <CountPill value={columnTasks.length} tone={column.tone} />
-              </CardHeader>
-              <CardContent className="flex-1 space-y-2 p-2.5">
-                {columnTasks.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-zinc-800/80 bg-zinc-950/30 px-3 py-10 text-center">
-                    <GripVertical size={16} className="mx-auto text-zinc-600" />
-                    <p className="mt-2 text-[13.5px] font-medium text-zinc-400">
-                      Nenhuma tarefa nesta etapa
-                    </p>
-                    <p className="mt-0.5 text-[13px] text-zinc-500">
-                      Arraste um card para mover.
-                    </p>
-                  </div>
-                ) : (
-                  columnTasks.map((task) => {
-                    return (
-                      <TaskCard
-                        key={task.id}
-                        task={task}
-                        pinned={pinned[task.id] ?? 0}
-                        daemonOnline={Boolean(daemon?.online)}
-                        onOpen={() => setSelectedTask(task)}
-                        onDispatch={() => void dispatch(task)}
-                        onResume={() => void holdTask(task, false)}
-                        onCancel={() => void transitionTask(task, "CANCELLED")}
-                        onApprove={() => void approve(task)}
-                        onLogs={() => setLogTask(task)}
-                        interactions={attentionByTask.get(task.id)?.interactions}
-                        permissions={attentionByTask.get(task.id)?.permissions}
-                        onAttentionResolved={() => void load()}
-                        onDragStart={(event) => {
-                          draggedRef.current = task.id;
-                          event.dataTransfer.setData("text/task-id", task.id);
-                          event.dataTransfer.effectAllowed = "move";
-                        }}
-                        onDragEnd={() => {
-                          // Keep the ref until the drop handler runs.
-                        }}
-                      />
-                    );
-                  })
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-      {boardScroll.left ? (
-        <button
-          type="button"
-          aria-label="Rolar o quadro para a esquerda"
-          title="Rolar para a esquerda"
-          onClick={() =>
-            boardRef.current?.scrollBy({ left: -320, behavior: "smooth" })
-          }
-          className="absolute left-1 top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/95 text-zinc-300 shadow-lg md:flex"
-        >
-          <ChevronLeft size={17} />
-        </button>
-      ) : null}
-      {boardScroll.right ? (
-        <button
-          type="button"
-          aria-label="Rolar o quadro para a direita"
-          title="Rolar para a direita"
-          onClick={() =>
-            boardRef.current?.scrollBy({ left: 320, behavior: "smooth" })
-          }
-          className="absolute right-1 top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/95 text-zinc-300 shadow-lg md:flex"
-        >
-          <ChevronRight size={17} />
-        </button>
-      ) : null}
-      </div>
+        <KanbanBoard
+          tasks={filteredTasks}
+          attentionByTask={attentionByTask}
+          pinned={pinned}
+          daemonOnline={Boolean(daemon?.online)}
+          onOpenTask={setSelectedTask}
+          onDispatch={(task) => void dispatch(task)}
+          onResume={(task) => void holdTask(task, false)}
+          onCancel={(task) => void transitionTask(task, "CANCELLED")}
+          onApprove={(task) => void approve(task)}
+          onLogs={setLogTask}
+          onTransition={(task, status) => void transitionTask(task, status)}
+          onBlock={(task) => {
+            setBlockReason("");
+            setBlockingTask(task);
+          }}
+          onAttentionResolved={() => void load()}
+        />
       ) : view === "list" ? (
-        <Card>
-          <CardContent className="p-0">
-            <div className="scroll-area max-h-[calc(100dvh-18rem)]">
-              <table className="w-full text-left">
-                <thead className="sticky top-0 z-10 border-b border-zinc-800/70 bg-zinc-950/95 text-[12px] uppercase tracking-wide text-zinc-500">
-                  <tr>
-                    <th className="w-8 px-3 py-2">
-                      <input
-                        type="checkbox"
-                        checked={filteredTasks.length > 0 && selected.size === filteredTasks.length}
-                        onChange={(event) =>
-                          setSelected(
-                            event.target.checked
-                              ? new Set(filteredTasks.map((task) => task.id))
-                              : new Set(),
-                          )
-                        }
-                        className="accent-blue-500"
-                      />
-                    </th>
-                    <th className="px-3 py-2">Tarefa</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Agente</th>
-                    <th className="px-3 py-2">Último run</th>
-                    <th className="px-3 py-2">Prioridade</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredTasks.map((task) => (
-                    <tr
-                      key={task.id}
-                      className="cursor-pointer border-b border-zinc-800/50 text-[13.5px] hover:bg-zinc-900/40"
-                      onClick={() => setSelectedTask(task)}
-                    >
-                      <td className="px-3 py-2" onClick={(event) => event.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={selected.has(task.id)}
-                          onChange={(event) => {
-                            setSelected((current) => {
-                              const next = new Set(current);
-                              if (event.target.checked) next.add(task.id);
-                              else next.delete(task.id);
-                              return next;
-                            });
-                          }}
-                          className="accent-blue-500"
-                        />
-                      </td>
-                      <td className="max-w-[360px] truncate px-3 py-2 font-medium text-zinc-200">
-                        {task.title}
-                      </td>
-                      <td className="px-3 py-2">
-                        <WorkflowStatusBadge task={task} />
-                      </td>
-                      <td className="px-3 py-2 font-mono text-[13px] text-zinc-400">
-                        {task.assigned_agent ? `@${task.assigned_agent}` : "router"}
-                      </td>
-                      <td className="px-3 py-2">
-                        {task.last_run_status ? (
-                          <span
-                            className={cn(
-                              "font-mono text-[13px]",
-                              task.last_run_status === "SUCCESS"
-                                ? "text-emerald-300"
-                                : task.last_run_status === "FAILED"
-                                  ? "text-red-300"
-                                  : "text-zinc-400",
-                            )}
-                          >
-                            {task.last_run_status} · {relativeTime(task.last_run_at)}
-                          </span>
-                        ) : (
-                          <span className="text-[13px] text-zinc-500">sem execução</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-zinc-400">
-                        {PRIORITY_LABEL[task.priority] ?? task.priority}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        <KanbanListView
+          tasks={filteredTasks}
+          selected={selected}
+          onSelectAll={(checked) =>
+            setSelected(
+              checked ? new Set(filteredTasks.map((task) => task.id)) : new Set(),
+            )
+          }
+          onToggleTask={(id, checked) =>
+            setSelected((current) => {
+              const next = new Set(current);
+              if (checked) next.add(id);
+              else next.delete(id);
+              return next;
+            })
+          }
+          onOpenTask={setSelectedTask}
+        />
       ) : (
         <QueueController
           queue={queue}

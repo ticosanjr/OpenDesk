@@ -159,6 +159,51 @@ pub struct FileEntry {
     pub modified: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ArchiveEntry {
+    pub name: String,
+    pub size: u64,
+    pub compressed: u64,
+    pub is_dir: bool,
+}
+
+const MAX_ARCHIVE_ENTRIES: usize = 400;
+
+/// List the entries of a ZIP archive without extracting anything. Entries are
+/// capped so a huge package never stalls the viewer.
+pub fn archive_entries(path: &Path) -> AppResult<Vec<ArchiveEntry>> {
+    let file = std::fs::File::open(path)?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|error| AppError::BadRequest(format!("não é um arquivo ZIP: {error}")))?;
+    let mut entries = Vec::new();
+    for index in 0..archive.len() {
+        if entries.len() >= MAX_ARCHIVE_ENTRIES {
+            break;
+        }
+        let entry = match archive.by_index(index) {
+            Ok(entry) => entry,
+            Err(error) => {
+                // A single broken member must not hide the rest of the archive.
+                tracing::warn!(index, error = %error, "skipping unreadable ZIP entry");
+                continue;
+            }
+        };
+        entries.push(ArchiveEntry {
+            name: String::from_utf8_lossy(entry.name_raw()).to_string(),
+            size: entry.size(),
+            compressed: entry.compressed_size(),
+            is_dir: entry.is_dir(),
+        });
+    }
+    entries.sort_by(|left, right| {
+        right
+            .is_dir
+            .cmp(&left.is_dir)
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    Ok(entries)
+}
+
 #[derive(Debug, Serialize)]
 pub struct FileContent {
     pub path: String,
@@ -297,6 +342,19 @@ pub async fn content(
         mime: crate::media::mime_for_path(&path).to_string(),
         size: metadata.len(),
     }))
+}
+
+pub async fn archive(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<FileQuery>,
+) -> AppResult<Json<Vec<ArchiveEntry>>> {
+    let root = workspace_root(&state, query.workspace_id.as_deref()).await?;
+    let path = resolve_path(&root, query.path.as_deref())?;
+    let metadata = std::fs::metadata(&path)?;
+    if !metadata.is_file() {
+        return Err(AppError::BadRequest("path is not a file".into()));
+    }
+    Ok(Json(archive_entries(&path)?))
 }
 
 pub async fn raw(
@@ -483,6 +541,35 @@ mod tests {
         assert!(should_skip("node_modules"));
         assert!(should_skip("target"));
         assert!(!should_skip("input"));
+    }
+
+    #[test]
+    fn lists_zip_entries_without_extracting() {
+        use std::io::Write;
+        let dir = tempfile::TempDir::new().expect("temp");
+        let path = dir.path().join("pacote.zip");
+        let file = std::fs::File::create(&path).expect("zip");
+        let mut zip = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default();
+        zip.add_directory("docs/", options).expect("dir");
+        zip.start_file("docs/brief.md", options).expect("file");
+        zip.write_all(b"# Brief").expect("write");
+        zip.finish().expect("finish");
+
+        let entries = archive_entries(&path).expect("entries");
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].name, "docs/");
+        assert!(entries[0].is_dir);
+        assert_eq!(entries[1].name, "docs/brief.md");
+        assert_eq!(entries[1].size, 7);
+    }
+
+    #[test]
+    fn rejects_non_zip_files() {
+        let dir = tempfile::TempDir::new().expect("temp");
+        let path = dir.path().join("notes.txt");
+        std::fs::write(&path, b"plain").expect("file");
+        assert!(archive_entries(&path).is_err());
     }
 
     #[test]

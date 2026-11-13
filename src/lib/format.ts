@@ -47,6 +47,26 @@ export function formatDuration(ms: number | null | undefined): string {
   return `${hours}h ${String(minutes % 60).padStart(2, "0")}m`;
 }
 
+/** "Hoje", "Ontem" or the local date, used to group activity feeds. */
+export function dayLabel(
+  value: string | null | undefined,
+  now: Date = new Date(),
+): string {
+  if (!value) return "Sem data";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Sem data";
+  const startOf = (item: Date) =>
+    new Date(item.getFullYear(), item.getMonth(), item.getDate()).getTime();
+  const diff = Math.round((startOf(now) - startOf(date)) / 86_400_000);
+  if (diff === 0) return "Hoje";
+  if (diff === 1) return "Ontem";
+  return date.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: date.getFullYear() === now.getFullYear() ? undefined : "numeric",
+  });
+}
+
 export function formatClock(value: string | null | undefined): string {
   if (!value) return "—";
   try {

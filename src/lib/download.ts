@@ -24,3 +24,8 @@ export async function downloadRun(runId: string, format: ExportFormat): Promise<
   );
   downloadBlob(blob, exportFilename(runId, format));
 }
+
+/** Fetch any local API file with auth and save it through the browser. */
+export async function downloadUrl(url: string, filename: string): Promise<void> {
+  downloadBlob(await apiBlob(url), filename);
+}

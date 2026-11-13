@@ -1,24 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Boxes,
   CheckCircle2,
   FolderPlus,
   RefreshCw,
-  Search,
   Sparkles,
-  Star,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
 import { IconLabel } from "@/components/ui/icon-label";
-import { LoadingState } from "@/components/ui/loading-state";
 import { ExternalResources } from "@/components/packs/ExternalResources";
 import { RecommendedSkills } from "@/components/packs/RecommendedSkills";
 import { StudioInstallModal } from "@/components/studio/StudioInstallModal";
 import { PackInstallModal } from "@/components/packs/PackInstallModal";
+import { PackCatalog } from "@/components/packs/PackCatalog";
+import { PacksToolbar } from "@/components/packs/PacksToolbar";
+import { WorkspaceTemplateCard } from "@/components/packs/WorkspaceTemplateCard";
 import { WorkspaceTemplateModal } from "@/components/packs/WorkspaceTemplateModal";
 import type {
   Category,
@@ -36,7 +34,6 @@ import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
-import { cn } from "@/lib/utils";
 
 const ONBOARDING_KEY = "opendesk.starter-packs.onboarding-dismissed";
 
@@ -77,6 +74,9 @@ export function PacksPage() {
   const [templateColor, setTemplateColor] = useState("#3b82f6");
   const [creatingTemplate, setCreatingTemplate] = useState(false);
   const [templateErrors, setTemplateErrors] = useState<string[]>([]);
+  const [managing, setManaging] = useState(false);
+  const [selectedPacks, setSelectedPacks] = useState<Set<string>>(new Set());
+  const [updatingAll, setUpdatingAll] = useState(false);
   const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
     try {
       return localStorage.getItem(ONBOARDING_KEY) === "1";
@@ -111,6 +111,13 @@ export function PacksPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    // Selections are workspace-scoped: switching the active workspace must
+    // never carry pack ids into another workspace's removal request.
+    setManaging(false);
+    setSelectedPacks(new Set());
+  }, [activeWorkspaceId]);
 
   const installedCount = packs.filter((pack) => pack.installed).length;
 
@@ -349,6 +356,97 @@ export function PacksPage() {
     }
   }
 
+  async function updateAll() {
+    if (!activeWorkspaceId || updatingAll) return;
+    const targets = packs.filter((pack) => pack.installed && pack.update_available);
+    if (targets.length === 0) return;
+    setUpdatingAll(true);
+    let written = 0;
+    let skipped = 0;
+    let failed = 0;
+    let lastError: string | null = null;
+    for (const pack of targets) {
+      try {
+        const result = await apiPost<InstallResult>(
+          `/api/starter-packs/${pack.id}/install`,
+          {
+            workspace_id: activeWorkspaceId,
+            overwrite: [],
+            skip_conflicts: true,
+          },
+        );
+        written += result.written;
+        skipped += result.skipped_conflicts;
+      } catch (cause) {
+        failed += 1;
+        lastError = cause instanceof Error ? cause.message : String(cause);
+      }
+    }
+    toast({
+      tone: failed ? "warning" : "success",
+      title: failed ? "Atualização parcial" : "Pacotes atualizados",
+      description: `${targets.length - failed}/${targets.length} pacote(s) · ${written} arquivo(s)${
+        skipped ? ` · ${skipped} conflito(s) preservado(s)` : ""
+      }${lastError ? ` · ${lastError}` : ""}.`,
+    });
+    setUpdatingAll(false);
+    await load();
+    await refresh();
+  }
+
+  async function removeSelected() {
+    if (!activeWorkspaceId || selectedPacks.size === 0) return;
+    const names = packs
+      .filter((pack) => selectedPacks.has(pack.id))
+      .map((pack) => pack.name);
+    if (names.length === 0) {
+      toast({
+        tone: "warning",
+        title: "Nenhum pacote selecionado neste workspace",
+        description: "A seleção foi limpa para evitar remover arquivos de outro workspace.",
+      });
+      setSelectedPacks(new Set());
+      setManaging(false);
+      return;
+    }
+    const confirmed = await confirmAction({
+      title: `Remover ${names.length} pacote(s)?`,
+      description: `${names.slice(0, 4).join(", ")}${
+        names.length > 4 ? ` e mais ${names.length - 4}` : ""
+      }. Arquivos que você modificou e rotinas já executadas são preservados.`,
+      confirmLabel: "Remover pacotes",
+      tone: "destructive",
+    });
+    if (!confirmed) return;
+    let removed = 0;
+    let kept = 0;
+    let failed = 0;
+    let lastError: string | null = null;
+    for (const id of selectedPacks) {
+      try {
+        const result = await apiDelete<{ removed: number; kept: string[] }>(
+          `/api/starter-packs/${id}?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+        );
+        removed += result.removed;
+        kept += result.kept.length;
+      } catch (cause) {
+        failed += 1;
+        lastError = cause instanceof Error ? cause.message : String(cause);
+      }
+    }
+    toast({
+      tone: failed ? "warning" : "success",
+      title: failed ? "Remoção parcial" : "Pacotes removidos",
+      description: `${removed} arquivo(s) removido(s)${
+        kept ? ` · ${kept} preservado(s)` : ""
+      }${failed ? ` · ${failed} falha(s)` : ""}${lastError ? ` · ${lastError}` : ""}.`,
+    });
+    setSelectedPacks(new Set());
+    setManaging(false);
+    await load();
+    await refresh();
+  }
+
   function installRecommended(skill: RecommendedSkill) {
     if (!activeWorkspaceId) {
       toast({
@@ -417,7 +515,7 @@ export function PacksPage() {
           </CardHeader>
           <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {templates.map((template) => (
-              <TemplateCard
+              <WorkspaceTemplateCard
                 key={template.id}
                 template={template}
                 action="criar workspace"
@@ -428,47 +526,16 @@ export function PacksPage() {
         </Card>
       ) : null}
 
-      <div className="flex flex-col gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/20 p-2">
-        <div className="flex flex-wrap items-center gap-1">
-          {[
-            { id: "all", label: "Visão geral" },
-            { id: "workspaces", label: `Workspaces (${templates.length})` },
-            { id: "packs", label: `Pacotes (${packs.length})` },
-            { id: "resources", label: "Capacidades externas" },
-            { id: "recommended", label: "Recomendados" },
-          ].map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              aria-pressed={tab === item.id}
-              onClick={() => setTab(item.id as typeof tab)}
-              className={
-                tab === item.id
-                  ? "inline-flex h-8 items-center rounded-lg bg-zinc-800 px-3 text-[13.5px] font-medium text-zinc-100"
-                  : "inline-flex h-8 items-center rounded-lg px-3 text-[13.5px] font-medium text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-zinc-200"
-              }
-            >
-              {item.label}
-            </button>
-          ))}
-          <div className="ml-auto flex h-9 min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5 focus-within:border-zinc-600 sm:max-w-md">
-            <Search size={13} className="shrink-0 text-zinc-500" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar nos workspaces, pacotes e capacidades externas…"
-              className="h-full min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-zinc-500"
-              aria-label="Buscar workspaces, pacotes e capacidades externas"
-            />
-          </div>
-        </div>
-        {searching ? (
-          <p className="text-[11.5px] text-zinc-500">
-            Resultados em {filteredTemplates.length} workspace(s), {filtered.length} pacote(s),
-            capacidades externas e recomendações.
-          </p>
-        ) : null}
-      </div>
+      <PacksToolbar
+        tab={tab}
+        query={query}
+        counts={{ templates: templates.length, packs: packs.length }}
+        searching={searching}
+        filteredTemplates={filteredTemplates.length}
+        filteredPacks={filtered.length}
+        onTabChange={setTab}
+        onQueryChange={setQuery}
+      />
 
       {((searching && filteredTemplates.length > 0) ||
       (!searching &&
@@ -489,7 +556,7 @@ export function PacksPage() {
           </CardHeader>
           <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {filteredTemplates.map((template) => (
-              <TemplateCard
+              <WorkspaceTemplateCard
                 key={template.id}
                 template={template}
                 onClick={() => openTemplate(template)}
@@ -521,181 +588,49 @@ export function PacksPage() {
 
       {((!searching && (tab === "all" || tab === "packs")) ||
       (searching && filtered.length > 0)) ? (
-        <>
-      <div className="flex flex-wrap items-end justify-between gap-3 pt-1">
-        <div>
-          <h2 className="text-[14px] font-semibold text-zinc-100">Adicionar capacidades</h2>
-          <p className="mt-0.5 text-[12px] text-zinc-500">
-            Instale pacotes no workspace ativo ou use um workspace pronto como base.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/20 px-3 py-2">
-        <select
-          value={category}
-          onChange={(event) => setCategory(event.target.value)}
-          className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[12px] text-zinc-300"
-          aria-label="Filtrar por categoria"
-        >
-          <option value="all">todas as categorias</option>
-          {categories.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-        <div className="flex rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5">
-          {([
-            ["all", "Todos"],
-            ["installed", `Instalados (${installedCount})`],
-            ["available", "Disponíveis"],
-            ["favorites", "Favoritos"],
-          ] as const).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={installFilter === value}
-              onClick={() => setInstallFilter(value)}
-              className={cn(
-                "inline-flex h-8 items-center rounded-md px-2.5 text-[13.5px] transition-colors",
-                installFilter === value
-                  ? "bg-zinc-800 text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-200",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <span className="text-[12px] text-zinc-500">
-          {filtered.length} de {packs.length}
-        </span>
-      </div>
-
-      {loading ? (
-        <LoadingState label="Carregando pacotes…" rows={6} />
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={Boxes}
-          title="Nenhum pacote encontrado"
-          description="Ajuste o filtro de categoria ou limpe a busca."
-          compact
+        <PackCatalog
+          packs={packs}
+          filtered={filtered}
+          categories={categories}
+          category={category}
+          installFilter={installFilter}
+          installedCount={installedCount}
+          loading={loading}
+          isFavorite={(id) => isFavorite("pack", id)}
+          onCategoryChange={setCategory}
+          onInstallFilterChange={setInstallFilter}
+          onOpenPack={(pack) => void openPack(pack)}
+          onToggleFavorite={(id) => toggleFavorite("pack", id)}
+          managing={managing}
+          selectedPacks={selectedPacks}
+          updatableCount={
+            packs.filter((pack) => pack.installed && pack.update_available).length
+          }
+          updating={updatingAll}
+          onToggleManage={() => {
+            setManaging((current) => !current);
+            setSelectedPacks(new Set());
+          }}
+          onTogglePack={(id) =>
+            setSelectedPacks((current) => {
+              const next = new Set(current);
+              if (next.has(id)) next.delete(id);
+              else next.add(id);
+              return next;
+            })
+          }
+          onSelectInstalled={() =>
+            setSelectedPacks(
+              new Set(
+                packs.filter((pack) => pack.installed).map((pack) => pack.id),
+              ),
+            )
+          }
+          onClearSelection={() => setSelectedPacks(new Set())}
+          onUpdateAll={() => void updateAll()}
+          onRemoveSelected={() => void removeSelected()}
+          onClearFilters={() => setInstallFilter("all")}
         />
-      ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((pack) => (
-            <article
-              key={pack.id}
-              className={cn(
-                "relative rounded-xl border bg-zinc-950/40 transition-colors hover:border-zinc-600",
-                pack.installed ? "border-emerald-500/30" : "border-zinc-800/70",
-              )}
-            >
-              <button
-                type="button"
-                onClick={() => void openPack(pack)}
-                className="block w-full rounded-xl p-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
-              >
-              <div className="flex items-start gap-2 pr-7">
-                <span
-                  className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ background: pack.color }}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="truncate text-[13.5px] font-medium text-zinc-100">
-                      {pack.name}
-                    </span>
-                    {pack.recommended ? <Badge variant="blue">recomendado</Badge> : null}
-                    {pack.installed ? (
-                      <Badge
-                        variant={
-                          pack.health.status === "partial"
-                            ? "red"
-                            : pack.update_available
-                              ? "yellow"
-                              : pack.health.status === "modified"
-                                ? "purple"
-                                : "green"
-                        }
-                        title="Este pacote está presente no workspace ativo"
-                      >
-                        <CheckCircle2 size={9} />
-                        {pack.health.status === "partial"
-                          ? "parcial"
-                          : pack.update_available
-                            ? "atualização"
-                            : pack.health.status === "modified"
-                              ? "personalizado"
-                              : "instalado"}
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-[12px] leading-snug text-zinc-500">
-                    {pack.description}
-                  </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-1 text-[11.5px] text-zinc-500">
-                    <span>{pack.counts.agents} agentes</span>
-                    <span>·</span>
-                    <span>{pack.counts.recipes} receitas</span>
-                    <span>·</span>
-                    <span>{pack.counts.skills} skills</span>
-                    {pack.counts.routines > 0 ? (
-                      <>
-                        <span>·</span>
-                        <span>{pack.counts.routines} rotinas</span>
-                      </>
-                    ) : null}
-                  </div>
-                  {pack.requires.tools.length || pack.requires.integrations.length ? (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {pack.requires.tools.map((tool) => (
-                        <Badge key={tool} variant="yellow">
-                          {tool}
-                        </Badge>
-                      ))}
-                      {pack.requires.integrations.map((integration) => (
-                        <Badge key={integration} variant="purple">
-                          {integration}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-              </button>
-              <button
-                type="button"
-                aria-label={
-                  isFavorite("pack", pack.id)
-                    ? `Remover ${pack.name} dos favoritos`
-                    : `Favoritar ${pack.name}`
-                }
-                title={
-                  isFavorite("pack", pack.id)
-                    ? "Remover dos favoritos"
-                    : "Favoritar"
-                }
-                onClick={() => toggleFavorite("pack", pack.id)}
-                className={cn(
-                  "absolute right-2 top-2 rounded-md p-1.5 transition-colors",
-                  isFavorite("pack", pack.id)
-                    ? "text-amber-300 hover:bg-amber-500/10"
-                    : "text-zinc-500 hover:bg-zinc-800/60 hover:text-zinc-200",
-                )}
-              >
-                <Star
-                  size={15}
-                  fill={isFavorite("pack", pack.id) ? "currentColor" : "none"}
-                />
-              </button>
-            </article>
-          ))}
-        </div>
-      )}
-
-        </>
       ) : null}
 
       <PackInstallModal
@@ -775,48 +710,9 @@ export function PacksPage() {
         <CheckCircle2 size={11} />
         O pacote Controle OpenDesk é instalado automaticamente em novos workspaces;
         os demais são opcionais. Remover um pacote não apaga arquivos que você
-        modificou.
+        modificou. Recomendações como o Impeccable seguem externas por design: o
+        instalador e o engine são do próprio projeto.
       </p>
     </PageBody>
-  );
-}
-
-
-function TemplateCard({
-  template,
-  action,
-  onClick,
-}: {
-  template: WorkspaceTemplate;
-  action?: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3 text-left transition-colors hover:border-zinc-600"
-    >
-      <div className="flex items-center gap-2">
-        <span
-          className="h-2.5 w-2.5 rounded-full"
-          style={{ background: template.color }}
-        />
-        <span className="text-[13.5px] font-medium text-zinc-200">
-          {template.name}
-        </span>
-      </div>
-      <p className="mt-1 text-[12px] leading-snug text-zinc-500">
-        {template.description}
-      </p>
-      <p className="mt-2 text-[12px] text-zinc-500">
-        {template.packs.length} pacotes · {template.folders.length} pastas
-        {action ? ` · ${action}` : ""}
-      </p>
-      <p className="mt-1 truncate font-mono text-[11px] text-zinc-500">
-        {template.packs.slice(0, 4).join(" · ")}
-        {template.packs.length > 4 ? ` +${template.packs.length - 4}` : ""}
-      </p>
-    </button>
   );
 }

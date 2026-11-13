@@ -6,6 +6,7 @@ import {
   formatNumber,
   formatPercent,
   formatUsd,
+  dayLabel,
   relativeTime,
   shortPath,
 } from "./format";
@@ -76,5 +77,20 @@ describe("formatClock and formatDateTime", () => {
       "2026-11-08T12:34:56Z",
     );
     dateTime.mockRestore();
+  });
+});
+
+describe("dayLabel", () => {
+  const now = new Date("2026-11-13T12:00:00");
+  it("labels today, yesterday and older days", () => {
+    expect(dayLabel("2026-11-13T08:00:00", now)).toBe("Hoje");
+    expect(dayLabel("2026-11-12T23:59:00", now)).toBe("Ontem");
+    expect(dayLabel("2026-10-02T10:00:00", now)).toContain("02");
+    expect(dayLabel("2025-10-02T10:00:00", now)).toContain("2025");
+  });
+
+  it("handles missing and invalid values", () => {
+    expect(dayLabel(null, now)).toBe("Sem data");
+    expect(dayLabel("nope", now)).toBe("Sem data");
   });
 });

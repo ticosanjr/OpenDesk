@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Download,
   ExternalLink,
+  FileArchive,
   FileText,
   Image as ImageIcon,
+  Loader2,
   Music,
   Video,
 } from "lucide-react";
@@ -13,7 +15,16 @@ import { getEndpoint } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/format";
+import { downloadUrl } from "@/lib/download";
+import { toast } from "@/store/toast-store";
 import { cn } from "@/lib/utils";
+
+export interface ArchiveEntry {
+  name: string;
+  size: number;
+  compressed: number;
+  is_dir: boolean;
+}
 
 type Kind =
   | "markdown"
@@ -111,6 +122,9 @@ export function FileViewer({
   size,
   rawUrl,
   onOpenExternal,
+  archive = null,
+  archiveLoading = false,
+  archiveError = null,
   embedded = false,
 }: {
   name: string;
@@ -122,6 +136,10 @@ export function FileViewer({
   size?: number;
   rawUrl?: string;
   onOpenExternal?: () => void;
+  /** Entries of a ZIP archive, listed without extracting it. */
+  archive?: ArchiveEntry[] | null;
+  archiveLoading?: boolean;
+  archiveError?: string | null;
   /** Parent already renders the file path, size and actions. */
   embedded?: boolean;
 }) {
@@ -130,7 +148,27 @@ export function FileViewer({
   const blobUrl = useAuthBlob(needsBlob ? rawUrl : null);
   const [tab, setTab] = useState<"preview" | "source">("preview");
   const [zoom, setZoom] = useState(100);
+  const [downloading, setDownloading] = useState(false);
   const textSource = kind === "text" || kind === "markdown" || kind === "html";
+  const isArchive =
+    kind === "binary" &&
+    (/\.zip$/i.test(name) || mime === "application/zip" || mime === "application/x-zip-compressed");
+
+  async function saveFile() {
+    if (!rawUrl) return;
+    setDownloading(true);
+    try {
+      await downloadUrl(rawUrl, name);
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível baixar",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   const showToolbar =
     !embedded || truncated || kind === "html" || textSource || Boolean(blobUrl);
@@ -187,6 +225,22 @@ export function FileViewer({
             <Download size={11} />
             baixar
           </a>
+        ) : rawUrl ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7"
+            onClick={() => void saveFile()}
+            disabled={downloading}
+            title={`Baixar ${name}`}
+          >
+            {downloading ? (
+              <Loader2 size={11} className="animate-spin" />
+            ) : (
+              <Download size={11} />
+            )}
+            baixar
+          </Button>
         ) : null}
       </div>
       ) : null}
@@ -247,12 +301,89 @@ export function FileViewer({
             <p className="text-[13px] text-zinc-500">Carregando áudio…</p>
           )
         ) : binary ? (
-          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-            <Download size={24} className="text-zinc-500" />
-            <p className="text-[13.5px] text-zinc-400">
-              Este formato não tem prévia interna. Baixe ou abra externamente.
-            </p>
-          </div>
+          isArchive ? (
+            <div className="space-y-2">
+              <p className="flex items-center gap-2 text-[13px] text-zinc-400">
+                <FileArchive size={14} className="text-amber-300" />
+                Conteúdo do ZIP
+                {archive ? (
+                  <Badge variant="default">{archive.length} entradas</Badge>
+                ) : null}
+              </p>
+              {archiveLoading ? (
+                <p className="flex items-center gap-2 py-6 text-[13px] text-zinc-500">
+                  <Loader2 size={13} className="animate-spin" />
+                  Lendo o arquivo…
+                </p>
+              ) : archiveError ? (
+                <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[13px] text-amber-200">
+                  Não foi possível listar o ZIP: {archiveError}
+                </p>
+              ) : archive && archive.length > 0 ? (
+                <div className="scroll-area max-h-[420px] overflow-auto rounded-lg border border-zinc-800/70">
+                  <table className="w-full text-left text-[13px]">
+                    <thead className="sticky top-0 bg-zinc-950/95 text-[11.5px] uppercase tracking-wide text-zinc-500">
+                      <tr>
+                        <th className="px-3 py-2">Entrada</th>
+                        <th className="px-3 py-2 text-right">Tamanho</th>
+                        <th className="px-3 py-2 text-right">Comprimido</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {archive.map((entry, index) => (
+                        <tr
+                          key={`${index}-${entry.name}`}
+                          className="border-t border-zinc-800/60 font-mono"
+                        >
+                          <td className="max-w-[520px] truncate px-3 py-1.5 text-zinc-300">
+                            {entry.name}
+                          </td>
+                          <td className="px-3 py-1.5 text-right text-zinc-500">
+                            {entry.is_dir ? "—" : formatNumber(entry.size)}
+                          </td>
+                          <td className="px-3 py-1.5 text-right text-zinc-500">
+                            {entry.is_dir ? "—" : formatNumber(entry.compressed)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {/* Keep this cap in sync with MAX_ARCHIVE_ENTRIES in api/files.rs. */}
+                  {archive.length >= 400 ? (
+                    <p className="border-t border-zinc-800/70 px-3 py-1.5 text-[11.5px] text-zinc-500">
+                      Mostrando as primeiras 400 entradas do ZIP.
+                    </p>
+                  ) : null}
+                </div>
+              ) : archive ? (
+                <p className="rounded-lg border border-dashed border-zinc-800 px-3 py-6 text-center text-[13px] text-zinc-500">
+                  ZIP vazio.
+                </p>
+              ) : (
+                <p className="text-[13px] text-zinc-500">
+                  Listando as entradas do ZIP…
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+              <Download size={24} className="text-zinc-500" />
+              <p className="text-[13.5px] text-zinc-400">
+                Este formato não tem prévia interna. Baixe ou abra externamente.
+              </p>
+              {rawUrl ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void saveFile()}
+                  disabled={downloading}
+                >
+                  <Download size={12} />
+                  Baixar arquivo
+                </Button>
+              ) : null}
+            </div>
+          )
         ) : (
           <pre className="whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-zinc-300">
             {content || "Sem conteúdo textual."}

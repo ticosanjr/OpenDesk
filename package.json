@@ -1,7 +1,7 @@
 {
   "name": "opendesk",
   "private": true,
-  "version": "0.50.1",
+  "version": "0.51.0",
   "description": "Visual governance, automation and observability for OpenCode",
   "type": "module",
   "scripts": {
@@ -27,7 +27,8 @@
     "verify:model": "bash scripts/verify-model.sh",
     "gate:fast": "bash scripts/gate-fast.sh",
     "test:visual": "playwright test -c playwright.visual.config.ts",
-    "test:visual:update": "playwright test -c playwright.visual.config.ts --update-snapshots"
+    "test:visual:update": "playwright test -c playwright.visual.config.ts --update-snapshots",
+    "build:platform": "bash scripts/build-platform.sh"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
