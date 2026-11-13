@@ -194,7 +194,7 @@ export function StudioOverview({
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Buscar por ID, nome ou descrição…"
-              className="h-full flex-1 bg-transparent text-[13px] outline-none placeholder:text-zinc-500"
+              className="h-full flex-1 bg-transparent text-[14px] outline-none placeholder:text-zinc-500"
               aria-label="Buscar no Studio"
             />
           </div>
@@ -221,7 +221,7 @@ export function StudioOverview({
             <option value="disabled">desativados</option>
           </select>
           <div className="flex min-w-[260px] flex-1 items-center gap-1">
-            <span className="text-[11px] uppercase tracking-wide text-zinc-500">
+            <span className="text-[13px] uppercase tracking-wide text-zinc-500">
               runtime
             </span>
             <input
@@ -252,12 +252,12 @@ export function StudioOverview({
         </div>
 
         {error ? (
-          <p className="mx-4 mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-300">
+          <p className="mx-4 mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">
             {error}
           </p>
         ) : null}
         {notice ? (
-          <p className="mx-4 mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[10px] text-emerald-300">
+          <p className="mx-4 mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-300">
             {notice}
           </p>
         ) : null}
@@ -265,20 +265,20 @@ export function StudioOverview({
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <div className="mb-3 grid gap-2 lg:grid-cols-3">
             <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
-              <p className="text-[9px] uppercase tracking-wide text-zinc-500">
+              <p className="text-[11.5px] uppercase tracking-wide text-zinc-500">
                 Inventário em disco
               </p>
-              <p className="mt-1 text-[11px] text-zinc-300">
+              <p className="mt-1 text-[13px] text-zinc-300">
                 {items.filter((item) => item.source_scope === "global").length} globais ·{" "}
                 {items.filter((item) => item.source_scope === "workspace").length} no workspace ·{" "}
                 {items.filter((item) => item.disabled).length} desativados
               </p>
             </div>
             <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
-              <p className="text-[9px] uppercase tracking-wide text-zinc-500">
+              <p className="text-[11.5px] uppercase tracking-wide text-zinc-500">
                 Agentes runtime do OpenCode
               </p>
-              <p className="mt-1 truncate text-[11px] text-zinc-300">
+              <p className="mt-1 truncate text-[13px] text-zinc-300">
                 {runtime?.engine.online
                   ? `${runtime.agents.length} disponíveis · ${runtime.agents
                       .slice(0, 6)
@@ -288,10 +288,10 @@ export function StudioOverview({
               </p>
             </div>
             <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
-              <p className="text-[9px] uppercase tracking-wide text-zinc-500">
+              <p className="text-[11.5px] uppercase tracking-wide text-zinc-500">
                 Modelos disponíveis
               </p>
-              <p className="mt-1 text-[11px] text-zinc-300">
+              <p className="mt-1 text-[13px] text-zinc-300">
                 {runtime?.engine.online
                   ? `${runtime.models.length} modelos reportados pelo OpenCode`
                   : "engine offline"}
@@ -310,10 +310,10 @@ export function StudioOverview({
           {runtime?.engine.online ? (
             <div className="mb-3 grid gap-2 lg:grid-cols-3">
               <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3">
-                <p className="text-[9px] uppercase tracking-wide text-zinc-500">
+                <p className="text-[11.5px] uppercase tracking-wide text-zinc-500">
                   Skills carregadas pelo OpenCode
                 </p>
-                <p className="mt-1 text-[11px] text-zinc-300">
+                <p className="mt-1 text-[13px] text-zinc-300">
                   {runtime.skills.length} disponíveis
                 </p>
                 <div className="mt-1 flex flex-wrap gap-1">
@@ -328,10 +328,10 @@ export function StudioOverview({
                 </div>
                 {runtime.skills.length > 0 ? (
                   <details className="mt-2">
-                    <summary className="cursor-pointer text-[9px] text-zinc-500">
+                    <summary className="cursor-pointer text-[11.5px] text-zinc-500">
                       ver todas
                     </summary>
-                    <div className="mt-1 max-h-40 overflow-y-auto text-[9px] text-zinc-500">
+                    <div className="mt-1 max-h-40 overflow-y-auto text-[11.5px] text-zinc-500">
                       {runtime.skills.map((skill) => (
                         <div key={skill.id} className="flex items-center gap-1">
                           <p className="min-w-0 flex-1 truncate">
@@ -340,7 +340,7 @@ export function StudioOverview({
                           </p>
                           <button
                             type="button"
-                            className="shrink-0 text-[8px] text-blue-300/80 underline-offset-2 hover:underline"
+                            className="shrink-0 text-[11px] text-blue-300/80 underline-offset-2 hover:underline"
                             onClick={() => void importRuntime("skill", skill.id)}
                           >
                             importar
@@ -352,13 +352,13 @@ export function StudioOverview({
                 ) : null}
               </div>
               <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3">
-                <p className="text-[9px] uppercase tracking-wide text-zinc-500">
+                <p className="text-[11.5px] uppercase tracking-wide text-zinc-500">
                   Comandos carregados pelo OpenCode
                 </p>
-                <p className="mt-1 text-[11px] text-zinc-300">
+                <p className="mt-1 text-[13px] text-zinc-300">
                   {runtime.commands.length} disponíveis
                 </p>
-                <div className="mt-1 max-h-40 overflow-y-auto text-[9px] text-zinc-500">
+                <div className="mt-1 max-h-40 overflow-y-auto text-[11.5px] text-zinc-500">
                   {runtime.commands.map((command) => (
                     <p key={command.name} className="truncate">
                       <span className="font-mono text-zinc-300">/{command.name}</span>
@@ -368,10 +368,10 @@ export function StudioOverview({
                 </div>
               </div>
               <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3">
-                <p className="text-[9px] uppercase tracking-wide text-zinc-500">
+                <p className="text-[11.5px] uppercase tracking-wide text-zinc-500">
                   MCPs carregados pelo OpenCode
                 </p>
-                <p className="mt-1 text-[11px] text-zinc-300">
+                <p className="mt-1 text-[13px] text-zinc-300">
                   {runtime.mcps.length} configurados
                 </p>
                 <div className="mt-1 space-y-1">
@@ -381,7 +381,7 @@ export function StudioOverview({
                         ? mcp.status
                         : mcp.status?.status ?? "unknown";
                     return (
-                      <div key={mcp.name} className="flex items-center gap-2 text-[9px]">
+                      <div key={mcp.name} className="flex items-center gap-2 text-[11.5px]">
                         <span className="font-mono text-zinc-300">{mcp.name}</span>
                         <Badge variant={status === "connected" ? "green" : "red"}>
                           {status}
@@ -394,7 +394,7 @@ export function StudioOverview({
             </div>
           ) : null}
           {filtered.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-[11px] text-zinc-500">
+            <div className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-[13px] text-zinc-500">
               Nenhum item encontrado. Use “Instalar” para importar de GitHub, URL, npm,
               catálogo ou pasta local.
             </div>
@@ -503,11 +503,11 @@ export function StudioOverview({
                         ) : null}
                       </div>
                       <details className="w-full rounded-lg border border-zinc-800/60 bg-zinc-950/30">
-                        <summary className="cursor-pointer select-none px-3 py-2 text-[11px] font-medium text-zinc-400 hover:text-zinc-200">
+                        <summary className="cursor-pointer select-none px-3 py-2 text-[13px] font-medium text-zinc-400 hover:text-zinc-200">
                           ver detalhes, frontmatter e origem
                         </summary>
                         <div className="max-h-64 overflow-auto border-t border-zinc-800/60 p-3">
-                          <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-zinc-400">
+                          <pre className="whitespace-pre-wrap break-words font-mono text-[13.5px] leading-relaxed text-zinc-400">
                             {JSON.stringify(item.value, null, 2)}
                           </pre>
                         </div>
@@ -628,7 +628,7 @@ function TransferModal({
               type="button"
               onClick={() => setMode(value)}
               className={cn(
-                "rounded-lg border px-3 py-1.5 text-[11px]",
+                "rounded-lg border px-3 py-1.5 text-[13px]",
                 mode === value
                   ? "border-blue-500/50 bg-blue-500/10 text-blue-200"
                   : "border-zinc-800 text-zinc-500",
@@ -673,7 +673,7 @@ function TransferModal({
             className={inputClass}
           />
         </label>
-        <label className="flex items-center gap-2 text-[11px] text-zinc-400">
+        <label className="flex items-center gap-2 text-[13px] text-zinc-400">
           <input
             type="checkbox"
             checked={overwrite}
@@ -683,7 +683,7 @@ function TransferModal({
           sobrescrever se já existir
         </label>
         {error ? (
-          <p className="rounded border border-red-500/20 bg-red-500/10 p-2 text-[10px] text-red-300">
+          <p className="rounded border border-red-500/20 bg-red-500/10 p-2 text-[12px] text-red-300">
             {error}
           </p>
         ) : null}
@@ -702,11 +702,11 @@ function TransferModal({
 }
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[13px] text-zinc-100 outline-none transition-colors hover:border-zinc-700 focus:border-blue-500/60";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[14px] text-zinc-100 outline-none transition-colors hover:border-zinc-700 focus:border-blue-500/60";
 const selectClass =
   "h-9 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12.5px] text-zinc-300 outline-none transition-colors hover:border-zinc-700 focus:border-blue-500/60";
 const labelClass =
-  "mb-1 block text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-400";
+  "mb-1 block text-[13px] font-medium uppercase tracking-[0.1em] text-zinc-400";
 
 
 function BackupsModal({
@@ -779,17 +779,17 @@ function BackupsModal({
     >
       <div className="space-y-2">
         {error ? (
-          <p className="rounded border border-red-500/20 bg-red-500/10 p-2 text-[10px] text-red-300">
+          <p className="rounded border border-red-500/20 bg-red-500/10 p-2 text-[12px] text-red-300">
             {error}
           </p>
         ) : null}
         {loading ? (
-          <p className="flex items-center gap-2 text-[10px] text-zinc-500">
+          <p className="flex items-center gap-2 text-[12px] text-zinc-500">
             <Loader2 size={12} className="animate-spin" />
             carregando…
           </p>
         ) : backups.length === 0 ? (
-          <p className="text-[10px] text-zinc-500">
+          <p className="text-[12px] text-zinc-500">
             Nenhum backup para este item ainda.
           </p>
         ) : (
@@ -799,8 +799,8 @@ function BackupsModal({
               className="flex items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
             >
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] text-zinc-300">{backup.created_at}</p>
-                <p className="truncate font-mono text-[9px] text-zinc-500">
+                <p className="text-[12px] text-zinc-300">{backup.created_at}</p>
+                <p className="truncate font-mono text-[11.5px] text-zinc-500">
                   {backup.id}
                 </p>
               </div>

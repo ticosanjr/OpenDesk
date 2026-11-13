@@ -109,7 +109,7 @@ export function ObservabilityPage() {
                   onClick={() => setDays(range)}
                   aria-pressed={days === range}
                   className={cn(
-                    "rounded-md px-2 py-1 text-[10px] transition-colors",
+                    "rounded-md px-2 py-1 text-[12px] transition-colors",
                     days === range
                       ? "workspace-tab-active"
                       : "text-zinc-500 hover:text-zinc-200",
@@ -128,7 +128,7 @@ export function ObservabilityPage() {
       />
 
       {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
       ) : null}
@@ -176,7 +176,7 @@ export function ObservabilityPage() {
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
             <Card>
               <CardHeader className="py-3">
-                <CardTitle className="flex items-center gap-2 text-[13px]">
+                <CardTitle className="flex items-center gap-2 text-[14px]">
                   <Gauge size={14} className="text-zinc-400" />
                   Execuções por dia
                 </CardTitle>
@@ -201,7 +201,7 @@ export function ObservabilityPage() {
                       </div>
                       <span
                         className={cn(
-                          "hidden whitespace-nowrap text-[10px] text-zinc-500 sm:block",
+                          "hidden whitespace-nowrap text-[12px] text-zinc-500 sm:block",
                           index % 5 !== 0 && index !== daily.length - 1 && "opacity-0",
                         )}
                       >
@@ -210,7 +210,7 @@ export function ObservabilityPage() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-2 flex items-center gap-3 text-[11px] text-zinc-500">
+                <div className="mt-2 flex items-center gap-3 text-[13px] text-zinc-500">
                   <span className="inline-flex items-center gap-1">
                     <span className="h-2 w-2 rounded-sm bg-sky-500/40" />
                     execuções
@@ -225,21 +225,21 @@ export function ObservabilityPage() {
 
             <Card>
               <CardHeader className="py-3">
-                <CardTitle className="flex items-center gap-2 text-[13px]">
+                <CardTitle className="flex items-center gap-2 text-[14px]">
                   <AlertTriangle size={14} className="text-amber-300" />
                   Falhas por código
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-1.5 p-4 pt-0">
                 {metrics.failure_codes.length === 0 ? (
-                  <p className="text-[12px] text-zinc-400">Nenhuma falha no período.</p>
+                  <p className="text-[13.5px] text-zinc-400">Nenhuma falha no período.</p>
                 ) : (
                   metrics.failure_codes.map((failure) => (
                     <div
                       key={failure.code}
                       className="flex items-center justify-between gap-2 rounded-lg border border-zinc-800/60 bg-zinc-950/30 px-2.5 py-1.5"
                     >
-                      <span className="truncate text-[12px] text-zinc-300">
+                      <span className="truncate text-[13.5px] text-zinc-300">
                         {failureLabel(failure.code)}
                       </span>
                       <Badge variant="red">{failure.count}</Badge>
@@ -252,15 +252,15 @@ export function ObservabilityPage() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="flex items-center gap-2 text-[13px]">
+              <CardTitle className="flex items-center gap-2 text-[14px]">
                 <Activity size={14} className="text-zinc-400" />
                 Performance por agente
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-[12px]">
-                  <thead className="border-b border-zinc-800 text-[11px] uppercase tracking-[0.06em] text-zinc-400">
+                <table className="w-full text-left text-[13.5px]">
+                  <thead className="border-b border-zinc-800 text-[13px] uppercase tracking-[0.06em] text-zinc-400">
                     <tr>
                       <th className="px-4 py-2">Agente</th>
                       <th className="px-4 py-2 text-right">Execuções</th>
@@ -326,13 +326,13 @@ function MetricCard({
       <CardContent className="p-3">
         <div className="flex items-center gap-1.5 text-zinc-500">
           {icon}
-          <span className="text-[10px] uppercase tracking-[0.12em]">{label}</span>
+          <span className="text-[12px] uppercase tracking-[0.12em]">{label}</span>
           {tone !== "default" ? (
             <Badge variant={tone}>{toneLabel[tone]}</Badge>
           ) : null}
         </div>
         <p className="mt-1 font-mono text-lg text-zinc-100">{value}</p>
-        <p className="text-[10px] text-zinc-500">{hint}</p>
+        <p className="text-[12px] text-zinc-500">{hint}</p>
       </CardContent>
     </Card>
   );

@@ -122,11 +122,11 @@ function CommentCard({ event }: { event: TimelineEvent }) {
       header={
         <>
           <MessageSquare size={12} className="shrink-0 text-blue-300" />
-          <span className="text-[11px] font-semibold text-zinc-200">Resposta</span>
-          <span className="font-mono text-[9px] text-zinc-500">
+          <span className="text-[13px] font-semibold text-zinc-200">Resposta</span>
+          <span className="font-mono text-[11.5px] text-zinc-500">
             {formatClock(event.started_at)} → {formatClock(event.ended_at)}
           </span>
-          <span className="font-mono text-[9px] text-zinc-500">
+          <span className="font-mono text-[11.5px] text-zinc-500">
             {formatDuration(event.duration_ms)}
           </span>
           <ChevronRight
@@ -139,7 +139,7 @@ function CommentCard({ event }: { event: TimelineEvent }) {
         </>
       }
     >
-      <p className="whitespace-pre-wrap break-words text-[12px] leading-relaxed text-zinc-200">
+      <p className="whitespace-pre-wrap break-words text-[13.5px] leading-relaxed text-zinc-200">
         {event.text || "Sem texto."}
       </p>
     </Expandable>
@@ -156,11 +156,11 @@ function GenericEventCard({ event }: { event: TimelineEvent }) {
       header={
         <>
           <Braces size={12} className="shrink-0 text-zinc-400" />
-          <span className="font-mono text-[10px] text-zinc-300">
+          <span className="font-mono text-[12px] text-zinc-300">
             {event.event_type || event.text}
           </span>
           <Badge variant="default">evento</Badge>
-          <span className="ml-auto font-mono text-[9px] text-zinc-500">
+          <span className="ml-auto font-mono text-[11.5px] text-zinc-500">
             {formatClock(event.started_at)}
           </span>
           <ChevronRight
@@ -173,7 +173,7 @@ function GenericEventCard({ event }: { event: TimelineEvent }) {
         </>
       }
     >
-      <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-zinc-800/60 bg-zinc-950 p-2 font-mono text-[10px] leading-relaxed text-zinc-400">
+      <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-zinc-800/60 bg-zinc-950 p-2 font-mono text-[12px] leading-relaxed text-zinc-400">
         {event.data ? pretty(event.data) : "Sem dados."}
       </pre>
     </Expandable>
@@ -299,7 +299,7 @@ export function StreamView({
   if (entries.length === 0) {
     return (
       <div className="space-y-2">
-        <p className="rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-[12px] text-zinc-500">
+        <p className="rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-[13.5px] text-zinc-500">
           Nenhum evento estruturado. Use “bruto” para ver o JSONL original.
         </p>
         <ResultCard
@@ -338,7 +338,7 @@ export function StreamView({
           blockAttempt !== null &&
           blockAttempt !== lastAttempt &&
           (timeline?.attempts?.length ?? 0) > 1 ? (
-            <div className="flex items-center gap-2 pt-1 font-mono text-[10px] uppercase tracking-wide text-zinc-500">
+            <div className="flex items-center gap-2 pt-1 font-mono text-[12px] uppercase tracking-wide text-zinc-500">
               <span className="h-px flex-1 bg-zinc-800" />
               Tentativa {blockAttempt}
               {attempt ? ` · ${attempt.status}` : ""}
@@ -356,11 +356,11 @@ export function StreamView({
           body = (
             <div className="flex justify-end">
               <div className="max-w-[85%] rounded-xl border border-blue-500/25 bg-blue-500/10 px-3 py-2 text-blue-100">
-                <div className="mb-1 flex items-center justify-end gap-1 font-mono text-[10px] text-blue-300/70">
+                <div className="mb-1 flex items-center justify-end gap-1 font-mono text-[12px] text-blue-300/70">
                   <User size={10} />
                   você · {formatClock(message.created_at)}
                 </div>
-                <p className="whitespace-pre-wrap text-[12px] leading-relaxed">
+                <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed">
                   {message.content}
                 </p>
               </div>
@@ -447,7 +447,7 @@ export function StreamView({
           const event = block.event;
           if (event.kind === "step") {
             body = (
-              <div className="flex items-center gap-2 py-1 font-mono text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+              <div className="flex items-center gap-2 py-1 font-mono text-[13px] font-semibold uppercase tracking-wide text-zinc-500">
                 <PlayCircle size={12} />
                 passo {event.step_index} · {formatDuration(event.duration_ms)}
               </div>
@@ -467,7 +467,7 @@ export function StreamView({
                 }
                 tone="purple"
               >
-                <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-zinc-300">
+                <pre className="whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-zinc-300">
                   {event.text || "Sem conteúdo de raciocínio."}
                 </pre>
               </Band>
@@ -547,16 +547,16 @@ export function ResultCard({
           )}
           <span
             className={cn(
-              "text-[12px] font-semibold",
+              "text-[13.5px] font-semibold",
               failed ? "text-red-100" : "text-emerald-100",
             )}
           >
             Resultado
           </span>
-          <span className="font-mono text-[10px] text-zinc-500">
+          <span className="font-mono text-[12px] text-zinc-500">
             {formatDuration(durationMs)}
           </span>
-          <span className="hidden font-mono text-[10px] text-zinc-500 sm:inline">
+          <span className="hidden font-mono text-[12px] text-zinc-500 sm:inline">
             {formatClock(startedAt)} → {formatClock(endedAt)}
           </span>
           <ChevronRight
@@ -569,11 +569,11 @@ export function ResultCard({
         </>
       }
     >
-      <pre className="whitespace-pre-wrap break-words font-sans text-[12px] leading-relaxed text-zinc-100">
+      <pre className="whitespace-pre-wrap break-words font-sans text-[13.5px] leading-relaxed text-zinc-100">
         {text || summary || "Sem texto final. Veja as ferramentas executadas e o modo bruto."}
       </pre>
       {truncated ? (
-        <p className="mt-2 text-[10px] text-amber-300">
+        <p className="mt-2 text-[12px] text-amber-300">
           Resultado truncado. Use o modo bruto para ver o log completo.
         </p>
       ) : null}
@@ -626,20 +626,20 @@ export function Band({
           <span className="shrink-0">{icon}</span>
           <span
             className={cn(
-              "text-[11px] font-semibold",
+              "text-[13px] font-semibold",
               tone === "purple" ? "text-violet-100" : "text-blue-100",
             )}
             title={tooltip}
           >
             {title}
           </span>
-          <span className="font-mono text-[9px] text-zinc-500">
+          <span className="font-mono text-[11.5px] text-zinc-500">
             {formatDuration(durationMs)}
           </span>
-          <span className="hidden font-mono text-[9px] text-zinc-500 sm:inline">
+          <span className="hidden font-mono text-[11.5px] text-zinc-500 sm:inline">
             {formatClock(startedAt)} → {formatClock(endedAt)}
           </span>
-          <span className="min-w-0 flex-1 truncate text-right text-[9px] text-zinc-500">
+          <span className="min-w-0 flex-1 truncate text-right text-[11.5px] text-zinc-500">
             {summary}
           </span>
         </>
@@ -678,11 +678,11 @@ export function ToolRow({
           ) : (
             <Wrench size={12} className="shrink-0 text-zinc-500" />
           )}
-          <span className="font-mono text-[10px] text-zinc-200">
+          <span className="font-mono text-[12px] text-zinc-200">
             {tool.summary}
           </span>
           <Badge variant={failed ? "red" : "green"}>{tool.status}</Badge>
-          <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[9px] text-zinc-500">
+          <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[11.5px] text-zinc-500">
             <Clock3 size={9} />
             {formatClock(tool.started_at)}
             <span>{formatDuration(tool.duration_ms)}</span>
@@ -704,27 +704,27 @@ export function ToolRow({
             abrir {path.split("/").pop()}
           </EntityLink>
         ) : null}
-        <span className="font-mono text-[9px] text-zinc-500">
+        <span className="font-mono text-[11.5px] text-zinc-500">
           {formatClock(tool.started_at)} → {formatClock(tool.ended_at)}
         </span>
       </div>
       <div>
-        <p className="mb-1 font-mono text-[8px] uppercase tracking-wide text-zinc-500">
+        <p className="mb-1 font-mono text-[11px] uppercase tracking-wide text-zinc-500">
           entrada
         </p>
-        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded border border-zinc-800/60 bg-zinc-950 p-2 font-mono text-[9px] text-zinc-400">
+        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded border border-zinc-800/60 bg-zinc-950 p-2 font-mono text-[11.5px] text-zinc-400">
           {pretty(tool.input)}
         </pre>
       </div>
       <div>
-        <p className="mb-1 font-mono text-[8px] uppercase tracking-wide text-zinc-500">
+        <p className="mb-1 font-mono text-[11px] uppercase tracking-wide text-zinc-500">
           saída
         </p>
-        <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-zinc-800/60 bg-zinc-950 p-2 font-mono text-[9px] text-zinc-400">
+        <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-zinc-800/60 bg-zinc-950 p-2 font-mono text-[11.5px] text-zinc-400">
           {tool.output || "sem saída"}
         </pre>
         {tool.output_truncated ? (
-          <p className="mt-1 text-[9px] text-amber-300">Saída truncada.</p>
+          <p className="mt-1 text-[11.5px] text-amber-300">Saída truncada.</p>
         ) : null}
       </div>
     </Expandable>

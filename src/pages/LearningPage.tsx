@@ -335,7 +335,7 @@ export function LearningPage() {
       />
 
       {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
       ) : null}
@@ -374,10 +374,10 @@ export function LearningPage() {
           <CardContent className="space-y-3 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-[12px] font-medium text-zinc-200">
+                <p className="text-[13.5px] font-medium text-zinc-200">
                   Captura leve e controlada
                 </p>
-                <p className="mt-0.5 max-w-2xl text-[10px] leading-relaxed text-zinc-500">
+                <p className="mt-0.5 max-w-2xl text-[12px] leading-relaxed text-zinc-500">
                   O OpenDesk observa o resultado das execuções e agrupa padrões
                   repetidos. Sem embeddings, sem pipeline pesado e sem prompts
                   completos.
@@ -438,9 +438,9 @@ export function LearningPage() {
       ) : null}
 
       <Card className="border-violet-500/20 bg-violet-500/[0.025]">
-        <CardContent className="grid gap-3 p-4 text-[10px] leading-relaxed text-zinc-400 sm:grid-cols-2">
+        <CardContent className="grid gap-3 p-4 text-[12px] leading-relaxed text-zinc-400 sm:grid-cols-2">
           <div>
-            <p className="text-[11px] font-medium text-violet-200">
+            <p className="text-[13px] font-medium text-violet-200">
               Promover = criar uma proposta
             </p>
             <p className="mt-1">
@@ -449,7 +449,7 @@ export function LearningPage() {
             </p>
           </div>
           <div>
-            <p className="text-[11px] font-medium text-emerald-200">
+            <p className="text-[13px] font-medium text-emerald-200">
               Memorizar = salvar na memória
             </p>
             <p className="mt-1">
@@ -465,7 +465,7 @@ export function LearningPage() {
         <section className="space-y-2">
           <div className="flex items-center gap-2">
             <Sparkles size={13} className="text-violet-300" />
-            <h2 className="text-[12px] font-medium text-zinc-200">
+            <h2 className="text-[13.5px] font-medium text-zinc-200">
               Propostas aguardando aprovação
             </h2>
             <Badge variant="purple">{learningProposals.length}</Badge>
@@ -480,11 +480,11 @@ export function LearningPage() {
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Badge variant="purple">{proposal.kind}</Badge>
                         <Badge variant="default">{proposal.action}</Badge>
-                        <p className="truncate text-[11px] text-zinc-200">
+                        <p className="truncate text-[13px] text-zinc-200">
                           {proposal.title}
                         </p>
                       </div>
-                      <p className="mt-1 text-[9px] text-zinc-500">
+                      <p className="mt-1 text-[11.5px] text-zinc-500">
                         {proposal.description ??
                           "Revise antes de gravar no workspace."}
                       </p>
@@ -493,7 +493,7 @@ export function LearningPage() {
                       {skillId ? (
                         <Link
                           to={links.skill(skillId, "workspace", activeWorkspaceId)}
-                          className="inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-800 px-2.5 text-[10px] text-zinc-300 hover:bg-zinc-900"
+                          className="inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-800 px-2.5 text-[12px] text-zinc-300 hover:bg-zinc-900"
                         >
                           Ver skill
                           <ArrowUpRight size={11} />
@@ -530,7 +530,7 @@ export function LearningPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Brain size={13} className="text-zinc-400" />
-            <h2 className="text-[12px] font-medium text-zinc-200">Lições</h2>
+            <h2 className="text-[13.5px] font-medium text-zinc-200">Lições</h2>
           </div>
           <div className="flex flex-wrap gap-1">
             {FILTERS.map((option) => (
@@ -540,7 +540,7 @@ export function LearningPage() {
                 aria-pressed={filter === option.id}
                 onClick={() => setFilter(option.id)}
                 className={cn(
-                  "rounded-md px-2 py-1 text-[10px] transition-colors",
+                  "rounded-md px-2 py-1 text-[12px] transition-colors",
                   filter === option.id
                     ? "bg-zinc-800 text-zinc-100"
                     : "text-zinc-500 hover:text-zinc-200",
@@ -599,10 +599,10 @@ function StatCard({
       <CardContent className="p-3">
         <div className="flex items-center gap-1.5 text-zinc-500">
           {icon}
-          <span className="text-[9px] uppercase tracking-[0.12em]">{label}</span>
+          <span className="text-[11.5px] uppercase tracking-[0.12em]">{label}</span>
         </div>
         <p className="mt-1 font-mono text-lg text-zinc-100">{value}</p>
-        <p className="text-[9px] text-zinc-500">{hint}</p>
+        <p className="text-[11.5px] text-zinc-500">{hint}</p>
       </CardContent>
     </Card>
   );
@@ -624,8 +624,8 @@ function SettingToggle({
   return (
     <div className="flex items-start justify-between gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-2.5 py-2">
       <div className="min-w-0">
-        <p className="text-[10px] font-medium text-zinc-300">{label}</p>
-        <p className="mt-0.5 text-[9px] leading-snug text-zinc-500">
+        <p className="text-[12px] font-medium text-zinc-300">{label}</p>
+        <p className="mt-0.5 text-[11.5px] leading-snug text-zinc-500">
           {description}
         </p>
       </div>
@@ -678,7 +678,7 @@ function LessonCard({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
-              <p className="text-[11px] font-medium text-zinc-200">
+              <p className="text-[13px] font-medium text-zinc-200">
                 {lesson.title}
               </p>
               <Badge variant={lessonStatusTone(lesson.status)}>
@@ -687,19 +687,19 @@ function LessonCard({
               <Badge variant="default">
                 {lessonCategoryLabel(lesson.category)}
               </Badge>
-              <span className="font-mono text-[9px] text-zinc-500">
+              <span className="font-mono text-[11.5px] text-zinc-500">
                 {occurrencesLabel(lesson.occurrences)}
               </span>
               {promotable && !ready ? (
-                <span className="text-[9px] text-zinc-500">
+                <span className="text-[11.5px] text-zinc-500">
                   abaixo do mínimo
                 </span>
               ) : null}
             </div>
-            <p className="mt-1 whitespace-pre-line text-[10px] leading-relaxed text-zinc-500 line-clamp-3">
+            <p className="mt-1 whitespace-pre-line text-[12px] leading-relaxed text-zinc-500 line-clamp-3">
               {lesson.detail}
             </p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[9px] text-zinc-500">
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11.5px] text-zinc-500">
               <span>
                 {lesson.agent_name ?? "router"}
                 {lesson.model_id ? ` · ${lesson.model_id}` : ""}
@@ -747,7 +747,7 @@ function LessonCard({
                 <Link
                   to={links.file(".opencode/MEMORY.md")}
                   title="Abrir .opencode/MEMORY.md"
-                  className="inline-flex items-center gap-1 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-emerald-300 hover:text-emerald-200"
+                  className="inline-flex items-center gap-1 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[11.5px] uppercase tracking-wide text-emerald-300 hover:text-emerald-200"
                 >
                   <BookmarkPlus size={10} />
                   na memória
@@ -755,7 +755,7 @@ function LessonCard({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 text-[10px]"
+                  className="h-7 text-[12px]"
                   disabled={busy === `forget-${lesson.id}`}
                   onClick={onForget}
                   title="Remover este bloco de .opencode/MEMORY.md"
@@ -768,7 +768,7 @@ function LessonCard({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-[10px]"
+                className="h-7 text-[12px]"
                 disabled={busy === `restore-${lesson.id}`}
                 onClick={onRestore}
                 title="Voltar esta lição para a lista de abertas"
@@ -798,7 +798,7 @@ function LessonCard({
         {promoted && lesson.proposal_id ? (
           <Link
             to={`/studio?workspace_id=${encodeURIComponent(workspaceId)}`}
-            className="mt-2 inline-flex items-center gap-1 text-[9px] text-violet-300 hover:text-violet-200"
+            className="mt-2 inline-flex items-center gap-1 text-[11.5px] text-violet-300 hover:text-violet-200"
           >
             Abrir Studio para revisar
             <ArrowUpRight size={10} />

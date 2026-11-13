@@ -310,7 +310,7 @@ export function RecipesPage() {
       />
 
       {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
       ) : null}
@@ -344,7 +344,7 @@ export function RecipesPage() {
                     selected === item.id
                       ? "workspace-nav-active"
                       : "hover:bg-zinc-900",
-                    item.is_enabled ? undefined : "opacity-70",
+                    item.is_enabled ? undefined : "bg-zinc-950/20",
                   )}
                 >
                   <button
@@ -356,11 +356,11 @@ export function RecipesPage() {
                     )}
                   >
                     <p className="truncate text-[13.5px] font-medium">{item.name}</p>
-                    <p className="truncate font-mono text-[11px] text-zinc-500">
+                    <p className="truncate font-mono text-[13px] text-zinc-400">
                       {item.trigger_type} · {item.total_runs} execuções
                     </p>
                     {item.last_error ? (
-                      <p className="truncate text-[11px] text-red-300">{item.last_error}</p>
+                      <p className="truncate text-[13px] text-red-300">{item.last_error}</p>
                     ) : null}
                   </button>
                   <Switch
@@ -415,7 +415,7 @@ export function RecipesPage() {
                   onChange={update}
                 />
               ) : (
-                <p className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-[11px] text-red-300">
+                <p className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-[13px] text-red-300">
                   YAML inválido. Corrija no editor ao lado.
                 </p>
               )}
@@ -448,16 +448,16 @@ export function RecipesPage() {
         </CardHeader>
         <CardContent className="space-y-1">
           {runs.length === 0 ? (
-            <p className="p-2 text-[11px] text-zinc-500">Nenhuma execução ainda.</p>
+            <p className="p-2 text-[13px] text-zinc-500">Nenhuma execução ainda.</p>
           ) : (
             runs.map((run) => (
               <div key={run.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2">
                 <Badge variant={run.status === "COMPLETED" ? "green" : run.status.includes("WAITING") ? "yellow" : run.status.includes("FAILED") || run.status === "REJECTED" ? "red" : "blue"}>
                   {recipeRunStatusLabel(run.status)}
                 </Badge>
-                <span className="font-mono text-[11px] text-zinc-400">{run.recipe_id}</span>
-                <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-zinc-500">{run.current_step_id ?? "—"}</span>
-                <span className="text-[11px] text-zinc-500">{relativeTime(run.started_at)}</span>
+                <span className="font-mono text-[13px] text-zinc-400">{run.recipe_id}</span>
+                <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-zinc-500">{run.current_step_id ?? "—"}</span>
+                <span className="text-[13px] text-zinc-500">{relativeTime(run.started_at)}</span>
               </div>
             ))
           )}
@@ -473,7 +473,7 @@ export function RecipesPage() {
       >
         <div className="space-y-3">
           <label className="block">
-            <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+            <span className="mb-1.5 block text-[12px] font-medium uppercase tracking-[0.12em] text-zinc-500">
               Contexto / pergunta (opcional)
             </span>
             <textarea
@@ -481,7 +481,7 @@ export function RecipesPage() {
               onChange={(event) => setRunContext(event.target.value)}
               rows={6}
               placeholder="Ex.: analise o contrato em juridico/contratos/atual.pdf"
-              className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 p-2.5 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
+              className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 p-2.5 font-mono text-[13px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
             />
             <PromptAttachments
               workspaceId={workspaceId}
@@ -490,7 +490,7 @@ export function RecipesPage() {
               className="mt-2"
             />
           </label>
-          <p className="text-[10px] leading-snug text-zinc-500">
+          <p className="text-[12px] leading-snug text-zinc-500">
             Para anexar arquivos, coloque-os na pasta de entrada do pacote e
             referencie o caminho no contexto. O dry-run não executa ferramentas
             externas.

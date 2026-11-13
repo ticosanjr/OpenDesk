@@ -94,7 +94,7 @@ export function StudioPage() {
               type="button"
               onClick={() => setScope("workspace")}
               className={cn(
-                "rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors",
+                "rounded-md px-3 py-1.5 text-[13.5px] font-medium transition-colors",
                 scope === "workspace"
                   ? "bg-zinc-800 text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-200",
@@ -106,7 +106,7 @@ export function StudioPage() {
               type="button"
               onClick={() => setScope("global")}
               className={cn(
-                "rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors",
+                "rounded-md px-3 py-1.5 text-[13.5px] font-medium transition-colors",
                 scope === "global"
                   ? "bg-zinc-800 text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-200",
@@ -118,7 +118,7 @@ export function StudioPage() {
               type="button"
               onClick={() => setScope("effective")}
               className={cn(
-                "rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors",
+                "rounded-md px-3 py-1.5 text-[13.5px] font-medium transition-colors",
                 scope === "effective"
                   ? "bg-zinc-800 text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-200",
@@ -135,7 +135,7 @@ export function StudioPage() {
                 type="button"
                 onClick={() => setTab(item.id)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[14px] font-medium transition-colors",
                   tab === item.id
                     ? "bg-zinc-800 text-zinc-100"
                     : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200",

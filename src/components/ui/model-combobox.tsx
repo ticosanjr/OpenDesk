@@ -140,7 +140,7 @@ export function ModelCombobox({
             aria-pressed={!editing}
             onClick={chooseRouter}
             className={cn(
-              "flex-1 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+              "flex-1 rounded-md px-2.5 py-1.5 text-[13.5px] font-medium transition-colors",
               !editing
                 ? "bg-zinc-800 text-zinc-100"
                 : "text-zinc-500 hover:text-zinc-300",
@@ -157,7 +157,7 @@ export function ModelCombobox({
               setOpen(true);
             }}
             className={cn(
-              "flex-1 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+              "flex-1 rounded-md px-2.5 py-1.5 text-[13.5px] font-medium transition-colors",
               editing
                 ? "bg-zinc-800 text-zinc-100"
                 : "text-zinc-500 hover:text-zinc-300",
@@ -220,7 +220,7 @@ export function ModelCombobox({
                   type="button"
                   role="option"
                   aria-selected={current === null}
-                  className="block w-full rounded-md px-2.5 py-2 text-left text-[12px] text-zinc-400 hover:bg-zinc-800"
+                  className="block w-full rounded-md px-2.5 py-2 text-left text-[13.5px] text-zinc-400 hover:bg-zinc-800"
                   onMouseDown={(event) => {
                     event.preventDefault();
                     chooseRouter();
@@ -236,7 +236,7 @@ export function ModelCombobox({
                   role="option"
                   aria-selected={candidate === current}
                   className={cn(
-                    "block w-full rounded-md px-2.5 py-2 text-left font-mono text-[12px] hover:bg-zinc-800",
+                    "block w-full rounded-md px-2.5 py-2 text-left font-mono text-[13.5px] hover:bg-zinc-800",
                     candidate === current
                       ? "bg-zinc-800 text-zinc-100"
                       : "text-zinc-300",
@@ -255,7 +255,7 @@ export function ModelCombobox({
               {query.trim() && !values.includes(query.trim()) ? (
                 <button
                   type="button"
-                  className="block w-full rounded px-2 py-1.5 text-left font-mono text-[10px] text-blue-300 hover:bg-zinc-800"
+                  className="block w-full rounded px-2 py-1.5 text-left font-mono text-[12px] text-blue-300 hover:bg-zinc-800"
                   onMouseDown={(event) => {
                     event.preventDefault();
                     chooseModel(query);
@@ -265,7 +265,7 @@ export function ModelCombobox({
                 </button>
               ) : null}
               {filtered.length === 0 && !query.trim() ? (
-                <p className="px-2 py-1 text-[10px] text-zinc-500">
+                <p className="px-2 py-1 text-[12px] text-zinc-500">
                   Nenhum modelo disponível. Digite um valor personalizado.
                 </p>
               ) : null}
@@ -275,12 +275,12 @@ export function ModelCombobox({
       )}
 
       {invalid || (editing && query.trim() && !isValidModelRef(query)) ? (
-        <p className="text-[10px] text-red-300">
+        <p className="text-[12px] text-red-300">
           Modelo inválido. Use provider/modelo ou provider/modelo#variant.
         </p>
       ) : null}
       {editing && current && failed(current) ? (
-        <p className="text-[9px] text-amber-300">
+        <p className="text-[11.5px] text-amber-300">
           Este modelo falhou recentemente. Escolha outro ou limpe o cooldown em
           Configurações → OpenCode Engine.
         </p>

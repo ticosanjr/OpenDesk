@@ -36,9 +36,9 @@ export function CollapsibleSection({
             open ? "rotate-180" : undefined,
           )}
         />
-        <span className="text-[11px] font-medium text-zinc-300">{title}</span>
+        <span className="text-[13px] font-medium text-zinc-300">{title}</span>
         {summary && !open ? (
-          <span className="ml-auto min-w-0 truncate text-[9px] text-zinc-500">
+          <span className="ml-auto min-w-0 truncate text-[11.5px] text-zinc-500">
             {summary}
           </span>
         ) : null}

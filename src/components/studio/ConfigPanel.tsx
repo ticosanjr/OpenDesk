@@ -80,7 +80,7 @@ export function ConfigPanel({
               </Badge>
             ) : null}
           </div>
-          <p className="mt-1 font-mono text-[9px] text-zinc-500">
+          <p className="mt-1 font-mono text-[11.5px] text-zinc-500">
             {document?.path ?? "carregando…"}
           </p>
         </div>
@@ -103,11 +103,11 @@ export function ConfigPanel({
           value={content}
           onChange={(event) => setContent(event.target.value)}
           spellCheck={false}
-          className="h-full min-h-0 w-full resize-none rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 font-mono text-[12px] leading-relaxed text-zinc-200 outline-none focus:border-blue-500/60"
+          className="h-full min-h-0 w-full resize-none rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 font-mono text-[13.5px] leading-relaxed text-zinc-200 outline-none focus:border-blue-500/60"
         />
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 font-mono text-[9px] text-zinc-500">
+      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 font-mono text-[11.5px] text-zinc-500">
         <span>sha256</span>
         <span>{document?.sha256 ? `${document.sha256.slice(0, 20)}…` : "—"}</span>
         <span className="ml-auto">

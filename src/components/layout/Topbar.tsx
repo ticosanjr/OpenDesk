@@ -80,7 +80,7 @@ export function Topbar() {
             setWorkspaceQuery("");
             setWorkspaceOpen((current) => !current);
           }}
-          className="flex h-9 w-[220px] items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 text-left text-[13px] font-medium text-zinc-200 outline-none transition-colors hover:border-zinc-700 focus:border-blue-500/60"
+          className="flex h-9 w-[220px] items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 text-left text-[14px] font-medium text-zinc-200 outline-none transition-colors hover:border-zinc-700 focus:border-blue-500/60"
           title={activeWorkspace?.root_path}
           aria-expanded={workspaceOpen}
           aria-label={`Workspace ativo: ${activeWorkspace?.name ?? "nenhum"}`}
@@ -102,7 +102,7 @@ export function Topbar() {
                 value={workspaceQuery}
                 onChange={(event) => setWorkspaceQuery(event.target.value)}
                 placeholder="Buscar workspace ou caminho…"
-                className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
+                className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2.5 text-[13.5px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
               />
             </div>
             <div className="max-h-72 overflow-y-auto p-1.5">
@@ -123,10 +123,10 @@ export function Topbar() {
                     style={{ background: workspace.color_hex }}
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[12px] text-zinc-200">
+                    <span className="block truncate text-[13.5px] text-zinc-200">
                       {workspace.name}
                     </span>
-                    <span className="block truncate font-mono text-[10px] text-zinc-500">
+                    <span className="block truncate font-mono text-[12px] text-zinc-500">
                       {workspace.root_path}
                     </span>
                   </span>
@@ -136,7 +136,7 @@ export function Topbar() {
                 </button>
               ))}
               {filteredWorkspaces.length === 0 ? (
-                <p className="px-2 py-3 text-center text-[11px] text-zinc-500">
+                <p className="px-2 py-3 text-center text-[13px] text-zinc-500">
                   Nenhum workspace encontrado.
                 </p>
               ) : null}
@@ -148,7 +148,7 @@ export function Topbar() {
                   setWorkspaceOpen(false);
                   setWorkspaceDialogOpen(true);
                 }}
-                className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
               >
                 <Plus size={12} />
                 Novo workspace
@@ -159,7 +159,7 @@ export function Topbar() {
                   setWorkspaceOpen(false);
                   navigate("/settings?section=workspaces");
                 }}
-                className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
               >
                 Gerenciar
               </button>
@@ -181,7 +181,7 @@ export function Topbar() {
 
       <div className="ml-auto flex items-center gap-2">
         <div className="hidden items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-2.5 py-1.5 xl:flex">
-          <span className="font-mono text-[10px] uppercase tracking-wide text-zinc-500">
+          <span className="font-mono text-[12px] uppercase tracking-wide text-zinc-500">
             hoje
           </span>
           <div className="h-1.5 w-16 overflow-hidden rounded-full bg-zinc-800">
@@ -193,7 +193,7 @@ export function Topbar() {
               style={{ width: `${spent > 0 ? Math.max(spentPct, 3) : 0}%` }}
             />
           </div>
-          <span className="whitespace-nowrap font-mono text-[10px] text-zinc-400">
+          <span className="whitespace-nowrap font-mono text-[12px] text-zinc-400">
             {formatUsd(spent)} / {formatUsd(dailyLimit)}
           </span>
         </div>
@@ -202,14 +202,14 @@ export function Topbar() {
           className="hidden items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-2.5 py-1.5 xl:flex"
           title={`${running} execução(ões) ativa(s) e ${waiting} job(s) na fila`}
         >
-          <span className="font-mono text-[10px] uppercase tracking-wide text-zinc-500">
+          <span className="font-mono text-[12px] uppercase tracking-wide text-zinc-500">
             fila
           </span>
-          <span className="whitespace-nowrap text-[11px] text-zinc-300">
+          <span className="whitespace-nowrap text-[13px] text-zinc-300">
             {running} {running === 1 ? "ativo" : "ativos"}
           </span>
           <span className="text-zinc-600">·</span>
-          <span className="whitespace-nowrap text-[11px] text-zinc-400">
+          <span className="whitespace-nowrap text-[13px] text-zinc-400">
             {waiting} na fila
           </span>
         </div>
@@ -217,14 +217,14 @@ export function Topbar() {
         <button
           type="button"
           onClick={() => void requestRestart()}
-          className="flex h-9 items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-2.5 text-[11px] text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200"
+          className="flex h-9 items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-2.5 text-[13px] text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200"
           title="Reiniciar OpenCode Daemon"
           aria-label={`Reiniciar OpenCode Daemon — ${daemon?.online ? "online" : daemon?.state ?? "offline"}`}
         >
           <StatusDot
             tone={statusTone(daemon?.online ?? false, daemon?.state)}
           />
-          <span className="hidden font-mono text-[10px] uppercase tracking-wide lg:inline">
+          <span className="hidden font-mono text-[12px] uppercase tracking-wide lg:inline">
             {daemon?.online ? "engine online" : daemon?.state ?? "offline"}
           </span>
           <RefreshCw size={12} className="text-zinc-500" />

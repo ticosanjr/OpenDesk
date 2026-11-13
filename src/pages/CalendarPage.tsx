@@ -280,7 +280,7 @@ export function CalendarPage() {
       />
 
       {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
       ) : null}
@@ -294,7 +294,7 @@ export function CalendarPage() {
               aria-pressed={view === item.id}
               onClick={() => setView(item.id)}
               className={cn(
-                "rounded-md px-2.5 py-1 text-[10px] transition-colors",
+                "rounded-md px-2.5 py-1 text-[12px] transition-colors",
                 view === item.id
                   ? "bg-zinc-800 text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-300",
@@ -317,7 +317,7 @@ export function CalendarPage() {
               }))
             }
             className={cn(
-              "rounded-full border px-2.5 py-1 text-[10px] transition-colors",
+              "rounded-full border px-2.5 py-1 text-[12px] transition-colors",
               filters[category.id]
                 ? "workspace-selected workspace-selected-text"
                 : "border-zinc-800 bg-zinc-950/40 text-zinc-500 hover:text-zinc-300",
@@ -326,13 +326,13 @@ export function CalendarPage() {
             {category.label}
           </button>
         ))}
-        <span className="ml-auto font-mono text-[10px] text-zinc-500">
+        <span className="ml-auto font-mono text-[12px] text-zinc-500">
           {visibleItems.length}{" "}
           {visibleItems.length === 1 ? "item visível" : "itens visíveis"}
         </span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 px-1 text-[9px] text-zinc-500">
+      <div className="flex flex-wrap items-center gap-3 px-1 text-[11.5px] text-zinc-500">
         <span className="inline-flex items-center gap-1">
           <CheckCircle2 size={10} className="text-emerald-400" />
           executado
@@ -364,7 +364,7 @@ export function CalendarPage() {
       >
         <Card className="min-h-0">
           <CardHeader className="flex-row items-center justify-between py-3">
-            <CardTitle className="flex items-center gap-2 text-[12px]">
+            <CardTitle className="flex items-center gap-2 text-[13.5px]">
               <CalendarDays size={14} className="text-zinc-500" />
               {title}
             </CardTitle>
@@ -403,7 +403,7 @@ export function CalendarPage() {
               {WEEKDAYS.map((weekday) => (
                 <div
                   key={weekday}
-                  className="px-1 py-1 text-center text-[9px] uppercase tracking-[0.12em] text-zinc-500"
+                  className="px-1 py-1 text-center text-[11.5px] uppercase tracking-[0.12em] text-zinc-500"
                 >
                   {weekday}
                 </div>
@@ -438,7 +438,7 @@ export function CalendarPage() {
                     <div className="flex items-center justify-between">
                       <span
                         className={cn(
-                          "flex h-5 w-5 items-center justify-center rounded-full text-[10px]",
+                          "flex h-5 w-5 items-center justify-center rounded-full text-[12px]",
                           isToday(day)
                             ? "bg-blue-600 font-semibold text-white"
                             : "text-zinc-400",
@@ -447,7 +447,7 @@ export function CalendarPage() {
                         {format(day, "d")}
                       </span>
                       {dayItems.length > 0 ? (
-                        <span className="font-mono text-[8px] text-zinc-500">
+                        <span className="font-mono text-[11px] text-zinc-500">
                           {dayItems.length}
                         </span>
                       ) : null}
@@ -461,7 +461,7 @@ export function CalendarPage() {
                         />
                       ))}
                       {dayItems.length > 3 ? (
-                        <p className="px-1 text-[8px] text-zinc-500">
+                        <p className="px-1 text-[11px] text-zinc-500">
                           +{dayItems.length - 3} mais
                         </p>
                       ) : null}
@@ -491,7 +491,7 @@ export function CalendarPage() {
         {view === "month" ? (
         <Card className="min-h-0">
           <CardHeader className="py-3">
-            <CardTitle className="text-[12px]">
+            <CardTitle className="text-[13.5px]">
               {capitalized(format(selectedDay, "EEEE, d 'de' MMMM", { locale: ptBR }))}
             </CardTitle>
             <Badge variant="default">{selectedItems.length}</Badge>
@@ -577,12 +577,12 @@ function CalendarColumns({
           >
             <div className="flex items-center justify-between border-b border-zinc-800/70 pb-1.5">
               <div>
-                <p className="text-[9px] uppercase tracking-[0.12em] text-zinc-500">
+                <p className="text-[11.5px] uppercase tracking-[0.12em] text-zinc-500">
                   {format(day, "EEE", { locale: ptBR })}
                 </p>
                 <p
                   className={cn(
-                    "text-[13px] font-medium",
+                    "text-[14px] font-medium",
                     isToday(day) ? "text-blue-300" : "text-zinc-300",
                   )}
                 >
@@ -590,14 +590,14 @@ function CalendarColumns({
                 </p>
               </div>
               {dayItems.length > 0 ? (
-                <span className="font-mono text-[8px] text-zinc-500">
+                <span className="font-mono text-[11px] text-zinc-500">
                   {dayItems.length}
                 </span>
               ) : null}
             </div>
             <div className="mt-1.5 space-y-1">
               {dayItems.length === 0 ? (
-                <p className="px-1 py-2 text-[9px] text-zinc-500">—</p>
+                <p className="px-1 py-2 text-[11.5px] text-zinc-500">—</p>
               ) : (
                 dayItems.map((item) => (
                   <CalendarItemChip
@@ -627,7 +627,7 @@ function CalendarDayView({
 }) {
   return (
     <div className="space-y-2">
-      <p className="text-[11px] font-medium text-zinc-300">
+      <p className="text-[13px] font-medium text-zinc-300">
         {capitalized(format(day, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR }))}
       </p>
       {items.length === 0 ? (

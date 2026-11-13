@@ -282,7 +282,7 @@ export function ChatPage() {
       />
 
       {error ? (
-        <p className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-300">
+        <p className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">
           {error}
         </p>
       ) : null}
@@ -292,7 +292,7 @@ export function ChatPage() {
           <CardHeader className="px-4 py-3.5">
             <div>
               <CardTitle>Conversas</CardTitle>
-              <p className="mt-0.5 text-[12px] text-zinc-500">
+              <p className="mt-0.5 text-[13.5px] text-zinc-500">
                 {threads.length} conversa{threads.length === 1 ? "" : "s"}
               </p>
             </div>
@@ -308,14 +308,14 @@ export function ChatPage() {
                 value={threadQuery}
                 onChange={(event) => setThreadQuery(event.target.value)}
                 placeholder="Buscar conversa ou agente"
-                className="h-full flex-1 bg-transparent text-[13px] outline-none placeholder:text-zinc-500"
+                className="h-full flex-1 bg-transparent text-[14px] outline-none placeholder:text-zinc-500"
                 aria-label="Buscar conversa ou agente"
               />
             </div>
           </div>
           <CardContent className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
             {filteredThreads.length === 0 ? (
-              <p className="p-4 text-center text-[12px] text-zinc-500">
+              <p className="p-4 text-center text-[13.5px] text-zinc-500">
                 {threads.length === 0
                   ? "Nenhuma conversa. Escolha um agente e crie a primeira."
                   : "Nenhuma conversa encontrada."}
@@ -396,12 +396,12 @@ export function ChatPage() {
                   </Button>
                 </div>
               ) : (
-                <CardTitle className="truncate text-[12px]">
+                <CardTitle className="truncate text-[13.5px]">
                   {thread?.title ?? "Selecione uma conversa"}
                 </CardTitle>
               )}
               {thread ? (
-                <p className="mt-0.5 flex flex-wrap items-center gap-1 font-mono text-[11px] text-zinc-500">
+                <p className="mt-0.5 flex flex-wrap items-center gap-1 font-mono text-[13px] text-zinc-500">
                   <EntityLink
                     to={links.agent(thread.agent, "workspace", activeWorkspaceId)}
                     chip
@@ -469,7 +469,7 @@ export function ChatPage() {
                     )}
                   >
                     <p className="whitespace-pre-wrap">{message.content}</p>
-                    <p className="mt-1 text-right font-mono text-[8px] text-zinc-500">
+                    <p className="mt-1 text-right font-mono text-[11px] text-zinc-500">
                       {message.role === "user" ? "você" : "agente"} ·{" "}
                       {relativeTime(message.created_at)}
                     </p>
@@ -627,14 +627,14 @@ function MetaBuilder({ workspaceId }: { workspaceId: string }) {
         </Button>
       </div>
       {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
       ) : null}
       {result ? (
-        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-3 text-[11px] text-emerald-200">
+        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-3 text-[13px] text-emerald-200">
           <p className="font-medium">{result.message}</p>
-          <p className="mt-1 font-mono text-[9px] text-emerald-300/70">
+          <p className="mt-1 font-mono text-[11.5px] text-emerald-300/70">
             {result.kind} · {result.id} · {result.path}
           </p>
         </div>

@@ -198,7 +198,7 @@ export function EventModal({
             onChange={(event) => setDescription(event.target.value)}
             rows={3}
             placeholder="Pauta, links ou contexto…"
-            className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 p-2.5 text-[11px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
+            className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 p-2.5 text-[13px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
           />
         </label>
         <label className="block">
@@ -227,7 +227,7 @@ export function EventModal({
             </select>
           </label>
         )}
-        <label className="flex items-center gap-2 text-[11px] text-zinc-400">
+        <label className="flex items-center gap-2 text-[13px] text-zinc-400">
           <input
             type="checkbox"
             checked={allDay}
@@ -281,11 +281,11 @@ export function EventModal({
             </>
           )}
         </div>
-        <p className="text-[9px] text-zinc-500">
+        <p className="text-[11.5px] text-zinc-500">
           Fuso: {Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"}
         </p>
         {error ? (
-          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
             {error}
           </p>
         ) : null}

@@ -88,12 +88,16 @@ export function QueueController({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 text-[10px] text-zinc-500">
+          <label
+            className="flex items-center gap-2 text-[13.5px] text-zinc-500"
+            title="Quantos jobs podem rodar ao mesmo tempo"
+          >
             concorrência
             <select
               value={status?.concurrency ?? 1}
               onChange={(event) => onConcurrency(Number(event.target.value))}
-              className="h-7 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 text-[10px] text-zinc-200 outline-none focus:border-blue-500/60"
+              className="h-8 rounded-md border border-zinc-800 bg-zinc-900/60 px-2.5 text-[13.5px] text-zinc-200 outline-none transition-colors hover:border-zinc-700 focus:border-blue-500/60"
+              aria-label="Concorrência da fila"
             >
               {[1, 2, 3, 4].map((value) => (
                 <option key={value} value={value}>
@@ -131,7 +135,7 @@ export function QueueController({
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[10px] text-zinc-500">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[12px] text-zinc-500">
           <span className="inline-flex items-center gap-1.5">
             {running > 0 ? <WorkingIndicator label="" /> : null}
             rodando <CountPill value={running} tone="blue" />
@@ -145,13 +149,13 @@ export function QueueController({
           <span className="inline-flex items-center gap-1.5">
             total <CountPill value={queue.length} />
           </span>
-          <span className="ml-auto hidden font-mono text-[9px] text-zinc-500 md:inline">
+          <span className="ml-auto hidden font-mono text-[11.5px] text-zinc-500 md:inline">
             lease 60s · heartbeat 5s
           </span>
         </div>
 
         {status?.pause_reason ? (
-          <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-200">
+          <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
             Pausada: {status.pause_reason}
           </p>
         ) : null}
@@ -189,10 +193,10 @@ export function QueueController({
                     <Badge variant="purple">{job.job_kind}</Badge>
                   ) : null}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[11px] text-zinc-200">
+                    <p className="truncate text-[13px] text-zinc-200">
                       {job.title ?? job.id}
                     </p>
-                    <p className="truncate font-mono text-[9px] text-zinc-500">
+                    <p className="truncate font-mono text-[11.5px] text-zinc-500">
                       {job.resolved_agent} · {job.resolved_model}
                       {job.concurrency_group ? ` · ${job.concurrency_group}` : ""}
                       {(job.retry_count ?? 0) > 0
@@ -200,13 +204,13 @@ export function QueueController({
                         : ""}
                     </p>
                   </div>
-                  <span className="inline-flex items-center gap-1 font-mono text-[9px] text-zinc-500">
+                  <span className="inline-flex items-center gap-1 font-mono text-[11.5px] text-zinc-500">
                     <Clock3 size={9} />
                     {relativeTime(job.started_at ?? job.enqueued_at)}
                   </span>
                   {job.status === "RUNNING" && job.lease_expires_at ? (
                     <span
-                      className="font-mono text-[9px] text-zinc-500"
+                      className="font-mono text-[11.5px] text-zinc-500"
                       title={`heartbeat: ${job.last_heartbeat_at ?? "—"}`}
                     >
                       lease {leaseLabel(job.lease_expires_at)}
@@ -215,7 +219,7 @@ export function QueueController({
                 </div>
 
                 {job.error_message ? (
-                  <p className="mt-1 flex items-start gap-1 text-[9px] text-red-300/80">
+                  <p className="mt-1 flex items-start gap-1 text-[11.5px] text-red-300/80">
                     <AlertTriangle size={10} className="mt-0.5 shrink-0" />
                     <span className="min-w-0 break-words">{job.error_message}</span>
                   </p>
@@ -231,7 +235,7 @@ export function QueueController({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-1.5 text-[9px]"
+                      className="h-6 px-1.5 text-[11.5px]"
                       title={job.output_dir}
                       onClick={() => void openPath(job.output_dir ?? "")}
                     >
@@ -265,7 +269,7 @@ export function QueueController({
                       <Button
                         variant="destructive"
                         size="sm"
-                        className="h-6 px-1.5 text-[9px]"
+                        className="h-6 px-1.5 text-[11.5px]"
                         onClick={() => onJobAction(job.id, "cancel")}
                       >
                         <IconLabel icon={<Square size={10} />}>Cancelar</IconLabel>
@@ -275,7 +279,7 @@ export function QueueController({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-6 px-1.5 text-[9px]"
+                        className="h-6 px-1.5 text-[11.5px]"
                         onClick={() => onJobAction(job.id, "retry")}
                       >
                         <IconLabel icon={<RotateCw size={10} />}>Retry</IconLabel>

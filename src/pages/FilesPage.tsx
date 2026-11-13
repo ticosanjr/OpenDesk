@@ -316,7 +316,7 @@ export function FilesPage() {
       </div>
 
       {error ? (
-        <p className="shrink-0 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="shrink-0 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
       ) : null}
@@ -324,7 +324,7 @@ export function FilesPage() {
       <div className="grid min-h-0 flex-1 gap-3 overflow-hidden lg:grid-cols-[minmax(280px,380px)_1fr]">
         <Card className="flex h-full min-h-0 flex-col">
           <CardHeader className="flex-col items-stretch gap-2 px-3.5 py-3">
-            <div className="flex w-full flex-wrap items-center gap-1 text-[10px] text-zinc-500">
+            <div className="flex w-full flex-wrap items-center gap-1 text-[12px] text-zinc-500">
               {crumbs.map((crumb, index) => (
                 <span key={crumb.path || "root"} className="flex items-center gap-1">
                   {index > 0 ? <ChevronRight size={10} className="text-zinc-500" /> : null}
@@ -357,7 +357,7 @@ export function FilesPage() {
               }
               className="min-w-0"
             />
-            <div className="flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5 text-[10px]">
+            <div className="flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5 text-[12px]">
               <button
                 type="button"
                 onClick={() => setScope("folder")}
@@ -423,10 +423,10 @@ export function FilesPage() {
                     <FileText size={14} className="shrink-0 text-zinc-500" />
                   )}
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[11px] text-zinc-300">
+                    <span className="block truncate text-[13px] text-zinc-300">
                       {entry.name}
                     </span>
-                    <span className="block truncate font-mono text-[9px] text-zinc-500">
+                    <span className="block truncate font-mono text-[11.5px] text-zinc-500">
                       {entry.is_dir
                         ? "pasta"
                         : `${formatNumber(entry.size)} B · ${relativeTime(entry.modified)}`}
@@ -444,23 +444,23 @@ export function FilesPage() {
         <Card className="flex h-full min-h-0 flex-col">
           <CardHeader className="px-3.5 py-3">
             <div className="min-w-0">
-              <CardTitle className="flex items-center gap-2 text-[12px]">
+              <CardTitle className="flex items-center gap-2 text-[13.5px]">
                 <FileText size={14} className="text-zinc-500" />
                 {selected?.name ?? "Pré-visualização"}
               </CardTitle>
               {content || selected ? (
                 (content?.path ?? selected?.path) !== selected?.name ? (
-                  <p className="mt-0.5 truncate font-mono text-[11px] text-zinc-500">
+                  <p className="mt-0.5 truncate font-mono text-[13px] text-zinc-500">
                     {content?.path ?? selected?.path}
                   </p>
                 ) : null
               ) : (
-                <p className="mt-0.5 font-mono text-[11px] text-zinc-500">
+                <p className="mt-0.5 font-mono text-[13px] text-zinc-500">
                   selecione um arquivo
                 </p>
               )}
               {media ? (
-                <p className="mt-1 flex flex-wrap items-center gap-1 text-[9px] text-zinc-500">
+                <p className="mt-1 flex flex-wrap items-center gap-1 text-[11.5px] text-zinc-500">
                   {media.duration_secs ? (
                     <Badge variant="default">
                       {Math.floor(media.duration_secs / 60)}:
@@ -542,7 +542,7 @@ export function FilesPage() {
                 onOpenExternal={() => void reveal(content.path)}
               />
             ) : (
-              <p className="p-3 text-[11px] text-zinc-500">Sem conteúdo.</p>
+              <p className="p-3 text-[13px] text-zinc-500">Sem conteúdo.</p>
             )}
           </CardContent>
         </Card>

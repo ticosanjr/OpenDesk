@@ -146,9 +146,9 @@ export function CommandPanel({
         setError(null);
       }}>
         {loading && commands.length === 0 ? (
-          <p className="px-3 py-6 text-center text-[10px] text-zinc-500">Carregando…</p>
+          <p className="px-3 py-6 text-center text-[12px] text-zinc-500">Carregando…</p>
         ) : commands.length === 0 ? (
-          <p className="px-3 py-6 text-center text-[10px] text-zinc-500">
+          <p className="px-3 py-6 text-center text-[12px] text-zinc-500">
             Nenhum comando neste escopo.
           </p>
         ) : (
@@ -187,7 +187,7 @@ export function CommandPanel({
                   </h2>
                   {isNew ? <Badge variant="blue">novo</Badge> : null}
                 </div>
-                <p className="mt-0.5 font-mono text-[9px] text-zinc-500">
+                <p className="mt-0.5 font-mono text-[11.5px] text-zinc-500">
                   {draft.path || "arquivo será criado ao salvar"}
                 </p>
               </div>
@@ -228,7 +228,7 @@ export function CommandPanel({
                   value={draft.agent ?? ""}
                   onChange={(event) => setDraft({ ...draft, agent: event.target.value })}
                   placeholder="auditor"
-                  className={cn(inputClass, "font-mono text-[11px]")}
+                  className={cn(inputClass, "font-mono text-[13px]")}
                 />
               </StudioField>
               <StudioField label="Modelo" hint="provider/model ou provider/model#variant.">
@@ -237,7 +237,7 @@ export function CommandPanel({
                   value={draft.model ?? ""}
                   onChange={(event) => setDraft({ ...draft, model: event.target.value })}
                   placeholder="opencode-go/glm-5.3"
-                  className={cn(inputClass, "font-mono text-[11px]")}
+                  className={cn(inputClass, "font-mono text-[13px]")}
                 />
                 <datalist id="opendesk-command-models">
                   {models.map((model) => {
@@ -271,7 +271,7 @@ export function CommandPanel({
                 value={draft.template}
                 onChange={(event) => setDraft({ ...draft, template: event.target.value })}
                 rows={14}
-                className={cn(inputClass, "min-h-[260px] resize-y py-2 font-mono text-[11px] leading-relaxed")}
+                className={cn(inputClass, "min-h-[260px] resize-y py-2 font-mono text-[13px] leading-relaxed")}
               />
             </StudioField>
           </div>
@@ -282,4 +282,4 @@ export function CommandPanel({
 }
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60 disabled:cursor-not-allowed";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[13.5px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60 disabled:cursor-not-allowed";

@@ -99,7 +99,7 @@ export function Sidebar() {
             <p className="truncate text-sm font-semibold tracking-tight text-zinc-100">
               OpenDesk
             </p>
-            <p className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+            <p className="truncate font-mono text-[12px] uppercase tracking-[0.14em] text-zinc-500">
               control plane
             </p>
           </div>
@@ -123,7 +123,7 @@ export function Sidebar() {
                   title={collapsed ? item.label : undefined}
                   className={({ isActive }) =>
                     cn(
-                      "sidebar-nav-item group mx-2 flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors",
+                      "sidebar-nav-item group mx-2 flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[14px] font-medium transition-colors",
                       isActive
                         ? "workspace-nav-active text-zinc-100"
                         : "text-zinc-500 hover:bg-zinc-900/70 hover:text-zinc-200",
@@ -145,11 +145,11 @@ export function Sidebar() {
           <div className="sidebar-status-card mb-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 p-2.5">
             <div className="flex items-center gap-2">
               <StatusDot tone={statusTone(daemon?.online ?? false, daemon?.state)} />
-              <span className="text-[11px] font-medium text-zinc-300">
+              <span className="text-[13px] font-medium text-zinc-300">
                 {daemon?.online ? `OpenCode :${daemon.port}` : "OpenCode offline"}
               </span>
             </div>
-            <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-zinc-500">
+            <div className="mt-2 flex items-center justify-between font-mono text-[12px] text-zinc-500">
               <span>{daemon?.version ? `v${daemon.version}` : "—"}</span>
               <span className="inline-flex items-center gap-1">
                 <span
@@ -176,7 +176,7 @@ export function Sidebar() {
         <button
           type="button"
           onClick={toggleSidebar}
-          className="flex w-full items-center justify-center gap-2 rounded-lg px-2 py-1.5 text-[11px] text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-zinc-300"
+          className="flex w-full items-center justify-center gap-2 rounded-lg px-2 py-1.5 text-[13px] text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-zinc-300"
           title={collapsed ? "Expandir sidebar" : "Recolher sidebar"}
           aria-label={collapsed ? "Expandir sidebar" : "Recolher sidebar"}
         >
@@ -190,7 +190,7 @@ export function Sidebar() {
 
 export function SidebarSectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="sidebar-section-label px-2.5 pb-1 pt-2 font-mono text-[9px] uppercase tracking-[0.16em] text-zinc-500">
+    <p className="sidebar-section-label px-2.5 pb-1 pt-2 font-mono text-[11.5px] uppercase tracking-[0.16em] text-zinc-500">
       {children}
     </p>
   );
@@ -200,7 +200,7 @@ export function SettingsShortcut() {
   return (
     <NavLink
       to="/router"
-      className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] font-medium text-zinc-500 transition-colors hover:bg-zinc-900/70 hover:text-zinc-200"
+      className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-[14px] font-medium text-zinc-500 transition-colors hover:bg-zinc-900/70 hover:text-zinc-200"
     >
       <SlidersHorizontal size={17} strokeWidth={1.8} />
       Configurações

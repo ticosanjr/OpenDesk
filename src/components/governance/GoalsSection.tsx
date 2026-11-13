@@ -52,15 +52,15 @@ export function GoalsSection({
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <p className="text-[11px] font-medium text-zinc-200">
+                        <p className="text-[13px] font-medium text-zinc-200">
                           {goal.title}
                         </p>
                         <Badge variant={goalTone(goal.status)}>{goal.status}</Badge>
-                        <span className="font-mono text-[9px] text-zinc-500">
+                        <span className="font-mono text-[11.5px] text-zinc-500">
                           @{goal.agent_id}
                         </span>
                       </div>
-                      <p className="mt-0.5 line-clamp-1 text-[9px] text-zinc-500">
+                      <p className="mt-0.5 line-clamp-1 text-[11.5px] text-zinc-500">
                         {goal.description || goal.metric || "Sem descrição"}
                       </p>
                     </div>
@@ -96,7 +96,7 @@ export function GoalsSection({
                         style={{ width: `${progress}%` }}
                       />
                     </div>
-                    <span className="font-mono text-[9px] text-zinc-500">
+                    <span className="font-mono text-[11.5px] text-zinc-500">
                       {goal.current_value}
                       {goal.target_value !== null && goal.target_value !== undefined
                         ? ` / ${goal.target_value}`
@@ -105,7 +105,7 @@ export function GoalsSection({
                     </span>
                   </div>
                   {goal.due_at ? (
-                    <p className="mt-1 text-[9px] text-zinc-500">
+                    <p className="mt-1 text-[11.5px] text-zinc-500">
                       prazo {goal.due_at}
                     </p>
                   ) : null}
@@ -116,7 +116,7 @@ export function GoalsSection({
         </div>
       )}
       {agents.length === 0 ? (
-        <p className="text-[9px] text-zinc-500">
+        <p className="text-[11.5px] text-zinc-500">
           Crie agentes no Studio antes de cadastrar metas.
         </p>
       ) : null}

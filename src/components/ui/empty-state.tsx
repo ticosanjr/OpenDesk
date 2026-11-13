@@ -38,7 +38,7 @@ export function EmptyState({
       <p
         className={cn(
           "font-semibold text-zinc-200",
-          compact ? "text-[13px]" : "text-[14px]",
+          compact ? "text-[14px]" : "text-[14px]",
         )}
       >
         {title}
@@ -47,7 +47,7 @@ export function EmptyState({
         <p
           className={cn(
             "max-w-sm leading-relaxed text-zinc-400",
-            compact ? "mt-1 text-[12px]" : "mt-1.5 text-[12.5px]",
+            compact ? "mt-1 text-[13.5px]" : "mt-1.5 text-[12.5px]",
           )}
         >
           {description}

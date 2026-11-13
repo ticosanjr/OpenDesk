@@ -97,13 +97,13 @@ export function PackInstallModal({
             ) : null}
           </div>
           {selected.installed && selected.update_available ? (
-            <p className="text-[10px] text-amber-200">
+            <p className="text-[12px] text-amber-200">
               Versão instalada {selected.installed_version ?? "?"}; disponível{" "}
               {selected.version}.
             </p>
           ) : null}
           {selected.health.status === "partial" ? (
-            <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-200">
+            <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">
               Faltam {selected.health.missing_files} arquivo(s) e{" "}
               {selected.health.missing_routines} rotina(s). Use “Reparar” para
               recriar o que falta; arquivos personalizados aparecem como conflito
@@ -112,7 +112,7 @@ export function PackInstallModal({
           ) : null}
 
           {selected.requires.tools.length || selected.requires.integrations.length ? (
-            <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.05] px-3 py-2 text-[10px] text-amber-200">
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.05] px-3 py-2 text-[12px] text-amber-200">
               <strong>Requisitos:</strong>{" "}
               {[...selected.requires.tools, ...selected.requires.integrations].join(", ")}
             </div>
@@ -130,8 +130,8 @@ export function PackInstallModal({
                     onClick={() => setItemKind(kind.id)}
                     className={
                       itemKind === kind.id
-                        ? "inline-flex h-8 items-center rounded-md bg-zinc-800 px-2.5 text-[12px] text-zinc-100"
-                        : "inline-flex h-8 items-center rounded-md px-2.5 text-[12px] text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200"
+                        ? "inline-flex h-8 items-center rounded-md bg-zinc-800 px-2.5 text-[13.5px] text-zinc-100"
+                        : "inline-flex h-8 items-center rounded-md px-2.5 text-[13.5px] text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200"
                     }
                   >
                     {kind.label} <span className="font-mono text-zinc-500">{count}</span>
@@ -152,8 +152,8 @@ export function PackInstallModal({
                   onClick={() => setItemStatus(value)}
                   className={
                     itemStatus === value
-                      ? "rounded-md bg-zinc-800 px-2 py-1 text-[11px] text-zinc-100"
-                      : "rounded-md px-2 py-1 text-[11px] text-zinc-500 hover:text-zinc-200"
+                      ? "rounded-md bg-zinc-800 px-2 py-1 text-[13px] text-zinc-100"
+                      : "rounded-md px-2 py-1 text-[13px] text-zinc-500 hover:text-zinc-200"
                   }
                 >
                   {label}
@@ -164,76 +164,81 @@ export function PackInstallModal({
               {itemsLoading ? (
                 <LoadingState compact label="Carregando itens…" />
               ) : visibleItems.length === 0 ? (
-                <p className="p-2 text-[10px] text-zinc-500">Nenhum item neste tipo.</p>
+                <p className="p-2 text-[12px] text-zinc-500">Nenhum item neste tipo.</p>
               ) : (
                 visibleItems.map((item) => (
-                  <details
+                  <div
                     key={`${item.kind}:${item.id}`}
-                    className="rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-2 [&_summary::-webkit-details-marker]:hidden"
+                    className="flex items-start gap-2 rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-2"
                   >
-                    <summary className="flex cursor-pointer items-center gap-2 text-[12px] text-zinc-300">
-                      <span className="min-w-0 flex-1 truncate">{item.name}</span>
-                      <Badge variant="default">{item.kind}</Badge>
-                      <Badge
-                        variant={
-                          item.status === "installed"
-                            ? "green"
+                    <details className="min-w-0 flex-1 [&_summary::-webkit-details-marker]:hidden">
+                      <summary className="flex cursor-pointer items-center gap-2 text-[13.5px] text-zinc-300">
+                        <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                        <Badge variant="default">{item.kind}</Badge>
+                        <Badge
+                          variant={
+                            item.status === "installed"
+                              ? "green"
+                              : item.status === "modified"
+                                ? "yellow"
+                                : "default"
+                          }
+                          title={
+                            item.installed
+                              ? "Todos os arquivos deste item estão instalados no workspace"
+                              : item.status === "modified"
+                                ? "O item existe, mas foi modificado"
+                                : "Este item ainda não está instalado"
+                          }
+                        >
+                          {item.status === "installed"
+                            ? "instalado"
                             : item.status === "modified"
-                              ? "yellow"
-                              : "default"
-                        }
-                        title={
-                          item.installed
-                            ? "Todos os arquivos deste item estão instalados no workspace"
-                            : item.status === "modified"
-                              ? "O item existe, mas foi modificado"
-                              : "Este item ainda não está instalado"
-                        }
+                              ? "modificado"
+                              : "disponível"}
+                        </Badge>
+                      </summary>
+                      {item.description ? (
+                        <p className="mt-1 text-[13px] leading-snug text-zinc-500">
+                          {item.description}
+                        </p>
+                      ) : null}
+                      <pre
+                        tabIndex={0}
+                        aria-label={`Conteúdo de ${item.name}`}
+                        className="mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap rounded border border-zinc-800/70 bg-black/25 p-2 font-mono text-[13px] leading-relaxed text-zinc-400"
                       >
-                        {item.status === "installed"
-                          ? "instalado"
-                          : item.status === "modified"
-                            ? "modificado"
-                            : "disponível"}
-                      </Badge>
-                      <Button
-                        variant="outline"
-                        size="xs"
-                        disabled={!activeWorkspaceId || installingItem === `${item.kind}:${item.id}`}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          onInstallItem(item.kind, item.id);
-                        }}
-                      >
-                        {installingItem === `${item.kind}:${item.id}`
-                          ? "Instalando…"
-                          : item.installed
-                            ? "Reaplicar"
-                            : "Instalar"}
-                      </Button>
-                    </summary>
-                    {item.description ? (
-                      <p className="mt-1 text-[11px] leading-snug text-zinc-500">
-                        {item.description}
-                      </p>
-                    ) : null}
-                    <pre className="mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap rounded border border-zinc-800/70 bg-black/25 p-2 font-mono text-[11px] leading-relaxed text-zinc-400">
-                      {item.content}
-                    </pre>
-                    {item.files.length > 0 ? (
-                      <p className="mt-1 font-mono text-[11px] text-zinc-500">
-                        Arquivos: {item.files.join(", ")}
-                      </p>
-                    ) : null}
-                  </details>
+                        {item.content}
+                      </pre>
+                      {item.files.length > 0 ? (
+                        <p className="mt-1 font-mono text-[13px] text-zinc-500">
+                          Arquivos: {item.files.join(", ")}
+                        </p>
+                      ) : null}
+                    </details>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      disabled={
+                        !activeWorkspaceId ||
+                        installingItem === `${item.kind}:${item.id}`
+                      }
+                      onClick={() => onInstallItem(item.kind, item.id)}
+                    >
+                      {installingItem === `${item.kind}:${item.id}`
+                        ? "Instalando…"
+                        : item.installed
+                          ? "Reaplicar"
+                          : "Instalar"}
+                    </Button>
+                  </div>
                 ))
               )}
             </div>
           </div>
 
           {!activeWorkspaceId ? (
-            <p className="rounded-lg border border-zinc-800 px-3 py-2 text-[10px] text-zinc-500">
+            <p className="rounded-lg border border-zinc-800 px-3 py-2 text-[12px] text-zinc-500">
               Selecione um workspace ativo para adicionar este pacote.
             </p>
           ) : planLoading ? (
@@ -246,36 +251,40 @@ export function PackInstallModal({
                     value={plan.files.filter((file) => file.status === "create").length}
                     tone="green"
                   />
-                  <p className="mt-1 text-[9px] text-zinc-500">novos</p>
+                  <p className="mt-1 text-[11.5px] text-zinc-500">novos</p>
                 </div>
                 <div className="rounded-lg border border-zinc-800 px-2 py-1.5">
                   <CountPill
                     value={plan.files.filter((file) => file.status === "identical").length}
                   />
-                  <p className="mt-1 text-[9px] text-zinc-500">iguais</p>
+                  <p className="mt-1 text-[11.5px] text-zinc-500">iguais</p>
                 </div>
                 <div className="rounded-lg border border-zinc-800 px-2 py-1.5">
                   <CountPill
                     value={plan.conflicts}
                     tone={plan.conflicts ? "red" : "default"}
                   />
-                  <p className="mt-1 text-[9px] text-zinc-500">conflitos</p>
+                  <p className="mt-1 text-[11.5px] text-zinc-500">conflitos</p>
                 </div>
               </div>
               {plan.conflicts > 0 ? (
                 <>
-                  <p className="flex items-start gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-200">
+                  <p className="flex items-start gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">
                     <TriangleAlert size={12} className="mt-0.5 shrink-0" />
                     Marque os arquivos que podem ser substituídos. Os não marcados
                     serão mantidos como estão; substituições fazem backup.
                   </p>
-                  <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-zinc-800/70 p-2">
+                  <div
+                    tabIndex={0}
+                    aria-label="Arquivos em conflito"
+                    className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-zinc-800/70 p-2"
+                  >
                     {plan.files
                       .filter((file) => file.status === "conflict")
                       .map((file) => (
                         <label
                           key={file.path}
-                          className="flex items-center gap-2 text-[10px] text-zinc-300"
+                          className="flex items-center gap-2 text-[12px] text-zinc-300"
                         >
                           <input
                             type="checkbox"
@@ -285,7 +294,7 @@ export function PackInstallModal({
                             }
                             className="accent-blue-500"
                           />
-                          <span className="truncate font-mono text-[9px]">
+                          <span className="truncate font-mono text-[11.5px]">
                             {file.path}
                           </span>
                         </label>
@@ -294,17 +303,21 @@ export function PackInstallModal({
                 </>
               ) : null}
               {plan.routines.length > 0 ? (
-                <p className="text-[10px] text-zinc-500">
+                <p className="text-[12px] text-zinc-500">
                   {plan.routines.length} rotina(s) serão criadas <strong>inativas</strong>.
                 </p>
               ) : null}
-              <div className="max-h-40 overflow-y-auto rounded-lg border border-zinc-800/70">
+              <div
+                tabIndex={0}
+                aria-label="Arquivos do plano de instalação"
+                className="max-h-40 overflow-y-auto rounded-lg border border-zinc-800/70"
+              >
                 {plan.files.slice(0, 80).map((file) => (
                   <div
                     key={file.path}
                     className="flex items-center gap-2 border-b border-zinc-800/50 px-2.5 py-1 last:border-0"
                   >
-                    <span className="min-w-0 flex-1 truncate font-mono text-[9px] text-zinc-400">
+                    <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-zinc-400">
                       {file.path}
                     </span>
                     <Badge
@@ -325,7 +338,7 @@ export function PackInstallModal({
           ) : null}
 
           {selected.installed ? (
-            <div className="flex flex-wrap gap-2 text-[10px] text-zinc-500">
+            <div className="flex flex-wrap gap-2 text-[12px] text-zinc-500">
               <Link to="/studio" className="hover:text-zinc-200">
                 ver agentes
               </Link>

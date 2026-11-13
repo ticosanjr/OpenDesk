@@ -142,7 +142,7 @@ export function FileViewer({
         {embedded ? null : (
           <>
             <FileText size={13} className="text-zinc-500" />
-            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-zinc-300">
+            <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-zinc-300">
               {path || name}
             </span>
             <Badge variant="default">{kind}</Badge>
@@ -161,7 +161,7 @@ export function FileViewer({
                 type="button"
                 onClick={() => setTab(value)}
                 className={cn(
-                  "rounded px-1.5 py-0.5 text-[10px]",
+                  "rounded px-1.5 py-0.5 text-[12px]",
                   tab === value
                     ? "bg-zinc-800 text-zinc-100"
                     : "text-zinc-500 hover:text-zinc-200",
@@ -182,7 +182,7 @@ export function FileViewer({
           <a
             href={blobUrl}
             download={name}
-            className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-[11px] text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+            className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-[13px] text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
           >
             <Download size={11} />
             baixar
@@ -193,7 +193,7 @@ export function FileViewer({
 
       <div className="min-h-0 flex-1 overflow-auto bg-zinc-950/40 p-3">
         {tab === "source" ? (
-          <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-zinc-300">
+          <pre className="whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-zinc-300">
             {content || "Conteúdo não disponível."}
           </pre>
         ) : kind === "markdown" ? (
@@ -217,7 +217,7 @@ export function FileViewer({
                 className="max-h-[70vh] rounded-lg object-contain"
               />
             ) : (
-              <p className="text-[11px] text-zinc-500">Carregando imagem…</p>
+              <p className="text-[13px] text-zinc-500">Carregando imagem…</p>
             )}
           </div>
         ) : kind === "pdf" ? (
@@ -228,7 +228,7 @@ export function FileViewer({
               className="h-full min-h-[520px] w-full rounded-lg border border-zinc-800 bg-white"
             />
           ) : (
-            <p className="text-[11px] text-zinc-500">Carregando PDF…</p>
+            <p className="text-[13px] text-zinc-500">Carregando PDF…</p>
           )
         ) : kind === "video" ? (
           blobUrl ? (
@@ -238,23 +238,23 @@ export function FileViewer({
               className="max-h-[70vh] w-full rounded-lg bg-black"
             />
           ) : (
-            <p className="text-[11px] text-zinc-500">Carregando vídeo…</p>
+            <p className="text-[13px] text-zinc-500">Carregando vídeo…</p>
           )
         ) : kind === "audio" ? (
           blobUrl ? (
             <audio src={blobUrl} controls className="w-full" />
           ) : (
-            <p className="text-[11px] text-zinc-500">Carregando áudio…</p>
+            <p className="text-[13px] text-zinc-500">Carregando áudio…</p>
           )
         ) : binary ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
             <Download size={24} className="text-zinc-500" />
-            <p className="text-[12px] text-zinc-400">
+            <p className="text-[13.5px] text-zinc-400">
               Este formato não tem prévia interna. Baixe ou abra externamente.
             </p>
           </div>
         ) : (
-          <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-zinc-300">
+          <pre className="whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-zinc-300">
             {content || "Sem conteúdo textual."}
           </pre>
         )}
@@ -270,11 +270,11 @@ export function FileViewer({
             onChange={(event) => setZoom(Number(event.target.value))}
             className="h-1 flex-1 accent-blue-500"
           />
-          <span className="font-mono text-[10px] text-zinc-500">{zoom}%</span>
+          <span className="font-mono text-[12px] text-zinc-500">{zoom}%</span>
         </div>
       ) : null}
       {kind === "video" || kind === "audio" ? (
-        <div className="flex items-center gap-1 border-t border-zinc-800/70 px-3 py-2 text-[10px] text-zinc-500">
+        <div className="flex items-center gap-1 border-t border-zinc-800/70 px-3 py-2 text-[12px] text-zinc-500">
           {kind === "video" ? <Video size={11} /> : <Music size={11} />}
           use os controles nativos para reproduzir
         </div>

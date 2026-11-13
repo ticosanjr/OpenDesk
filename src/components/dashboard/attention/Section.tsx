@@ -15,7 +15,7 @@ export function Section({
   return (
     <section className="space-y-1.5">
       <div className="flex items-center gap-2 px-0.5">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+        <span className="text-[13px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
           {title}
         </span>
         <CountPill value={count} tone={tone} />

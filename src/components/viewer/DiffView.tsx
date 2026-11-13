@@ -9,7 +9,7 @@ export function DiffView({ patch }: { patch: string }) {
 
   if (!patch.trim()) {
     return (
-      <p className="p-4 text-[11px] text-zinc-500">
+      <p className="p-4 text-[13px] text-zinc-500">
         Sem diff registrado para este artefato.
       </p>
     );
@@ -18,19 +18,19 @@ export function DiffView({ patch }: { patch: string }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-2 border-b border-zinc-800/70 px-3 py-1.5">
-        <span className="font-mono text-[9px] uppercase tracking-wide text-zinc-500">
+        <span className="font-mono text-[11.5px] uppercase tracking-wide text-zinc-500">
           diff unificado
         </span>
-        <span className="font-mono text-[10px] text-emerald-300">
+        <span className="font-mono text-[12px] text-emerald-300">
           +{parsed.additions}
         </span>
-        <span className="font-mono text-[10px] text-red-300">
+        <span className="font-mono text-[12px] text-red-300">
           -{parsed.deletions}
         </span>
         <Button
           variant="ghost"
           size="sm"
-          className="ml-auto h-6 px-1.5 text-[9px]"
+          className="ml-auto h-6 px-1.5 text-[11.5px]"
           onClick={() => void navigator.clipboard.writeText(patch)}
           title="Copiar o diff"
         >
@@ -39,7 +39,7 @@ export function DiffView({ patch }: { patch: string }) {
         </Button>
       </div>
       <div className="scroll-area min-h-0 flex-1 overflow-auto">
-        <table className="w-full min-w-[620px] border-collapse font-mono text-[10px] leading-relaxed">
+        <table className="w-full min-w-[620px] border-collapse font-mono text-[12px] leading-relaxed">
           <tbody>
             {parsed.lines.map((line, index) =>
               line.kind === "hunk" ? (
@@ -65,10 +65,10 @@ export function DiffView({ patch }: { patch: string }) {
                         : "text-zinc-400",
                   )}
                 >
-                  <td className="w-10 select-none border-r border-zinc-800/60 px-2 py-0 text-right text-[9px] text-zinc-600">
+                  <td className="w-10 select-none border-r border-zinc-800/60 px-2 py-0 text-right text-[11.5px] text-zinc-600">
                     {line.oldLine ?? ""}
                   </td>
-                  <td className="w-10 select-none border-r border-zinc-800/60 px-2 py-0 text-right text-[9px] text-zinc-600">
+                  <td className="w-10 select-none border-r border-zinc-800/60 px-2 py-0 text-right text-[11.5px] text-zinc-600">
                     {line.newLine ?? ""}
                   </td>
                   <td className="whitespace-pre px-3 py-0">

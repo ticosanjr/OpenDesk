@@ -55,7 +55,7 @@ export function OrgChart({
           action={
             <Link
               to="/studio"
-              className="text-[12px] text-blue-300 hover:text-blue-200"
+              className="text-[13.5px] text-blue-300 hover:text-blue-200"
             >
               Abrir Studio
             </Link>
@@ -65,7 +65,7 @@ export function OrgChart({
         <Card className="overflow-hidden">
           <div className="scroll-area overflow-x-auto">
             <table className="w-full min-w-[760px] text-left">
-              <thead className="border-b border-zinc-800/70 bg-zinc-950/40 text-[11px] uppercase tracking-[0.06em] text-zinc-400">
+              <thead className="border-b border-zinc-800/70 bg-zinc-950/40 text-[13px] uppercase tracking-[0.06em] text-zinc-400">
                 <tr>
                   <th className="px-3 py-2.5 font-medium">Agente</th>
                   <th className="px-3 py-2.5 font-medium">Escopo</th>
@@ -145,7 +145,7 @@ function OrgRow({
             />
           ) : null}
           <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-700/60 text-[13px]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-700/60 text-[14px]"
             style={{ background: `${color}22`, color }}
           >
             {initials}
@@ -155,7 +155,7 @@ function OrgRow({
               <p className="truncate text-[14px] font-semibold text-zinc-100">
                 {agent.name || agent.id}
               </p>
-              <span className="font-mono text-[11px] text-zinc-500">
+              <span className="font-mono text-[13px] text-zinc-500">
                 @{agent.id}
               </span>
               {profile?.role ? (
@@ -170,11 +170,11 @@ function OrgRow({
               ) : null}
               {agent.disabled ? <Badge variant="red">desabilitado</Badge> : null}
             </div>
-            <p className="mt-0.5 line-clamp-1 text-[12px] text-zinc-400">
+            <p className="mt-0.5 line-clamp-1 text-[13.5px] text-zinc-400">
               {agent.description || "Sem descrição"}
             </p>
             {childCount > 0 || profile?.manager_id ? (
-              <p className="mt-0.5 text-[11px] text-zinc-500">
+              <p className="mt-0.5 text-[13px] text-zinc-500">
                 {profile?.manager_id ? `reporta a @${profile.manager_id}` : null}
                 {profile?.manager_id && childCount > 0 ? " · " : null}
                 {childCount > 0
@@ -190,19 +190,19 @@ function OrgRow({
           {agent.scope}
         </Badge>
         {profile ? (
-          <p className="mt-1.5 font-mono text-[11px] text-zinc-500">
+          <p className="mt-1.5 font-mono text-[13px] text-zinc-500">
             quota {profile.concurrency_quota}
           </p>
         ) : null}
       </td>
-      <td className="px-3 py-3 text-right font-mono text-[13px] tabular-nums text-zinc-300">
+      <td className="px-3 py-3 text-right font-mono text-[14px] tabular-nums text-zinc-300">
         {perf ? perf.runs : "—"}
       </td>
       <td className="px-3 py-3 text-right">
         {perf ? (
           <span
             className={cn(
-              "font-mono text-[13px] tabular-nums",
+              "font-mono text-[14px] tabular-nums",
               perf.success_rate >= 0.9
                 ? "text-emerald-300"
                 : perf.success_rate >= 0.7
@@ -213,13 +213,13 @@ function OrgRow({
             {Math.round(perf.success_rate * 100)}%
           </span>
         ) : (
-          <span className="font-mono text-[12px] text-zinc-500">—</span>
+          <span className="font-mono text-[13.5px] text-zinc-500">—</span>
         )}
       </td>
       <td className="min-w-[150px] px-3 py-3">
         {row ? (
           <>
-            <p className="font-mono text-[12px] tabular-nums text-zinc-300">
+            <p className="font-mono text-[13.5px] tabular-nums text-zinc-300">
               {formatUsd(row.monthly_spend_usd)} /{" "}
               {formatUsd(row.profile.monthly_budget_usd ?? null)}
             </p>
@@ -240,7 +240,7 @@ function OrgRow({
             ) : null}
           </>
         ) : (
-          <p className="text-[12px] text-zinc-500">sem budget definido</p>
+          <p className="text-[13.5px] text-zinc-500">sem budget definido</p>
         )}
       </td>
       <td className="px-3 py-3">
@@ -268,7 +268,7 @@ function OrgRow({
               agent.scope,
               agent.scope === "workspace" ? profile?.workspace_id : undefined,
             )}
-            className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12px] text-zinc-400 transition-colors hover:bg-zinc-800/60 hover:text-zinc-100"
+            className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[13.5px] text-zinc-400 transition-colors hover:bg-zinc-800/60 hover:text-zinc-100"
             title="Abrir no Studio"
           >
             Studio

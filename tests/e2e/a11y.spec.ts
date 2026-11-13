@@ -105,3 +105,55 @@ test("main routes keep axe clean at compact and wide viewports", async ({
     }
   }
 });
+
+test("install, routine and recipe modals keep axe clean", async ({
+  page,
+  request,
+}) => {
+  const workspace = await seedWorkspace(request, "A11y Modals");
+  const auth = (await import("./helpers")).api();
+  const recipe = await request.put(
+    `${auth.baseURL}/api/recipes/a11y-recipe?workspace_id=${workspace.id}`,
+    {
+      headers: auth.headers,
+      data: {
+        yaml: `id: a11y-recipe
+name: Receita A11y
+enabled: true
+triggers: []
+flow:
+  - type: step
+    id: passo-1
+    name: Passo
+    mode: build
+    prompt: ok
+`,
+      },
+    },
+  );
+  expect(recipe.ok()).toBeTruthy();
+
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await page.goto("/#/packs");
+  await page.getByRole("button", { name: /Essenciais/ }).first().click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(await criticalViolations(page), "pack install").toEqual([]);
+  await page.getByRole("dialog").getByRole("button", { name: "Fechar" }).click();
+
+  await page.goto("/#/routines");
+  await page.getByRole("main").getByRole("button", { name: "Nova rotina" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(await criticalViolations(page), "routine form").toEqual([]);
+  await page.getByRole("dialog").getByRole("button", { name: "Cancelar" }).click();
+
+  await page.goto("/#/recipes");
+  await page.getByRole("button", { name: /Dry-run/ }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(await criticalViolations(page), "recipe run").toEqual([]);
+  await page.getByRole("dialog").getByRole("button", { name: "Cancelar" }).click();
+
+  await page.goto("/#/studio");
+  await page.getByRole("button", { name: "Instalar" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(await criticalViolations(page), "studio install").toEqual([]);
+});

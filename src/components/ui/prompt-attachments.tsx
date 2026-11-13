@@ -88,7 +88,7 @@ export function PromptAttachments({
           )}
           {label}
         </Button>
-        <span className="text-[9px] text-zinc-500">
+        <span className="text-[11.5px] text-zinc-500">
           {value.length > 0
             ? `${value.length} anexo(s) — caminhos adicionados ao prompt`
             : "opcional, até 20 MB por arquivo"}
@@ -99,7 +99,7 @@ export function PromptAttachments({
           {value.map((path) => (
             <span
               key={path}
-              className="inline-flex max-w-full items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-[9px] text-zinc-400"
+              className="inline-flex max-w-full items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-[11.5px] text-zinc-400"
             >
               <Paperclip size={9} />
               <span className="max-w-48 truncate">{basename(path)}</span>
@@ -115,7 +115,7 @@ export function PromptAttachments({
           ))}
         </div>
       ) : null}
-      {error ? <p className="text-[10px] text-red-300">{error}</p> : null}
+      {error ? <p className="text-[12px] text-red-300">{error}</p> : null}
     </div>
   );
 }

@@ -57,9 +57,9 @@ Rules:
 - Do not use 700; Inter 600 is the strongest loaded weight.
 - Uppercase is reserved for overlines, badges, and short status labels.
 - Mono is for data, not prose.
-- Legacy `text-[8px]`…`text-[13px]` classes are remapped by `src/styles.css`
-  to the floor above. New code should use `.type-*` roles or Tailwind's
-  `text-xs`/`text-sm`.
+- Legacy `text-[8px]`…`text-[13px]` classes were migrated to their computed
+  values; no functional class is below 11px. New code should use `.type-*`
+  roles or Tailwind's `text-sm`.
 
 ## Color
 

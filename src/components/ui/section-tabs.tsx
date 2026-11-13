@@ -54,7 +54,7 @@ export function SectionTabs({
                   aria-selected={active}
                   onClick={() => onChange(item.id)}
                   className={cn(
-                    "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+                    "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13.5px] font-medium transition-colors",
                     active
                       ? "bg-zinc-800 text-zinc-100"
                       : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200",
@@ -63,7 +63,7 @@ export function SectionTabs({
                   {Icon ? <Icon size={14} /> : null}
                   {item.label}
                   {item.badge !== undefined ? (
-                    <span className="rounded bg-zinc-900 px-1 font-mono text-[11px] text-zinc-400">
+                    <span className="rounded bg-zinc-900 px-1 font-mono text-[13px] text-zinc-400">
                       {item.badge}
                     </span>
                   ) : null}

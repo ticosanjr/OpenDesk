@@ -103,10 +103,10 @@ export function BrowserCard() {
       <CardContent className="space-y-4">
         <div className="grid gap-2 sm:grid-cols-3">
           <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2">
-            <p className="text-[9px] uppercase tracking-wide text-zinc-500">
+            <p className="text-[11.5px] uppercase tracking-wide text-zinc-500">
               Binário
             </p>
-            <p className="mt-0.5 flex items-center gap-1 text-[10px] text-zinc-300">
+            <p className="mt-0.5 flex items-center gap-1 text-[12px] text-zinc-300">
               {status?.binary ? (
                 <>
                   <CheckCircle2 size={11} className="text-emerald-400" />
@@ -118,18 +118,18 @@ export function BrowserCard() {
             </p>
           </div>
           <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2">
-            <p className="text-[9px] uppercase tracking-wide text-zinc-500">
+            <p className="text-[11.5px] uppercase tracking-wide text-zinc-500">
               MCP no OpenCode
             </p>
-            <p className="mt-0.5 text-[10px] text-zinc-300">
+            <p className="mt-0.5 text-[12px] text-zinc-300">
               {status?.configured ? "browse · local" : "ausente"}
             </p>
           </div>
           <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2">
-            <p className="text-[9px] uppercase tracking-wide text-zinc-500">
+            <p className="text-[11.5px] uppercase tracking-wide text-zinc-500">
               Skill de navegação
             </p>
-            <p className="mt-0.5 text-[10px] text-zinc-300">
+            <p className="mt-0.5 text-[12px] text-zinc-300">
               {status?.skill ? "browse-web" : "não criada"}
             </p>
           </div>
@@ -141,7 +141,7 @@ export function BrowserCard() {
             <select
               value={scope}
               onChange={(event) => setScope(event.target.value as "workspace" | "global")}
-              className="h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none"
+              className="h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[13.5px] text-zinc-100 outline-none"
             >
               <option value="workspace">Workspace</option>
               <option value="global">Global</option>
@@ -150,7 +150,7 @@ export function BrowserCard() {
           <div>
             <span className={labelClass}>Comando MCP</span>
             <div className="flex items-center gap-1.5">
-              <code className="min-w-0 flex-1 truncate rounded-lg border border-zinc-800 bg-zinc-950/50 px-2.5 py-2 font-mono text-[10px] text-zinc-400">
+              <code className="min-w-0 flex-1 truncate rounded-lg border border-zinc-800 bg-zinc-950/50 px-2.5 py-2 font-mono text-[12px] text-zinc-400">
                 {status?.command.join(" ") ?? "—"}
               </code>
               <Button
@@ -166,7 +166,7 @@ export function BrowserCard() {
           </div>
         </div>
 
-        <p className="text-[10px] leading-relaxed text-zinc-500">
+        <p className="text-[12px] leading-relaxed text-zinc-500">
           {status?.install_hint ?? ""} A extensão Chromium é obrigatória para o
           agente controlar o navegador. Login, 2FA, pagamento e captcha são
           entregues ao usuário por handoff; o OpenDesk não contorna essas etapas.
@@ -221,7 +221,7 @@ export function BrowserCard() {
           )}
         </div>
 
-        <p className={cn("text-[9px] text-zinc-500", !status?.config_path && "hidden")}>
+        <p className={cn("text-[11.5px] text-zinc-500", !status?.config_path && "hidden")}>
           Config: {status?.config_path}
         </p>
       </CardContent>

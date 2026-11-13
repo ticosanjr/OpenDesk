@@ -25,7 +25,7 @@ export function CountPill({
     <span
       title={title}
       className={cn(
-        "inline-flex min-w-[1.35rem] items-center justify-center rounded-full border px-1.5 py-px font-mono text-[10px] font-semibold leading-[1.35] tabular-nums",
+        "inline-flex min-w-[1.35rem] items-center justify-center rounded-full border px-1.5 py-px font-mono text-[12px] font-semibold leading-[1.35] tabular-nums",
         TONES[tone] ?? TONES.default,
         className,
       )}

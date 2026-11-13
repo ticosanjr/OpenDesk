@@ -354,7 +354,7 @@ export function TaskFormModal({
             placeholder="Se vazio, usamos o início da descrição"
             className={inputClass}
           />
-          <span className="mt-1 block text-[9px] text-zinc-500">
+          <span className="mt-1 block text-[11.5px] text-zinc-500">
             Sem título, o OpenDesk usa a primeira linha da descrição, limitada a
             80 caracteres.
           </span>
@@ -444,11 +444,11 @@ export function TaskFormModal({
         </label>
         <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2 sm:col-span-2">
           <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-[11px] text-zinc-300">
+            <p className="flex items-center gap-1.5 text-[13px] text-zinc-300">
               <Globe size={12} className="text-sky-300" />
               Precisa navegar na internet
             </p>
-            <p className="mt-0.5 text-[9px] leading-snug text-zinc-500">
+            <p className="mt-0.5 text-[11.5px] leading-snug text-zinc-500">
               Ativa o OpenCode Browse automaticamente e inclui a skill de navegação
               no prompt. Login, 2FA e captcha são entregues a você.
             </p>
@@ -468,7 +468,7 @@ export function TaskFormModal({
               placeholder="example.com, docs.example.com"
               className={inputClass}
             />
-            <span className="mt-1 block text-[9px] leading-snug text-zinc-500">
+            <span className="mt-1 block text-[11.5px] leading-snug text-zinc-500">
               Limita a sessão do Browse a estes domínios. Tarefas marcadas com
               browse-high-risk, browse-login, browse-payment, browse-banking ou
               browse-2fa exigem allowlist.
@@ -484,7 +484,7 @@ export function TaskFormModal({
             className={inputClass}
           />
         </label>
-        <label className="flex items-end gap-2 pb-2 text-[11px] text-zinc-400">
+        <label className="flex items-end gap-2 pb-2 text-[13px] text-zinc-400">
           <input
             type="checkbox"
             checked={exportToGdocs}
@@ -497,12 +497,12 @@ export function TaskFormModal({
         </CollapsibleSection>
       </div>
       {running ? (
-        <p className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-200">
+        <p className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
           Cancele a execução atual antes de salvar alterações.
         </p>
       ) : null}
       {error ? (
-        <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
       ) : null}

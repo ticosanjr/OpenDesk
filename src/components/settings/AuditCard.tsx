@@ -71,7 +71,7 @@ export function AuditCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         {data ? (
-          <div className="flex flex-wrap gap-2 text-[9px]">
+          <div className="flex flex-wrap gap-2 text-[11.5px]">
             <Badge variant="default">leitura {data.rate_limits.read_per_minute}/min</Badge>
             <Badge variant="default">escrita {data.rate_limits.write_per_minute}/min</Badge>
             <Badge variant="default">
@@ -85,7 +85,7 @@ export function AuditCard() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Filtrar por ação, método, rota ou status…"
-            className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-zinc-500"
+            className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-zinc-500"
           />
         </div>
         {loading && !data ? (
@@ -98,8 +98,8 @@ export function AuditCard() {
           />
         ) : (
           <div className="overflow-x-auto rounded-lg border border-zinc-800/70">
-            <table className="w-full text-left text-[10px]">
-              <thead className="border-b border-zinc-800 text-[9px] uppercase tracking-wide text-zinc-500">
+            <table className="w-full text-left text-[12px]">
+              <thead className="border-b border-zinc-800 text-[11.5px] uppercase tracking-wide text-zinc-500">
                 <tr>
                   <th className="px-3 py-2">Quando</th>
                   <th className="px-3 py-2">Ação</th>

@@ -36,11 +36,11 @@ export function ExternalResources({
     <Card>
       <CardHeader className="py-3">
         <div>
-          <CardTitle className="flex items-center gap-2 text-[12px]">
+          <CardTitle className="flex items-center gap-2 text-[13.5px]">
             <Sparkles size={14} className="text-blue-300" />
             Descobrir capacidades
           </CardTitle>
-          <p className="mt-1 max-w-3xl text-[10px] leading-snug text-zinc-500">
+          <p className="mt-1 max-w-3xl text-[12px] leading-snug text-zinc-500">
             Fontes externas curadas para encontrar skills, agentes, comandos,
             MCPs e workflows. Nada é instalado automaticamente: revise a origem
             e importe apenas o que precisar.
@@ -56,7 +56,7 @@ export function ExternalResources({
               aria-pressed={group === item.id}
               onClick={() => setGroup(item.id)}
               className={cn(
-                "rounded-lg border px-2.5 py-1 text-[10px] transition-colors",
+                "rounded-lg border px-2.5 py-1 text-[12px] transition-colors",
                 group === item.id
                   ? "border-blue-500/40 bg-blue-500/10 text-blue-200"
                   : "border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300",
@@ -85,7 +85,7 @@ export function ExternalResources({
                       href={resource.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-1.5 block truncate text-[12px] font-medium text-zinc-100 hover:text-blue-200"
+                      className="mt-1.5 block truncate text-[13.5px] font-medium text-zinc-100 hover:text-blue-200"
                     >
                       {resource.name}
                     </a>
@@ -100,17 +100,17 @@ export function ExternalResources({
                     <ExternalLink size={13} />
                   </a>
                 </div>
-                <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-zinc-500">
+                <p className="mt-1 line-clamp-2 text-[12px] leading-snug text-zinc-500">
                   {resource.focus}
                 </p>
-                <p className="mt-1.5 line-clamp-2 text-[9px] leading-snug text-zinc-500">
+                <p className="mt-1.5 line-clamp-2 text-[11.5px] leading-snug text-zinc-500">
                   {resource.usage}
                 </p>
                 <div className="mt-auto flex flex-wrap items-center gap-1 pt-2">
                   {resource.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="rounded border border-zinc-800 bg-zinc-900/60 px-1.5 py-0.5 font-mono text-[8px] text-zinc-500"
+                      className="rounded border border-zinc-800 bg-zinc-900/60 px-1.5 py-0.5 font-mono text-[11px] text-zinc-500"
                     >
                       {tag}
                     </span>
@@ -121,7 +121,7 @@ export function ExternalResources({
                     <button
                       type="button"
                       onClick={() => onCreateWorkspace(resource.templateId!)}
-                      className="ml-auto rounded px-1.5 py-0.5 text-[9px] text-blue-300 hover:bg-blue-500/10 hover:text-blue-200"
+                      className="ml-auto rounded px-1.5 py-0.5 text-[11.5px] text-blue-300 hover:bg-blue-500/10 hover:text-blue-200"
                     >
                       Usar template recomendado
                     </button>

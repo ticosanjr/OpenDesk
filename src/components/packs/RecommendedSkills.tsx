@@ -50,7 +50,7 @@ export function RecommendedSkills({
             <Sparkles size={15} className="text-blue-300" />
             Recomendados
           </CardTitle>
-          <p className="mt-1 max-w-3xl text-[12px] leading-relaxed text-zinc-400">
+          <p className="mt-1 max-w-3xl text-[13.5px] leading-relaxed text-zinc-400">
             Skills externas curadas para engenharia, revisão, diagnóstico e
             design. A instalação usa o preview do Studio e só grava depois da
             sua confirmação.
@@ -62,7 +62,7 @@ export function RecommendedSkills({
             aria-pressed={onlyFavorites}
             onClick={() => setOnlyFavorites((current) => !current)}
             className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[12px] transition-colors",
+              "inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13.5px] transition-colors",
               onlyFavorites
                 ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
                 : "border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-200",
@@ -105,7 +105,7 @@ export function RecommendedSkills({
                         </p>
                         <Badge variant="default">skill</Badge>
                       </div>
-                      <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-zinc-400">
+                      <p className="mt-1 line-clamp-2 text-[13.5px] leading-relaxed text-zinc-400">
                         {skill.description}
                       </p>
                     </div>
@@ -133,7 +133,7 @@ export function RecommendedSkills({
                     {skill.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="rounded border border-zinc-800 bg-zinc-900/60 px-1.5 py-0.5 text-[11px] text-zinc-500"
+                        className="rounded border border-zinc-800 bg-zinc-900/60 px-1.5 py-0.5 text-[13px] text-zinc-500"
                       >
                         {tag}
                       </span>
@@ -143,7 +143,7 @@ export function RecommendedSkills({
                   {skill.installCommand ? (
                     <div className="mt-2 flex items-center gap-1 rounded-md border border-zinc-800 bg-black/25 px-2 py-1">
                       <code
-                        className="min-w-0 flex-1 truncate font-mono text-[11px] text-zinc-400"
+                        className="min-w-0 flex-1 truncate font-mono text-[13px] text-zinc-400"
                         title={skill.installCommand}
                       >
                         {skill.installCommand}
@@ -161,7 +161,7 @@ export function RecommendedSkills({
                   ) : null}
 
                   {skill.note ? (
-                    <p className="mt-2 text-[11px] leading-snug text-zinc-500">
+                    <p className="mt-2 text-[13px] leading-snug text-zinc-500">
                       {skill.note}
                     </p>
                   ) : null}
@@ -171,7 +171,7 @@ export function RecommendedSkills({
                       href={skill.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 text-[12px] text-zinc-400 transition-colors hover:text-zinc-200"
+                      className="inline-flex items-center gap-1.5 text-[13.5px] text-zinc-400 transition-colors hover:text-zinc-200"
                     >
                       <ExternalLink size={13} />
                       Abrir origem

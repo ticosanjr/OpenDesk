@@ -319,13 +319,13 @@ export function IntegrationsPage() {
       />
 
       {message ? (
-        <p className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-300">
+        <p className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[13px] text-emerald-300">
           <CheckCircle2 size={13} />
           {message}
         </p>
       ) : null}
       {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
       ) : null}
@@ -409,7 +409,7 @@ export function IntegrationsPage() {
               />
             </label>
             <div className="flex items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-[12px] text-zinc-400">
+              <label className="flex items-center gap-2 text-[13.5px] text-zinc-400">
                 <Switch
                   checked={form.useTls}
                   onCheckedChange={(checked) => setForm({ ...form, useTls: checked })}
@@ -433,10 +433,10 @@ export function IntegrationsPage() {
                 value={testTo}
                 onChange={(event) => setTestTo(event.target.value)}
                 placeholder="e-mail para teste (opcional)"
-                className={cn(inputClass, "h-8 text-[11px]")}
+                className={cn(inputClass, "h-8 text-[13px]")}
               />
             </div>
-            <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[9px] leading-relaxed text-zinc-500">
+            <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[11.5px] leading-relaxed text-zinc-500">
               Gmail: use uma App Password. Porta 587 usa STARTTLS; porta 465 usa TLS
               implícito. O teste sem destinatário valida apenas a conexão.
             </p>
@@ -509,11 +509,11 @@ export function IntegrationsPage() {
               </Button>
             </div>
             {googleMessage ? (
-              <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[10px] leading-relaxed text-emerald-300">
+              <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[12px] leading-relaxed text-emerald-300">
                 {googleMessage}
               </p>
             ) : null}
-            <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[9px] leading-relaxed text-zinc-500">
+            <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[11.5px] leading-relaxed text-zinc-500">
               No Google Cloud, crie um OAuth client do tipo <span className="font-mono">Desktop app</span>{" "}
               e adicione <span className="font-mono">{google?.callback_url ?? googleConfig?.callback_url ?? "http://127.0.0.1:53682/callback"}</span>{" "}
               como redirect URI autorizado. O escopo de Drive é <span className="font-mono">drive.file</span>.
@@ -577,11 +577,11 @@ export function IntegrationsPage() {
                   >
                     {delivery.status}
                   </Badge>
-                  <span className="font-mono text-[10px] text-zinc-300">{delivery.channel}</span>
-                  <span className="min-w-0 flex-1 truncate font-mono text-[9px] text-zinc-500">
+                  <span className="font-mono text-[12px] text-zinc-300">{delivery.channel}</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-zinc-500">
                     {delivery.idempotency_key}
                   </span>
-                  <span className="font-mono text-[9px] text-zinc-500">
+                  <span className="font-mono text-[11.5px] text-zinc-500">
                     {delivery.attempts} tentativa(s) · {relativeTime(delivery.updated_at)}
                   </span>
                   {delivery.status === "FAILED" ? (
@@ -601,7 +601,7 @@ export function IntegrationsPage() {
                     </Button>
                   ) : null}
                   {delivery.last_error ? (
-                    <span className="w-full truncate text-[9px] text-red-300">
+                    <span className="w-full truncate text-[11.5px] text-red-300">
                       {delivery.last_error}
                     </span>
                   ) : null}
@@ -637,8 +637,8 @@ export function IntegrationsPage() {
                 className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3"
               >
                 <service.icon size={15} className="text-zinc-500" />
-                <p className="mt-2 text-[11px] font-medium text-zinc-300">{service.title}</p>
-                <p className="mt-1 text-[9px] leading-relaxed text-zinc-500">
+                <p className="mt-2 text-[13px] font-medium text-zinc-300">{service.title}</p>
+                <p className="mt-1 text-[11.5px] leading-relaxed text-zinc-500">
                   {service.description}
                 </p>
               </div>
@@ -650,7 +650,7 @@ export function IntegrationsPage() {
       <Card>
         <CardContent className="flex items-start gap-3 p-4">
           <ShieldCheck size={16} className="mt-0.5 text-emerald-400/70" />
-          <p className="text-[11px] leading-relaxed text-zinc-500">
+          <p className="text-[13px] leading-relaxed text-zinc-500">
             Segredos são criptografados com AES-256-GCM e chave derivada da máquina,
             gravados em <span className="font-mono">~/.local/share/opendesk/secrets</span> com
             permissão 0600. Logs e eventos nunca incluem senhas.

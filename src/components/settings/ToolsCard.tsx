@@ -150,9 +150,9 @@ export function ToolsCard() {
                   <XCircle size={14} className="shrink-0 text-zinc-500" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="text-[12px] text-zinc-200">{tool.label}</p>
-                  <p className="truncate text-[9px] text-zinc-500">{tool.purpose}</p>
-                  <p className="truncate font-mono text-[9px] text-zinc-500">
+                  <p className="text-[13.5px] text-zinc-200">{tool.label}</p>
+                  <p className="truncate text-[11.5px] text-zinc-500">{tool.purpose}</p>
+                  <p className="truncate font-mono text-[11.5px] text-zinc-500">
                     {tool.detected_version ?? tool.path ?? tool.manual_hint}
                   </p>
                 </div>
@@ -213,14 +213,14 @@ export function ToolsCard() {
                 ) : null}
               </div>
               {!tool.installed ? (
-                <p className="mt-1 text-[9px] leading-snug text-zinc-500">
+                <p className="mt-1 text-[11.5px] leading-snug text-zinc-500">
                   {tool.download_url
                     ? "Baixe pelo OpenDesk ou aponte para um binário existente."
                     : tool.manual_hint}
                 </p>
               ) : null}
               {manualPath[tool.name] ? (
-                <p className="mt-1 font-mono text-[9px] text-zinc-500">
+                <p className="mt-1 font-mono text-[11.5px] text-zinc-500">
                   {manualPath[tool.name]}
                 </p>
               ) : null}

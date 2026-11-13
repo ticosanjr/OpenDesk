@@ -97,7 +97,7 @@ export function SwarmModal({
       <div className="space-y-4">
         {models.map((model, index) => (
           <label key={index}>
-            <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+            <span className="mb-1 block text-[12px] font-medium uppercase tracking-wide text-zinc-500">
               Modelo {index + 1}
             </span>
             <ModelCombobox
@@ -115,7 +115,7 @@ export function SwarmModal({
           </label>
         ))}
         {error ? (
-          <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-200">
+          <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[13px] text-red-200">
             {error}
           </p>
         ) : null}
@@ -127,12 +127,12 @@ export function SwarmModal({
                 className="flex min-w-0 flex-col gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-[12px] text-zinc-200">{copy.title}</p>
-                  <p className="font-mono text-[10px] text-zinc-500">{copy.model}</p>
+                  <p className="truncate text-[13.5px] text-zinc-200">{copy.title}</p>
+                  <p className="font-mono text-[12px] text-zinc-500">{copy.model}</p>
                 </div>
                 <div className="min-h-10 flex-1 space-y-1">
                   {(artifacts[copy.id] ?? []).length === 0 ? (
-                    <p className="text-[10px] text-zinc-500">
+                    <p className="text-[12px] text-zinc-500">
                       aguardando entregáveis…
                     </p>
                   ) : (
@@ -143,7 +143,7 @@ export function SwarmModal({
                         onClick={() => {
                           window.location.hash = `#/artifacts?id=${encodeURIComponent(artifact.id)}`;
                         }}
-                        className="flex w-full items-center gap-1.5 truncate rounded border border-zinc-800/70 px-1.5 py-1 text-left text-[10px] text-zinc-400 hover:text-zinc-100"
+                        className="flex w-full items-center gap-1.5 truncate rounded border border-zinc-800/70 px-1.5 py-1 text-left text-[12px] text-zinc-400 hover:text-zinc-100"
                         title={artifact.file_path}
                       >
                         <FileText size={10} className="shrink-0" />

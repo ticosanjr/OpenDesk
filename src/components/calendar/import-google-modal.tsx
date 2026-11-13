@@ -198,10 +198,10 @@ export function ImportGoogleModal({
                   className="h-2 w-2 shrink-0 rounded-full"
                   style={{ backgroundColor: source.color_hex }}
                 />
-                <span className="min-w-0 flex-1 truncate text-[11px] text-zinc-200">
+                <span className="min-w-0 flex-1 truncate text-[13px] text-zinc-200">
                   {source.name}
                 </span>
-                <span className="text-[9px] text-zinc-500">
+                <span className="text-[11.5px] text-zinc-500">
                   {source.last_synced_at
                     ? `sincronizado ${new Date(source.last_synced_at).toLocaleString("pt-BR")}`
                     : "nunca sincronizado"}
@@ -246,12 +246,12 @@ export function ImportGoogleModal({
         <section className="space-y-2">
           <p className={labelClass}>Importar do Google</p>
           {loading ? (
-            <p className="flex items-center gap-2 text-[11px] text-zinc-500">
+            <p className="flex items-center gap-2 text-[13px] text-zinc-500">
               <Loader2 size={13} className="animate-spin" />
               Buscando calendários…
             </p>
           ) : error ? (
-            <div className="space-y-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+            <div className="space-y-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[13px] text-amber-200">
               <p>{error}</p>
               <Button
                 variant="outline"
@@ -262,7 +262,7 @@ export function ImportGoogleModal({
               </Button>
             </div>
           ) : calendars.length === 0 ? (
-            <p className="text-[11px] text-zinc-500">
+            <p className="text-[13px] text-zinc-500">
               Nenhum calendário disponível. Conecte a conta Google primeiro.
             </p>
           ) : (
@@ -270,7 +270,7 @@ export function ImportGoogleModal({
               {calendars.map((calendar) => (
                 <label
                   key={calendar.id}
-                  className="flex items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-2.5 py-2 text-[11px] text-zinc-300"
+                  className="flex items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-2.5 py-2 text-[13px] text-zinc-300"
                 >
                   <input
                     type="checkbox"
@@ -300,7 +300,7 @@ export function ImportGoogleModal({
         </section>
 
         {reports.some((report) => report.error) ? (
-          <div className="space-y-1 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-300">
+          <div className="space-y-1 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">
             {reports
               .filter((report) => report.error)
               .map((report) => (

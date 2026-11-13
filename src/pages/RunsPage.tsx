@@ -168,7 +168,7 @@ export function RunsPage() {
       />
 
       {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
       ) : null}
@@ -191,7 +191,7 @@ export function RunsPage() {
             </option>
           ))}
         </FilterSelect>
-        <div className="flex items-center gap-2 text-[12px] text-zinc-500">
+        <div className="flex items-center gap-2 text-[13.5px] text-zinc-500">
           <Badge variant="default">
             {grouped.length} de {threadCount} execuções
           </Badge>
@@ -290,7 +290,7 @@ export function RunsPage() {
                       <span>{formatUsd(cost)}</span>
                     </p>
                     {run.error_message ? (
-                      <p className="mt-1 truncate font-mono text-[11px] text-red-300/80">
+                      <p className="mt-1 truncate font-mono text-[13px] text-red-300/80">
                         {run.error_message}
                       </p>
                     ) : null}

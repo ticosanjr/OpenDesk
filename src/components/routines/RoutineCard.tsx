@@ -192,7 +192,7 @@ export function RoutineCard({
         ) : null}
       </div>
 
-      <p className="mt-1 line-clamp-2 min-h-[34px] text-[12px] leading-relaxed text-zinc-400">
+      <p className="mt-1 line-clamp-2 min-h-[34px] text-[13.5px] leading-relaxed text-zinc-400">
         {schedule.target_kind === "RECIPE"
           ? `Executa a receita ${schedule.recipe_id ?? "(não definida)"}`
           : schedule.command_or_prompt || "—"}
@@ -306,7 +306,7 @@ function MenuItem({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12px] hover:bg-zinc-800",
+        "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[13.5px] hover:bg-zinc-800",
         destructive ? "text-red-300" : "text-zinc-300",
       )}
     >

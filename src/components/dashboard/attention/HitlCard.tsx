@@ -51,14 +51,14 @@ export function HitlCard({
             <p className="text-[13.5px] font-semibold text-amber-100">
               {request.title || "Receita aguardando decisão"}
             </p>
-            <span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10.5px] uppercase tracking-wide text-amber-300">
+            <span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-wide text-amber-300">
               {hitlTypeLabel(request.interaction_type)}
             </span>
-            <span className="font-mono text-[11px] text-zinc-500">
+            <span className="font-mono text-[13px] text-zinc-500">
               {request.checkpoint_id}
             </span>
           </div>
-          <p className="mt-1 text-[11px] text-zinc-500">
+          <p className="mt-1 text-[13px] text-zinc-500">
             {expiry ? `expira em ${expiry}` : "sem prazo informado"}
           </p>
         </div>
@@ -78,26 +78,26 @@ export function HitlCard({
 
       <div className="grid gap-1.5 sm:grid-cols-3">
         <div className="rounded-md border border-emerald-500/20 bg-emerald-500/[0.06] px-2.5 py-2">
-          <p className="text-[10.5px] font-medium uppercase tracking-wide text-emerald-300">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-emerald-300">
             Se aprovar
           </p>
-          <p className="mt-1 text-[11px] leading-snug text-zinc-400">
+          <p className="mt-1 text-[13px] leading-snug text-zinc-400">
             {consequences.approve}
           </p>
         </div>
         <div className="rounded-md border border-red-500/20 bg-red-500/[0.06] px-2.5 py-2">
-          <p className="text-[10.5px] font-medium uppercase tracking-wide text-red-300">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-red-300">
             Se rejeitar
           </p>
-          <p className="mt-1 text-[11px] leading-snug text-zinc-400">
+          <p className="mt-1 text-[13px] leading-snug text-zinc-400">
             {consequences.reject}
           </p>
         </div>
         <div className="rounded-md border border-amber-500/20 bg-amber-500/[0.06] px-2.5 py-2">
-          <p className="text-[10.5px] font-medium uppercase tracking-wide text-amber-300">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-amber-300">
             Se expirar
           </p>
-          <p className="mt-1 text-[11px] leading-snug text-zinc-400">
+          <p className="mt-1 text-[13px] leading-snug text-zinc-400">
             {consequences.timeout}
           </p>
         </div>

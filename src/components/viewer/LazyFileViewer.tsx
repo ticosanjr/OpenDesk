@@ -9,7 +9,7 @@ export function LazyFileViewer(props: ComponentProps<typeof FileViewer>) {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-[12px] text-zinc-500">
+        <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-[13.5px] text-zinc-500">
           Carregando visualizador…
         </div>
       }

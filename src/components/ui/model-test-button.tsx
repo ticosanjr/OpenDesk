@@ -96,7 +96,7 @@ export function ModelTestButton({
         title="Faz uma geração curta sem sessão, histórico ou ferramentas. Consome poucos tokens."
         className={cn(
           "inline-flex items-center gap-1 rounded-md border border-zinc-800 text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200 disabled:opacity-50",
-          variant === "compact" ? "h-5 px-1.5 text-[9px]" : "h-6 px-2 text-[9px]",
+          variant === "compact" ? "h-5 px-1.5 text-[11.5px]" : "h-6 px-2 text-[11.5px]",
         )}
       >
         {testing ? <Loader2 size={10} className="animate-spin" /> : null}
@@ -106,7 +106,7 @@ export function ModelTestButton({
         <p
           className={cn(
             "break-words leading-snug",
-            variant === "compact" ? "text-[9px]" : "text-[9px]",
+            variant === "compact" ? "text-[11.5px]" : "text-[11.5px]",
             result?.ok ? "text-emerald-300" : "text-red-300",
           )}
           title={result ? fullMessage(result) : undefined}

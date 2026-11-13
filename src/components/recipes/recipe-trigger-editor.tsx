@@ -89,7 +89,7 @@ export function TriggerEditor({
           <Trash2 size={11} />
         </Button>
       </div>
-      <p className="mt-1 text-[9px] leading-snug text-zinc-500">{triggerDescription(type)}</p>
+      <p className="mt-1 text-[11.5px] leading-snug text-zinc-500">{triggerDescription(type)}</p>
       <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
         {type === "FOLDER_WATCH" || type === "RSYNC_FOLDER" ? (
           <PathInput
@@ -98,7 +98,7 @@ export function TriggerEditor({
             title="Escolher pasta monitorada"
             placeholder="input/dropzone ou caminho absoluto"
             hint="Se o caminho for relativo, ele é resolvido dentro do workspace."
-            inputClassName="h-8 text-[10px]"
+            inputClassName="h-8 text-[12px]"
           />
         ) : null}
         {type === "CRON" ? <CronFields config={config} onChange={patchConfig} /> : null}

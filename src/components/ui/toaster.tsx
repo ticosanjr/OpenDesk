@@ -59,20 +59,20 @@ function ToastCard({ toast }: { toast: Toast }) {
             onClick={() => dismiss(toast.id)}
             className="block rounded outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-current/40"
           >
-            <p className="text-[12px] font-medium leading-snug underline decoration-current/30 underline-offset-2">
+            <p className="text-[13.5px] font-medium leading-snug underline decoration-current/30 underline-offset-2">
               {toast.title}
             </p>
             {toast.description ? (
-              <p className="mt-0.5 whitespace-pre-wrap text-[10px] leading-relaxed opacity-80">
+              <p className="mt-0.5 whitespace-pre-wrap text-[12px] leading-relaxed opacity-80">
                 {toast.description}
               </p>
             ) : null}
           </Link>
         ) : (
           <>
-            <p className="text-[12px] font-medium leading-snug">{toast.title}</p>
+            <p className="text-[13.5px] font-medium leading-snug">{toast.title}</p>
             {toast.description ? (
-              <p className="mt-0.5 whitespace-pre-wrap text-[10px] leading-relaxed opacity-80">
+              <p className="mt-0.5 whitespace-pre-wrap text-[12px] leading-relaxed opacity-80">
                 {toast.description}
               </p>
             ) : null}
@@ -85,7 +85,7 @@ function ToastCard({ toast }: { toast: Toast }) {
               toast.action?.onClick();
               dismiss(toast.id);
             }}
-            className="mt-2 rounded-md border border-current/30 px-2 py-1 text-[10px] font-medium opacity-90 hover:opacity-100"
+            className="mt-2 rounded-md border border-current/30 px-2 py-1 text-[12px] font-medium opacity-90 hover:opacity-100"
           >
             {toast.action.label}
           </button>

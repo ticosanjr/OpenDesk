@@ -50,7 +50,7 @@ export function TaskAttentionModal({
     >
       <div className="space-y-3">
         {empty ? (
-          <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-3 py-2.5 text-[12px] text-amber-100">
+          <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-3 py-2.5 text-[13.5px] text-amber-100">
             <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-300" />
             <p>
               A pendência ainda não chegou ao OpenDesk. Abra a tarefa para

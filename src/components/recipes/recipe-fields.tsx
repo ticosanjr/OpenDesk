@@ -12,7 +12,7 @@ export function LabeledField({
 }) {
   return (
     <label className="block space-y-1">
-      <span className="inline-flex items-center text-[10px] text-zinc-400">
+      <span className="inline-flex items-center text-[12px] text-zinc-400">
         {label}
         {hint ? <FieldHint hint={hint} side="trailing" /> : null}
       </span>
@@ -22,4 +22,4 @@ export function LabeledField({
 }
 
 export const inputClass =
-  "h-8 w-full rounded border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-200 outline-none focus:border-blue-500/60";
+  "h-8 w-full rounded border border-zinc-800 bg-zinc-900/50 px-2 text-[12px] text-zinc-200 outline-none focus:border-blue-500/60";

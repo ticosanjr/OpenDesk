@@ -132,7 +132,7 @@ export function Modal({
               {title}
             </h2>
             {description ? (
-              <p id={descriptionId} className="mt-1 max-w-prose text-[13px] leading-relaxed text-zinc-400">
+              <p id={descriptionId} className="mt-1 max-w-prose text-[14px] leading-relaxed text-zinc-400">
                 {description}
               </p>
             ) : null}

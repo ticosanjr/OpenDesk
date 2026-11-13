@@ -49,7 +49,12 @@ export function SearchPage() {
   const workspaces = useAppStore((state) => state.workspaces);
   const [params, setParams] = useSearchParams();
   const [query, setQuery] = useState(params.get("q") ?? "");
-  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("all");
+  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>(() => {
+    const requested = params.get("tab");
+    return TABS.some((item) => item.id === requested)
+      ? (requested as (typeof TABS)[number]["id"])
+      : "all";
+  });
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +66,10 @@ export function SearchPage() {
       // another route from a search result.
       if (!window.location.hash.startsWith("#/search")) return;
       const value = query.trim();
-      setParams(value ? { q: value } : {}, { replace: true });
+      const next = new URLSearchParams();
+      if (value) next.set("q", value);
+      if (tab !== "all") next.set("tab", tab);
+      setParams(next, { replace: true });
       if (!activeWorkspaceId || value.length < 2) {
         setHits([]);
         return;
@@ -78,7 +86,27 @@ export function SearchPage() {
         .finally(() => setLoading(false));
     }, 250);
     return () => window.clearTimeout(handle);
-  }, [activeWorkspaceId, query, setParams]);
+  }, [activeWorkspaceId, query, setParams, tab]);
+
+  useEffect(() => {
+    const nextQuery = params.get("q");
+    if (nextQuery && nextQuery !== query) setQuery(nextQuery);
+  }, [params, query]);
+
+  useEffect(() => {
+    const requested = params.get("tab");
+    if (requested && TABS.some((item) => item.id === requested) && requested !== tab) {
+      setTab(requested as (typeof TABS)[number]["id"]);
+    }
+  }, [params, tab]);
+
+  function selectTab(id: string) {
+    const next = new URLSearchParams(params);
+    if (id === "all") next.delete("tab");
+    else next.set("tab", id);
+    setTab(id as (typeof TABS)[number]["id"]);
+    setParams(next, { replace: true });
+  }
 
   const activeTab = TABS.find((item) => item.id === tab) ?? TABS[0];
   const filtered = useMemo(
@@ -124,7 +152,7 @@ export function SearchPage() {
             placeholder="Digite pelo menos 2 caracteres…"
             className="h-full flex-1 bg-transparent text-[14px] text-zinc-100 outline-none placeholder:text-zinc-500"
           />
-          {loading ? <span className="text-[11px] text-zinc-500">buscando…</span> : null}
+          {loading ? <span className="text-[13px] text-zinc-500">buscando…</span> : null}
           {query ? (
             <button
               type="button"
@@ -138,21 +166,27 @@ export function SearchPage() {
           ) : null}
           <Badge variant="default">{filtered.length}</Badge>
         </div>
-        <div className="mt-2 flex flex-wrap gap-1">
+        <div
+          role="tablist"
+          aria-label="Tipos de resultado"
+          className="mt-2 flex flex-wrap gap-1"
+        >
           {TABS.map((item) => (
             <button
               key={item.id}
               type="button"
-              onClick={() => setTab(item.id)}
+              role="tab"
+              aria-selected={tab === item.id}
+              onClick={() => selectTab(item.id)}
               className={cn(
-                "flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors",
+                "flex items-center gap-1 rounded-lg px-2.5 py-1 text-[13px] font-medium transition-colors",
                 tab === item.id
                   ? "bg-zinc-800 text-zinc-100"
                   : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200",
               )}
             >
               {item.label}
-              <span className="font-mono text-[10px] text-zinc-500">
+              <span className="font-mono text-[12px] text-zinc-500">
                 {countFor(item.kinds)}
               </span>
             </button>
@@ -161,7 +195,7 @@ export function SearchPage() {
       </div>
 
       {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13.5px] text-red-300">
           {error}
         </p>
       ) : null}
@@ -190,10 +224,10 @@ export function SearchPage() {
               <section key={group.id} className="space-y-1.5">
                 <header className="flex items-center gap-2 px-1">
                   <Icon size={13} className="text-zinc-500" />
-                  <h2 className="text-[11px] font-medium uppercase tracking-[0.08em] text-zinc-400">
+                  <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-zinc-400">
                     {group.label}
                   </h2>
-                  <span className="font-mono text-[11px] text-zinc-500">
+                  <span className="font-mono text-[13px] text-zinc-500">
                     {group.items.length}
                   </span>
                 </header>
@@ -236,11 +270,11 @@ function SearchHitRow({ hit }: { hit: SearchHit }) {
             {hit.title}
           </p>
         </div>
-        <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-zinc-400">
+        <p className="mt-1 line-clamp-2 text-[13.5px] leading-relaxed text-zinc-400">
           {hit.snippet}
         </p>
       </div>
-      <span className="shrink-0 font-mono text-[11px] text-zinc-500">
+      <span className="shrink-0 font-mono text-[13px] text-zinc-500">
         {relativeTime(hit.updated_at)}
       </span>
     </Link>

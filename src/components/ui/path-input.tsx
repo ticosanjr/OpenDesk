@@ -41,7 +41,7 @@ export function PathInput({
         disabled={disabled}
         spellCheck={false}
         className={cn(
-          "h-9 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 font-mono text-[11px] text-zinc-100 outline-none placeholder:font-sans placeholder:text-zinc-500 focus:border-blue-500/60 disabled:opacity-50",
+          "h-9 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 font-mono text-[13px] text-zinc-100 outline-none placeholder:font-sans placeholder:text-zinc-500 focus:border-blue-500/60 disabled:opacity-50",
           inputClassName,
         )}
       />

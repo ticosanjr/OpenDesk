@@ -116,6 +116,8 @@ pub struct SeedTask {
     pub tags: Vec<String>,
     #[serde(default = "default_task_status")]
     pub status: String,
+    #[serde(default)]
+    pub phase_status: Option<String>,
 }
 
 fn default_status() -> String {
@@ -187,6 +189,9 @@ pub async fn seed(
         .await?;
         if task.status != "TODO" {
             let _ = tasks::move_to(&state.db, &created.id, &task.status, None).await;
+        }
+        if let Some(phase_status) = task.phase_status.as_deref() {
+            tasks::set_phase_status(&state.db, &created.id, Some(phase_status), None).await?;
         }
         task_id = Some(created.id.clone());
         output["task_id"] = json!(created.id);
@@ -377,7 +382,7 @@ pub async fn seed(
             task_id.as_deref(),
             &workspace_id,
             &permission.session_id,
-            &format!("req-{}", &Uuid::now_v7().to_string()[..8]),
+            &format!("req-{}", Uuid::now_v7()),
             &permission.action,
             &permission.resources,
         )

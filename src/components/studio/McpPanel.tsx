@@ -158,9 +158,9 @@ export function McpPanel({
     <div className="flex min-h-0 flex-1 overflow-hidden">
       <StudioList title="MCP servers" count={servers.length} onNew={startNew} newLabel="Novo servidor">
         {loading && servers.length === 0 ? (
-          <p className="px-3 py-6 text-center text-[10px] text-zinc-500">Carregando…</p>
+          <p className="px-3 py-6 text-center text-[12px] text-zinc-500">Carregando…</p>
         ) : servers.length === 0 ? (
-          <p className="px-3 py-6 text-center text-[10px] text-zinc-500">
+          <p className="px-3 py-6 text-center text-[12px] text-zinc-500">
             Nenhum servidor MCP no <span className="font-mono">opencode.jsonc</span>.
           </p>
         ) : (
@@ -203,7 +203,7 @@ export function McpPanel({
                 </h2>
                 <Badge variant="purple">mcp.servers</Badge>
               </div>
-              <p className="mt-0.5 font-mono text-[9px] text-zinc-500">
+              <p className="mt-0.5 font-mono text-[11.5px] text-zinc-500">
                 {document?.path ?? "opencode.jsonc"}
               </p>
             </div>
@@ -228,7 +228,7 @@ export function McpPanel({
               onChange={(event) => setName(event.target.value)}
               placeholder="google-workspace"
               className={cn(
-                "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60 disabled:opacity-60",
+                "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 font-mono text-[13px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60 disabled:opacity-60",
               )}
             />
           </StudioField>
@@ -242,12 +242,12 @@ export function McpPanel({
               onChange={(event) => setText(event.target.value)}
               rows={16}
               spellCheck={false}
-              className="min-h-[320px] w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950/70 px-3 py-2 font-mono text-[11px] leading-relaxed text-zinc-200 outline-none focus:border-blue-500/60"
+              className="min-h-[320px] w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950/70 px-3 py-2 font-mono text-[13px] leading-relaxed text-zinc-200 outline-none focus:border-blue-500/60"
             />
           </StudioField>
 
           {document ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 font-mono text-[9px] text-zinc-500">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 font-mono text-[11.5px] text-zinc-500">
               <span>{document.exists ? "arquivo existente" : "arquivo será criado"}</span>
               <span>·</span>
               <span>sha256 {document.sha256 ? `${document.sha256.slice(0, 12)}…` : "—"}</span>
@@ -257,11 +257,11 @@ export function McpPanel({
           ) : null}
 
           <div className="rounded-xl border border-zinc-800/70 bg-zinc-900/20 p-4">
-            <p className="flex items-center gap-2 text-[11px] font-medium text-zinc-300">
+            <p className="flex items-center gap-2 text-[13px] font-medium text-zinc-300">
               <Plus size={13} className="text-zinc-500" />
               Exemplos
             </p>
-            <pre className="mt-2 overflow-x-auto rounded-lg bg-zinc-950/60 p-3 font-mono text-[10px] leading-relaxed text-zinc-500">
+            <pre className="mt-2 overflow-x-auto rounded-lg bg-zinc-950/60 p-3 font-mono text-[12px] leading-relaxed text-zinc-500">
 {`{
   "type": "local",
   "command": ["opendesk", "mcp-google"],

@@ -391,7 +391,7 @@ export function PacksPage() {
       />
 
       {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
       ) : null}
@@ -403,13 +403,13 @@ export function PacksPage() {
       templates.length > 0 ? (
         <Card className="border-blue-500/25 bg-blue-500/[0.04]">
           <CardHeader className="py-3">
-            <CardTitle className="flex items-center gap-2 text-[13px]">
+            <CardTitle className="flex items-center gap-2 text-[14px]">
               <Sparkles size={15} className="text-blue-300" />
               Comece com um ponto de partida
             </CardTitle>
             <button
               type="button"
-              className="text-[10px] text-zinc-500 hover:text-zinc-200"
+              className="text-[12px] text-zinc-500 hover:text-zinc-200"
               onClick={dismissOnboarding}
             >
               não mostrar novamente
@@ -444,8 +444,8 @@ export function PacksPage() {
               onClick={() => setTab(item.id as typeof tab)}
               className={
                 tab === item.id
-                  ? "inline-flex h-8 items-center rounded-lg bg-zinc-800 px-3 text-[12px] font-medium text-zinc-100"
-                  : "inline-flex h-8 items-center rounded-lg px-3 text-[12px] font-medium text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-zinc-200"
+                  ? "inline-flex h-8 items-center rounded-lg bg-zinc-800 px-3 text-[13.5px] font-medium text-zinc-100"
+                  : "inline-flex h-8 items-center rounded-lg px-3 text-[13.5px] font-medium text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-zinc-200"
               }
             >
               {item.label}
@@ -457,7 +457,7 @@ export function PacksPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Buscar nos workspaces, pacotes e capacidades externas…"
-              className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-zinc-500"
+              className="h-full min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-zinc-500"
               aria-label="Buscar workspaces, pacotes e capacidades externas"
             />
           </div>
@@ -477,11 +477,11 @@ export function PacksPage() {
         <Card>
           <CardHeader className="py-3">
             <div>
-              <CardTitle className="flex items-center gap-2 text-[12px]">
+              <CardTitle className="flex items-center gap-2 text-[13.5px]">
                 <FolderPlus size={14} className="text-zinc-500" />
                 Workspaces prontos
               </CardTitle>
-              <p className="mt-1 text-[10px] text-zinc-500">
+              <p className="mt-1 text-[12px] text-zinc-500">
                 Crie um workspace com cor, pastas e pacotes já organizados. Você pode
                 editar tudo depois.
               </p>
@@ -524,8 +524,8 @@ export function PacksPage() {
         <>
       <div className="flex flex-wrap items-end justify-between gap-3 pt-1">
         <div>
-          <h2 className="text-[13px] font-semibold text-zinc-100">Adicionar capacidades</h2>
-          <p className="mt-0.5 text-[10px] text-zinc-500">
+          <h2 className="text-[14px] font-semibold text-zinc-100">Adicionar capacidades</h2>
+          <p className="mt-0.5 text-[12px] text-zinc-500">
             Instale pacotes no workspace ativo ou use um workspace pronto como base.
           </p>
         </div>
@@ -535,7 +535,7 @@ export function PacksPage() {
         <select
           value={category}
           onChange={(event) => setCategory(event.target.value)}
-          className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300"
+          className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[12px] text-zinc-300"
           aria-label="Filtrar por categoria"
         >
           <option value="all">todas as categorias</option>
@@ -558,7 +558,7 @@ export function PacksPage() {
               aria-pressed={installFilter === value}
               onClick={() => setInstallFilter(value)}
               className={cn(
-                "inline-flex h-8 items-center rounded-md px-2.5 text-[12px] transition-colors",
+                "inline-flex h-8 items-center rounded-md px-2.5 text-[13.5px] transition-colors",
                 installFilter === value
                   ? "bg-zinc-800 text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-200",
@@ -568,7 +568,7 @@ export function PacksPage() {
             </button>
           ))}
         </div>
-        <span className="text-[10px] text-zinc-500">
+        <span className="text-[12px] text-zinc-500">
           {filtered.length} de {packs.length}
         </span>
       </div>
@@ -604,7 +604,7 @@ export function PacksPage() {
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="truncate text-[12px] font-medium text-zinc-100">
+                    <span className="truncate text-[13.5px] font-medium text-zinc-100">
                       {pack.name}
                     </span>
                     {pack.recommended ? <Badge variant="blue">recomendado</Badge> : null}
@@ -632,10 +632,10 @@ export function PacksPage() {
                       </Badge>
                     ) : null}
                   </div>
-                  <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-zinc-500">
+                  <p className="mt-1 line-clamp-2 text-[12px] leading-snug text-zinc-500">
                     {pack.description}
                   </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-1 text-[9px] text-zinc-500">
+                  <div className="mt-2 flex flex-wrap items-center gap-1 text-[11.5px] text-zinc-500">
                     <span>{pack.counts.agents} agentes</span>
                     <span>·</span>
                     <span>{pack.counts.recipes} receitas</span>
@@ -771,7 +771,7 @@ export function PacksPage() {
         onClose={() => setTemplateOpen(null)}
       />
 
-      <p className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+      <p className="flex items-center gap-1.5 text-[12px] text-zinc-500">
         <CheckCircle2 size={11} />
         O pacote Controle OpenDesk é instalado automaticamente em novos workspaces;
         os demais são opcionais. Remover um pacote não apaga arquivos que você
@@ -802,18 +802,18 @@ function TemplateCard({
           className="h-2.5 w-2.5 rounded-full"
           style={{ background: template.color }}
         />
-        <span className="text-[12px] font-medium text-zinc-200">
+        <span className="text-[13.5px] font-medium text-zinc-200">
           {template.name}
         </span>
       </div>
-      <p className="mt-1 text-[10px] leading-snug text-zinc-500">
+      <p className="mt-1 text-[12px] leading-snug text-zinc-500">
         {template.description}
       </p>
-      <p className="mt-2 text-[10px] text-zinc-500">
+      <p className="mt-2 text-[12px] text-zinc-500">
         {template.packs.length} pacotes · {template.folders.length} pastas
         {action ? ` · ${action}` : ""}
       </p>
-      <p className="mt-1 truncate font-mono text-[8px] text-zinc-500">
+      <p className="mt-1 truncate font-mono text-[11px] text-zinc-500">
         {template.packs.slice(0, 4).join(" · ")}
         {template.packs.length > 4 ? ` +${template.packs.length - 4}` : ""}
       </p>

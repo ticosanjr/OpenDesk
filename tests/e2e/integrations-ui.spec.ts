@@ -18,7 +18,8 @@ test("SMTP setup tests a real connection and integration tabs render", async ({
 }) => {
   await seedCompany(request, "Integrations SMTP");
   await page.goto("/#/integrations?section=smtp");
-  await expect(page.getByText("SMTP", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("tab", { name: "SMTP" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "SMTP" })).toBeVisible();
   await page.getByLabel("Host").fill("127.0.0.1");
   await page.getByLabel("Porta").fill(String(smtp.port));
   await page.getByLabel("Remetente").fill("OpenDesk <teste@example.com>");
@@ -30,11 +31,11 @@ test("SMTP setup tests a real connection and integration tabs render", async ({
   await expect(page.getByText("Conexão SMTP ok.").first()).toBeVisible();
 
   await page.goto("/#/integrations?section=google");
-  await expect(page.getByText("Google", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Google" })).toBeVisible();
   await page.goto("/#/integrations?section=signal");
-  await expect(page.getByText("Signal", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Signal" })).toBeVisible();
   await page.goto("/#/integrations?section=inbound");
-  await expect(page.getByText("Entradas", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Entradas" })).toBeVisible();
   await page.goto("/#/integrations?section=sinks");
-  await expect(page.getByText("Saídas", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Saídas" })).toBeVisible();
 });

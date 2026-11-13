@@ -324,7 +324,7 @@ export function RouterPage() {
       />
 
       {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
       ) : null}
@@ -353,8 +353,8 @@ export function RouterPage() {
                 />
                 {active ? <Badge variant="accent">atual</Badge> : null}
               </div>
-              <p className="mt-3 text-[12px] font-medium text-zinc-200">{label}</p>
-              <p className="mt-1 font-mono text-[9px] text-zinc-500">{id}</p>
+              <p className="mt-3 text-[13.5px] font-medium text-zinc-200">{label}</p>
+              <p className="mt-1 font-mono text-[11.5px] text-zinc-500">{id}</p>
             </button>
           );
         })}
@@ -405,7 +405,7 @@ export function RouterPage() {
                 placeholder="deepseek/deepseek-flash"
                 ariaLabel="Modelo padrão"
               />
-              <p className="mt-1.5 text-[10px] leading-snug text-zinc-500">
+              <p className="mt-1.5 text-[12px] leading-snug text-zinc-500">
                 Base das políticas automáticas e fallback do roteador. Se o
                 modelo não existir no motor, o roteador escolhe outro modelo
                 disponível e registra a origem <span className="font-mono">FALLBACK</span>.
@@ -423,7 +423,7 @@ export function RouterPage() {
                 placeholder="escolha o modelo usado no manual"
                 ariaLabel="Modelo do modo manual"
               />
-              <p className="mt-1.5 text-[10px] leading-snug text-zinc-500">
+              <p className="mt-1.5 text-[12px] leading-snug text-zinc-500">
                 Usado quando a política é <strong>Manual</strong> e a tarefa não
                 escolhe um modelo. O modelo definido no card da tarefa continua
                 vencendo.
@@ -431,7 +431,7 @@ export function RouterPage() {
             </div>
           </div>
           {!defaultModel ? (
-            <p className="rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2 text-[10px] leading-snug text-amber-200">
+            <p className="rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2 text-[12px] leading-snug text-amber-200">
               Nenhum modelo padrão definido. Escolha um acima para evitar que o
               roteador dependa do modelo padrão do OpenCode ou de um provider
               que você não usa.
@@ -496,8 +496,8 @@ export function RouterPage() {
             />
           </div>
           <div className="scroll-area overflow-x-auto rounded-lg border border-zinc-800/70">
-            <table className="w-full min-w-[760px] text-left text-[10px]">
-              <thead className="bg-zinc-950/90 text-[9px] uppercase tracking-wide text-zinc-500">
+            <table className="w-full min-w-[760px] text-left text-[12px]">
+              <thead className="bg-zinc-950/90 text-[11.5px] uppercase tracking-wide text-zinc-500">
                 <tr>
                   <th className="px-3 py-2">Modalidade</th>
                   <th className="px-3 py-2">Decisão</th>
@@ -517,7 +517,7 @@ export function RouterPage() {
                           <span className="font-medium text-zinc-200">{label}</span>
                           {active ? <Badge variant="blue">atual</Badge> : null}
                         </div>
-                        <span className="font-mono text-[9px] text-zinc-500">{id}</span>
+                        <span className="font-mono text-[11.5px] text-zinc-500">{id}</span>
                       </td>
                       <td className="px-3 py-2.5 text-zinc-400">
                         {result ? (
@@ -530,12 +530,12 @@ export function RouterPage() {
                               </span>
                             </div>
                             {result.decision.rule_name ? (
-                              <p className="text-[9px] text-purple-300">
+                              <p className="text-[11.5px] text-purple-300">
                                 regra: {result.decision.rule_name}
                               </p>
                             ) : null}
                             <p
-                              className="max-w-[340px] text-[9px] leading-snug text-zinc-500"
+                              className="max-w-[340px] text-[11.5px] leading-snug text-zinc-500"
                               title={result.decision.rationale}
                             >
                               {result.decision.rationale}
@@ -567,7 +567,7 @@ export function RouterPage() {
                                     ? "modelo listado"
                                     : "modelo não listado"}
                               </Badge>
-                              <span className="text-[9px] text-zinc-500">
+                              <span className="text-[11.5px] text-zinc-500">
                                 {result.available_models} modelo(s) no motor
                               </span>
                             </div>
@@ -586,7 +586,7 @@ export function RouterPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-6 px-2 text-[9px]"
+                          className="h-6 px-2 text-[11.5px]"
                           onClick={() => void testPolicy(id)}
                           disabled={testing}
                         >
@@ -604,7 +604,7 @@ export function RouterPage() {
               </tbody>
             </table>
           </div>
-          <p className="text-[10px] text-zinc-500">
+          <p className="text-[12px] text-zinc-500">
             “Testar modelo” faz uma geração curta sem sessão, histórico ou
             ferramentas (<span className="font-mono">Output only: OK</span>) e
             consome poucos tokens. É assim que o OpenDesk separa quota do
@@ -615,7 +615,7 @@ export function RouterPage() {
 
       {policy === "MANUAL" ? (
         <Card>
-          <CardContent className="flex items-start gap-3 p-4 text-[11px] text-zinc-400">
+          <CardContent className="flex items-start gap-3 p-4 text-[13px] text-zinc-400">
             <ShieldAlert size={16} className="mt-0.5 text-amber-300" />
             <p>
               Em <strong>Manual</strong>, o roteador usa o modelo do modo
@@ -664,7 +664,7 @@ export function RouterPage() {
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-end gap-2">
             <label className="min-w-[240px] flex-1">
-              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+              <span className="mb-1.5 block text-[12px] font-medium uppercase tracking-[0.12em] text-zinc-500">
                 Modelo roteador
               </span>
               <ModelCombobox
@@ -696,7 +696,7 @@ export function RouterPage() {
           </div>
           <div className="flex flex-wrap items-end gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-2.5">
             <label className="min-w-[220px] flex-1">
-              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+              <span className="mb-1.5 block text-[12px] font-medium uppercase tracking-[0.12em] text-zinc-500">
                 Peso da entrada no custo combinado: {Math.round(costBlend * 100)}% entrada /{" "}
                 {Math.round((1 - costBlend) * 100)}% saída
               </span>
@@ -723,24 +723,24 @@ export function RouterPage() {
           </div>
           {analysis ? (
             <div className="space-y-2">
-              <p className="rounded-lg border border-blue-500/20 bg-blue-500/[0.05] px-3 py-2 text-[11px] leading-snug text-blue-100">
+              <p className="rounded-lg border border-blue-500/20 bg-blue-500/[0.05] px-3 py-2 text-[13px] leading-snug text-blue-100">
                 {analysis.recommendation}
               </p>
-              <p className="text-[10px] text-zinc-500">
+              <p className="text-[12px] text-zinc-500">
                 {analysis.models.length} modelo(s) comparado(s). Mais barato:{" "}
                 <span className="font-mono text-emerald-300">
                   {analysis.cheapest ?? "—"}
                 </span>
               </p>
               {analysis.models.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-zinc-700 px-3 py-4 text-center text-[10px] text-zinc-500">
+                <p className="rounded-lg border border-dashed border-zinc-700 px-3 py-4 text-center text-[12px] text-zinc-500">
                   Nenhum modelo com preço disponível. Verifique se o OpenCode
                   está online.
                 </p>
               ) : (
                 <div className="scroll-area max-h-72 rounded-lg border border-zinc-800/70">
-                  <table className="w-full text-left text-[10px]">
-                    <thead className="sticky top-0 bg-zinc-950/95 text-[9px] uppercase tracking-wide text-zinc-500">
+                  <table className="w-full text-left text-[12px]">
+                    <thead className="sticky top-0 bg-zinc-950/95 text-[11.5px] uppercase tracking-wide text-zinc-500">
                       <tr>
                         <th className="px-2.5 py-1.5">Modelo</th>
                         <th className="px-2.5 py-1.5 text-right">Entrada /1M</th>
@@ -761,7 +761,7 @@ export function RouterPage() {
                             <span className="block truncate font-mono text-zinc-200">
                               {row.model}
                             </span>
-                            <span className="block truncate text-[9px] text-zinc-500">
+                            <span className="block truncate text-[11.5px] text-zinc-500">
                               {row.name}
                             </span>
                           </td>
@@ -835,7 +835,7 @@ export function RouterPage() {
                 setSettings({ ...settings, opencode_go_5h_token_limit: Math.round(value) })
               }
             />
-            <label className="flex items-center gap-2 text-[11px] text-zinc-400">
+            <label className="flex items-center gap-2 text-[13px] text-zinc-400">
               <input
                 type="checkbox"
                 checked={settings?.hard_stop_enabled ?? true}
@@ -847,7 +847,7 @@ export function RouterPage() {
               />
               hard stop habilitado
             </label>
-            <div className="grid grid-cols-2 gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-2.5 text-[10px]">
+            <div className="grid grid-cols-2 gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-2.5 text-[12px]">
               <span className="text-zinc-500">gasto hoje</span>
               <span className="text-right font-mono text-zinc-300">
                 {formatUsd(config?.budget.daily_spent ?? 0)} /{" "}
@@ -864,12 +864,12 @@ export function RouterPage() {
               </span>
             </div>
             {config?.budget.hard_stop ? (
-              <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] leading-relaxed text-red-300">
+              <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] leading-relaxed text-red-300">
                 Hard cap atingido: a fila é pausada e notificada. Ajuste o limite ou aguarde o
                 próximo período.
               </p>
             ) : config?.budget.soft_alert ? (
-              <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] leading-relaxed text-amber-300">
+              <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] leading-relaxed text-amber-300">
                 Alerta soft: o orçamento passou de {settings?.soft_alert_threshold_pct ?? 80}%.
               </p>
             ) : null}
@@ -916,20 +916,20 @@ export function RouterPage() {
                       {rule.is_enabled ? "on" : "off"}
                     </Badge>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-medium text-zinc-200">{rule.name}</p>
-                      <p className="truncate font-mono text-[9px] text-zinc-500">
+                      <p className="text-[13px] font-medium text-zinc-200">{rule.name}</p>
+                      <p className="truncate font-mono text-[11.5px] text-zinc-500">
                         {rule.condition_json}
                       </p>
                     </div>
                     <Badge variant="purple">{rule.target_mode}</Badge>
                     <Badge variant="default">@{rule.target_agent ?? "build"}</Badge>
-                    <span className="font-mono text-[9px] text-zinc-500">
+                    <span className="font-mono text-[11.5px] text-zinc-500">
                       {rule.target_model} · {rule.target_effort}
                     </span>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-6 px-1.5 text-[9px]"
+                      className="h-6 px-1.5 text-[11.5px]"
                       onClick={() => editRule(rule)}
                       title="Editar regra"
                     >
@@ -938,7 +938,7 @@ export function RouterPage() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      className="h-6 px-1.5 text-[9px]"
+                      className="h-6 px-1.5 text-[11.5px]"
                       onClick={() => void removeRule(rule.id)}
                     >
                       <Trash2 size={10} />
@@ -954,7 +954,7 @@ export function RouterPage() {
       <Card>
         <CardContent className="flex items-start gap-3 p-4">
           <ShieldAlert size={16} className="mt-0.5 text-amber-400/70" />
-          <p className="text-[11px] leading-relaxed text-zinc-500">
+          <p className="text-[13px] leading-relaxed text-zinc-500">
             O Budget Guard consulta o SQLite antes de cada job. Hard cap pausa a fila; o alerta
             soft apenas notifica. A janela de 5h usa tokens de entrada + saída dos runs.
           </p>
@@ -990,7 +990,7 @@ function BudgetInput({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[9px] uppercase tracking-[0.12em] text-zinc-500">
+      <span className="mb-1 block text-[11.5px] uppercase tracking-[0.12em] text-zinc-500">
         {label}
       </span>
       <input
@@ -999,7 +999,7 @@ function BudgetInput({
         step={label.includes("tokens") ? 1000 : 0.01}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 font-mono text-[11px] text-zinc-100 outline-none focus:border-blue-500/60"
+        className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 font-mono text-[13px] text-zinc-100 outline-none focus:border-blue-500/60"
       />
     </label>
   );
@@ -1103,7 +1103,7 @@ function CreateRuleModal({
             value={condition}
             onChange={(event) => setCondition(event.target.value)}
             rows={3}
-            className={cn(inputClass, "h-auto resize-y py-2 font-mono text-[10px]")}
+            className={cn(inputClass, "h-auto resize-y py-2 font-mono text-[12px]")}
           />
         </label>
         <label>
@@ -1141,7 +1141,7 @@ function CreateRuleModal({
         </label>
       </div>
       {error ? (
-        <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
       ) : null}

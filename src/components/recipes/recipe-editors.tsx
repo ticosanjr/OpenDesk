@@ -79,7 +79,7 @@ export function LocalYamlEditor({
       <div
         ref={gutter}
         aria-hidden
-        className="h-full select-none overflow-hidden border-r border-zinc-800/70 px-2 py-3 text-right font-mono text-[10px] leading-[1.6] text-zinc-500"
+        className="h-full select-none overflow-hidden border-r border-zinc-800/70 px-2 py-3 text-right font-mono text-[12px] leading-[1.6] text-zinc-500"
       >
         {Array.from({ length: lines }).map((_, index) => (
           <div key={index}>{index + 1}</div>
@@ -95,7 +95,7 @@ export function LocalYamlEditor({
           }
         }}
         spellCheck={false}
-        className="h-full min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-[11px] leading-[1.6] text-zinc-200 outline-none"
+        className="h-full min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-[13px] leading-[1.6] text-zinc-200 outline-none"
         aria-label="Editor YAML da receita"
       />
     </div>
@@ -260,7 +260,7 @@ export function RecipeStepper({
     <div className="space-y-3">
       <section className="rounded-lg border border-blue-500/30 bg-blue-500/[0.04] p-2.5">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-200">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-blue-200">
             Gatilhos de entrada
           </p>
           <CountPill value={triggers.length} tone="blue" />
@@ -275,7 +275,7 @@ export function RecipeStepper({
           </Button>
         </div>
         {triggers.length === 0 ? (
-          <p className="mt-2 rounded border border-dashed border-zinc-700 px-2.5 py-2 text-[10px] text-zinc-500">
+          <p className="mt-2 rounded border border-dashed border-zinc-700 px-2.5 py-2 text-[12px] text-zinc-500">
             Sem gatilho. Esta receita só executa manualmente ou quando chamada por uma rotina.
           </p>
         ) : (
@@ -304,7 +304,7 @@ export function RecipeStepper({
 
       <section className="relative space-y-2 border-l border-zinc-800 pl-4">
         <div className="flex items-center gap-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-zinc-400">
             Ordem de execução
           </p>
           <CountPill value={flow.length} />
@@ -389,7 +389,7 @@ export function RecipeStepper({
         ))}
 
         {flow.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-zinc-700 px-3 py-6 text-center text-[10px] text-zinc-500">
+          <p className="rounded-lg border border-dashed border-zinc-700 px-3 py-6 text-center text-[12px] text-zinc-500">
             Adicione a primeira etapa para montar o fluxo.
           </p>
         ) : null}
@@ -473,7 +473,7 @@ function StepEditor({
           onChange={(value) => onChange({ prompt: value })}
           workspaceId={workspaceId}
           rows={4}
-          className="font-mono text-[10px]"
+          className="font-mono text-[12px]"
         />
         <PromptAttachments
           workspaceId={workspaceId}
@@ -546,7 +546,7 @@ function HitlEditor({
         <LabeledField label="Canais de aviso">
           <div className="flex flex-wrap gap-2 pt-1.5">
             {CHANNELS.map((channel) => (
-              <label key={channel} className="flex items-center gap-1 text-[10px] text-zinc-400">
+              <label key={channel} className="flex items-center gap-1 text-[12px] text-zinc-400">
                 <input
                   type="checkbox"
                   checked={channels.includes(channel)}
@@ -597,7 +597,7 @@ function HitlEditor({
           value={String(checkpoint.prompt_template ?? "")}
           onChange={(event) => onChange({ prompt_template: event.target.value })}
           rows={2}
-          className="w-full rounded border border-zinc-800 bg-zinc-900/50 p-2 font-mono text-[10px] text-zinc-200 outline-none"
+          className="w-full rounded border border-zinc-800 bg-zinc-900/50 p-2 font-mono text-[12px] text-zinc-200 outline-none"
         />
       </LabeledField>
     </div>

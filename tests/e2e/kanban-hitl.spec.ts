@@ -132,3 +132,115 @@ test("permission requests are answerable from the Kanban card", async ({
   await expect(dialog).not.toBeVisible();
   await expect(page.getByText("Permissão para bash")).toHaveCount(0);
 });
+
+test("approval and multiple interactions are visible on attention cards", async ({
+  page,
+  request,
+}) => {
+  const workspace = await seedWorkspace(request, "Kanban Approval");
+  const auth = api();
+  const seeded = await request.post(`${auth.baseURL}/api/test/seed`, {
+    headers: auth.headers,
+    data: {
+      workspace_id: workspace.id,
+      task: {
+        title: "Aprovar plano no card",
+        description: "Plano pronto para revisão.",
+        status: "IN_REVIEW",
+        phase_status: "awaiting_approval",
+      },
+    },
+  });
+  expect(seeded.ok()).toBeTruthy();
+
+  const task = await request.post(
+    `${auth.baseURL}/api/tasks?workspace_id=${workspace.id}`,
+    {
+      headers: auth.headers,
+      data: {
+        title: "Múltiplas perguntas",
+        description: "Duas decisões pendentes.",
+        tags: [],
+      },
+    },
+  );
+  const taskId = ((await task.json()) as { id: string }).id;
+  for (const question of ["Primeira pergunta?", "Segunda pergunta?"]) {
+    const asked = await request.post(
+      `${auth.baseURL}/api/tasks/${taskId}/interactions`,
+      {
+        headers: auth.headers,
+        data: { question, options: ["Sim", "Não"], allow_custom: false, timeout_minutes: 5 },
+      },
+    );
+    expect(asked.ok()).toBeTruthy();
+  }
+
+  await page.goto("/#/kanban");
+  const approval = page
+    .locator('[data-card="task"]')
+    .filter({ hasText: "Aprovar plano no card" });
+  await expect(approval).toContainText("Plano aguardando aprovação");
+  await expect(
+    approval.getByRole("button", { name: "Aprovar plano", exact: true }),
+  ).toBeVisible();
+
+  const multiple = page
+    .locator('[data-card="task"]')
+    .filter({ hasText: "Múltiplas perguntas" });
+  await multiple.getByRole("button", { name: "Responder", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Primeira pergunta?");
+  await expect(dialog).toContainText("Segunda pergunta?");
+});
+
+test("permission can be denied from the Kanban modal", async ({ page, request }) => {
+  const workspace = await seedWorkspace(request, "Kanban Deny");
+  const auth = api();
+  let seeded = await request.post(`${auth.baseURL}/api/test/seed`, {
+    headers: auth.headers,
+    data: {
+      workspace_id: workspace.id,
+      task: {
+        title: "Negar permissão no Kanban",
+        description: "O agente pediu acesso.",
+        status: "IN_REVIEW",
+      },
+      permission: {
+        action: "bash",
+        resources: ["rm -rf build"],
+        session_id: "kanban-deny",
+      },
+    },
+  });
+  for (let attempt = 0; !seeded.ok() && attempt < 3; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+    seeded = await request.post(`${auth.baseURL}/api/test/seed`, {
+      headers: auth.headers,
+      data: {
+        workspace_id: workspace.id,
+        task: {
+          title: "Negar permissão no Kanban",
+          description: "O agente pediu acesso.",
+          status: "IN_REVIEW",
+        },
+        permission: {
+          action: "bash",
+          resources: ["rm -rf build"],
+          session_id: "kanban-deny",
+        },
+      },
+    });
+  }
+  expect(seeded.ok(), await seeded.text()).toBeTruthy();
+
+  await page.goto("/#/kanban");
+  const card = page
+    .locator('[data-card="task"]')
+    .filter({ hasText: "Negar permissão no Kanban" });
+  await card.getByRole("button", { name: "Responder", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Negar", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByText("Permissão para bash")).toHaveCount(0);
+});

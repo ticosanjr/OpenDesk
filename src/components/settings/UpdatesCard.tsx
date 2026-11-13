@@ -178,7 +178,7 @@ export function UpdatesCard() {
             value={token}
             onChange={(event) => setToken(event.target.value)}
             placeholder="github_pat_… (fine-grained: Contents: Read, Metadata: Read)"
-            className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
+            className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 font-mono text-[13px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
           />
           <div className="flex flex-wrap gap-2">
             <Button
@@ -264,7 +264,7 @@ export function UpdatesCard() {
         </div>
 
         {latest?.notes ? (
-          <details className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[9px] text-zinc-500">
+          <details className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[11.5px] text-zinc-500">
             <summary className="cursor-pointer text-zinc-400">
               Notas da release {latest.version}
             </summary>
@@ -275,7 +275,7 @@ export function UpdatesCard() {
         ) : null}
 
         {result?.ok ? (
-          <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[10px] leading-relaxed text-emerald-300">
+          <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[12px] leading-relaxed text-emerald-300">
             {result.message}
             {result.action === "restart-required"
               ? " Encerre o app pela bandeja para aplicar."
@@ -284,20 +284,20 @@ export function UpdatesCard() {
         ) : null}
 
         {message && !result ? (
-          <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[10px] leading-relaxed text-emerald-300">
+          <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[12px] leading-relaxed text-emerald-300">
             <Check size={11} className="mr-1 inline" />
             {message}
           </p>
         ) : null}
 
         {error ? (
-          <p className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] leading-relaxed text-red-300">
+          <p className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] leading-relaxed text-red-300">
             <AlertTriangle size={12} className="mt-0.5 shrink-0" />
             {error}
           </p>
         ) : null}
 
-        <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[9px] leading-relaxed text-zinc-500">
+        <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[11.5px] leading-relaxed text-zinc-500">
           Repositório privado: crie um token fine-grained em GitHub → Settings →
           Developer settings com acesso ao repositório{" "}
           <span className="font-mono">ticosanjr/OpenDesk</span> e permissões{" "}

@@ -23,8 +23,8 @@ export function PerformanceSection({ rows }: { rows: AgentPerformance[] }) {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-[10px]">
-              <thead className="border-b border-zinc-800 text-[9px] uppercase tracking-wide text-zinc-500">
+            <table className="w-full text-left text-[12px]">
+              <thead className="border-b border-zinc-800 text-[11.5px] uppercase tracking-wide text-zinc-500">
                 <tr>
                   <th className="px-3 py-2">Agente</th>
                   <th className="px-3 py-2">Runs</th>

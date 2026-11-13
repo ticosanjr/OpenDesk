@@ -109,11 +109,11 @@ export function CapturePage() {
     >
       <div className="flex items-center gap-2">
         <ClipboardPaste size={15} className="text-blue-400" />
-        <p className="text-[12px] font-semibold">Quick Capture</p>
+        <p className="text-[13.5px] font-semibold">Quick Capture</p>
         <select
           value={workspaceId}
           onChange={(event) => setWorkspaceId(event.target.value)}
-          className="ml-auto h-7 max-w-56 rounded-md border border-zinc-800 bg-zinc-900 px-2 text-[11px]"
+          className="ml-auto h-7 max-w-56 rounded-md border border-zinc-800 bg-zinc-900 px-2 text-[13px]"
         >
           <option value="">workspace ativo</option>
           {workspaces.map((workspace) => (
@@ -140,13 +140,13 @@ export function CapturePage() {
           if (event.key === "Escape") void close();
         }}
         placeholder="Cole um texto, link ou print (Ctrl+V). Ctrl+Enter para capturar."
-        className="min-h-0 flex-1 resize-none rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-[13px] outline-none placeholder:text-zinc-500 focus:border-blue-500/40"
+        className="min-h-0 flex-1 resize-none rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-[14px] outline-none placeholder:text-zinc-500 focus:border-blue-500/40"
       />
 
       {image ? (
         <div className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-2 py-1.5">
           <img src={image.data} alt="" className="h-10 w-10 rounded object-cover" />
-          <span className="min-w-0 flex-1 truncate text-[10px] text-zinc-400">
+          <span className="min-w-0 flex-1 truncate text-[12px] text-zinc-400">
             {image.name}
           </span>
           <button
@@ -165,9 +165,9 @@ export function CapturePage() {
             value={agent}
             onChange={(event) => setAgent(event.target.value)}
             placeholder="@agente (opcional)"
-            className="h-7 w-36 rounded-md border border-zinc-800 bg-zinc-900 px-2 font-mono text-[10px] outline-none placeholder:text-zinc-500 focus:border-blue-500/40"
+            className="h-7 w-36 rounded-md border border-zinc-800 bg-zinc-900 px-2 font-mono text-[12px] outline-none placeholder:text-zinc-500 focus:border-blue-500/40"
           />
-          <p className="text-[10px] text-zinc-500">
+          <p className="text-[12px] text-zinc-500">
             Backlog · Ctrl+Enter envia · Esc fecha
           </p>
         </div>

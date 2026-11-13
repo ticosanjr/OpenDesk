@@ -350,7 +350,7 @@ export function AttentionCard() {
                       <p className="truncate text-[12.5px] font-medium text-zinc-200">
                         {missed.schedule_name ?? missed.schedule_id}
                       </p>
-                      <p className="font-mono text-[11px] text-zinc-500">
+                      <p className="font-mono text-[13px] text-zinc-500">
                         {new Date(missed.scheduled_for).toLocaleString("pt-BR")} ·{" "}
                         {missed.reason === "OFFLINE" ? "offline" : "atraso"}
                       </p>
@@ -440,7 +440,7 @@ export function AttentionCard() {
                   icon={<ShieldAlert size={13} />}
                   title={
                     <span>
-                      <span className="font-mono text-[11px] uppercase text-amber-300">
+                      <span className="font-mono text-[13px] uppercase text-amber-300">
                         {request.permission_action}
                       </span>{" "}
                       {request.resources || "ação do agente"}
@@ -480,7 +480,7 @@ export function AttentionCard() {
                       {request.task_id ? (
                         <Link
                           to={links.task(request.task_id)}
-                          className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200"
+                          className="inline-flex items-center gap-1 text-[13px] text-zinc-400 hover:text-zinc-200"
                         >
                           <ExternalLink size={10} />
                           abrir
@@ -519,7 +519,7 @@ export function AttentionCard() {
                       </Button>
                       <Link
                         to={links.task(task.id)}
-                        className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200"
+                        className="inline-flex items-center gap-1 text-[13px] text-zinc-400 hover:text-zinc-200"
                       >
                         <ExternalLink size={10} />
                         abrir
@@ -549,7 +549,7 @@ export function AttentionCard() {
                     <>
                       <Link
                         to={links.task(task.id)}
-                        className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200"
+                        className="inline-flex items-center gap-1 text-[13px] text-zinc-400 hover:text-zinc-200"
                       >
                         <ExternalLink size={10} />
                         resolver
@@ -601,7 +601,7 @@ export function AttentionCard() {
                       </Button>
                       <Link
                         to={links.run(run.id)}
-                        className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200"
+                        className="inline-flex items-center gap-1 text-[13px] text-zinc-400 hover:text-zinc-200"
                       >
                         <ExternalLink size={10} />
                         logs

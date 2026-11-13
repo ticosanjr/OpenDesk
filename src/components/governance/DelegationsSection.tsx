@@ -125,17 +125,17 @@ export function DelegationsSection({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Badge variant="yellow">pendente</Badge>
-                    <p className="text-[11px] font-medium text-zinc-200">
+                    <p className="text-[13px] font-medium text-zinc-200">
                       {delegation.title}
                     </p>
-                    <span className="font-mono text-[9px] text-zinc-500">
+                    <span className="font-mono text-[11.5px] text-zinc-500">
                       {delegationSummary(delegation)}
                     </span>
                   </div>
-                  <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-zinc-500">
+                  <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-zinc-500">
                     {delegation.prompt}
                   </p>
-                  <p className="mt-1 text-[9px] text-zinc-500">
+                  <p className="mt-1 text-[11.5px] text-zinc-500">
                     solicitada {relativeTime(delegation.requested_at)}
                   </p>
                 </div>
@@ -177,14 +177,14 @@ export function DelegationsSection({
                 <Badge variant={delegationTone(delegation.status)}>
                   {delegation.status}
                 </Badge>
-                <span className="text-[9px] text-zinc-500">{delegation.title}</span>
-                <span className="font-mono text-[9px] text-zinc-500">
+                <span className="text-[11.5px] text-zinc-500">{delegation.title}</span>
+                <span className="font-mono text-[11.5px] text-zinc-500">
                   {delegationSummary(delegation)}
                 </span>
                 {delegation.task_id ? (
                   <Link
                     to={links.task(delegation.task_id)}
-                    className="text-[9px] text-blue-300 hover:text-blue-200"
+                    className="text-[11.5px] text-blue-300 hover:text-blue-200"
                   >
                     tarefa
                   </Link>

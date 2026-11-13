@@ -2250,3 +2250,28 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Testes unitários adicionais cobrem favoritos, views do Kanban, dismissable,
   lista de recomendadas e o store de UI; a cobertura voltou a passar do gate.
 - Playwright completo: **87 testes**.
+
+## 2026-11-13 — P2: fila, busca, HITL, modais, viewers e tipografia
+
+- Kanban: a concorrência saiu da barra do board e ficou no controlador da fila,
+  com rótulo e alvo maiores. A barra do board fica só com visão, origem, busca,
+  filtros e visibilidade.
+- Busca: a aba selecionada virou deep link (`?tab=`), preservada ao navegar e
+  ao atualizar a query; as abas usam `role="tab"`/`aria-selected`.
+- HITL: suporte a múltiplas interações/permissões por tarefa, modal com todas
+  as pendências, teste de aprovação direta no card e teste de permissão negada.
+  O seed de teste passou a aceitar `phase_status` e request ids completos.
+- Modais: PackInstall, RoutineForm, RecipeRun e StudioInstall cobertos por axe;
+  corrigidos controles aninhados, regiões scrolláveis sem foco e contraste na
+  lista de receitas.
+- Viewers: testes para binário, ZIP e arquivo grande; estado sem prévia e ação
+  de abrir arquivo validados.
+- Settings/Integrations: abaixo de 1024px o trilho vira um select agrupado,
+  mantendo os mesmos destinos e testes em viewport compacto.
+- Tipografia: codemod dos `text-[8px]`…`text-[13px]` para os valores computados
+  e remoção do remap; nenhum tamanho funcional abaixo de 11px.
+- Validação real de preview de Caveman e das skills do Matt Pocock.
+- Goldens visuais regravados após o codemod tipográfico.
+- Fechamento do P2: **176 Vitest**, **93 Playwright**, **74/74 features**,
+  cobertura Rust e JS acima do gate, clippy, build, axe em 1024/1440/1920 e
+  goldens visuais estáveis.

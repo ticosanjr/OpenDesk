@@ -202,7 +202,7 @@ export function WorkspaceDialog() {
               setError(null);
             }}
             className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+              "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors",
               mode === "create"
                 ? "bg-zinc-800 text-zinc-100"
                 : "text-zinc-500 hover:text-zinc-200",
@@ -218,7 +218,7 @@ export function WorkspaceDialog() {
               setError(null);
             }}
             className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+              "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors",
               mode === "template"
                 ? "bg-zinc-800 text-zinc-100"
                 : "text-zinc-500 hover:text-zinc-200",
@@ -234,7 +234,7 @@ export function WorkspaceDialog() {
               setError(null);
             }}
             className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+              "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors",
               mode === "existing"
                 ? "bg-zinc-800 text-zinc-100"
                 : "text-zinc-500 hover:text-zinc-200",
@@ -246,7 +246,7 @@ export function WorkspaceDialog() {
         </div>
 
         <label className="block">
-          <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
+          <span className="mb-1.5 block text-[13px] font-medium text-zinc-400">
             Nome
           </span>
           <input
@@ -260,11 +260,11 @@ export function WorkspaceDialog() {
 
         {mode === "template" ? (
           <div>
-            <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
+            <span className="mb-1.5 block text-[13px] font-medium text-zinc-400">
               Modelo de workspace
             </span>
             {templates.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-zinc-800 px-3 py-4 text-[10px] text-zinc-500">
+              <p className="rounded-lg border border-dashed border-zinc-800 px-3 py-4 text-[12px] text-zinc-500">
                 Nenhum template disponível. Crie um workspace em branco e adicione
                 pacotes depois.
               </p>
@@ -292,14 +292,14 @@ export function WorkspaceDialog() {
                         className="h-2 w-2 rounded-full"
                         style={{ background: template.color }}
                       />
-                      <span className="text-[11px] font-medium text-zinc-200">
+                      <span className="text-[13px] font-medium text-zinc-200">
                         {template.name}
                       </span>
                     </span>
-                    <span className="mt-0.5 line-clamp-2 block text-[9px] leading-snug text-zinc-500">
+                    <span className="mt-0.5 line-clamp-2 block text-[11.5px] leading-snug text-zinc-500">
                       {template.description}
                     </span>
-                    <span className="mt-1 block font-mono text-[8px] text-zinc-500">
+                    <span className="mt-1 block font-mono text-[11px] text-zinc-500">
                       {template.packs.length} pacotes · {template.folders.length} pastas
                     </span>
                   </button>
@@ -312,7 +312,7 @@ export function WorkspaceDialog() {
         {mode !== "existing" ? (
           <>
             <label className="block">
-              <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
+              <span className="mb-1.5 block text-[13px] font-medium text-zinc-400">
                 Pasta onde os workspaces serão criados
               </span>
               <div className="flex gap-2">
@@ -325,7 +325,7 @@ export function WorkspaceDialog() {
                     value={rootParent}
                     onChange={(event) => setRootParent(event.target.value)}
                     placeholder="~/Documents/OpenDesk Workareas"
-                    className={cn(inputClass, "pl-9 font-mono text-[11px]")}
+                    className={cn(inputClass, "pl-9 font-mono text-[13px]")}
                   />
                 </div>
                 <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={() => void chooseParent()}>
@@ -335,15 +335,15 @@ export function WorkspaceDialog() {
             </label>
 
             <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
-              <p className="text-[9px] uppercase tracking-[0.12em] text-zinc-500">
+              <p className="text-[11.5px] uppercase tracking-[0.12em] text-zinc-500">
                 pasta do workspace
               </p>
-              <p className="mt-0.5 truncate font-mono text-[10px] text-zinc-300">
+              <p className="mt-0.5 truncate font-mono text-[12px] text-zinc-300">
                 {createTarget || "preencha o nome do workspace"}
               </p>
             </div>
 
-            <label className="flex items-center gap-2 text-[11px] text-zinc-400">
+            <label className="flex items-center gap-2 text-[13px] text-zinc-400">
               <input
                 type="checkbox"
                 checked={useAsDefault}
@@ -355,7 +355,7 @@ export function WorkspaceDialog() {
           </>
         ) : (
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
+            <span className="mb-1.5 block text-[13px] font-medium text-zinc-400">
               Pasta do workspace existente
             </span>
             <div className="flex gap-2">
@@ -368,14 +368,14 @@ export function WorkspaceDialog() {
                   value={existingPath}
                   onChange={(event) => setExistingPath(event.target.value)}
                   placeholder="/home/rafael/Projetos/minha-empresa"
-                  className={cn(inputClass, "pl-9 font-mono text-[11px]")}
+                  className={cn(inputClass, "pl-9 font-mono text-[13px]")}
                 />
               </div>
               <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={() => void chooseExisting()}>
                 Escolher
               </Button>
             </div>
-            <p className="mt-1 text-[9px] leading-relaxed text-zinc-500">
+            <p className="mt-1 text-[11.5px] leading-relaxed text-zinc-500">
               Nada é movido. O OpenDesk registra o caminho e cria input/, output/ e
               .opencode/ somente se não existirem.
             </p>
@@ -385,10 +385,10 @@ export function WorkspaceDialog() {
         <div className="grid grid-cols-[1fr_110px] gap-3">
           {mode === "template" ? (
             <div>
-              <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
+              <span className="mb-1.5 block text-[13px] font-medium text-zinc-400">
                 Política do template
               </span>
-              <div className="flex h-9 items-center rounded-lg border border-zinc-800 bg-zinc-900/30 px-2.5 text-[11px] text-zinc-400">
+              <div className="flex h-9 items-center rounded-lg border border-zinc-800 bg-zinc-900/30 px-2.5 text-[13px] text-zinc-400">
                 {ROUTER_POLICY_LABELS[
                   templates.find((item) => item.id === templateId)?.router_policy ??
                     "COST_BENEFIT"
@@ -397,13 +397,13 @@ export function WorkspaceDialog() {
             </div>
           ) : (
             <label className="block">
-              <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
+              <span className="mb-1.5 block text-[13px] font-medium text-zinc-400">
                 Política padrão
               </span>
               <select
                 value={policy}
                 onChange={(event) => setPolicy(event.target.value)}
-                className={cn(inputClass, "px-2.5 text-[12px]")}
+                className={cn(inputClass, "px-2.5 text-[13.5px]")}
               >
                 {Object.entries(ROUTER_POLICY_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
@@ -415,7 +415,7 @@ export function WorkspaceDialog() {
           )}
 
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
+            <span className="mb-1.5 block text-[13px] font-medium text-zinc-400">
               Cor
             </span>
             <div className="flex h-9 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2">
@@ -425,20 +425,20 @@ export function WorkspaceDialog() {
                 onChange={(event) => setColor(event.target.value)}
                 className="h-5 w-7 cursor-pointer rounded border-0 bg-transparent p-0"
               />
-              <span className="font-mono text-[10px] text-zinc-500">{color}</span>
+              <span className="font-mono text-[12px] text-zinc-500">{color}</span>
             </div>
           </label>
         </div>
 
         {mode !== "template" ? (
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">
+            <span className="mb-1.5 block text-[13px] font-medium text-zinc-400">
               Equipe inicial (opcional)
             </span>
             <select
               value={blueprint}
               onChange={(event) => setBlueprint(event.target.value)}
-              className={cn(inputClass, "px-2.5 text-[12px]")}
+              className={cn(inputClass, "px-2.5 text-[13.5px]")}
             >
               <option value="">Nenhuma — começar vazio</option>
               {blueprints.map((item) => (
@@ -447,14 +447,14 @@ export function WorkspaceDialog() {
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-[9px] leading-relaxed text-zinc-500">
+            <p className="mt-1 text-[11.5px] leading-relaxed text-zinc-500">
               Cria agentes e skills em .opencode/ sem sobrescrever arquivos existentes.
             </p>
           </label>
         ) : null}
 
         {error ? (
-          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
             {error}
           </p>
         ) : null}
@@ -462,7 +462,7 @@ export function WorkspaceDialog() {
         <div className="flex items-center justify-between gap-3 border-t border-zinc-800/70 pt-4">
           <div className="flex min-w-0 items-center gap-2">
             <Badge variant="default">SSOT</Badge>
-            <p className="truncate text-[9px] text-zinc-500">
+            <p className="truncate text-[11.5px] text-zinc-500">
               Configuração continua em opencode.jsonc e .opencode/.
             </p>
           </div>
@@ -482,4 +482,4 @@ export function WorkspaceDialog() {
 }
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 text-[13.5px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60";

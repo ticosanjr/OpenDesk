@@ -35,7 +35,7 @@ export class ErrorBoundary extends React.Component<
             <AlertTriangle size={17} />
             <h2 className="text-sm font-semibold">Algo quebrou nesta tela</h2>
           </div>
-          <p className="mt-2 whitespace-pre-wrap font-mono text-[10px] leading-relaxed text-red-200/80">
+          <p className="mt-2 whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-red-200/80">
             {this.state.error.message}
           </p>
           <div className="mt-4 flex gap-2">

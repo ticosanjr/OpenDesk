@@ -397,7 +397,7 @@ export function AppShell() {
           </div>
         ) : null}
         {error ? (
-          <div className="flex items-center gap-3 border-b border-red-500/20 bg-red-500/10 px-4 py-2 text-[11px] text-red-300">
+          <div className="flex items-center gap-3 border-b border-red-500/20 bg-red-500/10 px-4 py-2 text-[13px] text-red-300">
             <AlertTriangle size={14} />
             <span className="flex-1">{error}</span>
             <Button
@@ -412,7 +412,7 @@ export function AppShell() {
           </div>
         ) : null}
         {engineOffline ? (
-          <div className="flex flex-wrap items-center gap-3 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-[11px] text-amber-200">
+          <div className="flex flex-wrap items-center gap-3 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-[13px] text-amber-200">
             <AlertTriangle size={14} className="shrink-0" />
             <span className="min-w-0 flex-1">
               <strong className="font-semibold">OpenCode offline.</strong>{" "}
@@ -446,8 +446,8 @@ export function AppShell() {
           <div
             className={
               budgetAlert.level === "hard"
-                ? "flex flex-wrap items-center gap-3 border-b border-red-500/25 bg-red-500/10 px-4 py-2 text-[11px] text-red-200"
-                : "flex flex-wrap items-center gap-3 border-b border-amber-500/25 bg-amber-500/10 px-4 py-2 text-[11px] text-amber-200"
+                ? "flex flex-wrap items-center gap-3 border-b border-red-500/25 bg-red-500/10 px-4 py-2 text-[13px] text-red-200"
+                : "flex flex-wrap items-center gap-3 border-b border-amber-500/25 bg-amber-500/10 px-4 py-2 text-[13px] text-amber-200"
             }
           >
             <AlertTriangle size={14} className="shrink-0" />
@@ -521,8 +521,8 @@ export function AppShell() {
               key={keys}
               className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
             >
-              <span className="text-[12px] text-zinc-300">{label}</span>
-              <kbd className="rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">
+              <span className="text-[13.5px] text-zinc-300">{label}</span>
+              <kbd className="rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 font-mono text-[12px] text-zinc-400">
                 {keys}
               </kbd>
             </div>

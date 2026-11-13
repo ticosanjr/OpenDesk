@@ -172,9 +172,9 @@ export function SkillPanel({
         }}
       >
         {loading && skills.length === 0 ? (
-          <p className="px-3 py-6 text-center text-[10px] text-zinc-500">Carregando…</p>
+          <p className="px-3 py-6 text-center text-[12px] text-zinc-500">Carregando…</p>
         ) : skills.length === 0 ? (
-          <p className="px-3 py-6 text-center text-[10px] text-zinc-500">
+          <p className="px-3 py-6 text-center text-[12px] text-zinc-500">
             Nenhuma skill neste escopo.
           </p>
         ) : (
@@ -214,7 +214,7 @@ export function SkillPanel({
                   </h2>
                   {isNew ? <Badge variant="blue">nova</Badge> : null}
                 </div>
-                <p className="mt-0.5 font-mono text-[9px] text-zinc-500">
+                <p className="mt-0.5 font-mono text-[11.5px] text-zinc-500">
                   {draft.path || "pasta será criada ao salvar"}
                 </p>
               </div>
@@ -276,13 +276,13 @@ export function SkillPanel({
                 value={draft.body}
                 onChange={(event) => setDraft({ ...draft, body: event.target.value })}
                 rows={12}
-                className={cn(inputClass, "min-h-[240px] resize-y py-2 font-mono text-[11px] leading-relaxed")}
+                className={cn(inputClass, "min-h-[240px] resize-y py-2 font-mono text-[13px] leading-relaxed")}
               />
             </StudioField>
 
             <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/25">
               <div className="flex items-center justify-between border-b border-zinc-800/60 px-3 py-2">
-                <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-zinc-500">
                   Arquivos auxiliares
                 </span>
                 <Button variant="outline" size="sm" className="h-7" onClick={addFile}>
@@ -292,7 +292,7 @@ export function SkillPanel({
               </div>
               <div className="space-y-3 p-3">
                 {draft.files.length === 0 ? (
-                  <p className="text-[10px] text-zinc-500">
+                  <p className="text-[12px] text-zinc-500">
                     Nenhum arquivo auxiliar. Ex.: references/policy.md ou scripts/changelog.ts.
                   </p>
                 ) : (
@@ -303,7 +303,7 @@ export function SkillPanel({
                           value={file.path}
                           onChange={(event) => updateFile(index, { path: event.target.value })}
                           placeholder="references/policy.md"
-                          className={cn(inputClass, "font-mono text-[10px]")}
+                          className={cn(inputClass, "font-mono text-[12px]")}
                         />
                         <button
                           type="button"
@@ -318,7 +318,7 @@ export function SkillPanel({
                         value={file.content}
                         onChange={(event) => updateFile(index, { content: event.target.value })}
                         rows={5}
-                        className={cn(inputClass, "resize-y py-2 font-mono text-[10px]")}
+                        className={cn(inputClass, "resize-y py-2 font-mono text-[12px]")}
                       />
                     </div>
                   ))
@@ -333,4 +333,4 @@ export function SkillPanel({
 }
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60 disabled:cursor-not-allowed";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[13.5px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60 disabled:cursor-not-allowed";

@@ -482,13 +482,14 @@ button {
 .markdown-body img { border-radius: 8px; max-width: 100%; }
 .markdown-body hr { border-color: #27272a; margin: 1.2em 0; }
 
-/* Readability floor: the UI had too many 8–10px labels.
-   The remap keeps legacy class names working while the components migrate to
-   the semantic `.type-*` roles above. */
-.text-\[8px\] { font-size: 11px; line-height: 1.5; }
-.text-\[9px\] { font-size: 11.5px; line-height: 1.5; }
-.text-\[10px\] { font-size: 12px; line-height: 1.55; }
-.text-\[11px\] { font-size: 13px; line-height: 1.55; }
-.text-\[12px\] { font-size: 13.5px; line-height: 1.5; }
-.text-\[13px\] { font-size: 14px; line-height: 1.5; }
+/* Legacy alias kept for older markup; new code uses text-sm or `.type-*`. */
 .text-xs { font-size: 13px; line-height: 1.5; }
+
+/* The legacy remap used these line-heights; keep them attached to the
+   migrated arbitrary sizes so existing layouts do not shift. */
+.text-\[11px\],
+.text-\[11.5px\],
+.text-\[13.5px\],
+.text-\[14px\] { line-height: 1.5; }
+.text-\[12px\],
+.text-\[13px\] { line-height: 1.55; }

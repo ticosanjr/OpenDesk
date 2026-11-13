@@ -56,7 +56,7 @@ export function RecurrenceEditor({
             type="button"
             onClick={() => patch({ frequency: frequency.id })}
             className={cn(
-              "rounded-lg border px-2.5 py-1 text-[10px]",
+              "rounded-lg border px-2.5 py-1 text-[12px]",
               value.frequency === frequency.id
                 ? "workspace-selected workspace-selected-text"
                 : "border-zinc-800 text-zinc-500 hover:text-zinc-300",
@@ -146,7 +146,7 @@ export function RecurrenceEditor({
               type="button"
               onClick={() => toggleWeekday(day.id)}
               className={cn(
-                "h-7 min-w-9 rounded-md border px-2 text-[10px]",
+                "h-7 min-w-9 rounded-md border px-2 text-[12px]",
                 value.weekdays.includes(day.id)
                   ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
                   : "border-zinc-800 text-zinc-500",
@@ -173,12 +173,12 @@ export function RecurrenceEditor({
       <div className="rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="blue">{preview?.human ?? "calculando…"}</Badge>
-          <span className="font-mono text-[9px] text-zinc-500">
+          <span className="font-mono text-[11.5px] text-zinc-500">
             {preview?.cron_expression ?? ""}
           </span>
         </div>
         {preview && preview.next_runs.length > 0 ? (
-          <p className="mt-1 text-[9px] text-zinc-500">
+          <p className="mt-1 text-[11.5px] text-zinc-500">
             próximas:{" "}
             {preview.next_runs
               .slice(0, 3)

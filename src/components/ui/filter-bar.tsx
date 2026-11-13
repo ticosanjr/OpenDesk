@@ -57,7 +57,7 @@ export function FilterSearch({
         }}
         placeholder={placeholder}
         aria-label={ariaLabel}
-        className="h-full min-w-0 flex-1 bg-transparent text-[12px] text-zinc-100 outline-none placeholder:text-zinc-500"
+        className="h-full min-w-0 flex-1 bg-transparent text-[13.5px] text-zinc-100 outline-none placeholder:text-zinc-500"
       />
       {value ? (
         <button
@@ -93,7 +93,7 @@ export function FilterSelect({
       onChange={(event) => onChange(event.target.value)}
       aria-label={ariaLabel}
       className={cn(
-        "h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[12px] text-zinc-300 outline-none transition-colors hover:border-zinc-700 focus:border-zinc-600",
+        "h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[13.5px] text-zinc-300 outline-none transition-colors hover:border-zinc-700 focus:border-zinc-600",
         className,
       )}
     >

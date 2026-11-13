@@ -270,7 +270,7 @@ export function ArtifactsPage() {
       />
 
       {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
       ) : null}
@@ -309,7 +309,7 @@ export function ArtifactsPage() {
                     return next;
                   }, { replace: true })
                 }
-                className="inline-flex items-center gap-1 rounded-md border border-blue-500/25 bg-blue-500/10 px-1.5 py-0.5 font-mono text-[9px] text-blue-300 hover:text-blue-100"
+                className="inline-flex items-center gap-1 rounded-md border border-blue-500/25 bg-blue-500/10 px-1.5 py-0.5 font-mono text-[11.5px] text-blue-300 hover:text-blue-100"
                 title="Remover filtro por execução"
               >
                 run {runFilter.slice(0, 8)}
@@ -331,7 +331,7 @@ export function ArtifactsPage() {
           ) : (
             <div className="scroll-area max-h-[calc(100dvh-18rem)] overflow-auto">
               <table className="w-full text-left">
-                <thead className="border-b border-zinc-800/70 text-[9px] uppercase tracking-[0.12em] text-zinc-500">
+                <thead className="border-b border-zinc-800/70 text-[11.5px] uppercase tracking-[0.12em] text-zinc-500">
                   <tr>
                     <th className="px-4 py-2.5 font-medium">Arquivo</th>
                     <th className="px-3 py-2.5 font-medium">Agente</th>
@@ -345,7 +345,7 @@ export function ArtifactsPage() {
                   {artifacts.map((artifact) => (
                     <tr
                       key={artifact.id}
-                      className="cursor-pointer border-b border-zinc-800/40 text-[11px] transition-colors hover:bg-zinc-900/40"
+                      className="cursor-pointer border-b border-zinc-800/40 text-[13px] transition-colors hover:bg-zinc-900/40"
                       onClick={() => {
                         setSelected(artifact);
                         setTab("content");
@@ -372,10 +372,10 @@ export function ArtifactsPage() {
                           </button>
                           <FileText size={13} className="shrink-0 text-zinc-500" />
                           <div className="min-w-0">
-                            <p className="truncate font-mono text-[10px] text-zinc-200">
+                            <p className="truncate font-mono text-[12px] text-zinc-200">
                               {artifact.file_path}
                             </p>
-                            <p className="font-mono text-[8px] text-zinc-500">
+                            <p className="font-mono text-[11px] text-zinc-500">
                               {formatNumber(artifact.file_size_bytes)} bytes ·{" "}
                               {artifact.file_type || "file"}
                             </p>
@@ -386,12 +386,12 @@ export function ArtifactsPage() {
                         <Badge variant="purple">@{artifact.created_by_agent}</Badge>
                       </td>
                       <td className="max-w-[260px] px-3 py-2.5">
-                        <p className="truncate text-[12px] text-zinc-400">
+                        <p className="truncate text-[13.5px] text-zinc-400">
                           {artifact.creation_reason}
                         </p>
                       </td>
                       <td className="px-3 py-2.5">
-                        <span className="font-mono text-[11px] text-zinc-500">
+                        <span className="font-mono text-[13px] text-zinc-500">
                           {relativeTime(artifact.created_at)}
                         </span>
                       </td>
@@ -422,7 +422,7 @@ export function ArtifactsPage() {
                           {!artifact.google_doc_url &&
                           !artifact.google_drive_url &&
                           !artifact.emailed_to ? (
-                            <span className="text-[9px] text-zinc-500">—</span>
+                            <span className="text-[11.5px] text-zinc-500">—</span>
                           ) : null}
                         </div>
                       </td>
@@ -518,7 +518,7 @@ export function ArtifactsPage() {
                 type="button"
                 onClick={() => setTab("content")}
                 className={cn(
-                  "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[12px] transition-colors",
+                  "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13.5px] transition-colors",
                   tab === "content"
                     ? "bg-zinc-800 text-zinc-100"
                     : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200",
@@ -531,7 +531,7 @@ export function ArtifactsPage() {
                 type="button"
                 onClick={() => setTab("diff")}
                 className={cn(
-                  "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[12px] transition-colors",
+                  "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13.5px] transition-colors",
                   tab === "diff"
                     ? "bg-zinc-800 text-zinc-100"
                     : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200",
@@ -545,12 +545,12 @@ export function ArtifactsPage() {
             <div className="flex h-[min(64dvh,52rem)] min-h-[360px] flex-col overflow-hidden rounded-xl border border-zinc-800/70 bg-zinc-950/30">
               {tab === "content" ? (
                 contentLoading ? (
-                  <p className="p-4 text-[12px] text-zinc-500">
+                  <p className="p-4 text-[13.5px] text-zinc-500">
                     Carregando visualizador…
                   </p>
                 ) : contentError ? (
                   <div className="space-y-2 p-4">
-                    <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">
+                    <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13.5px] text-red-300">
                       Não foi possível carregar a prévia: {contentError}
                     </p>
                     <Button
@@ -576,13 +576,13 @@ export function ArtifactsPage() {
                     onOpenExternal={() => void reveal(selected.absolute_path)}
                   />
                 ) : (
-                  <p className="p-4 text-[12px] text-zinc-500">
+                  <p className="p-4 text-[13.5px] text-zinc-500">
                     Sem prévia para este artefato.
                   </p>
                 )
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                  <p className="mx-4 mt-3 text-[12px] leading-relaxed text-zinc-400">
+                  <p className="mx-4 mt-3 text-[13.5px] leading-relaxed text-zinc-400">
                     {selected.creation_reason}
                   </p>
                   {selected.diff_patch ? (

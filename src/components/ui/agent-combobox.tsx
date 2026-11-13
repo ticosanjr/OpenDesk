@@ -150,7 +150,7 @@ export function AgentCombobox({
               type="button"
               role="option"
               aria-selected={!value}
-              className="block w-full rounded px-2 py-1.5 text-left text-[10px] text-zinc-400 hover:bg-zinc-800"
+              className="block w-full rounded px-2 py-1.5 text-left text-[12px] text-zinc-400 hover:bg-zinc-800"
               onMouseDown={(event) => {
                 event.preventDefault();
                 choose(null);
@@ -174,17 +174,17 @@ export function AgentCombobox({
                 choose(agent);
               }}
             >
-              <span className="font-mono text-[10px] text-zinc-200">@{agent.id}</span>
+              <span className="font-mono text-[12px] text-zinc-200">@{agent.id}</span>
               {agent.name ? (
-                <span className="ml-1 text-[10px] text-zinc-400">{agent.name}</span>
+                <span className="ml-1 text-[12px] text-zinc-400">{agent.name}</span>
               ) : null}
               {agent.router_policy ? (
-                <span className="ml-1 font-mono text-[9px] text-zinc-500">
+                <span className="ml-1 font-mono text-[11.5px] text-zinc-500">
                   {agent.router_policy}
                 </span>
               ) : null}
               {agent.description ? (
-                <span className="mt-0.5 block truncate text-[9px] text-zinc-500">
+                <span className="mt-0.5 block truncate text-[11.5px] text-zinc-500">
                   {agent.description}
                 </span>
               ) : null}
@@ -194,7 +194,7 @@ export function AgentCombobox({
             <button
               type="button"
               role="option"
-              className="block w-full rounded px-2 py-1.5 text-left font-mono text-[10px] text-blue-300 hover:bg-zinc-800"
+              className="block w-full rounded px-2 py-1.5 text-left font-mono text-[12px] text-blue-300 hover:bg-zinc-800"
               onMouseDown={(event) => {
                 event.preventDefault();
                 choose({ id: query.trim() });
@@ -204,7 +204,7 @@ export function AgentCombobox({
             </button>
           ) : null}
           {filtered.length === 0 ? (
-            <p className="px-2 py-1 text-[10px] text-zinc-500">
+            <p className="px-2 py-1 text-[12px] text-zinc-500">
               Nenhum agente encontrado. Digite um ID para usar manualmente.
             </p>
           ) : null}

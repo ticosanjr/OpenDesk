@@ -406,7 +406,7 @@ export function RunLogView({
 
   if (loading && !timeline) {
     return (
-      <div className="flex items-center gap-2 p-6 text-[11px] text-zinc-500">
+      <div className="flex items-center gap-2 p-6 text-[13px] text-zinc-500">
         <Loader2 size={14} className="animate-spin" />
         Carregando execução…
       </div>
@@ -416,7 +416,7 @@ export function RunLogView({
   if (error && !timeline) {
     return (
       <div className="space-y-3 p-4">
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
         <Button size="sm" variant="outline" onClick={() => void load()}>
@@ -434,7 +434,7 @@ export function RunLogView({
           <Badge variant={statusVariant(status)}>{runStatusLabel(status)}</Badge>
           {status === "RUNNING" ? <WorkingIndicator label="executando" /> : null}
           {timeline?.status === "RUNNING" || timeline?.log_missing === false ? (
-            <span className="inline-flex items-center gap-1 font-mono text-[11px] text-zinc-500">
+            <span className="inline-flex items-center gap-1 font-mono text-[13px] text-zinc-500">
               <span
                 className={cn(
                   "h-1.5 w-1.5 rounded-full",
@@ -590,7 +590,7 @@ export function RunLogView({
             </Button>
           </span>
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[9px] text-zinc-500">
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11.5px] text-zinc-500">
           <span>{run?.agent_name ?? "agente"}</span>
           <span>{run?.model_id ?? "modelo"}</span>
           {run ? (
@@ -612,7 +612,7 @@ export function RunLogView({
           {run?.started_at ? <span>{relativeTime(run.started_at)}</span> : null}
         </div>
         <div className="mt-2 flex items-center gap-2">
-          <span className="font-mono text-[10px] text-zinc-500">contexto</span>
+          <span className="font-mono text-[12px] text-zinc-500">contexto</span>
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-800">
             <div
               className={cn(
@@ -622,7 +622,7 @@ export function RunLogView({
               style={{ width: `${Math.min(100, (totalTokens / 128_000) * 100)}%` }}
             />
           </div>
-          <span className="font-mono text-[10px] text-zinc-500">
+          <span className="font-mono text-[12px] text-zinc-500">
             {formatNumber(totalTokens)} / 128k
           </span>
         </div>
@@ -630,7 +630,7 @@ export function RunLogView({
 
       {timeline?.artifacts.length ? (
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-zinc-800/70 bg-zinc-950/40 px-4 py-2">
-          <span className="mr-1 font-mono text-[9px] uppercase tracking-wide text-zinc-500">
+          <span className="mr-1 font-mono text-[11.5px] uppercase tracking-wide text-zinc-500">
             entregáveis
           </span>
           {timeline.artifacts.slice(0, 8).map((artifact) => (
@@ -650,12 +650,12 @@ export function RunLogView({
       {showRaw ? (
         <div className="min-h-0 flex-1 overflow-auto p-4">
           {rawLoading ? (
-            <p className="flex items-center gap-2 text-[10px] text-zinc-500">
+            <p className="flex items-center gap-2 text-[12px] text-zinc-500">
               <Loader2 size={12} className="animate-spin" />
               Carregando log bruto…
             </p>
           ) : (
-            <pre className="whitespace-pre-wrap break-words font-mono text-[9px] leading-relaxed text-zinc-400">
+            <pre className="whitespace-pre-wrap break-words font-mono text-[11.5px] leading-relaxed text-zinc-400">
               {raw || "Log bruto indisponível."}
             </pre>
           )}
@@ -709,7 +709,7 @@ export function RunLogView({
               {timeline.steps.map((step) => (
                 <span
                   key={step.index}
-                  className="inline-flex items-center gap-1 rounded-md border border-zinc-800/70 bg-zinc-950/40 px-1.5 py-1 font-mono text-[9px] text-zinc-500"
+                  className="inline-flex items-center gap-1 rounded-md border border-zinc-800/70 bg-zinc-950/40 px-1.5 py-1 font-mono text-[11.5px] text-zinc-500"
                   title={`${step.agent ?? "agente"} · ${step.model ?? "modelo"}`}
                 >
                   <PlayCircle size={9} />
@@ -737,11 +737,11 @@ export function RunLogView({
             }
             tone="purple"
           >
-            <pre className="whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-zinc-400">
+            <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-zinc-400">
               {timeline?.thinking.text || "Sem conteúdo de raciocínio."}
             </pre>
             {timeline?.thinking.truncated ? (
-              <p className="mt-2 text-[9px] text-amber-300">
+              <p className="mt-2 text-[11.5px] text-amber-300">
                 Raciocínio truncado para manter a interface rápida.
               </p>
             ) : null}
@@ -777,7 +777,7 @@ export function RunLogView({
                 ))}
               </div>
             ) : (
-              <p className="text-[10px] text-zinc-500">
+              <p className="text-[12px] text-zinc-500">
                 Nenhuma ferramenta registrada.
               </p>
             )}
@@ -805,16 +805,16 @@ export function RunLogView({
               )}
               <span
                 className={cn(
-                  "text-[11px] font-semibold",
+                  "text-[13px] font-semibold",
                   failedRun ? "text-red-100" : "text-emerald-100",
                 )}
               >
                 Resultado
               </span>
-              <span className="font-mono text-[9px] text-zinc-500">
+              <span className="font-mono text-[11.5px] text-zinc-500">
                 {formatDuration(timeline?.result.duration_ms ?? 0)}
               </span>
-              <span className="font-mono text-[9px] text-zinc-500">
+              <span className="font-mono text-[11.5px] text-zinc-500">
                 {formatClock(timeline?.result.started_at)} →{" "}
                 {formatClock(timeline?.result.ended_at)}
               </span>
@@ -829,13 +829,13 @@ export function RunLogView({
               </Button>
             </div>
             <div className="px-3.5 py-3">
-              <pre className="whitespace-pre-wrap break-words font-sans text-[11px] leading-relaxed text-zinc-200">
+              <pre className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed text-zinc-200">
                 {timeline?.result.text?.trim() ||
                   summary ||
                   "Sem texto final. Veja as ferramentas executadas e o modo bruto."}
               </pre>
               {timeline?.result.truncated ? (
-                <p className="mt-2 text-[9px] text-amber-300">
+                <p className="mt-2 text-[11.5px] text-amber-300">
                   Resultado truncado. Use o modo bruto para ver o log completo.
                 </p>
               ) : null}
@@ -843,7 +843,7 @@ export function RunLogView({
           </div>
 
           {error ? (
-            <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-200">
+            <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
               {error}
             </p>
           ) : null}
@@ -852,7 +852,7 @@ export function RunLogView({
           </div>
           {timeline?.run?.task_id ? (
             <div className="shrink-0 border-t border-zinc-800/70 bg-zinc-950/80 p-3">
-              <p className="mb-2 text-[9px] text-zinc-500">
+              <p className="mb-2 text-[11.5px] text-zinc-500">
                 Último agente/modelo:{" "}
                 <span className="font-mono text-zinc-400">
                   @{run?.agent_name ?? "router"} · {run?.model_id ?? "modelo"}
@@ -901,7 +901,7 @@ export function RunLogView({
                 </Button>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-2 text-[11px] text-zinc-400">
+                <label className="flex items-center gap-2 text-[13px] text-zinc-400">
                   <input
                     type="checkbox"
                     checked={continueExecution}
@@ -910,7 +910,7 @@ export function RunLogView({
                   />
                   continuar na mesma execução
                 </label>
-                <span className="text-[9px] text-zinc-500">
+                <span className="text-[11.5px] text-zinc-500">
                   A continuação vira uma tentativa interna; o histórico continua
                   no mesmo run.
                 </span>

@@ -200,20 +200,24 @@ export function KanbanPage() {
   const attentionByTask = useMemo(() => {
     const map = new Map<
       string,
-      { interaction?: TaskInteraction; permission?: TaskPermissionRequest }
+      { interactions: TaskInteraction[]; permissions: TaskPermissionRequest[] }
     >();
     for (const interaction of attention.task_interactions) {
-      map.set(interaction.task_id, {
-        ...(map.get(interaction.task_id) ?? {}),
-        interaction,
-      });
+      const entry = map.get(interaction.task_id) ?? {
+        interactions: [],
+        permissions: [],
+      };
+      entry.interactions.push(interaction);
+      map.set(interaction.task_id, entry);
     }
     for (const request of attention.requests) {
       if (!request.task_id) continue;
-      map.set(request.task_id, {
-        ...(map.get(request.task_id) ?? {}),
-        permission: request,
-      });
+      const entry = map.get(request.task_id) ?? {
+        interactions: [],
+        permissions: [],
+      };
+      entry.permissions.push(request);
+      map.set(request.task_id, entry);
     }
     return map;
   }, [attention]);
@@ -233,7 +237,7 @@ export function KanbanPage() {
       if (attentionOnly) {
         const pending = attentionByTask.get(task.id);
         const effective =
-          pending?.interaction || pending?.permission
+          pending && (pending.interactions.length > 0 || pending.permissions.length > 0)
             ? "WAITING_INPUT"
             : workflowMeta(task).state;
         if (!["NEEDS_APPROVAL", "WAITING_INPUT", "BLOCKED"].includes(effective)) {
@@ -556,17 +560,17 @@ export function KanbanPage() {
       />
 
       {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
       ) : null}
       {notice ? (
-        <p className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-300">
+        <p className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[13px] text-emerald-300">
           <CheckCircle2 size={13} />
           {notice}
           <button
             type="button"
-            className="ml-auto text-[10px] text-emerald-300/70 hover:text-emerald-200"
+            className="ml-auto text-[12px] text-emerald-300/70 hover:text-emerald-200"
             onClick={() => setNotice(null)}
           >
             fechar
@@ -575,7 +579,7 @@ export function KanbanPage() {
       ) : null}
 
       {decision ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-500/20 bg-blue-500/[0.06] px-4 py-3 text-[11px] text-blue-200">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-500/20 bg-blue-500/[0.06] px-4 py-3 text-[13px] text-blue-200">
           <Badge variant="blue">{decision.phase}</Badge>
           <span className="font-medium">
             {decision.selected_agent} · {decision.selected_model} · {decision.effort}
@@ -583,7 +587,7 @@ export function KanbanPage() {
           <span className="text-blue-300/70">{decision.rationale}</span>
           <button
             type="button"
-            className="ml-auto text-[10px] text-blue-300/60 hover:text-blue-200"
+            className="ml-auto text-[12px] text-blue-300/60 hover:text-blue-200"
             onClick={() => setDecision(null)}
           >
             fechar
@@ -603,7 +607,7 @@ export function KanbanPage() {
               type="button"
               onClick={() => setView(value)}
               className={cn(
-                "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] transition-colors",
+                "flex items-center gap-1 rounded-md px-2 py-1 text-[12px] transition-colors",
                 view === value
                   ? "workspace-tab-active"
                   : "text-zinc-500 hover:text-zinc-200",
@@ -629,7 +633,7 @@ export function KanbanPage() {
                 onClick={() => setOriginFilter(value)}
                 aria-pressed={originFilter === value}
                 className={cn(
-                  "rounded-md px-2 py-1 text-[10px] transition-colors",
+                  "rounded-md px-2 py-1 text-[12px] transition-colors",
                   originFilter === value
                     ? "workspace-tab-active"
                     : "text-zinc-500 hover:text-zinc-200",
@@ -664,10 +668,10 @@ export function KanbanPage() {
               {filtersOpen ? (
                 <div className="absolute right-0 top-9 z-40 max-h-[min(70dvh,520px)] w-[320px] space-y-3 overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-950 p-3 shadow-2xl">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[12px] font-medium text-zinc-200">Filtros</p>
+                    <p className="text-[13.5px] font-medium text-zinc-200">Filtros</p>
                     <button
                       type="button"
-                      className="text-[11px] text-zinc-500 hover:text-zinc-200 disabled:opacity-40"
+                      className="text-[13px] text-zinc-500 hover:text-zinc-200 disabled:opacity-40"
                       disabled={advancedFilterCount === 0}
                       onClick={() => {
                         setAgentFilter("");
@@ -679,11 +683,11 @@ export function KanbanPage() {
                     </button>
                   </div>
                   <label className="block space-y-1">
-                    <span className="text-[11px] text-zinc-400">Agente</span>
+                    <span className="text-[13px] text-zinc-400">Agente</span>
                     <select
                       value={agentFilter}
                       onChange={(event) => setAgentFilter(event.target.value)}
-                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[12px] text-zinc-200"
+                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[13.5px] text-zinc-200"
                       aria-label="Filtrar por agente"
                     >
                       <option value="">todos os agentes</option>
@@ -695,11 +699,11 @@ export function KanbanPage() {
                     </select>
                   </label>
                   <label className="block space-y-1">
-                    <span className="text-[11px] text-zinc-400">Prioridade</span>
+                    <span className="text-[13px] text-zinc-400">Prioridade</span>
                     <select
                       value={priorityFilter}
                       onChange={(event) => setPriorityFilter(event.target.value)}
-                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[12px] text-zinc-200"
+                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[13.5px] text-zinc-200"
                       aria-label="Filtrar por prioridade"
                     >
                       <option value="">todas as prioridades</option>
@@ -711,7 +715,7 @@ export function KanbanPage() {
                     </select>
                   </label>
                   <label className="flex items-center justify-between gap-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-2.5 py-2">
-                    <span className="text-[12px] text-zinc-300">
+                    <span className="text-[13.5px] text-zinc-300">
                       Somente atenção
                     </span>
                     <input
@@ -721,21 +725,21 @@ export function KanbanPage() {
                       className="h-4 w-4 accent-blue-500"
                     />
                   </label>
-                  <p className="text-[11px] leading-snug text-zinc-500">
+                  <p className="text-[13px] leading-snug text-zinc-500">
                     Aprovação, pergunta, permissão ou falha. Bom para revisar o
                     que está parado.
                   </p>
                   <div className="space-y-2 border-t border-zinc-800/70 pt-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-zinc-400">
+                      <p className="text-[13px] font-medium uppercase tracking-[0.08em] text-zinc-400">
                         Visões salvas
                       </p>
-                      <span className="font-mono text-[11px] text-zinc-500">
+                      <span className="font-mono text-[13px] text-zinc-500">
                         {savedViews.length}
                       </span>
                     </div>
                     {savedViews.length === 0 ? (
-                      <p className="text-[11px] leading-snug text-zinc-500">
+                      <p className="text-[13px] leading-snug text-zinc-500">
                         Salve a combinação atual para reaplicar depois.
                       </p>
                     ) : (
@@ -748,7 +752,7 @@ export function KanbanPage() {
                             <button
                               type="button"
                               onClick={() => applySavedView(view)}
-                              className="min-w-0 flex-1 truncate px-2 py-1.5 text-left text-[12px] text-zinc-300 hover:text-zinc-100"
+                              className="min-w-0 flex-1 truncate px-2 py-1.5 text-left text-[13.5px] text-zinc-300 hover:text-zinc-100"
                             >
                               {view.name}
                             </button>
@@ -777,7 +781,7 @@ export function KanbanPage() {
                         }}
                         placeholder="Nome da visão"
                         aria-label="Nome da visão"
-                        className="h-8 min-w-0 flex-1 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 text-[12px] text-zinc-200 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
+                        className="h-8 min-w-0 flex-1 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 text-[13.5px] text-zinc-200 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
                       />
                       <Button
                         size="xs"
@@ -810,15 +814,15 @@ export function KanbanPage() {
               {visibilityOpen ? (
                 <div className="absolute right-0 top-9 z-40 w-72 space-y-3 rounded-xl border border-zinc-700 bg-zinc-950 p-3 shadow-2xl">
                   <div>
-                    <p className="text-[11px] font-semibold text-zinc-200">
+                    <p className="text-[13px] font-semibold text-zinc-200">
                       Concluídas e canceladas
                     </p>
-                    <p className="text-[10px] leading-snug text-zinc-500">
+                    <p className="text-[12px] leading-snug text-zinc-500">
                       Apenas visual. Nada é apagado do workspace.
                     </p>
                   </div>
                   <label className="block space-y-1">
-                    <span className="text-[10px] text-zinc-400">Período</span>
+                    <span className="text-[12px] text-zinc-400">Período</span>
                     <select
                       aria-label="Período de retenção"
                       value={visibility.retention}
@@ -828,7 +832,7 @@ export function KanbanPage() {
                           retention: event.target.value as TaskVisibility["retention"],
                         })
                       }
-                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[11px] text-zinc-200"
+                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[13px] text-zinc-200"
                     >
                       {RETENTION_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -838,7 +842,7 @@ export function KanbanPage() {
                     </select>
                   </label>
                   <label className="block space-y-1">
-                    <span className="text-[10px] text-zinc-400">
+                    <span className="text-[12px] text-zinc-400">
                       Máximo de cards (0 = sem limite)
                     </span>
                     <input
@@ -856,13 +860,13 @@ export function KanbanPage() {
                           ),
                         })
                       }
-                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[11px] text-zinc-200"
+                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[13px] text-zinc-200"
                     />
                   </label>
                   <div className="flex items-center justify-between gap-2 border-t border-zinc-800/70 pt-2">
                     <button
                       type="button"
-                      className="text-[10px] text-zinc-500 hover:text-zinc-200"
+                      className="text-[12px] text-zinc-500 hover:text-zinc-200"
                       onClick={() =>
                         updateVisibility({ retention: "all", maxItems: 0 })
                       }
@@ -871,7 +875,7 @@ export function KanbanPage() {
                     </button>
                     <button
                       type="button"
-                      className="text-[10px] text-zinc-500 hover:text-zinc-200"
+                      className="text-[12px] text-zinc-500 hover:text-zinc-200"
                       onClick={() => setVisibilityOpen(false)}
                     >
                       fechar
@@ -880,24 +884,9 @@ export function KanbanPage() {
                 </div>
               ) : null}
             </div>
-            <label className="ml-auto flex items-center gap-2 text-[10px] text-zinc-500">
-              concorrência
-              <select
-                value={queueStatus?.concurrency ?? 1}
-                onChange={(event) => void setConcurrency(Number(event.target.value))}
-                className="h-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 text-[10px] text-zinc-300"
-                aria-label="Concorrência da fila"
-              >
-                {[1, 2, 3, 4].map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </label>
           </>
         ) : (
-          <span className="ml-auto text-[10px] text-zinc-500">
+          <span className="ml-auto text-[12px] text-zinc-500">
             {queue.length > 0
               ? `${queue.length} job(s) na fila`
               : "fila vazia"}
@@ -907,13 +896,13 @@ export function KanbanPage() {
 
       {advancedFilterCount > 0 ? (
         <div className="flex flex-wrap items-center gap-1.5 px-1">
-          <span className="text-[11px] text-zinc-500">Filtros ativos:</span>
+          <span className="text-[13px] text-zinc-500">Filtros ativos:</span>
           {agentFilter ? (
             <button
               type="button"
               onClick={() => setAgentFilter("")}
               aria-label={`Remover filtro do agente @${agentFilter}`}
-              className="inline-flex items-center gap-1 rounded-full border border-zinc-700/70 bg-zinc-900/60 px-2 py-0.5 text-[11px] text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
+              className="inline-flex items-center gap-1 rounded-full border border-zinc-700/70 bg-zinc-900/60 px-2 py-0.5 text-[13px] text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
             >
               @{agentFilter}
               <X size={11} />
@@ -924,7 +913,7 @@ export function KanbanPage() {
               type="button"
               onClick={() => setPriorityFilter("")}
               aria-label={`Remover filtro de prioridade ${PRIORITY_LABEL[Number(priorityFilter)] ?? priorityFilter}`}
-              className="inline-flex items-center gap-1 rounded-full border border-zinc-700/70 bg-zinc-900/60 px-2 py-0.5 text-[11px] text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
+              className="inline-flex items-center gap-1 rounded-full border border-zinc-700/70 bg-zinc-900/60 px-2 py-0.5 text-[13px] text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
             >
               prioridade {PRIORITY_LABEL[Number(priorityFilter)] ?? priorityFilter}
               <X size={11} />
@@ -935,7 +924,7 @@ export function KanbanPage() {
               type="button"
               onClick={() => setAttentionOnly(false)}
               aria-label="Remover filtro de atenção"
-              className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-200 hover:border-amber-500/50"
+              className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[13px] text-amber-200 hover:border-amber-500/50"
             >
               atenção
               <X size={11} />
@@ -947,13 +936,13 @@ export function KanbanPage() {
       {selected.size > 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-500/25 bg-blue-500/[0.06] px-3 py-2">
           <Badge variant="blue">{selected.size} selecionada(s)</Badge>
-          <span className="text-[11px] text-zinc-400">mover para:</span>
+          <span className="text-[13px] text-zinc-400">mover para:</span>
           {COLUMNS.map((column) => (
             <Button
               key={column.id}
               variant="outline"
               size="sm"
-              className="h-7 text-[10px]"
+              className="h-7 text-[12px]"
               title={column.description}
               onClick={async () => {
                 for (const task of tasks.filter((item) => selected.has(item.id))) {
@@ -967,7 +956,7 @@ export function KanbanPage() {
           ))}
           <button
             type="button"
-            className="ml-auto text-[10px] text-zinc-500 hover:text-zinc-200"
+            className="ml-auto text-[12px] text-zinc-500 hover:text-zinc-200"
             onClick={() => setSelected(new Set())}
           >
             limpar seleção
@@ -996,7 +985,8 @@ export function KanbanPage() {
           const columnTasks = filteredTasks.filter((task) => {
             const pending = attentionByTask.get(task.id);
             const effective =
-              pending?.interaction || pending?.permission
+              pending &&
+              (pending.interactions.length > 0 || pending.permissions.length > 0)
                 ? "WAITING_INPUT"
                 : workflowMeta(task).state;
             return column.states.includes(effective);
@@ -1049,10 +1039,10 @@ export function KanbanPage() {
                 {columnTasks.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-zinc-800/80 bg-zinc-950/30 px-3 py-10 text-center">
                     <GripVertical size={16} className="mx-auto text-zinc-600" />
-                    <p className="mt-2 text-[12px] font-medium text-zinc-400">
+                    <p className="mt-2 text-[13.5px] font-medium text-zinc-400">
                       Nenhuma tarefa nesta etapa
                     </p>
-                    <p className="mt-0.5 text-[11px] text-zinc-500">
+                    <p className="mt-0.5 text-[13px] text-zinc-500">
                       Arraste um card para mover.
                     </p>
                   </div>
@@ -1070,8 +1060,8 @@ export function KanbanPage() {
                         onCancel={() => void transitionTask(task, "CANCELLED")}
                         onApprove={() => void approve(task)}
                         onLogs={() => setLogTask(task)}
-                        interaction={attentionByTask.get(task.id)?.interaction}
-                        permission={attentionByTask.get(task.id)?.permission}
+                        interactions={attentionByTask.get(task.id)?.interactions}
+                        permissions={attentionByTask.get(task.id)?.permissions}
                         onAttentionResolved={() => void load()}
                         onDragStart={(event) => {
                           draggedRef.current = task.id;
@@ -1122,7 +1112,7 @@ export function KanbanPage() {
           <CardContent className="p-0">
             <div className="scroll-area max-h-[calc(100dvh-18rem)]">
               <table className="w-full text-left">
-                <thead className="sticky top-0 z-10 border-b border-zinc-800/70 bg-zinc-950/95 text-[10px] uppercase tracking-wide text-zinc-500">
+                <thead className="sticky top-0 z-10 border-b border-zinc-800/70 bg-zinc-950/95 text-[12px] uppercase tracking-wide text-zinc-500">
                   <tr>
                     <th className="w-8 px-3 py-2">
                       <input
@@ -1149,7 +1139,7 @@ export function KanbanPage() {
                   {filteredTasks.map((task) => (
                     <tr
                       key={task.id}
-                      className="cursor-pointer border-b border-zinc-800/50 text-[12px] hover:bg-zinc-900/40"
+                      className="cursor-pointer border-b border-zinc-800/50 text-[13.5px] hover:bg-zinc-900/40"
                       onClick={() => setSelectedTask(task)}
                     >
                       <td className="px-3 py-2" onClick={(event) => event.stopPropagation()}>
@@ -1173,14 +1163,14 @@ export function KanbanPage() {
                       <td className="px-3 py-2">
                         <WorkflowStatusBadge task={task} />
                       </td>
-                      <td className="px-3 py-2 font-mono text-[11px] text-zinc-400">
+                      <td className="px-3 py-2 font-mono text-[13px] text-zinc-400">
                         {task.assigned_agent ? `@${task.assigned_agent}` : "router"}
                       </td>
                       <td className="px-3 py-2">
                         {task.last_run_status ? (
                           <span
                             className={cn(
-                              "font-mono text-[11px]",
+                              "font-mono text-[13px]",
                               task.last_run_status === "SUCCESS"
                                 ? "text-emerald-300"
                                 : task.last_run_status === "FAILED"
@@ -1191,7 +1181,7 @@ export function KanbanPage() {
                             {task.last_run_status} · {relativeTime(task.last_run_at)}
                           </span>
                         ) : (
-                          <span className="text-[11px] text-zinc-500">sem execução</span>
+                          <span className="text-[13px] text-zinc-500">sem execução</span>
                         )}
                       </td>
                       <td className="px-3 py-2 text-zinc-400">
@@ -1226,7 +1216,7 @@ export function KanbanPage() {
       >
         <div className="space-y-3">
           <label className="block">
-            <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+            <span className="mb-1.5 block text-[12px] font-medium uppercase tracking-[0.12em] text-zinc-500">
               Motivo do bloqueio
             </span>
             <textarea
@@ -1235,7 +1225,7 @@ export function KanbanPage() {
               rows={3}
               autoFocus
               placeholder="Ex.: falta acesso ao Drive, precisa revisar o escopo..."
-              className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 py-2 text-[11px] text-zinc-200 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
+              className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 py-2 text-[13px] text-zinc-200 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
             />
           </label>
           <div className="flex justify-end gap-2">

@@ -273,9 +273,9 @@ export function AgentPanel({
         newLabel="Novo agente"
       >
         {loading && agents.length === 0 ? (
-          <p className="px-3 py-6 text-center text-[10px] text-zinc-500">Carregando…</p>
+          <p className="px-3 py-6 text-center text-[12px] text-zinc-500">Carregando…</p>
         ) : agents.length === 0 ? (
-          <p className="px-3 py-6 text-center text-[10px] text-zinc-500">
+          <p className="px-3 py-6 text-center text-[12px] text-zinc-500">
             Nenhum agente neste escopo.
           </p>
         ) : (
@@ -287,7 +287,7 @@ export function AgentPanel({
               subtitle={`@${agent.id} · ${agent.path.split("/").slice(-1)[0]}`}
               badge={
                 <span
-                  className="flex h-5 w-5 items-center justify-center rounded-full text-[9px]"
+                  className="flex h-5 w-5 items-center justify-center rounded-full text-[11.5px]"
                   style={{ background: `${agent.color || "#3b82f6"}22`, color: agent.color || "#93c5fd" }}
                 >
                   {initials(agent.avatar || agent.name || agent.id)}
@@ -330,7 +330,7 @@ export function AgentPanel({
                     </Badge>
                     {isNew ? <Badge variant="blue">novo</Badge> : null}
                   </div>
-                  <p className="mt-0.5 font-mono text-[9px] text-zinc-500">
+                  <p className="mt-0.5 font-mono text-[11.5px] text-zinc-500">
                     {draft.path || "arquivo será criado ao salvar"}
                   </p>
                 </div>
@@ -403,7 +403,7 @@ export function AgentPanel({
                         title={preset}
                         onClick={() => setDraft({ ...draft, avatar: preset })}
                         className={cn(
-                          "flex h-7 items-center justify-center rounded-md border text-[13px] transition",
+                          "flex h-7 items-center justify-center rounded-md border text-[14px] transition",
                           draft.avatar === preset
                             ? "workspace-selected"
                             : "border-zinc-800 bg-zinc-900/40 hover:border-zinc-600",
@@ -457,7 +457,7 @@ export function AgentPanel({
                       }
                       className="h-5 w-8 cursor-pointer rounded border-0 bg-transparent p-0"
                     />
-                    <span className="font-mono text-[10px] text-zinc-500">
+                    <span className="font-mono text-[12px] text-zinc-500">
                       {draft.color || "#60a5fa"}
                     </span>
                   </div>
@@ -502,7 +502,7 @@ export function AgentPanel({
                   value={draft.model ?? ""}
                   onChange={(event) => setDraft({ ...draft, model: event.target.value })}
                   placeholder="opencode-go/glm-5.3"
-                  className={cn(inputClass, "font-mono text-[11px]")}
+                  className={cn(inputClass, "font-mono text-[13px]")}
                 />
                 <datalist id="opendesk-models">
                   {models.map((model) => {
@@ -532,7 +532,7 @@ export function AgentPanel({
                 />
               </StudioField>
               <div className="flex items-end gap-4 pb-1">
-                <label className="flex items-center gap-2 text-[11px] text-zinc-400">
+                <label className="flex items-center gap-2 text-[13px] text-zinc-400">
                   <input
                     type="checkbox"
                     checked={draft.hidden}
@@ -541,7 +541,7 @@ export function AgentPanel({
                   />
                   hidden
                 </label>
-                <label className="flex items-center gap-2 text-[11px] text-zinc-400">
+                <label className="flex items-center gap-2 text-[13px] text-zinc-400">
                   <input
                     type="checkbox"
                     checked={draft.disabled}
@@ -564,7 +564,7 @@ export function AgentPanel({
 
             <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/25">
               <div className="flex items-center justify-between border-b border-zinc-800/60 px-3 py-2">
-                <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-zinc-500">
                   Permissões V2
                 </span>
                 <Button variant="outline" size="sm" className="h-7" onClick={addPermission}>
@@ -573,7 +573,7 @@ export function AgentPanel({
               </div>
               <div className="space-y-2 p-3">
                 {draft.permissions.length === 0 ? (
-                  <p className="text-[10px] text-zinc-500">
+                  <p className="text-[12px] text-zinc-500">
                     Sem regras próprias. O agente herda as permissões globais do OpenCode.
                   </p>
                 ) : (
@@ -584,7 +584,7 @@ export function AgentPanel({
                         onChange={(event) =>
                           updatePermission(index, { action: event.target.value })
                         }
-                        className={cn(inputClass, "font-mono text-[10px]")}
+                        className={cn(inputClass, "font-mono text-[12px]")}
                       >
                         {ACTIONS.map((action) => (
                           <option key={action} value={action}>
@@ -598,14 +598,14 @@ export function AgentPanel({
                           updatePermission(index, { resource: event.target.value })
                         }
                         placeholder="*"
-                        className={cn(inputClass, "font-mono text-[10px]")}
+                        className={cn(inputClass, "font-mono text-[12px]")}
                       />
                       <select
                         value={permission.effect}
                         onChange={(event) =>
                           updatePermission(index, { effect: event.target.value })
                         }
-                        className={cn(inputClass, "font-mono text-[10px]")}
+                        className={cn(inputClass, "font-mono text-[12px]")}
                       >
                         {EFFECTS.map((effect) => (
                           <option key={effect} value={effect}>
@@ -633,12 +633,12 @@ export function AgentPanel({
                 onChange={(event) => setDraft({ ...draft, system: event.target.value })}
                 rows={12}
                 placeholder="Você é o Auditor de Qualidade do workspace…"
-                className={cn(inputClass, "min-h-[220px] resize-y py-2 font-mono text-[11px] leading-relaxed")}
+                className={cn(inputClass, "min-h-[220px] resize-y py-2 font-mono text-[13px] leading-relaxed")}
               />
             </StudioField>
 
             {!isNew ? (
-              <p className="font-mono text-[9px] text-zinc-500">
+              <p className="font-mono text-[11.5px] text-zinc-500">
                 sha256 {draft.sha256.slice(0, 16)}…
               </p>
             ) : null}
@@ -650,4 +650,4 @@ export function AgentPanel({
 }
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60 disabled:cursor-not-allowed";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[13.5px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60 disabled:cursor-not-allowed";

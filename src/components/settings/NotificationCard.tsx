@@ -121,10 +121,10 @@ export function NotificationCard() {
       <CardContent className="space-y-3">
         <label className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5">
           <span>
-            <span className="block text-[12px] font-medium text-zinc-200">
+            <span className="block text-[13.5px] font-medium text-zinc-200">
               Notificações nativas
             </span>
-            <span className="text-[11px] text-zinc-500">
+            <span className="text-[13px] text-zinc-500">
               Só quando a janela estiver oculta ou sem foco.
             </span>
           </span>
@@ -187,10 +187,10 @@ export function NotificationCard() {
         />
         <label className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5">
           <span>
-            <span className="block text-[12px] font-medium text-zinc-200">
+            <span className="block text-[13.5px] font-medium text-zinc-200">
               Timeout de permissão humana
             </span>
-            <span className="text-[11px] text-zinc-500">
+            <span className="text-[13px] text-zinc-500">
               Após esse tempo sem resposta, a tarefa é bloqueada e o worker é liberado.
             </span>
           </span>
@@ -202,11 +202,11 @@ export function NotificationCard() {
             disabled={loading || saving}
             onChange={(event) => setPermissionTimeout(Number(event.target.value))}
             onBlur={() => void apiPut("/api/settings/permission_timeout_minutes", permissionTimeout)}
-            className="h-7 w-16 rounded border border-zinc-700 bg-zinc-950 px-2 text-right font-mono text-[11px] text-zinc-200"
+            className="h-7 w-16 rounded border border-zinc-700 bg-zinc-950 px-2 text-right font-mono text-[13px] text-zinc-200"
           />
         </label>
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5">
-          <p className="text-[10px] leading-snug text-zinc-500">
+          <p className="text-[12px] leading-snug text-zinc-500">
             Movimentações de Kanban nunca geram notificação. O padrão é avisar
             só o que exige atenção.
           </p>
@@ -222,10 +222,10 @@ export function NotificationCard() {
         </div>
         <label className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5">
           <span>
-            <span className="block text-[12px] font-medium text-zinc-200">
+            <span className="block text-[13.5px] font-medium text-zinc-200">
               Fechar janela mantendo na bandeja
             </span>
-            <span className="text-[11px] text-zinc-500">
+            <span className="text-[13px] text-zinc-500">
               Padrão: ligado. Desligado, o “X” encerra o app e para as notificações.
             </span>
           </span>
@@ -259,8 +259,8 @@ function NotificationToggle({
   return (
     <label className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5">
       <span>
-        <span className="block text-[12px] font-medium text-zinc-200">{label}</span>
-        <span className="text-[11px] text-zinc-500">{description}</span>
+        <span className="block text-[13.5px] font-medium text-zinc-200">{label}</span>
+        <span className="text-[13px] text-zinc-500">{description}</span>
       </span>
       <input
         type="checkbox"

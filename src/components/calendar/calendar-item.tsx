@@ -84,7 +84,7 @@ export function CalendarItemChip({
         "block w-full rounded border-l text-left leading-tight",
         detailed
           ? "px-2 py-1 text-[11.5px]"
-          : "truncate px-1.5 py-0.5 text-[11px]",
+          : "truncate px-1.5 py-0.5 text-[13px]",
         statusClass(item, true),
       )}
       style={{
@@ -99,7 +99,7 @@ export function CalendarItemChip({
               ? item.title
               : `${format(new Date(item.start), "HH:mm")} ${item.title}`}
           </span>
-          <span className="flex items-center gap-1 truncate text-[10.5px] text-zinc-500">
+          <span className="flex items-center gap-1 truncate text-[11px] text-zinc-500">
             {(() => {
               const meta = executionMeta(item.execution_status);
               return meta ? (
@@ -161,7 +161,7 @@ export function CalendarItemRow({
           <span
             className={cn(
               "truncate text-zinc-200",
-              size === "md" ? "text-[12px]" : "text-[11px]",
+              size === "md" ? "text-[13.5px]" : "text-[13px]",
             )}
           >
             {item.title}
@@ -178,7 +178,7 @@ export function CalendarItemRow({
         <span
           className={cn(
             "mt-0.5 block truncate font-mono text-zinc-500",
-            size === "md" ? "text-[10px]" : "text-[9px]",
+            size === "md" ? "text-[12px]" : "text-[11.5px]",
           )}
         >
           {itemTimeLabel(item)}

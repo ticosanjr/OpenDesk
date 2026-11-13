@@ -69,7 +69,7 @@ export function QueueSettingsCard() {
   return (
     <Card id="settings-queue">
       <CardHeader className="flex flex-row items-center justify-between gap-2 py-3">
-        <CardTitle className="flex items-center gap-2 text-[13px]">
+        <CardTitle className="flex items-center gap-2 text-[14px]">
           <ListChecks size={14} className="text-zinc-400" />
           Fila e duplicatas
         </CardTitle>
@@ -80,14 +80,14 @@ export function QueueSettingsCard() {
         ) : null}
       </CardHeader>
       <CardContent className="space-y-4 p-4">
-        <p className="text-[11px] leading-relaxed text-zinc-500">
+        <p className="text-[13px] leading-relaxed text-zinc-500">
           O OpenDesk compara título, descrição, modo, agente, modelo, esforço e
           tags. Uma tarefa idêntica ativa é reutilizada; depois de concluída, a
           carência abaixo evita repetições em rajada. Forks e swarms ignoram a
           regra.
         </p>
         {loading || !settings ? (
-          <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+          <div className="flex items-center gap-2 text-[13px] text-zinc-500">
             <Loader2 size={13} className="animate-spin" />
             Carregando…
           </div>
@@ -95,10 +95,10 @@ export function QueueSettingsCard() {
           <>
             <div className="flex items-start justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2.5">
               <div>
-                <p className="text-[11px] font-medium text-zinc-300">
+                <p className="text-[13px] font-medium text-zinc-300">
                   Evitar tarefas duplicadas
                 </p>
-                <p className="mt-0.5 text-[10px] text-zinc-500">
+                <p className="mt-0.5 text-[12px] text-zinc-500">
                   Vale para tarefas manuais, receitas, rotinas e entradas do I/O.
                 </p>
               </div>
@@ -112,10 +112,10 @@ export function QueueSettingsCard() {
             </div>
             <div className="flex items-start justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2.5">
               <div>
-                <p className="text-[11px] font-medium text-zinc-300">
+                <p className="text-[13px] font-medium text-zinc-300">
                   Iniciar tarefas automaticamente
                 </p>
-                <p className="mt-0.5 text-[10px] text-zinc-500">
+                <p className="mt-0.5 text-[12px] text-zinc-500">
                   Tarefas novas e itens na Fila entram na execução assim que o
                   motor estiver online. Use “Em espera” para segurar uma tarefa.
                 </p>
@@ -138,7 +138,7 @@ export function QueueSettingsCard() {
                 <option value="RUN">Executar automaticamente</option>
                 <option value="SKIP">Ignorar e seguir o próximo horário</option>
               </select>
-              <span className="mt-1 block text-[9px] text-zinc-500">
+              <span className="mt-1 block text-[11.5px] text-zinc-500">
                 Vale quando o app/engine estava offline ou o horário passou.
                 O padrão é perguntar.
               </span>
@@ -162,7 +162,7 @@ export function QueueSettingsCard() {
                 className={cn(smallInputClass, "max-w-[160px] font-mono")}
                 aria-label="Carência após conclusão em minutos"
               />
-              <span className="mt-1 block text-[9px] text-zinc-500">
+              <span className="mt-1 block text-[11.5px] text-zinc-500">
                 0 desliga a carência. O padrão é 5 minutos.
               </span>
             </label>

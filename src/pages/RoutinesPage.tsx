@@ -284,7 +284,7 @@ export function RoutinesPage() {
       />
 
       {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
       ) : null}
@@ -313,8 +313,8 @@ export function RoutinesPage() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/60 text-zinc-500">
                 <item.icon size={15} strokeWidth={1.7} />
               </div>
-              <p className="mt-3 text-[12px] font-medium text-zinc-200">{item.title}</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">{item.description}</p>
+              <p className="mt-3 text-[13.5px] font-medium text-zinc-200">{item.title}</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-zinc-500">{item.description}</p>
             </CardContent>
           </Card>
         ))}
@@ -383,7 +383,7 @@ export function RoutinesPage() {
         {historyLoading ? (
           <LoadingState compact label="Carregando histórico…" rows={3} />
         ) : historyRuns.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-[11px] text-zinc-500">
+          <p className="rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-[13px] text-zinc-500">
             Nenhum run registrado ainda. Use “Executar agora” ou aguarde o próximo disparo.
           </p>
         ) : (
@@ -392,7 +392,7 @@ export function RoutinesPage() {
               <Link
                 key={run.id}
                 to={links.run(run.id)}
-                className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5 text-[12px] transition-colors hover:border-blue-500/30 hover:bg-zinc-900/50"
+                className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5 text-[13.5px] transition-colors hover:border-blue-500/30 hover:bg-zinc-900/50"
               >
                 <Badge
                   variant={
@@ -416,7 +416,7 @@ export function RoutinesPage() {
                   {relativeTime(run.started_at)}
                 </span>
                 {run.error_message ? (
-                  <p className="w-full truncate font-mono text-[11px] text-red-300/80">
+                  <p className="w-full truncate font-mono text-[13px] text-red-300/80">
                     {run.error_message}
                   </p>
                 ) : null}

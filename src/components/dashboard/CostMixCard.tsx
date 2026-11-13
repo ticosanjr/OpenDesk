@@ -42,7 +42,7 @@ export function CostMixCard() {
   return (
     <Card>
       <CardHeader className="py-3">
-        <CardTitle className="flex items-center gap-2 text-[13px]">
+        <CardTitle className="flex items-center gap-2 text-[14px]">
           <CircleDollarSign size={15} className="text-zinc-500" />
           Model mix e economia (7 dias)
         </CardTitle>
@@ -63,14 +63,14 @@ export function CostMixCard() {
             />
           ))}
         </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-zinc-500">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[12px] text-zinc-500">
           {data.models.slice(0, 6).map((model) => (
             <span key={`${model.provider_id}/${model.model_id}`}>
               {model.model_id} {model.percent.toFixed(1)}%
             </span>
           ))}
         </div>
-        <p className="text-[10px] text-zinc-500">
+        <p className="text-[12px] text-zinc-500">
           Gasto real {formatUsd(data.total_cost_usd)} · baseline no modelo mais caro{" "}
           {formatUsd(data.baseline_cost_usd)} · cache hit{" "}
           {(data.cache_ratio * 100).toFixed(1)}% ({formatNumber(data.cache_read)} tokens)

@@ -78,7 +78,7 @@ export function InteractionCard({
         <MessageCircleQuestion size={15} className="mt-0.5 shrink-0 text-amber-300" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <p className="text-[12px] font-medium text-amber-100">
+            <p className="text-[13.5px] font-medium text-amber-100">
               O agente precisa da sua resposta
             </p>
             <Badge variant="yellow">
@@ -86,16 +86,16 @@ export function InteractionCard({
             </Badge>
           </div>
           {expires ? (
-            <p className="mt-0.5 text-[9px] text-zinc-500">expira em {expires}</p>
+            <p className="mt-0.5 text-[11.5px] text-zinc-500">expira em {expires}</p>
           ) : null}
         </div>
       </div>
 
-      <p className="whitespace-pre-line rounded-lg border border-zinc-800/70 bg-zinc-900/40 px-3 py-2 text-[11px] leading-relaxed text-zinc-200">
+      <p className="whitespace-pre-line rounded-lg border border-zinc-800/70 bg-zinc-900/40 px-3 py-2 text-[13px] leading-relaxed text-zinc-200">
         {interaction.question}
       </p>
       {interaction.context_markdown?.trim() ? (
-        <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-800/70 bg-zinc-950/50 p-2 font-mono text-[10px] leading-relaxed text-zinc-400">
+        <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-800/70 bg-zinc-950/50 p-2 font-mono text-[12px] leading-relaxed text-zinc-400">
           {interaction.context_markdown}
         </pre>
       ) : null}
@@ -111,7 +111,7 @@ export function InteractionCard({
                 aria-pressed={active}
                 onClick={() => toggle(option)}
                 className={cn(
-                  "rounded-lg border px-2.5 py-1.5 text-left text-[11px] transition-colors",
+                  "rounded-lg border px-2.5 py-1.5 text-left text-[13px] transition-colors",
                   active
                     ? "border-amber-500/50 bg-amber-500/15 text-amber-100"
                     : "border-zinc-800 bg-zinc-950/40 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200",
@@ -130,7 +130,7 @@ export function InteractionCard({
           onChange={(event) => setText(event.target.value)}
           rows={3}
           placeholder="Ou escreva sua própria resposta…"
-          className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950/60 px-2.5 py-2 text-[11px] text-zinc-200 outline-none placeholder:text-zinc-500 focus:border-amber-500/50"
+          className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950/60 px-2.5 py-2 text-[13px] text-zinc-200 outline-none placeholder:text-zinc-500 focus:border-amber-500/50"
           aria-label="Resposta livre"
         />
       ) : null}
@@ -194,14 +194,14 @@ export function PermissionRequestCard({
       <div className="flex items-start gap-2">
         <ShieldAlert size={15} className="mt-0.5 shrink-0 text-amber-300" />
         <div>
-          <p className="text-[12px] font-medium text-amber-100">
+          <p className="text-[13.5px] font-medium text-amber-100">
             O agente pediu permissão
           </p>
-          <p className="mt-0.5 font-mono text-[10px] text-amber-200/80">
+          <p className="mt-0.5 font-mono text-[12px] text-amber-200/80">
             {request.permission_action}
             {request.resources ? ` · ${request.resources}` : ""}
           </p>
-          <p className="mt-1 text-[9px] text-zinc-500">
+          <p className="mt-1 text-[11.5px] text-zinc-500">
             Permitir uma vez vale só para esta ação; “nesta tarefa” cobre ações
             iguais até o fim do run; negar bloqueia o run.
           </p>

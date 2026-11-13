@@ -52,7 +52,7 @@ const icons = {
 } as const;
 
 const GROUP_CLASS =
-  "[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500";
+  "[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[12px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.16em] [&_[cmdk-group-heading]]:text-zinc-500";
 
 export function CommandPalette() {
   const open = useUiStore((state) => state.commandOpen);
@@ -140,7 +140,7 @@ export function CommandPalette() {
             placeholder="Buscar páginas, tarefas, runs e ações…"
             className="h-11 flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
           />
-          <span className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">
+          <span className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 font-mono text-[12px] text-zinc-500">
             ESC
           </span>
         </div>
@@ -162,7 +162,7 @@ export function CommandPalette() {
                   value={item.label}
                   onSelect={() => run(() => navigate(item.to))}
                   className={cn(
-                    "flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-zinc-300 outline-none",
+                    "flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] text-zinc-300 outline-none",
                     "data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100",
                   )}
                 >
@@ -180,13 +180,13 @@ export function CommandPalette() {
                 onSelect={() =>
                   run(() => navigate(`/search?q=${encodeURIComponent(query.trim())}`))
                 }
-                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
               >
                 <Search size={15} className="shrink-0 text-zinc-500" />
                 <span className="min-w-0 flex-1 truncate">
                   Buscar “{query.trim()}” em todo o workspace
                 </span>
-                <span className="shrink-0 font-mono text-[10px] text-zinc-500">
+                <span className="shrink-0 font-mono text-[12px] text-zinc-500">
                   Enter
                 </span>
               </Command.Item>
@@ -205,11 +205,11 @@ export function CommandPalette() {
                   onSelect={() =>
                     run(() => navigate(`/kanban?task=${encodeURIComponent(task.id)}`))
                   }
-                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
                 >
                   <KanbanSquare size={14} className="shrink-0 text-zinc-500" />
                   <span className="min-w-0 flex-1 truncate">{task.title}</span>
-                  <span className="shrink-0 font-mono text-[9px] text-zinc-500">
+                  <span className="shrink-0 font-mono text-[11.5px] text-zinc-500">
                     {task.status}
                   </span>
                 </Command.Item>
@@ -229,13 +229,13 @@ export function CommandPalette() {
                   onSelect={() =>
                     run(() => navigate(`/runs/${encodeURIComponent(item.id)}`))
                   }
-                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
                 >
                   <Activity size={14} className="shrink-0 text-zinc-500" />
                   <span className="min-w-0 flex-1 truncate">
                     {item.task_title ?? item.agent_name}
                   </span>
-                  <span className="shrink-0 font-mono text-[9px] text-zinc-500">
+                  <span className="shrink-0 font-mono text-[11.5px] text-zinc-500">
                     {item.status}
                   </span>
                 </Command.Item>
@@ -253,11 +253,11 @@ export function CommandPalette() {
                   key={schedule.id}
                   value={`rotina ${schedule.name} ${schedule.cron_expression}`}
                   onSelect={() => run(() => navigate("/routines"))}
-                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
                 >
                   <CalendarClock size={14} className="shrink-0 text-zinc-500" />
                   <span className="min-w-0 flex-1 truncate">{schedule.name}</span>
-                  <span className="shrink-0 font-mono text-[9px] text-zinc-500">
+                  <span className="shrink-0 font-mono text-[11.5px] text-zinc-500">
                     {schedule.is_active ? "ativa" : "pausada"}
                   </span>
                 </Command.Item>
@@ -279,13 +279,13 @@ export function CommandPalette() {
                       navigate(`/artifacts?id=${encodeURIComponent(artifact.id)}`),
                     )
                   }
-                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
                 >
                   <Archive size={14} className="shrink-0 text-zinc-500" />
-                  <span className="min-w-0 flex-1 truncate font-mono text-[10px]">
+                  <span className="min-w-0 flex-1 truncate font-mono text-[12px]">
                     {artifact.file_path}
                   </span>
-                  <span className="shrink-0 text-[9px] text-zinc-500">
+                  <span className="shrink-0 text-[11.5px] text-zinc-500">
                     {relativeTime(artifact.created_at)}
                   </span>
                 </Command.Item>
@@ -303,11 +303,11 @@ export function CommandPalette() {
                   key={agent.id}
                   value={`agente ${agent.id} ${agent.name ?? ""}`}
                   onSelect={() => run(() => navigate("/studio"))}
-                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
                 >
                   <Wand2 size={14} className="shrink-0 text-zinc-500" />
                   <span className="min-w-0 flex-1 truncate">@{agent.id}</span>
-                  <span className="shrink-0 text-[9px] text-zinc-500">
+                  <span className="shrink-0 text-[11.5px] text-zinc-500">
                     {agent.name ?? "agente"}
                   </span>
                 </Command.Item>
@@ -327,7 +327,7 @@ export function CommandPalette() {
                   setTaskDialogOpen(true);
                 })
               }
-              className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+              className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
             >
               <KanbanSquare size={15} className="text-zinc-500" />
               Nova tarefa
@@ -335,7 +335,7 @@ export function CommandPalette() {
             <Command.Item
               value="Abrir execuções"
               onSelect={() => run(() => navigate("/runs"))}
-              className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+              className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
             >
               <Activity size={15} className="text-zinc-500" />
               Abrir execuções
@@ -345,7 +345,7 @@ export function CommandPalette() {
               onSelect={() =>
                 run(() => setWorkspaceDialogOpen(true))
               }
-              className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+              className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
             >
               <Plus size={15} className="text-zinc-500" />
               Novo workspace
@@ -353,7 +353,7 @@ export function CommandPalette() {
             <Command.Item
               value="Reiniciar OpenCode Daemon"
               onSelect={() => run(() => void restartDaemon())}
-              className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+              className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
             >
               <RotateCw size={15} className="text-zinc-500" />
               Reiniciar OpenCode Daemon
@@ -361,7 +361,7 @@ export function CommandPalette() {
             <Command.Item
               value="Atualizar dados"
               onSelect={() => run(() => void refresh())}
-              className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
+              className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] text-zinc-300 outline-none data-[selected=true]:bg-zinc-800/80 data-[selected=true]:text-zinc-100"
             >
               <RefreshCw size={15} className="text-zinc-500" />
               Atualizar dados
@@ -369,7 +369,7 @@ export function CommandPalette() {
           </Command.Group>
         </Command.List>
 
-        <div className="flex items-center justify-between border-t border-zinc-800/70 px-3 py-2 font-mono text-[10px] text-zinc-500">
+        <div className="flex items-center justify-between border-t border-zinc-800/70 px-3 py-2 font-mono text-[12px] text-zinc-500">
           <span>↑↓ navegar · ↵ selecionar</span>
           <span>OpenDesk</span>
         </div>

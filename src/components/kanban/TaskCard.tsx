@@ -47,8 +47,8 @@ export function TaskCard({
   onLogs,
   onDragStart,
   onDragEnd,
-  interaction,
-  permission,
+  interactions,
+  permissions,
   onAttentionResolved,
 }: {
   task: Task;
@@ -62,11 +62,13 @@ export function TaskCard({
   onLogs: () => void;
   onDragStart: (event: React.DragEvent<HTMLElement>) => void;
   onDragEnd: () => void;
-  interaction?: TaskInteraction;
-  permission?: TaskPermissionRequest;
+  interactions?: TaskInteraction[];
+  permissions?: TaskPermissionRequest[];
   onAttentionResolved?: () => void;
 }) {
   const [attentionOpen, setAttentionOpen] = useState(false);
+  const interaction = interactions?.[0];
+  const permission = permissions?.[0];
   const state = taskState(task);
   const workflow = workflowMeta(task);
   const running = state === "running";
@@ -242,7 +244,7 @@ export function TaskCard({
         ) : null}
       </div>
 
-      <p className="line-clamp-3 text-[12px] leading-relaxed text-zinc-400">
+      <p className="line-clamp-3 text-[13.5px] leading-relaxed text-zinc-400">
         {task.description || "—"}
       </p>
 
@@ -260,7 +262,7 @@ export function TaskCard({
               <p className="text-[11.5px] font-semibold text-amber-100">
                 {attentionInfo.title}
               </p>
-              <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-amber-100/70">
+              <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-amber-100/70">
                 {attentionInfo.detail}
               </p>
             </div>
@@ -287,13 +289,13 @@ export function TaskCard({
               to={`/artifacts?task=${encodeURIComponent(task.id)}`}
               onClick={(event) => event.stopPropagation()}
               title="Ver arquivos gerados por esta tarefa"
-              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-800/80 bg-zinc-900/50 px-2 py-1 text-[11px] text-zinc-400 transition-colors hover:border-blue-500/40 hover:text-blue-200"
+              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-800/80 bg-zinc-900/50 px-2 py-1 text-[13px] text-zinc-400 transition-colors hover:border-blue-500/40 hover:text-blue-200"
             >
               <FolderOpen size={12} />
               arquivos
             </Link>
           ) : task.status === "DONE" || task.status === "CANCELLED" ? (
-            <span className="truncate text-[11px] text-zinc-500">
+            <span className="truncate text-[13px] text-zinc-500">
               {STATUS_LABEL[task.status] ?? task.status}
             </span>
           ) : null}
@@ -379,8 +381,8 @@ export function TaskCard({
     <TaskAttentionModal
       open={attentionOpen}
       task={task}
-      interactions={interaction ? [interaction] : []}
-      permissions={permission ? [permission] : []}
+      interactions={interactions ?? []}
+      permissions={permissions ?? []}
       onClose={() => setAttentionOpen(false)}
       onResolved={() => onAttentionResolved?.()}
       onOpenTask={() => {

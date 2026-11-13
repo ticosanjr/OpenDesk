@@ -321,7 +321,7 @@ export function EngineCard() {
         </div>
 
         {!online && (daemon?.message || engine?.resolve_error) ? (
-          <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] leading-relaxed text-amber-200">
+          <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] leading-relaxed text-amber-200">
             {daemon?.message ?? engine?.resolve_error}
           </p>
         ) : null}
@@ -331,7 +331,7 @@ export function EngineCard() {
             value={manualPath}
             onChange={(event) => setManualPath(event.target.value)}
             placeholder="/home/usuario/.opencode/bin/opencode"
-            className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
+            className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 font-mono text-[13px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
           />
           <div className="flex flex-wrap gap-2">
             <Button
@@ -425,7 +425,7 @@ export function EngineCard() {
 
         <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="flex-1 text-[10px] uppercase tracking-wide text-zinc-500">
+            <p className="flex-1 text-[12px] uppercase tracking-wide text-zinc-500">
               modelos em cooldown (24h)
             </p>
             {modelHealth.length > 0 ? (
@@ -439,7 +439,7 @@ export function EngineCard() {
             ) : null}
           </div>
           {modelHealth.length === 0 ? (
-            <p className="mt-1 text-[10px] text-zinc-500">
+            <p className="mt-1 text-[12px] text-zinc-500">
               Nenhum modelo bloqueado por região/auth recentemente.
             </p>
           ) : (
@@ -447,7 +447,7 @@ export function EngineCard() {
               {modelHealth.map((item) => (
                 <div
                   key={`${item.provider_id}/${item.model_id}`}
-                  className="flex items-center gap-2 text-[10px]"
+                  className="flex items-center gap-2 text-[12px]"
                 >
                   <span className="min-w-0 flex-1 truncate font-mono text-zinc-300">
                     {item.provider_id}/{item.model_id}
@@ -456,7 +456,7 @@ export function EngineCard() {
                   <span className="text-zinc-500">{item.failures}x</span>
                   <button
                     type="button"
-                    className="text-[9px] text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline"
+                    className="text-[11.5px] text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline"
                     onClick={() =>
                       void clearModelHealth(item.provider_id, item.model_id)
                     }
@@ -471,7 +471,7 @@ export function EngineCard() {
 
         <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="flex-1 text-[11px] text-zinc-300">
+            <p className="flex-1 text-[13px] text-zinc-300">
               OpenCode instalado:{" "}
               <span className="font-mono text-zinc-100">
                 {check?.current ?? daemon?.version ?? "desconhecido"}
@@ -501,12 +501,12 @@ export function EngineCard() {
             </Button>
             {check?.update_available ? (
               <>
-                <label className="flex items-center gap-1 text-[9px] text-zinc-500">
+                <label className="flex items-center gap-1 text-[11.5px] text-zinc-500">
                   método
                   <select
                     value={method}
                     onChange={(event) => setMethod(event.target.value)}
-                    className="h-7 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 text-[10px] text-zinc-200 outline-none focus:border-blue-500/60"
+                    className="h-7 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 text-[12px] text-zinc-200 outline-none focus:border-blue-500/60"
                   >
                     {["curl", "npm", "pnpm", "bun", "yarn", "brew", "winget"].map(
                       (value) => (
@@ -533,31 +533,31 @@ export function EngineCard() {
             ) : null}
           </div>
           {check?.release?.notes ? (
-            <p className="mt-2 max-h-24 overflow-y-auto whitespace-pre-wrap text-[9px] leading-relaxed text-zinc-500">
+            <p className="mt-2 max-h-24 overflow-y-auto whitespace-pre-wrap text-[11.5px] leading-relaxed text-zinc-500">
               {check.release.notes}
             </p>
           ) : null}
           {updateOutput ? (
-            <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-black/40 p-2 font-mono text-[9px] text-zinc-400">
+            <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-black/40 p-2 font-mono text-[11.5px] text-zinc-400">
               {updateOutput}
             </pre>
           ) : null}
         </div>
 
         {message ? (
-          <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[10px] leading-relaxed text-emerald-300">
+          <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[12px] leading-relaxed text-emerald-300">
             {message}
           </p>
         ) : null}
         {error ? (
-          <p className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] leading-relaxed text-red-300">
+          <p className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] leading-relaxed text-red-300">
             <AlertTriangle size={12} className="mt-0.5 shrink-0" />
             {error}
           </p>
         ) : null}
 
         {engine && engine.candidates.length > 0 ? (
-          <details className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[9px] text-zinc-500">
+          <details className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[11.5px] text-zinc-500">
             <summary className="cursor-pointer text-zinc-400">
               Caminhos testados ({engine.candidates.length})
             </summary>

@@ -188,12 +188,12 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
       </CardHeader>
       <CardContent className="space-y-2">
         {error ? (
-          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
             {error}
           </p>
         ) : null}
         {loading ? (
-          <p className="flex items-center gap-2 p-3 text-[11px] text-zinc-500">
+          <p className="flex items-center gap-2 p-3 text-[13px] text-zinc-500">
             <Loader2 size={12} className="animate-spin" /> Carregando…
           </p>
         ) : sources.length === 0 ? (
@@ -213,15 +213,15 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
               </Badge>
               <Badge variant="purple">{source.source_type}</Badge>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[12px] text-zinc-200">{source.name}</p>
-                <p className="truncate text-[9px] text-zinc-500">
+                <p className="truncate text-[13.5px] text-zinc-200">{source.name}</p>
+                <p className="truncate text-[11.5px] text-zinc-500">
                   {source.target_agent ? `@${source.target_agent} · ` : ""}
                   {source.last_triggered_at
                     ? `${source.last_status ?? "ok"} · ${relativeTime(source.last_triggered_at)}`
                     : "nunca disparou"}
                 </p>
                 {source.last_error ? (
-                  <p className="truncate text-[9px] text-red-300/80">{source.last_error}</p>
+                  <p className="truncate text-[11.5px] text-red-300/80">{source.last_error}</p>
                 ) : null}
               </div>
               <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Editar fonte" onClick={() => edit(source)}>
@@ -303,7 +303,7 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
             </label>
           </div>
           <div className="flex flex-wrap gap-4">
-            <label className="flex items-center gap-2 text-[11px] text-zinc-400">
+            <label className="flex items-center gap-2 text-[13px] text-zinc-400">
               <input
                 type="checkbox"
                 checked={form.auto_execute}
@@ -311,7 +311,7 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
               />
               executar automaticamente
             </label>
-            <label className="flex items-center gap-2 text-[11px] text-zinc-400">
+            <label className="flex items-center gap-2 text-[13px] text-zinc-400">
               <input
                 type="checkbox"
                 checked={form.is_enabled}
@@ -326,10 +326,10 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
               value={form.config}
               onChange={(event) => setForm({ ...form, config: event.target.value })}
               rows={10}
-              className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 p-2 font-mono text-[10px] text-zinc-200 outline-none focus:border-blue-500/60"
+              className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 p-2 font-mono text-[12px] text-zinc-200 outline-none focus:border-blue-500/60"
             />
           </label>
-          {error ? <p className="text-[11px] text-red-300">{error}</p> : null}
+          {error ? <p className="text-[13px] text-red-300">{error}</p> : null}
           <div className="flex justify-end gap-2 border-t border-zinc-800/70 pt-3">
             <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
               Cancelar
@@ -346,6 +346,6 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
 }
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[13.5px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60";
 const labelClass =
-  "mb-1 block text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-500";
+  "mb-1 block text-[11.5px] font-medium uppercase tracking-[0.12em] text-zinc-500";

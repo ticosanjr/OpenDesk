@@ -157,7 +157,7 @@ export function SignalCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <label className="flex items-center gap-2 text-[11px] text-zinc-400">
+        <label className="flex items-center gap-2 text-[13px] text-zinc-400">
           <input
             type="checkbox"
             checked={enabled}
@@ -183,7 +183,7 @@ export function SignalCard() {
               value={cliPath}
               onChange={(event) => setCliPath(event.target.value)}
               placeholder="signal-cli"
-              className={cn(inputClass, "font-mono text-[10px]")}
+              className={cn(inputClass, "font-mono text-[12px]")}
             />
           </label>
           <label>
@@ -221,7 +221,7 @@ export function SignalCard() {
             onChange={(event) => setAllowlist(event.target.value)}
             rows={2}
             placeholder="+5511999999999, +5511888888888"
-            className={cn(inputClass, "h-auto resize-y py-2 font-mono text-[10px]")}
+            className={cn(inputClass, "h-auto resize-y py-2 font-mono text-[12px]")}
           />
         </label>
 
@@ -250,16 +250,16 @@ export function SignalCard() {
         {qr ? (
           <div className="flex flex-wrap items-center gap-4 rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3">
             <img src={qr} alt="QR de vínculo do Signal" className="h-[220px] w-[220px]" />
-            <div className="min-w-0 flex-1 space-y-1 text-[10px] text-zinc-500">
+            <div className="min-w-0 flex-1 space-y-1 text-[12px] text-zinc-500">
               <p className="font-medium text-zinc-300">Escaneie no Signal do celular</p>
               <p>Configurações → Dispositivos vinculados → Vincular dispositivo.</p>
-              <p className="break-all font-mono text-[9px] text-zinc-500">{linkUri}</p>
+              <p className="break-all font-mono text-[11.5px] text-zinc-500">{linkUri}</p>
             </div>
           </div>
         ) : null}
 
         {status && !cliOk ? (
-          <p className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-200">
+          <p className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
             <AlertTriangle size={12} className="mt-0.5 shrink-0" />
             signal-cli não encontrado. Instale com{" "}
             <span className="font-mono">sudo apt install signal-cli</span> ou informe o
@@ -268,19 +268,19 @@ export function SignalCard() {
         ) : null}
 
         {message ? (
-          <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[10px] text-emerald-300">
+          <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-300">
             <Check size={11} className="mr-1 inline" />
             {message}
           </p>
         ) : null}
         {error ? (
-          <p className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-300">
+          <p className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">
             <AlertTriangle size={12} className="mt-0.5 shrink-0" />
             {error}
           </p>
         ) : null}
 
-        <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[9px] leading-relaxed text-zinc-500">
+        <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[11.5px] leading-relaxed text-zinc-500">
           Segurança: o bridge fica desabilitado por padrão, exige allowlist e usa o
           agente escolhido. Mensagens de números fora da allowlist são descartadas.
           Vincular um dispositivo exige o celular com Signal por perto.

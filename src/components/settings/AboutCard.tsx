@@ -94,7 +94,7 @@ export function AboutCard() {
                 type="button"
                 onClick={() => setMode(value)}
                 className={cn(
-                  "rounded-md px-2 py-1 text-[10px]",
+                  "rounded-md px-2 py-1 text-[12px]",
                   mode === value
                     ? "bg-zinc-800 text-zinc-100"
                     : "text-zinc-500 hover:text-zinc-300",
@@ -112,13 +112,13 @@ export function AboutCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         {error ? (
-          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] text-red-300">
+          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">
             {error}
           </p>
         ) : null}
 
         {!info ? (
-          <p className="text-[11px] text-zinc-500">Carregando informações…</p>
+          <p className="text-[13px] text-zinc-500">Carregando informações…</p>
         ) : mode === "simple" ? (
           <>
             <div className="grid gap-2 md:grid-cols-3">
@@ -153,7 +153,7 @@ export function AboutCard() {
             </div>
 
             {!info.engine.daemon.online ? (
-              <p className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] leading-relaxed text-amber-200">
+              <p className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] leading-relaxed text-amber-200">
                 <AlertTriangle size={12} className="mt-0.5 shrink-0" />
                 {info.engine.daemon.message ??
                   "O motor OpenCode está offline. Abra OpenCode Engine para configurar o binário."}
@@ -248,7 +248,7 @@ export function AboutCard() {
             </Section>
             <Section title="Arquivos de log">
               {info.logs.length === 0 ? (
-                <p className="text-[10px] text-zinc-500">Nenhum log encontrado.</p>
+                <p className="text-[12px] text-zinc-500">Nenhum log encontrado.</p>
               ) : (
                 info.logs.slice(0, 10).map((log) => (
                   <Row
@@ -262,10 +262,10 @@ export function AboutCard() {
               )}
             </Section>
             <details className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3">
-              <summary className="cursor-pointer text-[10px] text-zinc-400">
+              <summary className="cursor-pointer text-[12px] text-zinc-400">
                 JSON completo
               </summary>
-              <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[9px] text-zinc-400">
+              <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[11.5px] text-zinc-400">
                 {JSON.stringify(info, null, 2)}
               </pre>
             </details>
@@ -289,16 +289,16 @@ function AboutMetric({
 }) {
   return (
     <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
-      <p className="text-[9px] uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="text-[11.5px] uppercase tracking-wide text-zinc-500">{label}</p>
       <div className="mt-0.5 flex items-center gap-2">
-        <p className="truncate font-mono text-[11px] text-zinc-200">{value}</p>
+        <p className="truncate font-mono text-[13px] text-zinc-200">{value}</p>
         {tone !== "default" ? (
           <Badge variant={tone === "green" ? "green" : tone === "red" ? "red" : "yellow"}>
             {tone === "green" ? "ok" : tone === "red" ? "offline" : "atenção"}
           </Badge>
         ) : null}
       </div>
-      {hint ? <p className="mt-0.5 truncate text-[9px] text-zinc-500">{hint}</p> : null}
+      {hint ? <p className="mt-0.5 truncate text-[11.5px] text-zinc-500">{hint}</p> : null}
     </div>
   );
 }
@@ -306,7 +306,7 @@ function AboutMetric({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 p-3">
-      <p className="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+      <p className="mb-2 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-[0.12em] text-zinc-500">
         <Cpu size={11} />
         {title}
       </p>
@@ -317,7 +317,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start justify-between gap-3 text-[10px]">
+    <div className="flex items-start justify-between gap-3 text-[12px]">
       <span className="shrink-0 text-zinc-500">{label}</span>
       <span className="min-w-0 break-all text-right font-mono text-zinc-300">
         {value}

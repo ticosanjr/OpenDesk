@@ -370,10 +370,10 @@ export function TaskDetailsModal({
           {diagnostics && diagnostics.runs.length > 0 ? (
             <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-3 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                <span className="text-[12px] font-medium uppercase tracking-wide text-zinc-500">
                   Tokens desta tarefa
                 </span>
-                <span className="font-mono text-[10px] text-zinc-500">
+                <span className="font-mono text-[12px] text-zinc-500">
                   {diagnostics.runs.length} execução(ões) · {formatUsd(runTotals.cost)}
                 </span>
               </div>
@@ -405,13 +405,13 @@ export function TaskDetailsModal({
           ) : null}
 
           {task.blocked_reason ? (
-            <p className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-[11px] font-medium text-red-200">
+            <p className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-[13px] font-medium text-red-200">
               Motivo do bloqueio: {task.blocked_reason}
             </p>
           ) : null}
 
           {running ? (
-            <p className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-[10px] text-blue-200">
+            <p className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-[12px] text-blue-200">
               Esta tarefa está em execução. Cancele no controlador da fila antes de
               editar agente, modelo ou prompt.
             </p>
@@ -419,12 +419,12 @@ export function TaskDetailsModal({
 
           {sinks.length > 0 ? (
             <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+              <p className="text-[12px] font-medium uppercase tracking-wide text-zinc-500">
                 Entregas automáticas
               </p>
               <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
                 {sinks.map((sink) => (
-                  <label key={sink.id} className="flex items-center gap-1.5 text-[10px] text-zinc-400">
+                  <label key={sink.id} className="flex items-center gap-1.5 text-[12px] text-zinc-400">
                     <input
                       type="checkbox"
                       checked={selectedSinks.has(sink.id)}
@@ -458,7 +458,7 @@ export function TaskDetailsModal({
           {context?.session_id ? (
             <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                <span className="text-[12px] font-medium uppercase tracking-wide text-zinc-500">
                   contexto
                 </span>
                 <div className="h-1.5 min-w-32 flex-1 overflow-hidden rounded-full bg-zinc-800">
@@ -474,7 +474,7 @@ export function TaskDetailsModal({
                     style={{ width: `${Math.min(100, context.percent)}%` }}
                   />
                 </div>
-                <span className="font-mono text-[10px] text-zinc-500">
+                <span className="font-mono text-[12px] text-zinc-500">
                   {formatNumber(context.tokens_input)} / {formatNumber(context.window)} ·{" "}
                   {context.percent.toFixed(0)}% · {context.messages} msgs
                 </span>
@@ -496,41 +496,41 @@ export function TaskDetailsModal({
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-3 text-red-200">
               <div className="flex flex-wrap items-center gap-2">
                 <AlertTriangle size={14} />
-                <span className="text-[11px] font-semibold">
+                <span className="text-[13px] font-semibold">
                   O que falhou: {diagnostics.error.code}
                 </span>
                 <Badge variant="red">{diagnostics.error.source}</Badge>
                 <button
                   type="button"
                   onClick={() => void copyError()}
-                  className="ml-auto text-[10px] text-red-300/80 underline-offset-2 hover:underline"
+                  className="ml-auto text-[12px] text-red-300/80 underline-offset-2 hover:underline"
                 >
                   {copied ? "copiado" : "copiar erro"}
                 </button>
               </div>
-              <p className="mt-2 whitespace-pre-wrap font-mono text-[10px] leading-relaxed">
+              <p className="mt-2 whitespace-pre-wrap font-mono text-[12px] leading-relaxed">
                 {diagnostics.error.message}
               </p>
-              <p className="mt-2 text-[10px] leading-relaxed text-red-100/80">
+              <p className="mt-2 text-[12px] leading-relaxed text-red-100/80">
                 <strong>Como resolver:</strong> {diagnostics.error.hint}
               </p>
             </div>
           ) : diagnosticsError ? (
-            <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-200">
+            <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
               Não foi possível carregar o diagnóstico: {diagnosticsError}
             </p>
           ) : null}
 
           <div>
             <p className={labelClass}>Descrição</p>
-            <p className="whitespace-pre-wrap rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3 text-[11px] leading-relaxed text-zinc-400">
+            <p className="whitespace-pre-wrap rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3 text-[13px] leading-relaxed text-zinc-400">
               {task.description}
             </p>
           </div>
           {task.plan_markdown ? (
             <div>
               <p className={labelClass}>Plano</p>
-              <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3 font-mono text-[10px] leading-relaxed text-zinc-300">
+              <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3 font-mono text-[12px] leading-relaxed text-zinc-300">
                 {task.plan_markdown}
               </pre>
             </div>
@@ -544,7 +544,7 @@ export function TaskDetailsModal({
                   <Link
                     key={run.id}
                     to={links.run(run.id)}
-                    className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[10px] transition-colors hover:border-blue-500/30 hover:bg-zinc-900/50"
+                    className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[12px] transition-colors hover:border-blue-500/30 hover:bg-zinc-900/50"
                   >
                     <Badge variant={runVariant(run.status)}>{run.status}</Badge>
                     <span className="font-mono text-zinc-400">{run.phase ?? "run"}</span>
@@ -559,7 +559,7 @@ export function TaskDetailsModal({
                       {relativeTime(run.started_at)}
                     </span>
                     {run.error_message ? (
-                      <p className="w-full truncate font-mono text-[9px] text-red-300/80">
+                      <p className="w-full truncate font-mono text-[11.5px] text-red-300/80">
                         {run.error_message}
                       </p>
                     ) : null}
@@ -717,8 +717,8 @@ function TokenStat({
       className="rounded-md border border-zinc-800/70 bg-zinc-900/30 px-2 py-1.5"
       title={hint}
     >
-      <p className="text-[9px] uppercase tracking-wide text-zinc-500">{label}</p>
-      <p className="mt-0.5 font-mono text-[12px] text-zinc-200">{value}</p>
+      <p className="text-[11.5px] uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="mt-0.5 font-mono text-[13.5px] text-zinc-200">{value}</p>
     </div>
   );
 }
@@ -795,10 +795,10 @@ export function LogDrawer({
       <aside className="relative flex h-[min(88dvh,64rem)] w-[min(94vw,72rem)] flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/95 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.85)] backdrop-blur-xl">
         <div className="flex items-center justify-between border-b border-zinc-800/70 px-4 py-3">
           <div className="min-w-0">
-            <p className="truncate text-[12px] font-medium text-zinc-200">
+            <p className="truncate text-[13.5px] font-medium text-zinc-200">
               {task.title}
             </p>
-            <p className="font-mono text-[9px] text-zinc-500">
+            <p className="font-mono text-[11.5px] text-zinc-500">
               {STATUS_LABEL[task.status] ?? task.status} · {task.phase_status ?? "sem fase"}
             </p>
           </div>
@@ -806,7 +806,7 @@ export function LogDrawer({
             {selectedRun ? (
               <Link
                 to={links.run(selectedRun)}
-                className="rounded-lg border border-zinc-800 px-2.5 py-1 text-[10px] text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
+                className="rounded-lg border border-zinc-800 px-2.5 py-1 text-[12px] text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
               >
                 abrir página
               </Link>
@@ -820,11 +820,11 @@ export function LogDrawer({
         <div className="flex min-h-0 flex-1">
           <div className="w-56 shrink-0 overflow-y-auto border-r border-zinc-800/70 p-2">
             {loading && runs.length === 0 ? (
-              <p className="p-2 text-[10px] text-zinc-500">Carregando…</p>
+              <p className="p-2 text-[12px] text-zinc-500">Carregando…</p>
             ) : error ? (
-              <p className="p-2 text-[10px] text-red-300">{error}</p>
+              <p className="p-2 text-[12px] text-red-300">{error}</p>
             ) : runs.length === 0 ? (
-              <p className="p-2 text-[10px] text-zinc-500">Nenhum run.</p>
+              <p className="p-2 text-[12px] text-zinc-500">Nenhum run.</p>
             ) : (
               runs.map((run) => (
                 <button
@@ -839,16 +839,16 @@ export function LogDrawer({
                   )}
                 >
                   <div className="flex items-center justify-between gap-1">
-                    <p className="truncate text-[10px]">
+                    <p className="truncate text-[12px]">
                       tentativa {run.attempt_number ?? 1} · {run.phase ?? "run"}
                     </p>
                     <Badge variant={runVariant(run.status)}>{run.status}</Badge>
                   </div>
-                  <p className="font-mono text-[8px] text-zinc-500">
+                  <p className="font-mono text-[11px] text-zinc-500">
                     {formatUsd(run.estimated_cost_usd)} · {relativeTime(run.started_at)}
                   </p>
                   {run.error_message ? (
-                    <p className="truncate text-[8px] text-red-400/80">
+                    <p className="truncate text-[11px] text-red-400/80">
                       {run.error_message}
                     </p>
                   ) : null}
@@ -875,6 +875,6 @@ export function LogDrawer({
 }
 
 const labelClass =
-  "mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500";
+  "mb-1.5 block text-[12px] font-medium uppercase tracking-[0.12em] text-zinc-500";
 
 

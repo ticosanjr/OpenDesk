@@ -387,7 +387,7 @@ export function CreateScheduleModal({
             aria-expanded={whenOpen}
           >
             <CalendarClock size={14} className="shrink-0 text-blue-300" />
-            <span className="text-[11px] font-semibold text-zinc-200">
+            <span className="text-[13px] font-semibold text-zinc-200">
               Quando executar
             </span>
             <Badge variant="blue">{triggerLabel(triggerType)}</Badge>
@@ -416,7 +416,7 @@ export function CreateScheduleModal({
                     </option>
                   ))}
                 </select>
-                <span className="mt-1 block text-[10px] leading-snug text-zinc-500">
+                <span className="mt-1 block text-[12px] leading-snug text-zinc-500">
                   {triggerDescription(triggerType)}
                 </span>
               </label>
@@ -534,7 +534,7 @@ export function CreateScheduleModal({
                           query: event.target.value,
                         }))
                       }
-                      className={cn(inputClass, "font-mono text-[11px]")}
+                      className={cn(inputClass, "font-mono text-[13px]")}
                       placeholder="SELECT ..."
                     />
                   </label>
@@ -561,7 +561,7 @@ export function CreateScheduleModal({
 
         <div className="rounded-xl border border-zinc-800/70 bg-zinc-950/30 p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+            <p className="text-[12px] font-medium uppercase tracking-wide text-zinc-500">
               O que executar
             </p>
             <div className="ml-auto flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/60 p-0.5">
@@ -569,7 +569,7 @@ export function CreateScheduleModal({
                 type="button"
                 onClick={() => setTargetKind("PROMPT")}
                 className={cn(
-                  "rounded-md px-2 py-1 text-[10px]",
+                  "rounded-md px-2 py-1 text-[12px]",
                   targetKind === "PROMPT"
                     ? "workspace-tab-active"
                     : "text-zinc-500 hover:text-zinc-200",
@@ -581,7 +581,7 @@ export function CreateScheduleModal({
                 type="button"
                 onClick={() => setTargetKind("RECIPE")}
                 className={cn(
-                  "rounded-md px-2 py-1 text-[10px]",
+                  "rounded-md px-2 py-1 text-[12px]",
                   targetKind === "RECIPE"
                     ? "workspace-tab-active"
                     : "text-zinc-500 hover:text-zinc-200",
@@ -622,7 +622,7 @@ export function CreateScheduleModal({
               {recipeOpen ? (
                 <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
                   {filteredRecipes.length === 0 ? (
-                    <p className="px-2 py-1 text-[10px] text-zinc-500">
+                    <p className="px-2 py-1 text-[12px] text-zinc-500">
                       Nenhuma receita encontrada.
                     </p>
                   ) : (
@@ -630,7 +630,7 @@ export function CreateScheduleModal({
                       <button
                         key={item.id}
                         type="button"
-                        className="block w-full rounded px-2 py-1.5 text-left text-[10px] hover:bg-zinc-800"
+                        className="block w-full rounded px-2 py-1.5 text-left text-[12px] hover:bg-zinc-800"
                         onMouseDown={(event) => {
                           event.preventDefault();
                           setRecipeId(item.id);
@@ -639,7 +639,7 @@ export function CreateScheduleModal({
                         }}
                       >
                         <span className="text-zinc-200">{item.name}</span>
-                        <span className="ml-2 font-mono text-[9px] text-zinc-500">
+                        <span className="ml-2 font-mono text-[11.5px] text-zinc-500">
                           {item.id}
                         </span>
                       </button>
@@ -670,7 +670,7 @@ export function CreateScheduleModal({
                     <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
                       <button
                         type="button"
-                        className="block w-full rounded px-2 py-1 text-left text-[10px] text-zinc-400 hover:bg-zinc-800"
+                        className="block w-full rounded px-2 py-1 text-left text-[12px] text-zinc-400 hover:bg-zinc-800"
                         onMouseDown={(event) => {
                           event.preventDefault();
                           chooseAgent(null);
@@ -682,7 +682,7 @@ export function CreateScheduleModal({
                         <button
                           key={item.id}
                           type="button"
-                          className="block w-full rounded px-2 py-1 text-left text-[10px] hover:bg-zinc-800"
+                          className="block w-full rounded px-2 py-1 text-left text-[12px] hover:bg-zinc-800"
                           onMouseDown={(event) => {
                             event.preventDefault();
                             chooseAgent(item);
@@ -698,7 +698,7 @@ export function CreateScheduleModal({
                         </button>
                       ))}
                       {filteredAgents.length === 0 ? (
-                        <p className="px-2 py-1 text-[10px] text-zinc-500">
+                        <p className="px-2 py-1 text-[12px] text-zinc-500">
                           Nenhum agente encontrado.
                         </p>
                       ) : null}
@@ -727,7 +727,7 @@ export function CreateScheduleModal({
                   <input
                     value={template}
                     onChange={(event) => setTemplate(event.target.value)}
-                    className={cn(inputClass, "font-mono text-[10px]")}
+                    className={cn(inputClass, "font-mono text-[12px]")}
                   />
                 </label>
               </div>
@@ -750,13 +750,13 @@ export function CreateScheduleModal({
                   placeholder="Digite / para comandos e skills, ou descreva a tarefa"
                   className={cn(
                     inputClass,
-                    "h-auto resize-y py-2 font-mono text-[11px]",
+                    "h-auto resize-y py-2 font-mono text-[13px]",
                   )}
                 />
                 {slash ? (
                   <div className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
                     {slashItems.length === 0 ? (
-                      <p className="px-2 py-1 text-[10px] text-zinc-500">
+                      <p className="px-2 py-1 text-[12px] text-zinc-500">
                         Nenhum comando/skill encontrado.
                       </p>
                     ) : (
@@ -770,10 +770,10 @@ export function CreateScheduleModal({
                             insertSlash(item.value);
                           }}
                         >
-                          <span className="font-mono text-[10px] text-zinc-200">
+                          <span className="font-mono text-[12px] text-zinc-200">
                             {item.label}
                           </span>
-                          <span className="ml-2 text-[9px] text-zinc-500">
+                          <span className="ml-2 text-[11.5px] text-zinc-500">
                             {item.detail}
                           </span>
                         </button>
@@ -798,7 +798,7 @@ export function CreateScheduleModal({
         </label>
 
         <div className="rounded-xl border border-zinc-800/70 bg-zinc-950/30 p-3">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Notificações</p>
+          <p className="text-[12px] font-medium uppercase tracking-wide text-zinc-500">Notificações</p>
           <div className="mt-2 grid gap-2 md:grid-cols-2">
             <label>
               <span className={labelClass}>E-mail</span>
@@ -809,7 +809,7 @@ export function CreateScheduleModal({
               <input value={signalRecipients} onChange={(event) => setSignalRecipients(event.target.value)} placeholder="vazio usa a allowlist do Signal" className={inputClass} />
             </label>
           </div>
-          <div className="mt-2 flex flex-wrap gap-4 text-[11px] text-zinc-400">
+          <div className="mt-2 flex flex-wrap gap-4 text-[13px] text-zinc-400">
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={signalEnabled} onChange={(event) => setSignalEnabled(event.target.checked)} className="accent-blue-500" />
               notificar por Signal
@@ -823,12 +823,12 @@ export function CreateScheduleModal({
 
         {sinks.length > 0 ? (
           <div className="rounded-xl border border-zinc-800/70 bg-zinc-950/30 p-3">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+            <p className="text-[12px] font-medium uppercase tracking-wide text-zinc-500">
               Entregas automáticas
             </p>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
               {sinks.map((sink) => (
-                <label key={sink.id} className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+                <label key={sink.id} className="flex items-center gap-1.5 text-[13px] text-zinc-400">
                   <input
                     type="checkbox"
                     checked={selectedSinks.has(sink.id)}
@@ -850,7 +850,7 @@ export function CreateScheduleModal({
         ) : null}
 
         {error ? (
-          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">{error}</p>
+          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">{error}</p>
         ) : null}
       </div>
       <div className="mt-4 flex justify-end gap-2 border-t border-zinc-800/70 pt-4">

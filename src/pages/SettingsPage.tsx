@@ -205,7 +205,7 @@ export function SettingsPage() {
                   }}
                   placeholder="~/Documents/OpenDesk Workareas"
                   className={cn(
-                    "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 pl-9 pr-3 font-mono text-[11px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60",
+                    "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 pl-9 pr-3 font-mono text-[13px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60",
                     loading && "opacity-60",
                   )}
                 />
@@ -228,12 +228,12 @@ export function SettingsPage() {
                 <ExternalLink size={12} />
                 Abrir pasta
               </Button>
-              <p className="text-[9px] text-zinc-500">
+              <p className="text-[11.5px] text-zinc-500">
                 A pasta é criada automaticamente se não existir.
               </p>
             </div>
             {error ? (
-              <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+              <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
                 {error}
               </p>
             ) : null}
@@ -254,7 +254,7 @@ export function SettingsPage() {
             </div>
             <Badge variant="green">bandeja</Badge>
           </CardHeader>
-          <CardContent className="space-y-2 text-[11px] leading-relaxed text-zinc-500">
+          <CardContent className="space-y-2 text-[13px] leading-relaxed text-zinc-500">
             <p>
               Fechar pelo “X” mantém o app na bandeja por padrão. Para encerrar de
               verdade, use <span className="text-zinc-300">Sair</span> no menu do
@@ -324,12 +324,12 @@ export function SettingsPage() {
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="truncate text-[12px] font-medium text-zinc-200">
+                        <p className="truncate text-[13.5px] font-medium text-zinc-200">
                           {workspace.name}
                         </p>
                         {active ? <Badge variant="accent">ativo</Badge> : null}
                       </div>
-                      <p className="truncate font-mono text-[9px] text-zinc-500">
+                      <p className="truncate font-mono text-[11.5px] text-zinc-500">
                         {shortPath(workspace.root_path, 80)}
                       </p>
                     </div>
@@ -506,7 +506,7 @@ function WorkspaceEditModal({
                 onChange={(event) => setColor(event.target.value)}
                 className="h-5 w-7 cursor-pointer rounded border-0 bg-transparent p-0"
               />
-              <span className="font-mono text-[10px] text-zinc-500">{color}</span>
+              <span className="font-mono text-[12px] text-zinc-500">{color}</span>
             </div>
           </label>
           <label>
@@ -528,7 +528,7 @@ function WorkspaceEditModal({
             <TimezoneSelect
               value={timezone}
               onChange={setTimezone}
-              className={cn(inputClass, "text-[10px]")}
+              className={cn(inputClass, "text-[12px]")}
             />
           </label>
           <label className="sm:col-span-2">
@@ -542,7 +542,7 @@ function WorkspaceEditModal({
           </label>
         </div>
         {error ? (
-          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
             {error}
           </p>
         ) : null}

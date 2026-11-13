@@ -229,12 +229,12 @@ export function StudioInstallModal({
               <Github size={15} className="shrink-0 text-zinc-400" />
             )}
             <div className="min-w-0 flex-1">
-              <p className="text-[12px] font-medium text-zinc-200">
+              <p className="text-[13.5px] font-medium text-zinc-200">
                 {initialSource.sourceType === "url"
                   ? "URL direta"
                   : "Repositório GitHub"}
               </p>
-              <p className="truncate font-mono text-[11px] text-zinc-500">
+              <p className="truncate font-mono text-[13px] text-zinc-500">
                 {initialSource.value}
               </p>
             </div>
@@ -260,8 +260,8 @@ export function StudioInstallModal({
             >
               <source.icon size={14} className="mt-0.5 text-zinc-400" />
               <div>
-                <p className="text-[12px] font-medium text-zinc-200">{source.label}</p>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-zinc-500">
+                <p className="text-[13.5px] font-medium text-zinc-200">{source.label}</p>
+                <p className="mt-0.5 text-[13px] leading-relaxed text-zinc-500">
                   {source.hint}
                 </p>
               </div>
@@ -274,7 +274,7 @@ export function StudioInstallModal({
           <div className="space-y-3">
             {catalog?.repos?.length ? (
               <div className="space-y-1.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                <p className="text-[13px] font-semibold uppercase tracking-wide text-zinc-500">
                   Repositórios recomendados
                 </p>
                 {catalog.repos.map((repo) => (
@@ -291,7 +291,7 @@ export function StudioInstallModal({
                     title={`${repo.source_type}: ${repo.source}`}
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-medium text-zinc-200">
+                      <p className="text-[14px] font-medium text-zinc-200">
                         {repo.name}
                       </p>
                       <p className="truncate text-[11.5px] text-zinc-500">
@@ -299,7 +299,7 @@ export function StudioInstallModal({
                       </p>
                     </div>
                     <Badge variant="blue">{repo.kind}</Badge>
-                    <span className="font-mono text-[10px] text-zinc-500">
+                    <span className="font-mono text-[12px] text-zinc-500">
                       {repo.source}
                     </span>
                   </button>
@@ -307,7 +307,7 @@ export function StudioInstallModal({
               </div>
             ) : null}
 
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+            <p className="text-[13px] font-semibold uppercase tracking-wide text-zinc-500">
               Presets MCP
             </p>
             {(catalog?.mcps ?? []).map((preset) => (
@@ -316,8 +316,8 @@ export function StudioInstallModal({
                 className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] text-zinc-200">{preset.name}</p>
-                  <p className="truncate text-[9px] text-zinc-500">{preset.description}</p>
+                  <p className="text-[13px] text-zinc-200">{preset.name}</p>
+                  <p className="truncate text-[11.5px] text-zinc-500">{preset.description}</p>
                 </div>
                 <Button
                   size="sm"
@@ -409,7 +409,7 @@ export function StudioInstallModal({
         {preview ? (
           <div className="space-y-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3">
             <div className="flex items-center gap-2">
-              <p className="text-[11px] font-medium text-zinc-200">
+              <p className="text-[13px] font-medium text-zinc-200">
                 Itens detectados
               </p>
               <Badge variant="blue">{preview.items.length}</Badge>
@@ -417,7 +417,7 @@ export function StudioInstallModal({
             {preview.items.map((item, index) => (
               <label
                 key={`${item.kind}:${item.id}:${index}`}
-                className="flex items-center gap-2 text-[12px] text-zinc-400"
+                className="flex items-center gap-2 text-[13.5px] text-zinc-400"
               >
                 <input
                   type="checkbox"
@@ -436,7 +436,7 @@ export function StudioInstallModal({
               </label>
             ))}
             {preview.warnings.length > 0 ? (
-              <div className="text-[11px] text-amber-300/80">
+              <div className="text-[13px] text-amber-300/80">
                 {preview.warnings.slice(0, 5).map((warning) => (
                   <p key={warning}>⚠ {warning}</p>
                 ))}
@@ -468,7 +468,7 @@ export function StudioInstallModal({
               ) : (
                 <div />
               )}
-              <label className="flex items-center gap-2 text-[12px] text-zinc-400">
+              <label className="flex items-center gap-2 text-[13.5px] text-zinc-400">
                 <input
                   type="checkbox"
                   checked={overwrite}
@@ -482,7 +482,7 @@ export function StudioInstallModal({
         ) : null}
 
         {error ? (
-          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">
+          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13.5px] text-red-300">
             {error}
           </p>
         ) : null}
@@ -510,4 +510,4 @@ export function StudioInstallModal({
 }
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[13px] text-zinc-100 outline-none placeholder:text-zinc-500 transition-colors hover:border-zinc-700 focus:border-blue-500/60";
+  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[14px] text-zinc-100 outline-none placeholder:text-zinc-500 transition-colors hover:border-zinc-700 focus:border-blue-500/60";

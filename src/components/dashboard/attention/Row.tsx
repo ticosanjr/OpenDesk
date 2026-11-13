@@ -40,9 +40,9 @@ export function Row({
     >
       <span className={cn("mt-0.5 shrink-0", iconTone)}>{icon}</span>
       <div className="min-h-0 min-w-0 sm:overflow-y-auto">
-        <p className="line-clamp-1 text-[13px] font-medium text-zinc-200">{title}</p>
+        <p className="line-clamp-1 text-[14px] font-medium text-zinc-200">{title}</p>
         {meta ? (
-          <p className="truncate font-mono text-[11px] text-zinc-500">{meta}</p>
+          <p className="truncate font-mono text-[13px] text-zinc-500">{meta}</p>
         ) : null}
         {detail ? (
           <p className="mt-0.5 line-clamp-2 min-h-[28px] break-words text-[11.5px] leading-snug text-red-200/70">
