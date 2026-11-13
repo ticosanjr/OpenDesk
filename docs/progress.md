@@ -2521,3 +2521,16 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Relatório de aceitação em `docs/verification.md`, com pendências manuais
   (Gmail real, Signal real, builds macOS/Windows e contrato Google).
 - Versão publicada segue 0.51.0; nenhuma tag ou release foi criada.
+
+## 2026-11-13 — release 0.52.0
+
+- Publicados os avanços das fases 0–5: correções de entrada/estado, separação
+  trabalho × automações, catálogo/Studio/receitas, I/O e integrações, agente
+  OpenDesk com níveis de cuidado e verificação final.
+- Review pré-release corrigiu deep links de tarefas de automação, duplicidade
+  de eventos no Folder Watch, retry de receitas com falha, seleção do agente
+  `opendesk` antes do budget guard, limpeza do e-mail padrão do workspace,
+  senha SMTP, downloads em pasta inexistente e escopo de favoritos do Studio.
+- Release `1d397c5`, tag `v0.52.0`; assets Linux (deb/rpm/AppImage/binário),
+  `latest.json` assinado e SHA256SUMS conferido. Retenção manteve 0.50.1,
+  0.51.0 e 0.52.0.
