@@ -5,6 +5,7 @@ import {
   Activity,
   Archive,
   Brain,
+  Loader2,
   CalendarClock,
   CalendarDays,
   ChartNoAxesCombined,
@@ -25,11 +26,10 @@ import {
   Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { queueBadgeLabel, queueCounts } from "@/lib/queue";
+import { queueBadgeLabel, queueCounts, workQueue } from "@/lib/queue";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { StatusDot, statusTone } from "@/components/ui/status-dot";
-import { Badge } from "@/components/ui/badge";
 
 interface NavItem {
   to: string;
@@ -82,7 +82,7 @@ export function Sidebar() {
   const daemon = useAppStore((state) => state.daemon);
   const connected = useAppStore((state) => state.connected);
   const queue = useAppStore((state) => state.queue);
-  const counts = queueCounts(queue);
+  const counts = queueCounts(workQueue(queue));
   const badge = queueBadgeLabel(counts);
 
   return (
@@ -131,8 +131,22 @@ export function Sidebar() {
                     )
                   }
                 >
-                  <item.icon size={17} strokeWidth={1.8} className="shrink-0" />
+                  <span className="relative shrink-0">
+                    <item.icon size={17} strokeWidth={1.8} />
+                    {item.to === "/kanban" && counts.running > 0 ? (
+                      <span className="absolute -right-1 -top-1 h-2 w-2 animate-pulse rounded-full bg-blue-400" />
+                    ) : null}
+                  </span>
                   {!collapsed ? <span className="truncate">{item.label}</span> : null}
+                  {!collapsed && item.to === "/kanban" && counts.running > 0 ? (
+                    <span
+                      className="ml-auto inline-flex items-center gap-1 font-mono text-[11px] text-blue-300"
+                      title={`${counts.running} execução(ões) em andamento`}
+                    >
+                      <Loader2 size={10} className="animate-spin" />
+                      {counts.running}
+                    </span>
+                  ) : null}
                 </NavLink>
               ))}
             </div>
@@ -164,10 +178,22 @@ export function Sidebar() {
             {badge ? (
               <Link
                 to="/kanban?view=queue"
-                className="mt-2 inline-flex"
+                className="mt-2 flex flex-col gap-0.5 rounded-md border border-blue-500/20 bg-blue-500/[0.06] px-2 py-1 text-[11.5px] text-blue-200"
                 title={badge}
               >
-                <Badge variant="blue">{badge}</Badge>
+                {counts.waiting > 0 ? (
+                  <span className="truncate">
+                    {counts.waiting} aguardando
+                  </span>
+                ) : null}
+                {counts.running > 0 ? (
+                  <span className="flex min-w-0 items-center gap-1 text-blue-300">
+                    <Loader2 size={10} className="shrink-0 animate-spin" />
+                    <span className="truncate">
+                      {counts.running} executando
+                    </span>
+                  </span>
+                ) : null}
               </Link>
             ) : null}
           </div>

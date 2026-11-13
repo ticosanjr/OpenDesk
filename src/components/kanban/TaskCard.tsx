@@ -289,10 +289,10 @@ export function TaskCard({
               to={`/artifacts?task=${encodeURIComponent(task.id)}`}
               onClick={(event) => event.stopPropagation()}
               title="Ver arquivos gerados por esta tarefa"
-              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-800/80 bg-zinc-900/50 px-2 py-1 text-[13px] text-zinc-400 transition-colors hover:border-blue-500/40 hover:text-blue-200"
+              aria-label="Arquivos"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-800/80 bg-zinc-900/50 text-zinc-400 transition-colors hover:border-blue-500/40 hover:text-blue-200"
             >
-              <FolderOpen size={12} />
-              arquivos
+              <FolderOpen size={13} />
             </Link>
           ) : task.status === "DONE" || task.status === "CANCELLED" ? (
             <span className="truncate text-[13px] text-zinc-500">
@@ -305,40 +305,41 @@ export function TaskCard({
             <Button
               variant="outline"
               size="xs"
-              className="px-2"
+              className="h-7 w-7 px-0"
               title="Retomar e entrar na fila automaticamente"
+              aria-label="Retomar"
               onClick={(event) => {
                 event.stopPropagation();
                 onResume();
               }}
             >
               <Play size={12} />
-              Retomar
             </Button>
           ) : running || queued ? (
             <Button
               variant="destructive"
               size="xs"
-              className="px-2"
+              className="h-7 w-7 px-0"
               title={queued ? "Remover da fila" : "Cancelar a execução agora"}
+              aria-label="Cancelar"
               onClick={(event) => {
                 event.stopPropagation();
                 onCancel();
               }}
             >
               <Square size={11} />
-              Cancelar
             </Button>
           ) : task.status !== "DONE" && task.status !== "CANCELLED" ? (
             <Button
               variant="outline"
               size="xs"
-              className="px-2"
+              className="h-7 w-7 px-0"
               title={
                 daemonOnline
                   ? "Criar uma nova tentativa de execução"
                   : "OpenCode engine offline: inicie o motor para executar"
               }
+              aria-label={task.status === "BLOCKED" ? "Tentar" : "Executar"}
               disabled={!daemonOnline}
               onClick={(event) => {
                 event.stopPropagation();
@@ -346,7 +347,6 @@ export function TaskCard({
               }}
             >
               <Play size={12} />
-              {task.status === "BLOCKED" ? "Tentar" : "Executar"}
             </Button>
           ) : null}
           <Button

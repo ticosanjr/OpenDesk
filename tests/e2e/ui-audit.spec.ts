@@ -259,7 +259,18 @@ test("key modals keep buttons visible and reachable", async ({ page, request }) 
   expect(await audit(page, '[role="dialog"]')).toEqual([]);
   await page.getByRole("dialog").getByRole("button", { name: "Cancelar" }).click();
 
+  const auth = (await import("./helpers")).api();
+  await request.put(
+    `${auth.baseURL}/api/recipes/audit-recipe?workspace_id=${workspace.id}`,
+    {
+      headers: auth.headers,
+      data: {
+        yaml: `id: audit-recipe\nname: Receita Audit\nenabled: true\ntriggers: []\nflow:\n  - type: step\n    id: passo-1\n    name: Passo\n    mode: build\n    prompt: ok\n`,
+      },
+    },
+  );
   await page.goto("/#/recipes");
+  await page.getByText("Receita Audit").first().click();
   await page.getByRole("button", { name: /Dry-run/ }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   expect(await audit(page, '[role="dialog"]')).toEqual([]);

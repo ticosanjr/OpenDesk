@@ -14,6 +14,7 @@ import {
   Trash2,
   Plug,
   RefreshCw,
+  Star,
 } from "lucide-react";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import type {
@@ -30,6 +31,7 @@ import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
 import { StudioInstallModal } from "@/components/studio/StudioInstallModal";
 import { confirmAction } from "@/store/confirm-store";
+import { useFavorites } from "@/lib/favorites";
 
 const KIND_META = {
   agent: { label: "Agente", icon: Bot },
@@ -61,6 +63,9 @@ export function StudioOverview({
   } | null>(null);
   const [installOpen, setInstallOpen] = useState(false);
   const [backupsFor, setBackupsFor] = useState<EffectiveStudioItem | null>(null);
+  const { toggle: toggleFavorite, isFavorite } = useFavorites();
+  const favoriteKey = (item: EffectiveStudioItem) =>
+    `${item.source_scope}/${workspaceId ?? "global"}/${item.id}`;
 
   const workspaceRoot = workspaces.find((workspace) => workspace.id === workspaceId)?.root_path ?? "";
   useEffect(() => {
@@ -439,6 +444,37 @@ export function StudioOverview({
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={
+                            isFavorite(item.kind, favoriteKey(item))
+                              ? `Remover ${item.id} dos favoritos`
+                              : `Favoritar ${item.id}`
+                          }
+                          title={
+                            isFavorite(item.kind, favoriteKey(item))
+                              ? "Remover dos favoritos"
+                              : "Favoritar"
+                          }
+                          onClick={() =>
+                            toggleFavorite(item.kind, favoriteKey(item))
+                          }
+                          className={
+                            isFavorite(item.kind, favoriteKey(item))
+                              ? "h-8 px-2 text-amber-300"
+                              : "h-8 px-2 text-zinc-500"
+                          }
+                        >
+                          <Star
+                            size={13}
+                            fill={
+                              isFavorite(item.kind, favoriteKey(item))
+                                ? "currentColor"
+                                : "none"
+                            }
+                          />
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"

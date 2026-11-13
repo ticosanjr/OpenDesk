@@ -37,6 +37,7 @@ pub fn build_key(
     agent: Option<&str>,
     model: Option<&str>,
     effort: &str,
+    care: &str,
     tags: &[String],
     origin: &str,
 ) -> String {
@@ -57,6 +58,7 @@ pub fn build_key(
         agent.unwrap_or_default(),
         model.unwrap_or_default(),
         effort,
+        care,
         &tags,
     ])
 }

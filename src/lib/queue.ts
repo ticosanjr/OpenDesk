@@ -4,6 +4,21 @@ export interface QueueCounts {
   active: number;
 }
 
+const WORK_ORIGINS = new Set(["MANUAL", "CAPTURE"]);
+
+/** Kanban/Fila only shows tasks created directly by the user. */
+export function isWorkQueueJob(job: {
+  task_origin?: string | null;
+}): boolean {
+  return WORK_ORIGINS.has(job.task_origin ?? "");
+}
+
+export function workQueue<T extends { task_origin?: string | null }>(
+  jobs: T[],
+): T[] {
+  return jobs.filter(isWorkQueueJob);
+}
+
 export function queueCounts(jobs: Array<{ status: string }>): QueueCounts {
   let waiting = 0;
   let running = 0;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   Activity,
@@ -54,6 +54,9 @@ export function SearchPage() {
   const workspaces = useAppStore((state) => state.workspaces);
   const [params, setParams] = useSearchParams();
   const [query, setQuery] = useState(params.get("q") ?? "");
+  // Track the last value this component wrote to the URL. Without it, the
+  // debounced URL update echoes back an older query and swallows keystrokes.
+  const lastWrittenQuery = useRef(params.get("q") ?? "");
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>(() => {
     const requested = params.get("tab");
     return TABS.some((item) => item.id === requested)
@@ -80,6 +83,7 @@ export function SearchPage() {
       const next = new URLSearchParams();
       if (value) next.set("q", value);
       if (tab !== "all") next.set("tab", tab);
+      lastWrittenQuery.current = value;
       setParams(next, { replace: true });
       if (!activeWorkspaceId || value.length < 2) {
         setHits([]);
@@ -110,9 +114,11 @@ export function SearchPage() {
   }, [activeWorkspaceId, query, setParams, tab]);
 
   useEffect(() => {
-    const nextQuery = params.get("q");
-    if (nextQuery && nextQuery !== query) setQuery(nextQuery);
-  }, [params, query]);
+    const nextQuery = params.get("q") ?? "";
+    if (nextQuery === lastWrittenQuery.current) return;
+    lastWrittenQuery.current = nextQuery;
+    setQuery((current) => (current === nextQuery ? current : nextQuery));
+  }, [params]);
 
   useEffect(() => {
     const requested = params.get("tab");

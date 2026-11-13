@@ -1148,3 +1148,34 @@ async fn permissions_list_decide_agent_states_and_context() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn workspace_email_recipient_can_be_cleared() {
+    let ctx = test_support::context().await;
+    let (status, created) = call(
+        &ctx,
+        Method::POST,
+        "/api/workspaces",
+        Some(json!({
+            "name": "Email Clear",
+            "root_path": ctx.temp.path().join("email-clear").to_string_lossy(),
+            "default_email_recipient": "ops@example.com"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{created}");
+    let id = created["id"].as_str().expect("id");
+
+    let (status, updated) = call(
+        &ctx,
+        Method::PATCH,
+        &format!("/api/workspaces/{id}"),
+        Some(json!({ "default_email_recipient": null })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{updated}");
+    assert!(updated["default_email_recipient"].is_null());
+
+    let (_, reloaded) = call(&ctx, Method::GET, &format!("/api/workspaces/{id}"), None).await;
+    assert!(reloaded["default_email_recipient"].is_null());
+}

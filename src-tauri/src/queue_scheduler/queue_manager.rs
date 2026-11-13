@@ -810,6 +810,7 @@ fn job_dto(job: queue::QueueJob) -> QueueJobDto {
         retry_count: job.retry_count,
         max_retries: job.max_retries,
         error_message: job.error_message,
+        task_origin: job.task_origin,
     }
 }
 
@@ -862,6 +863,7 @@ mod tests {
             lease_expires_at: Some("2026-11-11T00:01:00Z".into()),
             last_heartbeat_at: Some("2026-11-11T00:00:30Z".into()),
             task_title: Some("Relatório".into()),
+            task_origin: Some("MANUAL".into()),
         });
         assert_eq!(dto.id, "job-1");
         assert_eq!(dto.title.as_deref(), Some("Relatório"));

@@ -28,14 +28,55 @@ test("kanban separates human work from automation executions", async ({
   await create("Entrada do barramento", "IO_BUS");
 
   await page.goto("/#/kanban");
-  await expect(page.getByRole("button", { name: /Trabalho · 1/ })).toBeVisible();
   await expect(page.getByText("Trabalho manual").first()).toBeVisible();
   await expect(page.getByText("Receita Alpha")).toHaveCount(0);
+  await expect(page.getByText("Entrada do barramento")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Automações/ })).toHaveCount(0);
 
-  await page.getByRole("button", { name: /Automações · 3/ }).click();
-  await expect(page.getByText("Receita Alpha").first()).toBeVisible();
-  await expect(page.getByText("Entrada do barramento").first()).toBeVisible();
-  await expect(page.getByText("Trabalho manual")).toHaveCount(0);
+  const scoped = await request.get(
+    `${auth.baseURL}/api/tasks?workspace_id=${workspace.id}&scope=work`,
+    { headers: auth.headers },
+  );
+  expect(scoped.ok()).toBeTruthy();
+  const workTasks = (await scoped.json()) as Array<{ title: string }>;
+  expect(workTasks.map((task) => task.title)).toEqual(["Trabalho manual"]);
+
+  await page.goto("/#/runs");
+  await expect(
+    page.getByLabel("Filtrar por origem da execução"),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Filtrar por origem da execução").locator("option", {
+      hasText: "automações",
+    }),
+  ).toHaveCount(1);
+});
+
+test("deep links open automation tasks outside the work board", async ({
+  page,
+  request,
+}) => {
+  const workspace = await seedWorkspace(request, "Kanban Deep Link");
+  const auth = api();
+  const created = await request.post(
+    `${auth.baseURL}/api/tasks?workspace_id=${workspace.id}`,
+    {
+      headers: auth.headers,
+      data: {
+        title: "Automação profunda",
+        description: "Executada por uma receita.",
+        execution_mode: "BUILD_DIRECT",
+        origin: "RECIPE",
+      },
+    },
+  );
+  expect(created.ok()).toBeTruthy();
+  const task = (await created.json()) as { id: string };
+
+  await page.goto(`/#/kanban?task=${task.id}`);
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("Automação profunda").first()).toBeVisible();
 });
 
 test("creating an identical task reuses the active one", async ({ request }) => {

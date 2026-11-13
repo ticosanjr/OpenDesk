@@ -13,6 +13,10 @@ struct Config {
     #[serde(default)]
     subject: Option<String>,
     #[serde(default)]
+    body: Option<String>,
+    #[serde(default)]
+    attach_artifacts: Option<bool>,
+    #[serde(default)]
     token_ref: Option<String>,
     #[serde(default)]
     token: Option<String>,
@@ -78,42 +82,66 @@ async fn smtp(
     output: &RunOutput,
     message: &str,
 ) -> AppResult<Vec<String>> {
-    let to = config
+    let to = match config
         .to
         .as_deref()
-        .ok_or_else(|| AppError::BadRequest("SMTP sink exige 'to'".into()))?;
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(value) => value.to_string(),
+        None => crate::db::workspaces::get(&ctx.pool, &output.workspace_id)
+            .await?
+            .default_email_recipient
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| {
+                AppError::BadRequest("SMTP sink exige 'to' ou um e-mail padrão no workspace".into())
+            })?,
+    };
     let smtp = smtp_mailer::load_config(&ctx.pool, &ctx.secrets(), &output.workspace_id)
         .await?
         .ok_or_else(|| AppError::BadRequest("SMTP não configurado no workspace".into()))?;
-    let attachments = artifact_paths(output)
-        .into_iter()
-        .take(5)
-        .filter_map(|path| {
-            let bytes = std::fs::read(path).ok()?;
-            if !smtp_mailer::attachment_limit(bytes.len()) {
-                return None;
-            }
-            Some(smtp_mailer::EmailAttachment {
-                filename: path
-                    .file_name()
-                    .and_then(|value| value.to_str())
-                    .unwrap_or("artifact")
-                    .to_string(),
-                mime: crate::media::mime_for_path(path).to_string(),
-                bytes,
+    let attachments = if config.attach_artifacts.unwrap_or(true) {
+        artifact_paths(output)
+            .into_iter()
+            .take(5)
+            .filter_map(|path| {
+                let bytes = std::fs::read(path).ok()?;
+                if !smtp_mailer::attachment_limit(bytes.len()) {
+                    return None;
+                }
+                Some(smtp_mailer::EmailAttachment {
+                    filename: path
+                        .file_name()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or("artifact")
+                        .to_string(),
+                    mime: crate::media::mime_for_path(path).to_string(),
+                    bytes,
+                })
             })
-        })
-        .collect();
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let body = config
+        .body
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|intro| format!("{intro}\n\n{message}"))
+        .unwrap_or_else(|| message.to_string());
     let html = format!(
         "<html><body><pre style=\"white-space:pre-wrap\">{}</pre></body></html>",
-        html_escape::encode_text(message)
+        html_escape::encode_text(&body)
     );
     smtp_mailer::send_email(
         &smtp,
-        to,
+        &to,
         config
             .subject
             .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
             .unwrap_or(&format!("[OpenDesk] {}", output.title)),
         html,
         attachments,

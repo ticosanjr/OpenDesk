@@ -34,6 +34,8 @@ pub struct QueueJob {
     pub last_heartbeat_at: Option<String>,
     #[sqlx(default)]
     pub task_title: Option<String>,
+    #[sqlx(default)]
+    pub task_origin: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -76,7 +78,7 @@ fn default_max_retries() -> i64 {
 const COLUMNS: &str = "q.id, q.workspace_id, q.task_id, q.schedule_id, q.session_id, q.concurrency_group, q.prompt_payload, \
     q.resolved_mode, q.resolved_agent, q.resolved_model, q.resolved_effort, q.job_kind, \
     q.scheduled_for, q.output_dir, q.priority, q.status, q.retry_count, q.max_retries, q.error_message, \
-    q.enqueued_at, q.started_at, q.finished_at, t.title AS task_title";
+    q.enqueued_at, q.started_at, q.finished_at, t.title AS task_title, t.origin AS task_origin";
 
 fn enqueue_dedupe_key(input: &EnqueueInput) -> String {
     // Prefer stable identity fields over the rendered prompt: the prompt

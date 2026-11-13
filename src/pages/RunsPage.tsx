@@ -1,15 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
-  CheckCircle2,
   ChevronRight,
   Clock3,
   Cpu,
   LayoutList,
-  Loader2,
   RefreshCw,
   Rows3,
-  XCircle,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
@@ -32,6 +29,13 @@ import {
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { runStatusLabel, runStatusTone } from "@/lib/status";
+import { RunStatusIcon } from "@/components/ui/run-status";
+import {
+  RUN_SCOPE_LABEL,
+  RUN_SCOPE_OPTIONS,
+  matchesRunScope,
+  runScope,
+} from "@/lib/run-scope";
 
 const STATUSES: Array<[string, string]> = [
   ["", "todos os status"],
@@ -64,6 +68,7 @@ export function RunsPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
+  const [scope, setScope] = useState("");
   const [limit, setLimit] = useState(100);
   const [sort, setSort] = useState<SortKey>("recent");
   const [view, setView] = useState<RunsView>("cards");
@@ -96,12 +101,13 @@ export function RunsPage() {
     const needle = query.trim().toLowerCase();
     return runs.filter((run) => {
       if (status && run.status !== status) return false;
+      if (!matchesRunScope(run, scope)) return false;
       if (!needle) return true;
       return `${run.task_title ?? ""} ${run.agent_name} ${run.model_id} ${run.id}`
         .toLowerCase()
         .includes(needle);
     });
-  }, [query, runs, status]);
+  }, [query, runs, scope, status]);
 
   const grouped = useMemo(() => {
     const groups = new Map<string, TaskRun[]>();
@@ -228,6 +234,17 @@ export function RunsPage() {
           ))}
         </FilterSelect>
         <FilterSelect
+          value={scope}
+          onChange={setScope}
+          ariaLabel="Filtrar por origem da execução"
+        >
+          {RUN_SCOPE_OPTIONS.map(([value, label]) => (
+            <option key={value || "all"} value={value}>
+              {label}
+            </option>
+          ))}
+        </FilterSelect>
+        <FilterSelect
           value={sort}
           onChange={(value) => setSort(value as SortKey)}
           ariaLabel="Ordenar execuções"
@@ -310,11 +327,12 @@ export function RunsPage() {
             />
           ) : view === "table" ? (
             <div className="scroll-area overflow-x-auto">
-              <table className="w-full min-w-[760px] text-left text-[13px]">
+              <table className="w-full min-w-[900px] text-left text-[13px]">
                 <thead className="border-b border-zinc-800/70 text-[11.5px] uppercase tracking-wide text-zinc-500">
                   <tr>
                     <th className="px-4 py-2">Execução</th>
                     <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Origem</th>
                     <th className="px-3 py-2">Agente</th>
                     <th className="px-3 py-2 text-right">Duração</th>
                     <th className="px-3 py-2 text-right">Tokens</th>
@@ -351,6 +369,11 @@ export function RunsPage() {
                           </Badge>
                         </td>
                         <td className="px-3 py-2">
+                          <Badge variant={runScope(run) === "work" ? "default" : "purple"}>
+                            {RUN_SCOPE_LABEL[runScope(run)]}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2">
                           <span className="block font-mono text-[12px] text-zinc-300">
                             @{run.agent_name}
                           </span>
@@ -384,19 +407,7 @@ export function RunsPage() {
                   to={links.run(run.id)}
                   className="flex flex-wrap items-center gap-3 px-4 py-3 transition-colors hover:bg-zinc-900/40"
                 >
-                  {run.status === "SUCCESS" ? (
-                    <CheckCircle2 size={15} className="shrink-0 text-emerald-400" />
-                  ) : run.status === "FAILED" ? (
-                    <XCircle size={15} className="shrink-0 text-red-400" />
-                  ) : (
-                    <Loader2
-                      size={15}
-                      className={cn(
-                        "shrink-0 text-blue-400",
-                        run.status === "RUNNING" && "animate-spin",
-                      )}
-                    />
-                  )}
+                  <RunStatusIcon status={run.status} size={15} />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate text-[14px] font-medium text-zinc-100">
@@ -414,6 +425,9 @@ export function RunsPage() {
                         </Badge>
                       ) : null}
                       <Badge variant="default">{run.phase ?? "run"}</Badge>
+                      {runScope(run) !== "work" ? (
+                        <Badge variant="purple">{RUN_SCOPE_LABEL[runScope(run)]}</Badge>
+                      ) : null}
                     </div>
                     <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11.5px] text-zinc-500">
                       <span>@{run.agent_name}</span>

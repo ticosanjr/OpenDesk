@@ -37,7 +37,7 @@ const TYPES = [
 ] as const;
 
 const TEMPLATES: Record<string, string> = {
-  FOLDER_WATCH: '{\n  "path": "input/dropzone",\n  "processor": "auto"\n}',
+  FOLDER_WATCH: '{\n  "path": "input/dropzone",\n  "processor": "auto",\n  "settle_secs": 2,\n  "process_empty": false,\n  "process_existing": true,\n  "retry_minutes": 1,\n  "ignore_patterns": []\n}',
   RSYNC_FOLDER: '{\n  "path": "input/dropzone",\n  "transport": "rsync",\n  "rsync_source": "user@host:/srv/inbox",\n  "ssh_key_ref": "rsync-key",\n  "interval_secs": 300\n}',
   OCR_WATCH: '{\n  "path": "input/dropzone",\n  "languages": "por+eng"\n}',
   AUDIO_STT_WATCH: '{\n  "path": "input/dropzone",\n  "whisper_model": "/caminho/model.bin"\n}',

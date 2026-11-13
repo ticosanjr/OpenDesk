@@ -148,7 +148,43 @@ pub(super) async fn plan_decision(
             .map(|status| status.daily_pct)
             .unwrap_or(0.0),
     };
-    Ok(dsh_router::classify(&input))
+    let mut decision = dsh_router::classify(&input);
+    // Quick work tasks can use the lean OpenDesk agent, but only when there is
+    // no explicit choice (task/agent dialog/rule) and the agent exists.
+    if task.care_level == "quick"
+        && decision.phase == "build"
+        && decision.origin != "RULE"
+        && !task.agent_override
+        && body.manual_agent.is_none()
+        && opendesk_agent_available(std::path::Path::new(&workspace.root_path))
+    {
+        decision.selected_agent = "opendesk".into();
+    }
+    Ok(decision)
+}
+
+fn opendesk_agent_available(workspace_root: &std::path::Path) -> bool {
+    let paths = crate::config_sync::paths::StudioPaths::new(Some(workspace_root.to_path_buf()));
+    ["workspace", "global"].iter().any(|scope| {
+        paths
+            .agents_dir(scope)
+            .map(|dir| dir.join("opendesk.md").is_file())
+            .unwrap_or(false)
+    })
+}
+
+fn care_instructions(care: &str) -> &'static str {
+    match care {
+        "quick" => {
+            "\n\n## Nível de cuidado: rápido\n\nSeja direto. Não faça plano formal nem auditoria. Execute o necessário, faça no máximo uma validação objetiva e entregue o resultado. Evite exploração extensa de arquivos."
+        }
+        "careful" => {
+            "\n\n## Nível de cuidado: cuidadoso\n\nRevise premissas, valide o resultado e registre riscos ou pendências. Prefira precisão a velocidade."
+        }
+        _ => {
+            "\n\n## Nível de cuidado: padrão\n\nUse um checklist curto, execute o necessário e faça uma validação. Não transforme tarefas simples em um plano longo."
+        }
+    }
 }
 
 pub(super) async fn enqueue_decision(
@@ -175,6 +211,8 @@ pub(crate) async fn enqueue_decision_with_session(
     tasks::set_output_dir(&state.db, &task.id, &decision.output_directory).await?;
 
     let tags = task.tags();
+    let care = task.care_level.as_str();
+    let selected_agent = decision.selected_agent.clone();
     let needs_browser = crate::browse::ensure_for_task(
         state,
         &task.workspace_id,
@@ -192,11 +230,12 @@ pub(crate) async fn enqueue_decision_with_session(
         priority: task.priority,
         phase: &decision.phase,
         plan: approved_plan.or(task.plan_markdown.as_deref()),
-        agent: &decision.selected_agent,
+        agent: &selected_agent,
         needs_browser,
     });
     let prompt = format!(
-        "{prompt}\n\n## Contexto OpenDesk\n\nTask ID: `{}`. Se faltar informação essencial para continuar, use a ferramenta MCP `ask_user` com este task_id antes de assumir.\n",
+        "{prompt}{}\n\n## Contexto OpenDesk\n\nTask ID: `{}`. Se faltar informação essencial para continuar, use a ferramenta MCP `ask_user` com este task_id antes de assumir.\n",
+        care_instructions(care),
         task.id
     );
 
@@ -210,10 +249,10 @@ pub(crate) async fn enqueue_decision_with_session(
             task_id: Some(task.id.clone()),
             schedule_id: None,
             session_id: session_id.map(str::to_string),
-            concurrency_group: Some(concurrency_group(&decision.selected_agent)),
+            concurrency_group: Some(concurrency_group(&selected_agent)),
             prompt_payload: prompt,
             resolved_mode: decision.phase.clone(),
-            resolved_agent: decision.selected_agent.clone(),
+            resolved_agent: selected_agent,
             resolved_model: decision.selected_model.clone(),
             resolved_effort: decision.effort.clone(),
             job_kind: "task".into(),
@@ -232,4 +271,26 @@ pub(crate) async fn enqueue_decision_with_session(
     });
 
     Ok(job)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn care_instructions_match_the_level() {
+        assert!(care_instructions("quick").contains("Não faça plano formal"));
+        assert!(care_instructions("careful").contains("Revise premissas"));
+        assert!(care_instructions("standard").contains("checklist curto"));
+    }
+
+    #[test]
+    fn opendesk_agent_is_detected_in_the_workspace() {
+        let temp = tempfile::TempDir::new().expect("temp");
+        assert!(!opendesk_agent_available(temp.path()));
+        let agents = temp.path().join(".opencode/agents");
+        std::fs::create_dir_all(&agents).expect("agents");
+        std::fs::write(agents.join("opendesk.md"), "---\nname: OpenDesk\n---").expect("agent");
+        assert!(opendesk_agent_available(temp.path()));
+    }
 }

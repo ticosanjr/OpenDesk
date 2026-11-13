@@ -86,6 +86,7 @@ pub async fn capture(
             assigned_agent: agent.clone(),
             preferred_model: None,
             effort_level: None,
+            care_level: Some("standard".into()),
             notify_email: None,
             export_to_gdocs: false,
             tags: vec!["quick-capture".into()],

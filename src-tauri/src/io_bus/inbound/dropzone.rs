@@ -10,11 +10,12 @@ use notify_debouncer_full::{
 };
 use serde::Deserialize;
 use std::{
+    collections::HashSet,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
 };
-use tokio::sync::mpsc;
+use tokio::sync::{Semaphore, mpsc};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -43,6 +44,21 @@ pub struct DropzoneConfig {
     pub delete: bool,
     #[serde(default)]
     pub checksum: bool,
+    /// Wait before processing so a half-written file is not read.
+    #[serde(default)]
+    pub settle_secs: Option<u64>,
+    /// Include files with zero bytes in the task.
+    #[serde(default)]
+    pub process_empty: bool,
+    /// Process files that already existed when the watcher started.
+    #[serde(default)]
+    pub process_existing: Option<bool>,
+    /// Delay before retrying a failed file.
+    #[serde(default)]
+    pub retry_minutes: Option<u64>,
+    /// Simple substring/extension patterns ignored by the watcher.
+    #[serde(default)]
+    pub ignore_patterns: Vec<String>,
 }
 
 pub async fn run(
@@ -115,6 +131,9 @@ async fn watch(
         });
     }
 
+    let in_flight: Arc<tokio::sync::Mutex<HashSet<PathBuf>>> =
+        Arc::new(tokio::sync::Mutex::new(HashSet::new()));
+    let limit = Arc::new(Semaphore::new(4));
     let (tx, mut rx) = mpsc::unbounded_channel::<PathBuf>();
     let mut debouncer: Debouncer<RecommendedWatcher, RecommendedCache> = new_debouncer(
         Duration::from_millis(500),
@@ -134,12 +153,23 @@ async fn watch(
         .watch(&dropzone, RecursiveMode::Recursive)
         .map_err(|error| AppError::Internal(format!("dropzone watch: {error}")))?;
 
-    // Process files already present when the source starts.
-    if let Ok(entries) = std::fs::read_dir(&dropzone) {
+    // Process files already present when the source starts, unless disabled.
+    if config.process_existing.unwrap_or(true)
+        && let Ok(entries) = std::fs::read_dir(&dropzone)
+    {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_file() {
-                process_file(&state, &source, &config, &workspace_root, &path).await;
+                schedule_processing(
+                    state.clone(),
+                    source.clone(),
+                    config.clone(),
+                    workspace_root.clone(),
+                    path,
+                    in_flight.clone(),
+                    limit.clone(),
+                )
+                .await;
             }
         }
     }
@@ -149,13 +179,76 @@ async fn watch(
             _ = cancel.cancelled() => break,
             path = rx.recv() => {
                 let Some(path) = path else { break; };
-                if path.is_file() && !is_ignored(&path) {
-                    process_file(&state, &source, &config, &workspace_root, &path).await;
+                if path.is_file() && !is_ignored(&path, &config.ignore_patterns) {
+                    schedule_processing(
+                        state.clone(),
+                        source.clone(),
+                        config.clone(),
+                        workspace_root.clone(),
+                        path,
+                        in_flight.clone(),
+                        limit.clone(),
+                    )
+                    .await;
                 }
             }
         }
     }
     Ok(())
+}
+
+/// Avoid the duplicate create/modify events the debouncer can still emit for
+/// the same file, and bound heavy OCR/audio work.
+async fn schedule_processing(
+    state: Arc<AppState>,
+    source: InboundSource,
+    config: DropzoneConfig,
+    workspace_root: PathBuf,
+    path: PathBuf,
+    in_flight: Arc<tokio::sync::Mutex<HashSet<PathBuf>>>,
+    limit: Arc<Semaphore>,
+) {
+    if !in_flight.lock().await.insert(path.clone()) {
+        return;
+    }
+    tokio::spawn(async move {
+        let _permit = limit.acquire_owned().await.ok();
+        process_with_retry(state, source, config, workspace_root, path.clone()).await;
+        in_flight.lock().await.remove(&path);
+    });
+}
+
+async fn process_with_retry(
+    state: Arc<AppState>,
+    source: InboundSource,
+    config: DropzoneConfig,
+    workspace_root: PathBuf,
+    path: PathBuf,
+) {
+    let settle = config.settle_secs.unwrap_or(2).clamp(0, 300);
+    if settle > 0 {
+        tokio::time::sleep(Duration::from_secs(settle)).await;
+    }
+    let attempts = 2;
+    let mut last_error = None;
+    for attempt in 0..=attempts {
+        match process_file(&state, &source, &config, &workspace_root, &path).await {
+            Ok(()) => return,
+            Err(error) => {
+                last_error = Some(error);
+                if attempt < attempts {
+                    let wait = config.retry_minutes.unwrap_or(1).clamp(1, 1440) * 60;
+                    tokio::time::sleep(Duration::from_secs(wait)).await;
+                }
+            }
+        }
+    }
+    if let Some(error) = last_error {
+        tracing::warn!(path = %path.display(), error = %error, "dropzone processing failed after retries");
+        let _ = preprocess::move_failed(&path, &workspace_root);
+        let _ = io_bus::mark_inbound(&state.db, &source.id, "FAILED", Some(&format!("{error:#}")))
+            .await;
+    }
 }
 
 async fn process_file(
@@ -164,23 +257,29 @@ async fn process_file(
     config: &DropzoneConfig,
     workspace_root: &Path,
     path: &Path,
-) {
-    if is_ignored(path) {
-        return;
+) -> AppResult<()> {
+    if is_ignored(path, &config.ignore_patterns) {
+        return Ok(());
     }
     let metadata = match std::fs::metadata(path) {
         Ok(metadata) => metadata,
-        Err(_) => return,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
     };
     if metadata.len() > 100 * 1024 * 1024 {
         tracing::warn!(path = %path.display(), "dropzone file ignored: larger than 100 MB");
-        return;
+        return Ok(());
     }
-    let title = path
+    if metadata.len() == 0 && !config.process_empty {
+        tracing::info!(path = %path.display(), "dropzone empty file ignored");
+        return Ok(());
+    }
+    let stem = path
         .file_stem()
         .and_then(|value| value.to_str())
         .unwrap_or("Arquivo recebido")
         .replace(['_', '-'], " ");
+    let title = format!("{stem} · {}", source.name);
     let extension = path
         .extension()
         .and_then(|value| value.to_str())
@@ -220,15 +319,18 @@ async fn process_file(
                 format!("# {title}\n\n{text}")
             }
         }
-        Err(error) => {
-            tracing::warn!(path = %path.display(), error = %error, "dropzone processing failed");
-            let _ = preprocess::move_failed(path, workspace_root);
-            let _ =
-                io_bus::mark_inbound(&state.db, &source.id, "FAILED", Some(&format!("{error:#}")))
-                    .await;
-            return;
-        }
+        Err(error) => return Err(error),
     };
+    let source_details = format!(
+        "## Origem do gatilho\n\n- Fonte: **{}** (`{}`)\n- Arquivo: `{relative}`\n- Tamanho: {} bytes\n- Pasta monitorada: `{}`\n\n",
+        source.name,
+        source.source_type,
+        metadata.len(),
+        path.parent()
+            .map(|value| value.display().to_string())
+            .unwrap_or_default(),
+    );
+    let body = format!("{source_details}{body}");
     let event = NormalizedTaskEvent {
         source_id: source.id.clone(),
         external_id: relative.clone(),
@@ -237,19 +339,24 @@ async fn process_file(
         priority: None,
         tags: vec![format!("file:{extension}")],
         attachments: vec![relative],
-        metadata: serde_json::json!({ "path": path, "size": metadata.len() }),
+        metadata: serde_json::json!({
+            "path": path,
+            "size": metadata.len(),
+            "source_id": source.id,
+            "source_type": source.source_type,
+            "source_name": source.name,
+            "detected_at": chrono::Utc::now().to_rfc3339(),
+        }),
     };
     match crate::io_bus::ingest(state, source, event).await {
         Ok(_) => {
             let _ = preprocess::move_processed(path, workspace_root);
             let _ = io_bus::mark_inbound(&state.db, &source.id, "TRIGGERED", None).await;
+            Ok(())
         }
         Err(error) => {
             tracing::warn!(error = %error, "dropzone ingest failed");
-            let _ = preprocess::move_failed(path, workspace_root);
-            let _ =
-                io_bus::mark_inbound(&state.db, &source.id, "FAILED", Some(&format!("{error:#}")))
-                    .await;
+            Err(error)
         }
     }
 }
@@ -259,25 +366,144 @@ async fn audio_text(path: &Path, config: &DropzoneConfig) -> AppResult<String> {
     preprocess::transcribe(path, model).await
 }
 
-fn is_ignored(path: &Path) -> bool {
+fn is_ignored(path: &Path, patterns: &[String]) -> bool {
     let name = path
         .file_name()
         .and_then(|value| value.to_str())
         .unwrap_or_default();
-    name.starts_with('.')
+    if name.starts_with('.')
         || name.ends_with(".tmp")
         || name.ends_with(".part")
         || name.ends_with(".crdownload")
+    {
+        return true;
+    }
+    patterns.iter().any(|pattern| {
+        let pattern = pattern.trim();
+        !pattern.is_empty() && name.to_lowercase().contains(&pattern.to_lowercase())
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn source(workspace_id: &str) -> InboundSource {
+        InboundSource {
+            id: "source-1".into(),
+            workspace_id: workspace_id.into(),
+            name: "Pasta de teste".into(),
+            source_type: "FOLDER_WATCH".into(),
+            config_json: "{}".into(),
+            target_agent: None,
+            target_column: "TODO".into(),
+            auto_execute: false,
+            is_enabled: true,
+            last_triggered_at: None,
+            last_status: None,
+            last_error: None,
+            created_at: "2026-11-13T00:00:00Z".into(),
+        }
+    }
+
+    #[tokio::test]
+    async fn processes_a_file_into_a_durable_task() {
+        let ctx = crate::test_support::context().await;
+        let dir = ctx.workspace_root.join("input/dropzone");
+        std::fs::create_dir_all(&dir).expect("dir");
+        let file = dir.join("relatorio.txt");
+        std::fs::write(&file, "conteudo do relatorio").expect("file");
+        let source = source(&ctx.workspace_id);
+        let config = DropzoneConfig::default();
+
+        process_file(&ctx.state, &source, &config, &ctx.workspace_root, &file)
+            .await
+            .expect("process");
+
+        let tasks = crate::db::tasks::list(&ctx.state.db, &ctx.workspace_id)
+            .await
+            .expect("tasks");
+        assert_eq!(tasks.len(), 1);
+        assert!(tasks[0].title.contains("Pasta de teste"));
+        assert!(tasks[0].description.contains("Origem do gatilho"));
+        assert!(!file.exists());
+    }
+
+    #[tokio::test]
+    async fn retry_wrapper_processes_a_file() {
+        let ctx = crate::test_support::context().await;
+        let dir = ctx.workspace_root.join("input/dropzone");
+        std::fs::create_dir_all(&dir).expect("dir");
+        let file = dir.join("retry.txt");
+        std::fs::write(&file, "conteudo").expect("file");
+        let source = source(&ctx.workspace_id);
+        let config = DropzoneConfig {
+            settle_secs: Some(0),
+            ..DropzoneConfig::default()
+        };
+
+        process_with_retry(
+            ctx.state.clone(),
+            source,
+            config,
+            ctx.workspace_root.clone(),
+            file.clone(),
+        )
+        .await;
+
+        assert!(!file.exists());
+        let tasks = crate::db::tasks::list(&ctx.state.db, &ctx.workspace_id)
+            .await
+            .expect("tasks");
+        assert_eq!(tasks.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn empty_files_are_skipped_by_default() {
+        let ctx = crate::test_support::context().await;
+        let dir = ctx.workspace_root.join("input/dropzone");
+        std::fs::create_dir_all(&dir).expect("dir");
+        let file = dir.join("vazio.txt");
+        std::fs::write(&file, b"").expect("file");
+        let source = source(&ctx.workspace_id);
+        let config = DropzoneConfig::default();
+
+        process_file(&ctx.state, &source, &config, &ctx.workspace_root, &file)
+            .await
+            .expect("process");
+        assert!(file.exists());
+        let tasks = crate::db::tasks::list(&ctx.state.db, &ctx.workspace_id)
+            .await
+            .expect("tasks");
+        assert!(tasks.is_empty());
+    }
+
+    #[test]
+    fn parses_the_folder_watch_options() {
+        let config: DropzoneConfig = serde_json::from_value(serde_json::json!({
+            "path": "input/dropzone",
+            "settle_secs": 5,
+            "process_empty": true,
+            "process_existing": false,
+            "retry_minutes": 15,
+            "ignore_patterns": ["tmp", "backup"]
+        }))
+        .expect("config");
+        assert_eq!(config.settle_secs, Some(5));
+        assert!(config.process_empty);
+        assert_eq!(config.process_existing, Some(false));
+        assert_eq!(config.retry_minutes, Some(15));
+        assert_eq!(config.ignore_patterns, vec!["tmp", "backup"]);
+    }
+
     #[test]
     fn ignores_temporary_and_hidden_files() {
-        assert!(is_ignored(Path::new("/tmp/.hidden")));
-        assert!(is_ignored(Path::new("/tmp/a.tmp")));
-        assert!(!is_ignored(Path::new("/tmp/report.pdf")));
+        assert!(is_ignored(Path::new("/tmp/.hidden"), &[]));
+        assert!(is_ignored(Path::new("/tmp/a.tmp"), &[]));
+        assert!(!is_ignored(Path::new("/tmp/report.pdf"), &[]));
+        assert!(is_ignored(
+            Path::new("/tmp/ignorar.pdf"),
+            &["ignorar".into()]
+        ));
     }
 }

@@ -21,34 +21,11 @@ test("packs can be favorited and the filter survives a reload", async ({
     .click();
 });
 
-test("recommended skills list, favorite and install with preselected skill", async ({
+test("recommended skills list, favorite and install through a task", async ({
   page,
   request,
 }) => {
-  await seedWorkspace(request, "Packs Recommended");
-  await page.route("**/api/studio/install/preview", (route) =>
-    route.fulfill({
-      json: {
-        items: [
-          {
-            kind: "skill",
-            id: "ponytail",
-            name: "Ponytail",
-            description: "Menor mudança que resolve.",
-            body: "# Ponytail",
-            files: [],
-            server: null,
-          },
-        ],
-        warnings: [],
-      },
-    }),
-  );
-  await page.route("**/api/studio/install/apply", (route) =>
-    route.fulfill({
-      json: { ok: true, scope: "workspace", items: [{ kind: "skill", id: "ponytail" }] },
-    }),
-  );
+  const workspace = await seedWorkspace(request, "Packs Recommended");
 
   await page.goto("/#/packs");
   await page.getByRole("button", { name: "Recomendados" }).click();
@@ -61,19 +38,32 @@ test("recommended skills list, favorite and install with preselected skill", asy
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Favoritar Caveman" }).click();
-  await page.getByRole("button", { name: "Favoritos", exact: true }).click();
+  await page.getByRole("button", { name: "Só favoritos" }).click();
   await expect(page.getByText("Caveman", { exact: true })).toBeVisible();
   await expect(page.getByText("Ponytail", { exact: true })).toHaveCount(0);
 
+  await page.getByRole("button", { name: "Só favoritos" }).click();
   const ponytail = page
     .getByText("Ponytail", { exact: true })
     .locator("xpath=ancestor::article[1]");
-  await page.getByRole("button", { name: "Favoritos", exact: true }).click();
-  await ponytail.getByRole("button", { name: "Instalar" }).click();
+  await ponytail.getByRole("button", { name: "Instalar via tarefa" }).click();
+  await expect(
+    page.getByText("Instalação enviada para execução"),
+  ).toBeVisible();
 
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("URL direta");
-  await expect(dialog).toContainText("ponytail");
-  await dialog.getByRole("button", { name: "Instalar selecionados" }).click();
-  await expect(page.getByText("Ponytail instalada")).toBeVisible();
+  const auth = (await import("./helpers")).api();
+  await expect
+    .poll(async () => {
+      const response = await request.get(
+        `${auth.baseURL}/api/tasks?workspace_id=${workspace.id}`,
+        { headers: auth.headers },
+      );
+      const tasks = (await response.json()) as Array<{ title: string; description: string }>;
+      return tasks.some(
+        (task) =>
+          task.title === "Instalar skill Ponytail" &&
+          task.description.includes("Ponytail"),
+      );
+    })
+    .toBe(true);
 });

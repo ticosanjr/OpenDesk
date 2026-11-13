@@ -230,28 +230,50 @@ impl SignalBridge {
                 AppError::BadRequest(format!("could not run signal-cli link: {error}"))
             })?;
 
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| AppError::Internal("signal-cli link stdout unavailable".into()))?;
-        let mut lines = BufReader::new(stdout).lines();
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+        if stdout.is_none() && stderr.is_none() {
+            let _ = child.kill().await;
+            return Err(AppError::Internal(
+                "signal-cli link não expôs stdout/stderr".into(),
+            ));
+        }
+
+        // signal-cli versions differ: some print the sgnl:// URI on stdout,
+        // others on stderr. Read both concurrently and keep draining them so
+        // the process can wait for the phone without blocking.
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+        if let Some(stdout) = stdout {
+            let tx = tx.clone();
+            tokio::spawn(async move {
+                let mut lines = BufReader::new(stdout).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    let _ = tx.send(line);
+                }
+            });
+        }
+        if let Some(stderr) = stderr {
+            let tx = tx.clone();
+            tokio::spawn(async move {
+                let mut lines = BufReader::new(stderr).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    let _ = tx.send(line);
+                }
+            });
+        }
+        drop(tx);
+
         let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(15);
         let mut uri = None;
         while tokio::time::Instant::now() < deadline {
-            match tokio::time::timeout(std::time::Duration::from_secs(2), lines.next_line()).await {
-                Ok(Ok(Some(line))) => {
+            match tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv()).await {
+                Ok(Some(line)) => {
                     if let Some(index) = line.find("sgnl://") {
                         uri = Some(line[index..].trim().to_string());
                         break;
                     }
                 }
-                Ok(Ok(None)) => break,
-                Ok(Err(error)) => {
-                    let _ = child.kill().await;
-                    return Err(AppError::Internal(format!(
-                        "signal-cli link failed: {error}"
-                    )));
-                }
+                Ok(None) => break,
                 Err(_) => {}
             }
         }
@@ -264,15 +286,6 @@ impl SignalBridge {
             ));
         };
 
-        // Keep draining the process output so it does not block while waiting
-        // for the phone to scan the QR code.
-        tokio::spawn(async move {
-            let mut lines = lines;
-            while let Ok(Ok(Some(_))) =
-                tokio::time::timeout(std::time::Duration::from_secs(60), lines.next_line()).await
-            {
-            }
-        });
         *link = Some(child);
         Ok(uri)
     }
@@ -566,6 +579,30 @@ mod tests {
         std::fs::write(
             &script,
             "#!/bin/sh\necho 'sgnl://linkdevice?uuid=abc&id=xyz'\nsleep 5\n",
+        )
+        .expect("script");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755))
+                .expect("chmod");
+        }
+        let bridge = SignalBridge::default();
+        let uri = bridge
+            .link(&script.to_string_lossy())
+            .await
+            .expect("link uri");
+        assert!(uri.starts_with("sgnl://linkdevice"));
+        bridge.stop().await;
+    }
+
+    #[tokio::test]
+    async fn link_reads_the_uri_from_stderr_too() {
+        let temp = tempfile::TempDir::new().expect("temp");
+        let script = temp.path().join("signal-stderr");
+        std::fs::write(
+            &script,
+            "#!/bin/sh\necho 'sgnl://linkdevice?uuid=stderr&id=xyz' 1>&2\nsleep 5\n",
         )
         .expect("script");
         #[cfg(unix)]

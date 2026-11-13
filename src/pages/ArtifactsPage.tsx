@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Archive,
+  Download,
   ExternalLink,
   FileText,
   GitCompare,
@@ -23,6 +24,7 @@ import { useUiStore } from "@/store/ui-store";
 import { apiGet, apiPost } from "@/lib/api";
 import type { Artifact } from "@/lib/types";
 import { formatNumber, relativeTime, shortPath } from "@/lib/format";
+import { saveLocalFile } from "@/lib/save-file";
 import { cn } from "@/lib/utils";
 import { links } from "@/lib/links";
 import { EntityLink } from "@/components/ui/entity-link";
@@ -270,6 +272,36 @@ export function ArtifactsPage() {
     }
   }
 
+  function containingFolder(path: string): string {
+    const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+    return index > 0 ? path.slice(0, index) : path;
+  }
+
+  async function saveArtifact(artifact: Artifact) {
+    const filename =
+      artifact.file_path.split("/").pop() ?? "artefato";
+    try {
+      const saved = await saveLocalFile({
+        filename,
+        artifactId: artifact.id,
+        fallbackUrl: `/api/artifacts/${artifact.id}/raw`,
+      });
+      if (saved) {
+        toast({
+          tone: "success",
+          title: "Download salvo",
+          description: filename,
+        });
+      }
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível baixar",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  }
+
   if (!activeWorkspaceId) {
     return (
       <PageBody>
@@ -385,6 +417,18 @@ export function ArtifactsPage() {
                     >
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            title={`Baixar ${artifact.file_path}`}
+                            aria-label={`Baixar ${artifact.file_path}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void saveArtifact(artifact);
+                            }}
+                            className="-m-1 rounded p-1 text-zinc-500 transition-colors hover:text-zinc-100"
+                          >
+                            <Download size={13} />
+                          </button>
                           <button
                             type="button"
                             title={artifact.pinned ? "Desafixar entregável" : "Fixar como entregável"}
@@ -537,10 +581,18 @@ export function ArtifactsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => void reveal(selected.absolute_path)}
+                  onClick={() => void reveal(containingFolder(selected.absolute_path))}
                 >
                   <ExternalLink size={13} />
                   Abrir pasta
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void saveArtifact(selected)}
+                >
+                  <Download size={13} />
+                  Baixar
                 </Button>
               </div>
             </div>
@@ -630,6 +682,10 @@ export function ArtifactsPage() {
                     size={content.size}
                     rawUrl={`/api/artifacts/${selected.id}/raw`}
                     onOpenExternal={() => void reveal(selected.absolute_path)}
+                    onOpenFolder={() =>
+                      void reveal(containingFolder(selected.absolute_path))
+                    }
+                    onDownload={() => void saveArtifact(selected)}
                     archive={archive}
                     archiveLoading={archiveLoading}
                     archiveError={archiveError}

@@ -2389,3 +2389,135 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Release **0.51.0** publicada: commit `87bea55`, tag `v0.51.0`, assets Linux
   (deb/rpm/AppImage/binário), `latest.json` assinado, SHA256SUMS conferido e
   retenção mantendo 0.50.0, 0.50.1 e 0.51.0.
+
+## 2026-11-13 — fase 0: entrada, estado e layout
+
+- Busca: removido o eco `URL → input` que apagava o caractere recém-digitado
+  quando o debounce gravava a query anterior; o campo mantém a digitação e a
+  URL continua sincronizada para deep links/back-forward. Teste de digitação
+  rápida adicionado.
+- Status único: `runStatusMeta`/`RunStatusIcon` centralizam ícone, cor e label.
+  Cancelada agora é cinza com X (não spinner), sucesso verde, falha vermelha,
+  execução azul e fila âmbar; Execuções, Calendário, Run log e detalhes usam a
+  mesma fonte.
+- Sidebar: badge de fila em duas linhas dentro do espaço disponível e indicador
+  animado no item Kanban & Fila; o header do Kanban mostra a contagem de
+  execuções em andamento.
+- Cards do Kanban: ações viraram ícones acessíveis (arquivos, retomar, cancelar,
+  executar, abrir, logs), eliminando a sobreposição em cards estreitos.
+- Composer: `SlashTextarea` ganhou container flexível; Chat, Meta-Builder e run
+  log ocupam toda a largura, com botão Enviar da mesma altura do campo.
+- Scroll: hook `useStickToBottom` abre no fim, acompanha novos eventos, pausa
+  quando o usuário sobe e oferece “ir para o fim” em Chat e Run log (modal e
+  página).
+- Ordem: Kanban e exibição da fila mostram o item mais recente no topo,
+  preservando a ordem real de execução no backend.
+- Atualizar: ícones giram durante a ação em Dashboard, Atenção, Chat,
+  Atualizações, importação Google, Topbar, retry do motor e Run log.
+- Verificação: tsc, ESLint, 204 Vitest, 93 Playwright, 49 goldens, build e 74/74
+  features. Sem release.
+
+## 2026-11-13 — fase 1: Kanban/Fila só de trabalho x Execuções com automações
+
+- Kanban: removido o seletor Trabalho/Automações/Tudo e o campo `origin` das
+  views salvas. `/api/tasks?scope=work` devolve apenas `MANUAL` e `CAPTURE`;
+  board, lista, contadores e ações em lote trabalham só com essas tarefas.
+- Fila: jobs de automação não aparecem. `/api/queue` e eventos passaram a
+  expor `task_origin`, e a UI filtra `MANUAL`/`CAPTURE` (Sidebar, header do
+  Kanban e controlador). Pausa e concorrência continuam globais, com aviso na
+  tela.
+- Execuções: default mostra tudo e ganhou filtro por origem — tudo, trabalho,
+  automações, rotinas e receitas. Runs carregam `task_origin` e mostram badge
+  de origem na tabela e nos cards.
+- Classificação: `runScope` cobre MANUAL/CAPTURE como trabalho, RECIPE como
+  receita, ROUTINE como rotina, IO_BUS/DELEGATION como automação e runs de
+  agenda sem tarefa como rotina.
+- Testes: API `scope=work` esconde receitas/rotinas/IO; unidade de `runScope`,
+  `workQueue` e views sem origem; E2E atualizado (Kanban sem automações e
+  filtro de Execuções visível).
+- Verificação: tsc, ESLint, **208 Vitest**, **381 testes Rust**, clippy/fmt,
+  **93 Playwright**, goldens de Kanban/Execuções regravados, 74/74 features.
+  Sem release.
+
+## 2026-11-13 — fase 2: catálogo, Studio, receitas, downloads e HTML
+
+- Favoritos: storage v2 migra packs/skills e cobre templates, workspaces,
+  agentes, comandos, MCPs e recursos externos. Estrela nos templates,
+  recomendados, recursos e itens efetivos do Studio; filtro “Só favoritos”
+  aplica em todas as abas de Pacotes.
+- Recomendados aparecem também na visão geral e na busca, não só na aba
+  dedicada; o filtro de favoritos vale para pacotes, templates, skills e
+  recursos.
+- Instalação de recomendados/externos virou tarefa: título, origem, URL,
+  comando, notas e critério de sucesso são enviados ao agente; a tarefa é
+  enfileirada e acompanhada em Execuções. O Impeccable não abre mais o site
+  como ação principal.
+- Studio: resumo de escopo (agentes, skills, comandos, MCPs, habilitados,
+  desabilitados e sobrepostos) nas abas Global, Workspace e Efetivo.
+- Receitas: sem receita selecionada a tela mostra “Criar ou selecionar”; fluxo,
+  YAML e ações só aparecem com receita aberta. Nome editável no topo do fluxo e
+  editor YAML colapsável.
+- Downloads: preferências de pasta e “perguntar onde salvar”; backend
+  `/api/files/save` e `/api/artifacts/{id}/save` copiam para o destino
+  escolhido. Ícone de download em Artefatos e botões de pasta/arquivo no
+  visualizador.
+- HTML: preferência global de scripts e liberação por visualização, com iframe
+  `sandbox="allow-scripts"` apenas quando autorizado.
+- Verificação: tsc, ESLint, **219 Vitest**, **383 testes Rust**, clippy/fmt,
+  **93 Playwright**, goldens atualizados, 74/74 features. Sem release.
+
+## 2026-11-13 — fase 3: I/O, arquivos de entrada, notificações, SMTP e Signal
+
+- Folder Watch: gatilho e fonte aceitam espera antes de processar (`settle_secs`),
+  retry (`retry_minutes`), processar vazios, processar arquivos existentes e
+  padrões ignorados. O dropzone lê arquivo estabilizado, tenta novamente antes
+  de mover para falha e inclui fonte, pasta, tamanho e horário no título/corpo/
+  metadados. O runtime de receitas aplica os mesmos campos (estabilidade,
+  vazios, existentes, retry).
+- Execuções: timeline ganhou `inputs` com arquivos de entrada de receitas,
+  anexos e tarefas. O run log exibe uma faixa “arquivos de entrada” com tamanho,
+  gatilho e ações abrir arquivo/pasta.
+- Notificações: toast e notificação nativa mostram nome da tarefa, agente,
+  duração, custo, tokens e motivo da falha; a mensagem é a mesma nos dois canais.
+- SMTP: porta 587 com credenciais força STARTTLS exigido, porta 465 usa SSL,
+  espaços da App Password/usuário são normalizados, erros de AUTH recebem dica
+  objetiva. Sink de e-mail aceita destinatário opcional (fallback para o e-mail
+  padrão do workspace), assunto, texto extra e anexos opcionais.
+- Signal: o vínculo lê o URI `sgnl://` de stdout **ou stderr**, gera novo QR ao
+  repetir e limpa o QR anterior; teste com `signal-cli` falso cobrindo stderr.
+- Verificação: tsc, ESLint, **222 Vitest**, **384 testes Rust**, clippy/fmt,
+  **93 Playwright**, 49 goldens e 74/74 features. Sem release.
+
+## 2026-11-13 — fase 4: agente OpenDesk e nível de cuidado
+
+- Novo `care_level` na tarefa (`quick`, `standard`, `careful`) com migração
+  0034, persistência na API, campo no formulário de tarefa e resumo no detalhe.
+- O dispatch injeta instruções de cuidado no prompt:
+  - rápido: sem plano formal/auditoria, uma validação objetiva;
+  - padrão: checklist curto e uma validação;
+  - cuidadoso: revisão de premissas, validação e riscos.
+- Em `quick`, quando o agente não foi escolhido manualmente e o arquivo
+  `.opencode/agents/opendesk.md` existe, o dispatch usa o novo agente
+  **OpenDesk**; caso contrário mantém o `build` (compatível com workspaces
+  antigos).
+- Pacote base `controle-opendesk` 1.1.0 passa a incluir o agente `opendesk.md`,
+  com postura direta para tarefas comuns, instalações e rotinas; tarefas de
+  código continuam no `build`.
+- Tarefas de instalação de capacidades nascem com cuidado `quick`.
+- Testes: API de cuidado (criar/editar/inválido), instruções de prompt e
+  detecção do agente no workspace.
+- Verificação: tsc, ESLint, **222 Vitest**, **387 testes Rust**, clippy/fmt,
+  **93 Playwright**, goldens atualizados e 74/74 features. Sem release.
+
+## 2026-11-13 — fase 5: verificação e entrega (sem release)
+
+- Gate completo verde após todas as fases: tsc, ESLint, cobertura JS, fmt,
+  clippy, testes Rust, cobertura Rust, build, 93 Playwright e 49 goldens.
+- Cobertura Rust: **64,81% total / 71,14% core**; ratchets subiram para
+  64,5% e 70,8%. Novos testes cobrem opções do Folder Watch, processamento real
+  de arquivo em tarefa, inputs de run (receita e descrição), credenciais SMTP e
+  opções do runtime de receitas.
+- Suíte funcional: **74/74 (100%)**. `npm run audit:prod`: 0 vulnerabilidades.
+- Relatório de aceitação em `docs/verification.md`, com pendências manuais
+  (Gmail real, Signal real, builds macOS/Windows e contrato Google).
+- Versão publicada segue 0.51.0; nenhuma tag ou release foi criada.

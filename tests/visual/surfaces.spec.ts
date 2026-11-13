@@ -39,6 +39,9 @@ const VIEWPORTS: Record<number, { width: number; height: number }> = {
 
 async function shot(page: import("@playwright/test").Page, name: string) {
   await page.waitForLoadState("networkidle");
+  await page.evaluate(() => {
+    document.querySelector<HTMLElement>(".app-main")?.scrollTo({ top: 0 });
+  });
   await page.waitForTimeout(450);
   await expect(page).toHaveScreenshot(name, { fullPage: false });
 }

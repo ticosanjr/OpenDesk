@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  ChevronDown,
+  ChevronRight,
   GitBranch,
   Loader2,
   Play,
@@ -95,6 +97,7 @@ export function RecipesPage() {
   const [runAttachments, setRunAttachments] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [yamlOpen, setYamlOpen] = useState(false);
 
   const [recipe, setRecipe] = useState<Dictionary | null>(null);
 
@@ -128,7 +131,11 @@ export function RecipesPage() {
       ]);
       setRecipes(recipeResult.recipes);
       setRuns(runResult.runs);
-      setSelected((current) => current ?? recipeResult.recipes[0]?.id ?? null);
+      setSelected((current) =>
+        current && recipeResult.recipes.some((item) => item.id === current)
+          ? current
+          : null,
+      );
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -375,6 +382,23 @@ export function RecipesPage() {
           </CardContent>
         </Card>
 
+        {!selected ? (
+          <Card className="min-h-[320px]">
+            <CardContent className="flex h-full items-center justify-center p-6">
+              <EmptyState
+                icon={Workflow}
+                title="Crie ou selecione uma receita"
+                description="O fluxo visual, o editor YAML e as ações de execução aparecem apenas quando uma receita está aberta."
+                action={
+                  <Button size="sm" onClick={() => void create()}>
+                    <Plus size={13} />
+                    Criar nova receita
+                  </Button>
+                }
+              />
+            </CardContent>
+          </Card>
+        ) : (
         <div className="grid min-h-0 gap-3 xl:grid-cols-2">
           <Card className="min-h-0">
             <CardHeader className="py-3">
@@ -419,21 +443,38 @@ export function RecipesPage() {
 
           <Card className="min-h-0">
             <CardHeader className="py-3">
-              <CardTitle className="flex items-center gap-2">
-                YAML
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setYamlOpen((current) => !current)}
+                  aria-expanded={yamlOpen}
+                  aria-label={yamlOpen ? "Recolher editor YAML" : "Expandir editor YAML"}
+                  className="flex items-center gap-2 text-left"
+                  title={yamlOpen ? "Recolher editor YAML" : "Expandir editor YAML"}
+                >
+                  {yamlOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                  <CardTitle>YAML</CardTitle>
+                </button>
                 <FieldHint hint="Editor simples local. Sempre abre offline e nunca fica carregando." />
-              </CardTitle>
+              </div>
               <Button size="sm" onClick={() => void save()} disabled={!selected || saving}>
                 <IconLabel icon={saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}>
                   Salvar
                 </IconLabel>
               </Button>
             </CardHeader>
-            <CardContent className="h-[70dvh] p-0">
-              <LocalYamlEditor value={yaml} onChange={setYaml} />
-            </CardContent>
+            {yamlOpen ? (
+              <CardContent className="h-[70dvh] p-0">
+                <LocalYamlEditor value={yaml} onChange={setYaml} />
+              </CardContent>
+            ) : (
+              <CardContent className="px-3 py-2 text-[12px] text-zinc-500">
+                Editor recolhido. O fluxo visual continua editável.
+              </CardContent>
+            )}
           </Card>
         </div>
+        )}
       </div>
 
       <Card>

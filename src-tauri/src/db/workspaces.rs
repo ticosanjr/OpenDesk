@@ -231,11 +231,12 @@ pub async fn update(
     .bind(input.description.or(current.description))
     .bind(&color)
     .bind(&policy)
-    .bind(
-        input
-            .default_email_recipient
-            .or(current.default_email_recipient),
-    )
+    .bind(match input.default_email_recipient {
+        Some(value) => value
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty()),
+        None => current.default_email_recipient,
+    })
     .bind(
         input
             .google_drive_folder_id

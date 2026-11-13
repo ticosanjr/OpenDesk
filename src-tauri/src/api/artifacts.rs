@@ -226,6 +226,22 @@ pub async fn artifact_archive(
     Ok(Json(crate::api::files::archive_entries(&file)?))
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct SaveArtifactBody {
+    pub destination: String,
+}
+
+pub async fn save_artifact(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<SaveArtifactBody>,
+) -> AppResult<Json<serde_json::Value>> {
+    let artifact = artifacts::get(&state.db, &id).await?;
+    let file = artifact_file_in_workspace(&state, &artifact).await?;
+    crate::api::files::save_to_destination(&file, &body.destination)?;
+    Ok(Json(serde_json::json!({ "path": body.destination })))
+}
+
 pub async fn artifact_raw(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,

@@ -30,6 +30,8 @@ pub struct QueueJobDto {
     pub retry_count: i64,
     pub max_retries: i64,
     pub error_message: Option<String>,
+    #[serde(default)]
+    pub task_origin: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

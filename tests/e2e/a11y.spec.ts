@@ -147,6 +147,7 @@ flow:
   await page.getByRole("dialog").getByRole("button", { name: "Cancelar" }).click();
 
   await page.goto("/#/recipes");
+  await page.getByText("Receita A11y").first().click();
   await page.getByRole("button", { name: /Dry-run/ }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   expect(await criticalViolations(page), "recipe run").toEqual([]);

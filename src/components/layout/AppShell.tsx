@@ -17,7 +17,8 @@ import { formatUsd } from "@/lib/format";
 import { links } from "@/lib/links";
 import { isEditableTarget } from "@/lib/keyboard";
 import { apiGet } from "@/lib/api";
-import type { Schedule } from "@/lib/types";
+import type { Schedule, Task, TaskRun } from "@/lib/types";
+import { runNotification } from "@/lib/run-notification";
 import {
   artifactNotificationsEnabled,
   isTerminalTaskStatus,
@@ -76,6 +77,7 @@ export function AppShell() {
   const lastScheduleEvent = useAppStore((state) => state.lastScheduleEvent);
   const location = useLocation();
   const [dismissedBudget, setDismissedBudget] = useState<string | null>(null);
+  const [retryingEngine, setRetryingEngine] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   useEffect(() => {
@@ -120,26 +122,29 @@ export function AppShell() {
     if (!enabled) return;
     const key = `run:${lastRunEvent.run_id}:${status}`;
     if (!markNotificationOnce(key)) return;
-    const title =
-      status === "SUCCESS"
-        ? "Execução concluída"
-        : status === "FAILED"
-          ? "Execução falhou"
-          : "Execução cancelada";
-    const description =
-      status === "FAILED"
-        ? "Abra a execução para ver o diagnóstico."
-        : status === "CANCELLED"
-          ? "O run foi interrompido."
-          : "O run terminou com sucesso.";
-    toast({
-      tone: status === "SUCCESS" ? "success" : status === "FAILED" ? "error" : "warning",
-      title,
-      description,
-      href: links.run(lastRunEvent.run_id),
-      key,
-    });
-    void sendNativeNotification(title, description);
+    void (async () => {
+      let run: TaskRun | null = null;
+      try {
+        run = await apiGet<TaskRun>(
+          `/api/runs/${encodeURIComponent(lastRunEvent.run_id)}`,
+        );
+      } catch {
+        // Fall back to the generic message.
+      }
+      const notification = runNotification(
+        status,
+        run?.task_title ?? "Execução",
+        run,
+      );
+      toast({
+        tone: status === "SUCCESS" ? "success" : status === "FAILED" ? "error" : "warning",
+        title: notification.title,
+        description: notification.body,
+        href: links.run(lastRunEvent.run_id),
+        key,
+      });
+      void sendNativeNotification(notification.title, notification.body);
+    })();
   }, [lastRunEvent]);
 
   useEffect(() => {
@@ -152,26 +157,34 @@ export function AppShell() {
     if (!enabled) return;
     const key = `task:${event.task_id}:${event.stage}`;
     if (!markNotificationOnce(key)) return;
-    const title =
-      event.stage === "DONE"
-        ? "Tarefa concluída"
-        : event.stage === "BLOCKED"
-          ? "Tarefa bloqueada"
-          : "Tarefa cancelada";
-    const description =
-      event.phase_status === "failed"
-        ? "A execução falhou. Abra a tarefa para ver os detalhes."
-        : event.stage === "DONE"
-          ? "A tarefa foi concluída."
-          : "A tarefa foi encerrada.";
-    toast({
-      tone: event.stage === "DONE" ? "success" : event.stage === "BLOCKED" ? "error" : "warning",
-      title,
-      description,
-      href: links.task(event.task_id),
-      key,
-    });
-    void sendNativeNotification(title, description);
+    void (async () => {
+      let task: Task | null = null;
+      let run: TaskRun | null = null;
+      try {
+        task = await apiGet<Task>(`/api/tasks/${encodeURIComponent(event.task_id)}`);
+        const runs = await apiGet<TaskRun[]>(
+          `/api/runs?workspace_id=${encodeURIComponent(event.workspace_id)}&task_id=${encodeURIComponent(event.task_id)}&limit=1`,
+        );
+        run = runs[0] ?? null;
+      } catch {
+        // The notification still explains the terminal state.
+      }
+      const notification = runNotification(
+        event.stage,
+        task?.title ?? "Tarefa",
+        run
+          ? { ...run, task_title: task?.title ?? run.task_title }
+          : null,
+      );
+      toast({
+        tone: event.stage === "DONE" ? "success" : event.stage === "BLOCKED" ? "error" : "warning",
+        title: notification.title,
+        description: notification.body,
+        href: links.task(event.task_id),
+        key,
+      });
+      void sendNativeNotification(notification.title, notification.body);
+    })();
   }, [lastTaskEvent]);
 
   useEffect(() => {
@@ -403,10 +416,17 @@ export function AppShell() {
             <Button
               variant="destructive"
               size="sm"
-              onClick={() => void boot()}
+              onClick={() => {
+                setRetryingEngine(true);
+                void boot().finally(() => setRetryingEngine(false));
+              }}
               className="h-7"
+              disabled={retryingEngine}
             >
-              <RefreshCw size={12} />
+              <RefreshCw
+                size={12}
+                className={retryingEngine ? "animate-spin" : undefined}
+              />
               Tentar novamente
             </Button>
           </div>
@@ -434,10 +454,17 @@ export function AppShell() {
               size="sm"
               className="h-7"
               onClick={() => {
-                void restartDaemon().finally(() => void refresh());
+                setRetryingEngine(true);
+                void restartDaemon()
+                  .finally(() => void refresh())
+                  .finally(() => setRetryingEngine(false));
               }}
+              disabled={retryingEngine}
             >
-              <RefreshCw size={12} />
+              <RefreshCw
+                size={12}
+                className={retryingEngine ? "animate-spin" : undefined}
+              />
               Tentar novamente
             </Button>
           </div>

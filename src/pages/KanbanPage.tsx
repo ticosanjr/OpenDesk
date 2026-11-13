@@ -6,6 +6,7 @@ import {
   Columns3,
   LayoutList,
   ListChecks,
+  Loader2,
   Plus,
   SlidersHorizontal,
   X,
@@ -28,6 +29,7 @@ import {
 } from "@/components/kanban/task-modals";
 import { QueueController } from "@/components/queue/QueueController";
 import { PRIORITY_LABEL } from "@/lib/task-ui";
+import { isWorkQueueJob } from "@/lib/queue";
 import { workflowMeta } from "@/lib/workflow";
 import { useDismissable } from "@/lib/use-dismissable";
 import { useKanbanViews } from "@/lib/kanban-views";
@@ -94,7 +96,7 @@ export function KanbanPage() {
   const [viewName, setViewName] = useState("");
   const { views: savedViews, save: saveView, remove: removeView } = useKanbanViews();
   const [view, setView] = useState<"board" | "list" | "queue">("board");
-  const [originFilter, setOriginFilter] = useState<"work" | "automations" | "all">(
+  const [queueScope, setQueueScope] = useState<"work" | "automations" | "all">(
     "work",
   );
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -113,6 +115,19 @@ export function KanbanPage() {
     () => (activeWorkspaceId ? `?workspace_id=${encodeURIComponent(activeWorkspaceId)}` : ""),
     [activeWorkspaceId],
   );
+
+  const workQueue = useMemo(() => queue.filter(isWorkQueueJob), [queue]);
+  const automationQueue = useMemo(
+    () => queue.filter((job) => !isWorkQueueJob(job)),
+    [queue],
+  );
+  const workRunning = workQueue.filter((job) => job.status === "RUNNING").length;
+  const displayedQueue =
+    queueScope === "work"
+      ? workQueue
+      : queueScope === "automations"
+        ? automationQueue
+        : queue;
 
   const attentionByTask = useMemo(() => {
     const map = new Map<
@@ -142,9 +157,6 @@ export function KanbanPage() {
   const filteredTasks = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const filtered = tasks.filter((task) => {
-      const origin = task.origin ?? "MANUAL";
-      if (originFilter === "work" && origin !== "MANUAL") return false;
-      if (originFilter === "automations" && origin === "MANUAL") return false;
       if (needle) {
         const haystack = `${task.title} ${task.description} ${task.tags_json} ${task.assigned_agent ?? ""}`.toLowerCase();
         if (!haystack.includes(needle)) return false;
@@ -163,22 +175,18 @@ export function KanbanPage() {
       }
       return true;
     });
-    return applyRetention(filtered, visibility);
+    return applyRetention(filtered, visibility)
+      .slice()
+      .sort((left, right) => right.created_at.localeCompare(left.created_at));
   }, [
     agentFilter,
     attentionByTask,
     attentionOnly,
-    originFilter,
     priorityFilter,
     query,
     tasks,
     visibility,
   ]);
-
-  const originCounts = useMemo(() => {
-    const manual = tasks.filter((task) => (task.origin ?? "MANUAL") === "MANUAL").length;
-    return { manual, automations: tasks.length - manual };
-  }, [tasks]);
 
 
   const advancedFilterCount =
@@ -199,7 +207,6 @@ export function KanbanPage() {
   useDismissable(visibilityRef, visibilityOpen, () => setVisibilityOpen(false));
 
   function applySavedView(view: (typeof savedViews)[number]) {
-    setOriginFilter(view.origin);
     setQuery(view.query);
     setAgentFilter(view.agent);
     setPriorityFilter(view.priority);
@@ -212,7 +219,6 @@ export function KanbanPage() {
     if (!name) return;
     saveView({
       name,
-      origin: originFilter,
       query,
       agent: agentFilter,
       priority: priorityFilter,
@@ -232,7 +238,9 @@ export function KanbanPage() {
     try {
       const [taskList, jobs, status, pinnedArtifacts, taskAttention] =
         await Promise.all([
-          apiGet<Task[]>(`/api/tasks${workspaceQuery}`),
+          apiGet<Task[]>(
+            `/api/tasks${workspaceQuery}${workspaceQuery ? "&" : "?"}scope=work`,
+          ),
           apiGet<QueueJob[]>(`/api/queue${workspaceQuery}`),
           apiGet<QueueStatus>(`/api/queue/status${workspaceQuery}`),
           apiGet<Artifact[]>(`/api/artifacts/pinned${workspaceQuery}`).catch(() => []),
@@ -303,17 +311,34 @@ export function KanbanPage() {
   // Deep links from the dashboard: /kanban?task=<id>&run=<id>
   useEffect(() => {
     const taskId = searchParams.get("task");
-    if (!taskId || tasks.length === 0) return;
-    const task = tasks.find((item) => item.id === taskId);
-    if (task) {
+    if (!taskId) return;
+    const runId = searchParams.get("run");
+    const open = (task: Task) => {
       setSelectedTask(task);
-      const runId = searchParams.get("run");
       if (runId) {
         setInitialRunId(runId);
         setLogTask(task);
       }
       setSearchParams({}, { replace: true });
+    };
+    const task = tasks.find((item) => item.id === taskId);
+    if (task) {
+      open(task);
+      return;
     }
+    // Automation tasks are filtered out of the Kanban list, but links from
+    // search, notifications and the attention card must still open them.
+    let cancelled = false;
+    void apiGet<Task>(`/api/tasks/${encodeURIComponent(taskId)}`)
+      .then((fetched) => {
+        if (!cancelled) open(fetched);
+      })
+      .catch(() => {
+        if (!cancelled) setSearchParams({}, { replace: true });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [tasks, searchParams, setSearchParams]);
 
   async function dispatch(task: Task) {
@@ -457,6 +482,12 @@ export function KanbanPage() {
                 {queueStatus.paused ? "fila pausada" : "fila ativa"}
               </Badge>
             ) : null}
+            {workRunning > 0 ? (
+              <Badge variant="blue" title="Execuções de trabalho em andamento">
+                <Loader2 size={11} className="animate-spin" />
+                {workRunning} executando
+              </Badge>
+            ) : null}
             <Button size="sm" onClick={() => setCreateOpen(true)}>
               <Plus size={15} />
               Nova tarefa
@@ -526,30 +557,6 @@ export function KanbanPage() {
             </button>
           ))}
         </div>
-        {view !== "queue" ? (
-          <div className="flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5">
-            {([
-              ["work", `Trabalho · ${originCounts.manual}`],
-              ["automations", `Automações · ${originCounts.automations}`],
-              ["all", `Tudo · ${tasks.length}`],
-            ] as const).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setOriginFilter(value)}
-                aria-pressed={originFilter === value}
-                className={cn(
-                  "rounded-md px-2 py-1 text-[12px] transition-colors",
-                  originFilter === value
-                    ? "workspace-tab-active"
-                    : "text-zinc-500 hover:text-zinc-200",
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        ) : null}
         {view !== "queue" ? (
           <>
             <FilterSearch
@@ -909,8 +916,31 @@ export function KanbanPage() {
           onOpenTask={setSelectedTask}
         />
       ) : (
+        <>
+        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5">
+          {([
+            ["work", `Trabalho · ${workQueue.length}`],
+            ["automations", `Automações · ${automationQueue.length}`],
+            ["all", `Tudo · ${queue.length}`],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setQueueScope(value)}
+              aria-pressed={queueScope === value}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-[12.5px] transition-colors",
+                queueScope === value
+                  ? "workspace-tab-active"
+                  : "text-zinc-500 hover:text-zinc-200",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <QueueController
-          queue={queue}
+          queue={displayedQueue}
           status={queueStatus}
           loading={loading}
           onRefresh={() => void load()}
@@ -919,6 +949,7 @@ export function KanbanPage() {
           onJobAction={(id, action) => void jobAction(id, action)}
           onPriority={(id, priority) => void updateJobPriority(id, priority)}
         />
+        </>
       )}
 
       <Modal

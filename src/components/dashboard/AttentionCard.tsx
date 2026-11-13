@@ -298,7 +298,16 @@ export function AttentionCard() {
             onClick={() => void load()}
             disabled={busy === "refresh"}
           >
-            <IconLabel icon={<RefreshCw size={13} />}>atualizar</IconLabel>
+            <IconLabel
+              icon={
+                <RefreshCw
+                  size={13}
+                  className={busy === "refresh" ? "animate-spin" : undefined}
+                />
+              }
+            >
+              atualizar
+            </IconLabel>
           </Button>
         </div>
 
@@ -643,7 +652,18 @@ export function AttentionCard() {
                         disabled={busy === `retry-${run.id}`}
                         onClick={() => retryOther(run.id)}
                       >
-                        <IconLabel icon={<RefreshCw size={11} />}>
+                        <IconLabel
+                          icon={
+                            <RefreshCw
+                              size={11}
+                              className={
+                                busy === `retry-${run.id}`
+                                  ? "animate-spin"
+                                  : undefined
+                              }
+                            />
+                          }
+                        >
                           Retry com outro modelo
                         </IconLabel>
                       </Button>

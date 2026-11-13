@@ -129,7 +129,7 @@ pacote base `controle-opendesk` é instalado em novos workspaces e rotinas e
 receitas novas nascem desligadas (ADR 0044). A suíte funcional sob demanda vive
 em `npm run test:features`.
 Próxima frente: cobertura Rust ≥80% (plano em `docs/coverage-plan.md`; hoje
-64,2% total/70,8% core), builds Windows/macOS (`docs/platform-builds.md`) e
+64,81% total/71,14% core), builds Windows/macOS (`docs/platform-builds.md`) e
 contrato Google com conta dedicada (`docs/google-contract.md`).
 
 Releases são locais (`releases/`, máximo 3 versões) e nunca via CI. O remoto é

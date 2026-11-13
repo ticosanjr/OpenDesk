@@ -12,24 +12,25 @@ export function RecommendedSkills({
   isFavorite,
   onToggleFavorite,
   onInstall,
+  favoritesOnly = false,
 }: {
   query: string;
   isFavorite: (id: string) => boolean;
   onToggleFavorite: (id: string) => void;
   onInstall: (skill: RecommendedSkill) => void;
+  favoritesOnly?: boolean;
 }) {
   const [copied, setCopied] = useState<string | null>(null);
-  const [onlyFavorites, setOnlyFavorites] = useState(false);
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return RECOMMENDED_SKILLS.filter((skill) => {
-      if (onlyFavorites && !isFavorite(skill.id)) return false;
+      if (favoritesOnly && !isFavorite(skill.id)) return false;
       if (!needle) return true;
       return `${skill.name} ${skill.description} ${skill.tags.join(" ")}`
         .toLowerCase()
         .includes(needle);
     });
-  }, [isFavorite, onlyFavorites, query]);
+  }, [favoritesOnly, isFavorite, query]);
 
   async function copyCommand(skill: RecommendedSkill) {
     if (!skill.installCommand) return;
@@ -52,25 +53,11 @@ export function RecommendedSkills({
           </CardTitle>
           <p className="mt-1 max-w-3xl text-[13.5px] leading-relaxed text-zinc-400">
             Skills externas curadas para engenharia, revisão, diagnóstico e
-            design. A instalação usa o preview do Studio e só grava depois da
-            sua confirmação.
+            design. A instalação vira uma tarefa rastreável em Execuções, com
+            origem, comando e critério de sucesso.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            aria-pressed={onlyFavorites}
-            onClick={() => setOnlyFavorites((current) => !current)}
-            className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13.5px] transition-colors",
-              onlyFavorites
-                ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
-                : "border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-200",
-            )}
-          >
-            <Star size={13} fill={onlyFavorites ? "currentColor" : "none"} />
-            Favoritos
-          </button>
           <Badge variant="blue">{visible.length}</Badge>
         </div>
       </CardHeader>
@@ -176,20 +163,9 @@ export function RecommendedSkills({
                       <ExternalLink size={13} />
                       Abrir origem
                     </a>
-                    {skill.installable === false ? (
-                      <a
-                        href={skill.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex h-8 items-center rounded-lg border border-zinc-700/70 bg-zinc-900/30 px-2.5 text-[12.5px] font-medium text-zinc-200 transition-colors hover:border-zinc-600 hover:bg-zinc-800/60 hover:text-white"
-                      >
-                        Abrir instalador
-                      </a>
-                    ) : (
-                      <Button size="sm" onClick={() => onInstall(skill)}>
-                        Instalar
-                      </Button>
-                    )}
+                    <Button size="sm" onClick={() => onInstall(skill)}>
+                      Instalar via tarefa
+                    </Button>
                   </div>
                 </article>
               );

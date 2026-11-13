@@ -69,7 +69,9 @@ export function QueueController({
         const order =
           (STATUS_ORDER[left.status] ?? 9) - (STATUS_ORDER[right.status] ?? 9);
         if (order !== 0) return order;
-        return left.enqueued_at.localeCompare(right.enqueued_at);
+        // Newest entries on top; execution order is still decided by the
+        // backend (priority/FIFO), not by this display sort.
+        return right.enqueued_at.localeCompare(left.enqueued_at);
       }),
     [queue],
   );
@@ -153,6 +155,12 @@ export function QueueController({
             lease 60s · heartbeat 5s
           </span>
         </div>
+
+        <p className="px-1 text-[11.5px] leading-snug text-zinc-500">
+          O escopo selecionado controla o que aparece aqui. Rotinas e receitas
+          também ficam em Execuções; pausar ou mudar a concorrência continua
+          valendo para toda a fila.
+        </p>
 
         {status?.pause_reason ? (
           <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">

@@ -30,6 +30,8 @@ pub(crate) use task_dispatch::{dispatch_task_internal, dispatch_task_with_sessio
 #[derive(Debug, Deserialize, Default)]
 pub struct TaskQuery {
     pub workspace_id: Option<String>,
+    /// `work` hides routes/recipes/IO tasks from the Kanban.
+    pub scope: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -53,7 +55,12 @@ pub async fn list_tasks(
     Query(query): Query<TaskQuery>,
 ) -> AppResult<Json<Vec<tasks::Task>>> {
     let workspace_id = resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
-    Ok(Json(tasks::list(&state.db, &workspace_id).await?))
+    let list = if query.scope.as_deref() == Some("work") {
+        tasks::list_work(&state.db, &workspace_id).await?
+    } else {
+        tasks::list(&state.db, &workspace_id).await?
+    };
+    Ok(Json(list))
 }
 
 pub(super) fn validate_model_ref(value: Option<&str>) -> AppResult<()> {
@@ -760,6 +767,7 @@ pub struct ForkBody {
     pub assigned_agent: Option<String>,
     pub preferred_model: Option<String>,
     pub effort_level: Option<String>,
+    pub care_level: Option<String>,
     pub execution_mode: Option<String>,
     pub priority: Option<i64>,
     pub tags: Option<Vec<String>>,
@@ -808,6 +816,7 @@ async fn apply_fork_overrides(
             assigned_agent: agent.clone(),
             preferred_model: model.clone(),
             effort_level: body.effort_level,
+            care_level: body.care_level,
             execution_mode: body.execution_mode,
             priority: body.priority,
             tags: body.tags,

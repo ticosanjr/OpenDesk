@@ -91,6 +91,8 @@ export function SignalCard() {
     setBusy("link");
     setError(null);
     setMessage(null);
+    setQr(null);
+    setLinkUri(null);
     try {
       const value = await apiPost<{ uri: string; command: string }>(
         "/api/integrations/signal/link",
@@ -232,7 +234,7 @@ export function SignalCard() {
           </Button>
           <Button variant="outline" size="sm" onClick={() => void link()} disabled={busy !== null}>
             {busy === "link" ? <Loader2 size={13} className="animate-spin" /> : <Link2 size={13} />}
-            Vincular dispositivo
+            {qr ? "Gerar novo QR" : "Vincular dispositivo"}
           </Button>
           {running ? (
             <Button variant="outline" size="sm" onClick={() => void toggleBridge(false)} disabled={busy !== null}>

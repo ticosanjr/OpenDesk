@@ -53,6 +53,7 @@ sinks: []
   await page.goto("/#/recipes");
   await expect(page.getByText("Receitas", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Receita E2E").first()).toBeVisible();
+  await page.getByText("Receita E2E").first().click();
   await expect(page.getByRole("heading", { name: "Fluxo visual" })).toBeVisible();
   await expect(page.getByText("YAML", { exact: true })).toBeVisible();
 

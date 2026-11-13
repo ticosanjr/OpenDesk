@@ -602,6 +602,7 @@ pub async fn run_heartbeat(
             assigned_agent: Some(agent_id.to_string()),
             preferred_model: None,
             effort_level: None,
+            care_level: Some("standard".into()),
             notify_email: None,
             export_to_gdocs: false,
             tags: vec!["governance:heartbeat".into()],

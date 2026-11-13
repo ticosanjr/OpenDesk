@@ -19,6 +19,7 @@ import { CommandPanel } from "@/components/studio/CommandPanel";
 import { McpPanel } from "@/components/studio/McpPanel";
 import { ConfigPanel } from "@/components/studio/ConfigPanel";
 import { StudioOverview } from "@/components/studio/StudioOverview";
+import { StudioScopeSummary } from "@/components/studio/StudioScopeSummary";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import type { StudioScope } from "@/lib/types";
@@ -150,6 +151,12 @@ export function StudioPage() {
       </div>
 
       <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-zinc-800/70">
+        <div className="shrink-0 p-3 pb-0 lg:px-5">
+          <StudioScopeSummary
+            scope={scope}
+            workspaceId={activeWorkspaceId}
+          />
+        </div>
         {scope === "effective" ? (
           <StudioOverview
             workspaceId={activeWorkspaceId}

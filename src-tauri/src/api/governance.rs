@@ -178,6 +178,7 @@ pub async fn resolve_delegation(
             assigned_agent: Some(delegation.to_agent.clone()),
             preferred_model: None,
             effort_level: None,
+            care_level: Some("standard".into()),
             notify_email: None,
             export_to_gdocs: false,
             tags: vec![

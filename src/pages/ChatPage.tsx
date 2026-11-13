@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
+  ArrowDown,
   Bot,
   Check,
   Paperclip,
@@ -35,6 +36,7 @@ import { links } from "@/lib/links";
 import { EntityLink } from "@/components/ui/entity-link";
 import { confirmAction } from "@/store/confirm-store";
 import { smallLabelClass as labelClass } from "@/lib/ui-classes";
+import { useStickToBottom } from "@/lib/use-stick-to-bottom";
 
 export function ChatPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -57,7 +59,6 @@ export function ChatPage() {
   const [renaming, setRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   const [params, setParams] = useSearchParams();
 
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
@@ -133,12 +134,12 @@ export function ChatPage() {
     };
   }, [selectedId]);
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
-    });
-  }, [messages, sending]);
+  const {
+    ref: transcriptRef,
+    atBottom: transcriptAtBottom,
+    onScroll: onTranscriptScroll,
+    scrollToBottom: scrollTranscript,
+  } = useStickToBottom<HTMLDivElement>(`${messages.length}:${sending}`);
 
   async function createThread() {
     if (!activeWorkspaceId) return;
@@ -275,7 +276,7 @@ export function ChatPage() {
         description={`${workspace?.name ?? "Workspace"} · converse com qualquer agente, com histórico local. Threads do Signal aparecem com o selo correspondente.`}
         actions={
           <Button variant="outline" size="sm" onClick={() => void loadThreads()}>
-            <RefreshCw size={13} />
+            <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
             Atualizar
           </Button>
         }
@@ -444,7 +445,12 @@ export function ChatPage() {
             </div>
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-0">
-            <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+            <div className="relative min-h-0 flex-1">
+            <div
+              ref={transcriptRef}
+              onScroll={onTranscriptScroll}
+              className="h-full space-y-3 overflow-y-auto px-4 py-3"
+            >
               {!thread ? (
                 <EmptyState
                   icon={Bot}
@@ -482,6 +488,19 @@ export function ChatPage() {
                   aguardando resposta do OpenCode…
                 </div>
               ) : null}
+            </div>
+            {!transcriptAtBottom ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="absolute bottom-3 right-4 h-8 gap-1.5 rounded-full bg-zinc-950/95 shadow-lg"
+                onClick={() => scrollTranscript()}
+                title="Ir para a mensagem mais recente"
+              >
+                <ArrowDown size={13} />
+                ir para o fim
+              </Button>
+            ) : null}
             </div>
             <div
               className="border-t border-zinc-800/70 p-3"
@@ -522,8 +541,9 @@ export function ChatPage() {
                   ))}
                 </div>
               ) : null}
-              <div className="flex items-end gap-2">
+              <div className="flex w-full items-stretch gap-2">
                 <SlashTextarea
+                  containerClassName="min-w-0 flex-1"
                   value={prompt}
                   onChange={setPrompt}
                   workspaceId={activeWorkspaceId}
@@ -540,7 +560,7 @@ export function ChatPage() {
                 />
                 <Button
                   size="sm"
-                  className="h-9"
+                  className="h-auto min-h-[52px] w-24 shrink-0"
                   onClick={() => void send()}
                   disabled={!thread || sending || (!prompt.trim() && attachments.length === 0)}
                 >
@@ -612,8 +632,9 @@ function MetaBuilder({ workspaceId }: { workspaceId: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-end gap-2">
+      <div className="flex w-full items-stretch gap-2">
         <SlashTextarea
+          containerClassName="min-w-0 flex-1"
           value={prompt}
           onChange={setPrompt}
           workspaceId={workspaceId}
@@ -621,7 +642,12 @@ function MetaBuilder({ workspaceId }: { workspaceId: string }) {
           placeholder="Crie um subagente chamado revisor-fiscal focado em contabilidade…"
           className="min-h-[52px] flex-1"
         />
-        <Button size="sm" className="h-9" onClick={() => void build()} disabled={busy}>
+        <Button
+          size="sm"
+          className="h-auto min-h-[52px] w-28 shrink-0"
+          onClick={() => void build()}
+          disabled={busy}
+        >
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
           Criar arquivo
         </Button>

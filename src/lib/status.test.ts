@@ -17,7 +17,7 @@ describe("shared status labels", () => {
     expect(runStatusTone("SUCCESS")).toBe("green");
     expect(runStatusTone("FAILED")).toBe("red");
     expect(runStatusTone("RUNNING")).toBe("blue");
-    expect(runStatusTone("CANCELLED")).toBe("yellow");
+    expect(runStatusTone("CANCELLED")).toBe("default");
     expect(runStatusTone("PENDING")).toBe("yellow");
     expect(runStatusTone("FUTURE")).toBe("default");
   });

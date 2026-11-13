@@ -92,14 +92,99 @@ export function TriggerEditor({
       <p className="mt-1 text-[11.5px] leading-snug text-zinc-500">{triggerDescription(type)}</p>
       <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
         {type === "FOLDER_WATCH" || type === "RSYNC_FOLDER" ? (
-          <PathInput
-            value={String(config.path ?? "")}
-            onChange={(value) => patchConfig({ path: value })}
-            title="Escolher pasta monitorada"
-            placeholder="input/dropzone ou caminho absoluto"
-            hint="Se o caminho for relativo, ele é resolvido dentro do workspace."
-            inputClassName="h-8 text-[12px]"
-          />
+          <>
+            <div className="sm:col-span-2">
+              <PathInput
+                value={String(config.path ?? "")}
+                onChange={(value) => patchConfig({ path: value })}
+                title="Escolher pasta monitorada"
+                placeholder="input/dropzone ou caminho absoluto"
+                hint="Se o caminho for relativo, ele é resolvido dentro do workspace."
+                inputClassName="h-8 text-[12px]"
+              />
+            </div>
+            <LabeledField
+              label="Espera antes de processar (s)"
+              hint="Evita ler arquivo ainda sendo copiado."
+            >
+              <input
+                type="number"
+                min={0}
+                max={300}
+                value={Number(config.settle_secs ?? 2)}
+                onChange={(event) =>
+                  patchConfig({
+                    settle_secs: event.target.value
+                      ? Number(event.target.value)
+                      : undefined,
+                  })
+                }
+                className={inputClass}
+              />
+            </LabeledField>
+            <LabeledField label="Retentar após falha (min)">
+              <input
+                type="number"
+                min={1}
+                max={1440}
+                value={Number(config.retry_minutes ?? 1)}
+                onChange={(event) =>
+                  patchConfig({
+                    retry_minutes: event.target.value
+                      ? Number(event.target.value)
+                      : undefined,
+                  })
+                }
+                className={inputClass}
+              />
+            </LabeledField>
+            <LabeledField
+              label="Ignorar nomes contendo"
+              hint="Separe por vírgula (ex.: tmp, backup)."
+            >
+              <input
+                value={
+                  Array.isArray(config.ignore_patterns)
+                    ? (config.ignore_patterns as string[]).join(", ")
+                    : ""
+                }
+                onChange={(event) =>
+                  patchConfig({
+                    ignore_patterns: event.target.value
+                      .split(",")
+                      .map((item) => item.trim())
+                      .filter(Boolean),
+                  })
+                }
+                className={inputClass}
+                placeholder="tmp, backup"
+              />
+            </LabeledField>
+            <div className="flex flex-wrap items-center gap-3 text-[12.5px] text-zinc-400">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={config.process_empty === true}
+                  onChange={(event) =>
+                    patchConfig({ process_empty: event.target.checked })
+                  }
+                  className="accent-blue-500"
+                />
+                processar arquivos vazios
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={config.process_existing !== false}
+                  onChange={(event) =>
+                    patchConfig({ process_existing: event.target.checked })
+                  }
+                  className="accent-blue-500"
+                />
+                processar arquivos existentes
+              </label>
+            </div>
+          </>
         ) : null}
         {type === "CRON" ? <CronFields config={config} onChange={patchConfig} /> : null}
         {type === "IMAP_IDLE" ? (

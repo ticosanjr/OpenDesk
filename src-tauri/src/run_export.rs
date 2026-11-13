@@ -136,6 +136,143 @@ fn attempt_from_run(run: &TaskRun) -> RunAttempt {
     }
 }
 
+async fn load_run_inputs(
+    state: &AppState,
+    run: &TaskRun,
+    workspace: Option<&crate::db::workspaces::Workspace>,
+) -> Vec<crate::run_timeline::TimelineInput> {
+    use crate::run_timeline::TimelineInput;
+    let mut inputs = Vec::new();
+    let root = workspace.map(|value| value.root_path.clone());
+    let mut push = |name: String,
+                    path: String,
+                    size: Option<u64>,
+                    source: Option<String>,
+                    trigger: Option<String>| {
+        if inputs.iter().any(|item: &TimelineInput| item.path == path) {
+            return;
+        }
+        let absolute = if std::path::Path::new(&path).is_absolute() {
+            path.clone()
+        } else if let Some(root) = &root {
+            std::path::Path::new(root)
+                .join(&path)
+                .to_string_lossy()
+                .to_string()
+        } else {
+            path.clone()
+        };
+        inputs.push(TimelineInput {
+            name,
+            path,
+            absolute_path: absolute,
+            size,
+            source,
+            trigger_type: trigger,
+        });
+    };
+
+    if let Some(task_id) = run.task_id.as_deref()
+        && let Ok(Some(raw)) = sqlx::query_scalar::<_, String>(
+            "SELECT trigger_context_json FROM recipe_runs WHERE task_id = ? ORDER BY started_at DESC LIMIT 1",
+        )
+        .bind(task_id)
+        .fetch_optional(&state.db)
+        .await
+        && let Ok(context) = serde_json::from_str::<serde_json::Value>(&raw)
+    {
+        if let Some(items) = context.get("attachments").and_then(|value| value.as_array()) {
+            for item in items {
+                if let Some(path) = item.as_str() {
+                    let name = std::path::Path::new(path)
+                        .file_name()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or(path)
+                        .to_string();
+                    push(name, path.to_string(), None, context.get("source_id").and_then(|value| value.as_str()).map(str::to_string), Some("attachment".into()));
+                }
+            }
+        }
+        if let Some(path) = context.get("file_path").and_then(|value| value.as_str()) {
+            let name = context
+                .get("file_name")
+                .and_then(|value| value.as_str())
+                .unwrap_or_else(|| {
+                    std::path::Path::new(path)
+                        .file_name()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or(path)
+                })
+                .to_string();
+            let size = context.get("file_size").and_then(|value| value.as_u64());
+            push(
+                name,
+                path.to_string(),
+                size,
+                context
+                    .get("source_name")
+                    .or_else(|| context.get("recipe_id"))
+                    .and_then(|value| value.as_str())
+                    .map(str::to_string),
+                context
+                    .get("trigger_type")
+                    .and_then(|value| value.as_str())
+                    .map(str::to_string),
+            );
+        }
+    }
+
+    drop(push);
+
+    if inputs.is_empty()
+        && let Some(task_id) = run.task_id.as_deref()
+        && let Ok(task) = crate::db::tasks::get(&state.db, task_id).await
+        && let Some(marker) = task.description.rfind("## Arquivos de entrada")
+    {
+        for line in task.description[marker..].lines().skip(1) {
+            if line.trim_start().starts_with("## ") {
+                break;
+            }
+            let trimmed = line.trim_start();
+            let Some(rest) = trimmed.strip_prefix("- `") else {
+                continue;
+            };
+            let Some(end) = rest.find('`') else {
+                continue;
+            };
+            let path = &rest[..end];
+            if path.is_empty() {
+                continue;
+            }
+            let name = std::path::Path::new(path)
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or(path)
+                .to_string();
+            let absolute = if std::path::Path::new(path).is_absolute() {
+                path.to_string()
+            } else if let Some(root) = &root {
+                std::path::Path::new(root)
+                    .join(path)
+                    .to_string_lossy()
+                    .to_string()
+            } else {
+                path.to_string()
+            };
+            inputs.push(TimelineInput {
+                name,
+                path: path.to_string(),
+                absolute_path: absolute,
+                size: None,
+                source: Some("task".into()),
+                trigger_type: Some("attachment".into()),
+            });
+        }
+    }
+
+    inputs
+}
+
 async fn build_timeline(state: &AppState, run: TaskRun) -> AppResult<RunTimeline> {
     let path = run.log_path.clone();
     let events = path
@@ -153,6 +290,7 @@ async fn build_timeline(state: &AppState, run: TaskRun) -> AppResult<RunTimeline
         timeline_from_events(Some(run.clone()), events.unwrap_or_default(), log_missing);
 
     let workspace = workspaces::get(&state.db, &run.workspace_id).await.ok();
+    timeline.inputs = load_run_inputs(state, &run, workspace.as_ref()).await;
     if let Some(workspace) = &workspace {
         timeline.workspace_root = Some(workspace.root_path.clone());
     }
@@ -443,6 +581,156 @@ mod tests {
     use super::*;
     use crate::db::runs::{CreateRunInput, RunUsage};
     use crate::test_support;
+
+    #[tokio::test]
+    async fn exposes_recipe_trigger_files_as_run_inputs() {
+        let ctx = test_support::context().await;
+        let yaml = "id: inputs-recipe\nname: Inputs\ntrigger:\n  type: MANUAL\n  config: {}\nflow:\n  - type: step\n    id: s1\n    name: Passo\n    prompt: oi\n";
+        let recipe = crate::recipes::parser::parse(yaml).expect("recipe");
+        sqlx::query(
+            "INSERT INTO recipes_index (id, workspace_id, name, file_path, trigger_type)
+             VALUES ('inputs-recipe', ?, 'Inputs', '/tmp/inputs.yaml', 'MANUAL')",
+        )
+        .bind(&ctx.workspace_id)
+        .execute(&ctx.state.db)
+        .await
+        .expect("index");
+        let task = crate::db::tasks::create(
+            &ctx.state.db,
+            &ctx.workspace_id,
+            crate::db::tasks::CreateTaskInput {
+                title: "Entrada".into(),
+                description: "Processe o arquivo".into(),
+                execution_mode: Some("BUILD_DIRECT".into()),
+                priority: Some(2),
+                assigned_agent: None,
+                preferred_model: None,
+                effort_level: None,
+                care_level: None,
+                notify_email: None,
+                export_to_gdocs: false,
+                tags: vec![],
+                origin: None,
+                parent_task_id: None,
+                dedupe: Some(false),
+            },
+        )
+        .await
+        .expect("task");
+        crate::recipes::store::create_run(
+            &ctx.state.db,
+            &recipe,
+            &ctx.workspace_id,
+            Some(&task.id),
+            &serde_json::json!({
+                "file_path": "input/dropzone/relatorio.pdf",
+                "file_name": "relatorio.pdf",
+                "file_size": 2048,
+                "source_name": "Pasta monitorada",
+                "trigger_type": "FOLDER_WATCH",
+                "attachments": ["input/extra.txt"]
+            }),
+            "/tmp/out",
+            false,
+        )
+        .await
+        .expect("recipe run");
+        let run = crate::db::runs::create(
+            &ctx.state.db,
+            CreateRunInput {
+                id: "run-inputs".into(),
+                queue_job_id: None,
+                workspace_id: ctx.workspace_id.clone(),
+                task_id: Some(task.id.clone()),
+                schedule_id: None,
+                parent_run_id: None,
+                phase: Some("build".into()),
+                agent_name: "build".into(),
+                execution_mode: "build".into(),
+                provider_id: None,
+                model_id: "glm".into(),
+                effort_level: "medium".into(),
+                pricing_snapshot_json: None,
+                log_path: None,
+            },
+        )
+        .await
+        .expect("run");
+        let workspace = crate::db::workspaces::get(&ctx.state.db, &ctx.workspace_id)
+            .await
+            .expect("workspace");
+        let inputs = load_run_inputs(&ctx.state, &run, Some(&workspace)).await;
+        assert_eq!(inputs.len(), 2);
+        let report = inputs
+            .iter()
+            .find(|input| input.name == "relatorio.pdf")
+            .expect("report");
+        assert_eq!(report.size, Some(2048));
+        assert_eq!(report.trigger_type.as_deref(), Some("FOLDER_WATCH"));
+        assert!(
+            report
+                .absolute_path
+                .ends_with("input/dropzone/relatorio.pdf")
+        );
+        assert!(inputs.iter().any(|input| input.path == "input/extra.txt"));
+    }
+
+    #[tokio::test]
+    async fn reads_task_description_inputs_when_no_recipe_context_exists() {
+        let ctx = test_support::context().await;
+        let task = crate::db::tasks::create(
+            &ctx.state.db,
+            &ctx.workspace_id,
+            crate::db::tasks::CreateTaskInput {
+                title: "Entrada manual".into(),
+                description:
+                    "Processe os arquivos.\n\n## Arquivos de entrada\n\n- `input/manual.pdf`\n"
+                        .into(),
+                execution_mode: Some("BUILD_DIRECT".into()),
+                priority: Some(2),
+                assigned_agent: None,
+                preferred_model: None,
+                effort_level: None,
+                care_level: None,
+                notify_email: None,
+                export_to_gdocs: false,
+                tags: vec![],
+                origin: None,
+                parent_task_id: None,
+                dedupe: Some(false),
+            },
+        )
+        .await
+        .expect("task");
+        let run = crate::db::runs::create(
+            &ctx.state.db,
+            CreateRunInput {
+                id: "run-task-inputs".into(),
+                queue_job_id: None,
+                workspace_id: ctx.workspace_id.clone(),
+                task_id: Some(task.id.clone()),
+                schedule_id: None,
+                parent_run_id: None,
+                phase: Some("build".into()),
+                agent_name: "build".into(),
+                execution_mode: "build".into(),
+                provider_id: None,
+                model_id: "glm".into(),
+                effort_level: "medium".into(),
+                pricing_snapshot_json: None,
+                log_path: None,
+            },
+        )
+        .await
+        .expect("run");
+        let workspace = crate::db::workspaces::get(&ctx.state.db, &ctx.workspace_id)
+            .await
+            .expect("workspace");
+        let inputs = load_run_inputs(&ctx.state, &run, Some(&workspace)).await;
+        assert_eq!(inputs.len(), 1);
+        assert_eq!(inputs[0].name, "manual.pdf");
+        assert_eq!(inputs[0].source.as_deref(), Some("task"));
+    }
 
     #[tokio::test]
     async fn renders_all_formats_from_a_run() {

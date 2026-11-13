@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { Search, Star } from "lucide-react";
 
 export type PacksTab =
   | "all"
@@ -14,8 +14,10 @@ export function PacksToolbar({
   searching,
   filteredTemplates,
   filteredPacks,
+  favoritesOnly = false,
   onTabChange,
   onQueryChange,
+  onToggleFavorites,
 }: {
   tab: PacksTab;
   query: string;
@@ -23,8 +25,10 @@ export function PacksToolbar({
   searching: boolean;
   filteredTemplates: number;
   filteredPacks: number;
+  favoritesOnly?: boolean;
   onTabChange: (tab: PacksTab) => void;
   onQueryChange: (value: string) => void;
+  onToggleFavorites: () => void;
 }) {
   const tabs: Array<{ id: PacksTab; label: string }> = [
     { id: "all", label: "Visão geral" },
@@ -52,6 +56,19 @@ export function PacksToolbar({
             {item.label}
           </button>
         ))}
+        <button
+          type="button"
+          aria-pressed={favoritesOnly}
+          onClick={onToggleFavorites}
+          className={
+            favoritesOnly
+              ? "inline-flex h-8 items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 text-[13px] text-amber-200"
+              : "inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-800 px-2.5 text-[13px] text-zinc-500 transition-colors hover:border-zinc-700 hover:text-zinc-200"
+          }
+        >
+          <Star size={13} fill={favoritesOnly ? "currentColor" : "none"} />
+          Só favoritos
+        </button>
         <div className="ml-auto flex h-9 min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5 focus-within:border-zinc-600 sm:max-w-md">
           <Search size={13} className="shrink-0 text-zinc-500" />
           <input

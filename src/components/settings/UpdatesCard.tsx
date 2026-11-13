@@ -48,6 +48,15 @@ export function UpdatesCard() {
     void load();
   }, []);
 
+  async function refreshStatus() {
+    setBusy("refresh");
+    try {
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function check() {
     setBusy("check");
     setError(null);
@@ -240,10 +249,13 @@ export function UpdatesCard() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => void load()}
+            onClick={() => void refreshStatus()}
             disabled={busy !== null}
           >
-            <RefreshCw size={13} />
+            <RefreshCw
+              size={13}
+              className={busy === "refresh" ? "animate-spin" : undefined}
+            />
             Atualizar status
           </Button>
           {["appimage", "portable"].includes(info?.installer ?? "") ? (

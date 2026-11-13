@@ -26,6 +26,7 @@ export function Topbar() {
   const setTaskDialogOpen = useUiStore((state) => state.setTaskDialogOpen);
   const navigate = useNavigate();
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const [workspaceQuery, setWorkspaceQuery] = useState("");
   const workspaceRef = useRef<HTMLDivElement | null>(null);
 
@@ -68,7 +69,12 @@ export function Topbar() {
       });
       if (!confirmed) return;
     }
-    await restartDaemon();
+    setRestarting(true);
+    try {
+      await restartDaemon();
+    } finally {
+      setRestarting(false);
+    }
   }
 
   return (
@@ -227,7 +233,12 @@ export function Topbar() {
           <span className="hidden font-mono text-[12px] uppercase tracking-wide lg:inline">
             {daemon?.online ? "engine online" : daemon?.state ?? "offline"}
           </span>
-          <RefreshCw size={12} className="text-zinc-500" />
+          <RefreshCw
+            size={12}
+            className={
+              restarting ? "animate-spin text-blue-300" : "text-zinc-500"
+            }
+          />
         </button>
 
         <Button

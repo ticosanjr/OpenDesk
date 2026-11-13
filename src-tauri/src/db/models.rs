@@ -42,7 +42,9 @@ pub struct UpdateWorkspaceInput {
     pub description: Option<String>,
     pub color_hex: Option<String>,
     pub default_router_policy: Option<String>,
-    pub default_email_recipient: Option<String>,
+    /// `Some(None)` explicitly clears the recipient; missing leaves it.
+    #[serde(default, deserialize_with = "deserialize_present_option")]
+    pub default_email_recipient: Option<Option<String>>,
     pub google_drive_folder_id: Option<String>,
     pub timezone: Option<String>,
 }
@@ -71,4 +73,14 @@ pub struct DashboardStats {
     pub artifacts_total: i64,
     pub active_routines: i64,
     pub enabled_recipes: i64,
+}
+
+/// Distinguishes an omitted field (`None`) from an explicit JSON null
+/// (`Some(None)`) so settings can be cleared.
+fn deserialize_present_option<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
 }

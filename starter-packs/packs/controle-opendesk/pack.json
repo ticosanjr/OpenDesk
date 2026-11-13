@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "controle-opendesk",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": "Controle OpenDesk",
   "category": "base",
   "description": "Ferramentas para agentes operarem tarefas, rotinas, receitas, fila e atenção do OpenDesk com segurança.",
@@ -13,8 +13,12 @@
     "integrations": []
   },
   "contents": {
-    "agents": [],
-    "skills": ["operacao-opendesk"],
+    "agents": [
+      "opendesk.md"
+    ],
+    "skills": [
+      "operacao-opendesk"
+    ],
     "commands": [
       "opendesk-status.md",
       "opendesk-tarefa.md",

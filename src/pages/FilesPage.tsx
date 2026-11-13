@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/store/toast-store";
 import { LazyFileViewer } from "@/components/viewer/LazyFileViewer";
 import type { ArchiveEntry } from "@/components/viewer/FileViewer";
+import { saveLocalFile } from "@/lib/save-file";
 import { LoadingState } from "@/components/ui/loading-state";
 
 export function FilesPage() {
@@ -210,6 +211,36 @@ export function FilesPage() {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setLoadingFile(false);
+    }
+  }
+
+  function containingFolder(path: string): string {
+    const index = path.lastIndexOf("/");
+    return index > 0 ? path.slice(0, index) : "";
+  }
+
+  async function saveCurrentFile() {
+    if (!content || !activeWorkspaceId) return;
+    try {
+      const saved = await saveLocalFile({
+        filename: selected?.name ?? content.path.split("/").pop() ?? "arquivo",
+        workspaceId: activeWorkspaceId,
+        path: content.path,
+        fallbackUrl: `/api/files/raw?workspace_id=${encodeURIComponent(activeWorkspaceId)}&path=${encodeURIComponent(content.path)}`,
+      });
+      if (saved) {
+        toast({
+          tone: "success",
+          title: "Download salvo",
+          description: content.path,
+        });
+      }
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível baixar",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
     }
   }
 
@@ -574,6 +605,10 @@ export function FilesPage() {
                 size={content.size}
                 rawUrl={`/api/files/raw?workspace_id=${encodeURIComponent(activeWorkspaceId)}&path=${encodeURIComponent(content.path)}`}
                 onOpenExternal={() => void reveal(content.path)}
+                onOpenFolder={() =>
+                  void reveal(containingFolder(content.path) || ".")
+                }
+                onDownload={() => void saveCurrentFile()}
                 archive={archive}
                 archiveLoading={archiveLoading}
                 archiveError={archiveError}

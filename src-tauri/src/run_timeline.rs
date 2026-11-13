@@ -23,7 +23,18 @@ pub struct RunTimeline {
     pub output_directory: Option<String>,
     pub output_directory_relative: Option<String>,
     pub artifacts: Vec<TimelineArtifact>,
+    pub inputs: Vec<TimelineInput>,
     pub events: Vec<TimelineEvent>,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct TimelineInput {
+    pub name: String,
+    pub path: String,
+    pub absolute_path: String,
+    pub size: Option<u64>,
+    pub source: Option<String>,
+    pub trigger_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

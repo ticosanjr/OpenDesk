@@ -18,6 +18,7 @@ export function SlashTextarea({
   rows = 5,
   placeholder,
   className,
+  containerClassName,
   disabled,
   onSubmit,
   submitOnEnter = false,
@@ -29,6 +30,7 @@ export function SlashTextarea({
   rows?: number;
   placeholder?: string;
   className?: string;
+  containerClassName?: string;
   disabled?: boolean;
   onSubmit?: () => void;
   submitOnEnter?: boolean;
@@ -115,7 +117,7 @@ export function SlashTextarea({
   }
 
   return (
-    <div className="relative">
+    <div className={cn("relative min-w-0", containerClassName)}>
       <textarea
         ref={ref}
         value={value}

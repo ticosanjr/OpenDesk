@@ -22,6 +22,7 @@ pub struct Task {
     #[sqlx(default)]
     pub model_override: bool,
     pub effort_level: String,
+    pub care_level: String,
     pub plan_markdown: Option<String>,
     pub output_dir_path: Option<String>,
     pub notify_email: Option<String>,
@@ -80,6 +81,8 @@ pub struct CreateTaskInput {
     #[serde(default)]
     pub effort_level: Option<String>,
     #[serde(default)]
+    pub care_level: Option<String>,
+    #[serde(default)]
     pub notify_email: Option<String>,
     #[serde(default)]
     pub export_to_gdocs: bool,
@@ -106,6 +109,7 @@ pub struct UpdateTaskInput {
     pub assigned_agent: Option<String>,
     pub preferred_model: Option<String>,
     pub effort_level: Option<String>,
+    pub care_level: Option<String>,
     pub plan_markdown: Option<String>,
     pub output_dir_path: Option<String>,
     pub notify_email: Option<String>,
@@ -126,7 +130,7 @@ pub struct UpdateTaskInput {
 
 pub(crate) const COLUMNS: &str = "id, workspace_id, title, description, status, phase, phase_status, \
     priority, execution_mode, assigned_agent, preferred_model, agent_override, model_override, \
-    effort_level, plan_markdown, output_dir_path, notify_email, export_to_gdocs, tags_json, \
+    effort_level, care_level, plan_markdown, output_dir_path, notify_email, export_to_gdocs, tags_json, \
     position_index, last_run_id, last_run_status, last_run_at, blocked_reason, cancelled_at, \
     forked_from_task_id, origin, parent_task_id, dedupe_key, held, created_at, updated_at";
 
@@ -270,10 +274,38 @@ fn validate_effort(effort: &str) -> AppResult<String> {
         )))
     }
 }
+fn validate_care(value: &str) -> AppResult<String> {
+    let value = value.trim().to_lowercase();
+    match value.as_str() {
+        "quick" | "standard" | "careful" => Ok(value),
+        other => Err(AppError::BadRequest(format!(
+            "invalid care_level '{other}'; expected quick, standard or careful"
+        ))),
+    }
+}
 
 pub async fn list(pool: &SqlitePool, workspace_id: &str) -> AppResult<Vec<Task>> {
     let query = format!(
         "SELECT {COLUMNS}, {ACTIVE_COLUMNS} FROM tasks WHERE workspace_id = ?
+         ORDER BY CASE status
+            WHEN 'TODO' THEN 1 WHEN 'IN_PROGRESS' THEN 2
+            WHEN 'IN_REVIEW' THEN 3 WHEN 'BLOCKED' THEN 4 WHEN 'DONE' THEN 5
+            WHEN 'CANCELLED' THEN 6 ELSE 7 END,
+            position_index ASC, created_at ASC"
+    );
+    let tasks = sqlx::query_as::<_, Task>(&query)
+        .bind(workspace_id)
+        .fetch_all(pool)
+        .await?;
+    Ok(tasks.into_iter().map(decorate).collect())
+}
+
+/// Tasks created directly by the user (Kanban/Fila). Routines, recipes and
+/// other automations only appear in Executions.
+pub async fn list_work(pool: &SqlitePool, workspace_id: &str) -> AppResult<Vec<Task>> {
+    let query = format!(
+        "SELECT {COLUMNS}, {ACTIVE_COLUMNS} FROM tasks
+         WHERE workspace_id = ? AND origin IN ('MANUAL', 'CAPTURE')
          ORDER BY CASE status
             WHEN 'TODO' THEN 1 WHEN 'IN_PROGRESS' THEN 2
             WHEN 'IN_REVIEW' THEN 3 WHEN 'BLOCKED' THEN 4 WHEN 'DONE' THEN 5
@@ -323,6 +355,7 @@ pub async fn create_with_id(
 
     let mode = validate_mode(input.execution_mode.as_deref().unwrap_or("AUTO_DSH"))?;
     let effort = validate_effort(input.effort_level.as_deref().unwrap_or("medium"))?;
+    let care = validate_care(input.care_level.as_deref().unwrap_or("standard"))?;
     let priority = input.priority.unwrap_or(2).clamp(1, 4);
     let origin = task_dedupe::validate_origin(input.origin.as_deref().unwrap_or("MANUAL"))?;
     let tags_json = serde_json::to_string(&input.tags).unwrap_or_else(|_| "[]".into());
@@ -337,6 +370,7 @@ pub async fn create_with_id(
             input.assigned_agent.as_deref(),
             input.preferred_model.as_deref(),
             &effort,
+            &care,
             &input.tags,
             &origin,
         )
@@ -368,9 +402,9 @@ pub async fn create_with_id(
         "INSERT INTO tasks (
             id, workspace_id, title, description, status, priority,
             execution_mode, assigned_agent, preferred_model, agent_override, model_override,
-            effort_level, notify_email, export_to_gdocs, tags_json, position_index,
+            effort_level, care_level, notify_email, export_to_gdocs, tags_json, position_index,
             origin, parent_task_id, dedupe_key
-         ) VALUES (?, ?, ?, ?, 'TODO', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         ) VALUES (?, ?, ?, ?, 'TODO', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(workspace_id)
@@ -383,6 +417,7 @@ pub async fn create_with_id(
     .bind(input.assigned_agent.is_some())
     .bind(input.preferred_model.is_some())
     .bind(&effort)
+    .bind(&care)
     .bind(input.notify_email.as_deref())
     .bind(input.export_to_gdocs)
     .bind(&tags_json)
@@ -432,6 +467,10 @@ pub async fn update(pool: &SqlitePool, id: &str, input: UpdateTaskInput) -> AppR
         Some(value) => validate_effort(&value)?,
         None => current.effort_level,
     };
+    let care = match input.care_level {
+        Some(value) => validate_care(&value)?,
+        None => current.care_level,
+    };
     let tags_json = match input.tags {
         Some(tags) => serde_json::to_string(&tags).unwrap_or_else(|_| "[]".into()),
         None => current.tags_json,
@@ -441,7 +480,7 @@ pub async fn update(pool: &SqlitePool, id: &str, input: UpdateTaskInput) -> AppR
         "UPDATE tasks SET
             title = ?, description = ?, status = ?, phase = ?, phase_status = ?,
             priority = ?, execution_mode = ?, assigned_agent = ?, preferred_model = ?,
-            agent_override = ?, model_override = ?, effort_level = ?, plan_markdown = ?, output_dir_path = ?, notify_email = ?,
+            agent_override = ?, model_override = ?, effort_level = ?, care_level = ?, plan_markdown = ?, output_dir_path = ?, notify_email = ?,
             export_to_gdocs = ?, tags_json = ?, position_index = ?,
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
          WHERE id = ?",
@@ -474,6 +513,7 @@ pub async fn update(pool: &SqlitePool, id: &str, input: UpdateTaskInput) -> AppR
         input.model_override.unwrap_or(current.model_override)
     })
     .bind(&effort)
+    .bind(&care)
     .bind(if input.clear_plan {
         None
     } else {
@@ -499,6 +539,7 @@ pub async fn update(pool: &SqlitePool, id: &str, input: UpdateTaskInput) -> AppR
         updated.assigned_agent.as_deref(),
         updated.preferred_model.as_deref(),
         &updated.effort_level,
+        &updated.care_level,
         &updated.tags(),
         &updated.origin,
     );
@@ -602,9 +643,9 @@ pub async fn fork_with_model(pool: &SqlitePool, id: &str, model: Option<&str>) -
         "INSERT INTO tasks (
             id, workspace_id, title, description, status, phase, phase_status, priority,
             execution_mode, assigned_agent, preferred_model, agent_override, model_override,
-            effort_level, plan_markdown, notify_email, export_to_gdocs, tags_json,
+            effort_level, care_level, plan_markdown, notify_email, export_to_gdocs, tags_json,
             position_index, forked_from_task_id, origin
-         ) VALUES (?, ?, ?, ?, 'TODO', NULL, 'forked', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'MANUAL')",
+         ) VALUES (?, ?, ?, ?, 'TODO', NULL, 'forked', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'MANUAL')",
     )
     .bind(&new_id)
     .bind(&source.workspace_id)
@@ -617,6 +658,7 @@ pub async fn fork_with_model(pool: &SqlitePool, id: &str, model: Option<&str>) -
     .bind(source.agent_override)
     .bind(model.is_some() || source.model_override)
     .bind(&source.effort_level)
+    .bind(&source.care_level)
     .bind(&source.plan_markdown)
     .bind(&source.notify_email)
     .bind(source.export_to_gdocs)
@@ -818,6 +860,7 @@ mod tests {
             assigned_agent: Some("build".into()),
             preferred_model: None,
             effort_level: Some("high".into()),
+            care_level: Some("standard".into()),
             notify_email: Some("ops@example.com".into()),
             export_to_gdocs: true,
             tags: vec!["financeiro".into(), "mensal".into()],
@@ -964,6 +1007,7 @@ mod tests {
             agent_override: false,
             model_override: false,
             effort_level: "medium".into(),
+            care_level: "standard".into(),
             plan_markdown: None,
             output_dir_path: None,
             notify_email: None,

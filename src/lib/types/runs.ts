@@ -131,7 +131,17 @@ export interface RunTimeline {
   output_directory?: string | null;
   output_directory_relative?: string | null;
   artifacts: TimelineArtifact[];
+  inputs?: TimelineInput[];
   events: TimelineEvent[];
+}
+
+export interface TimelineInput {
+  name: string;
+  path: string;
+  absolute_path: string;
+  size?: number | null;
+  source?: string | null;
+  trigger_type?: string | null;
 }
 
 export interface TimelineArtifact {

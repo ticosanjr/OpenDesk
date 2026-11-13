@@ -4,9 +4,11 @@ import {
   ExternalLink,
   FileArchive,
   FileText,
+  FolderOpen,
   Image as ImageIcon,
   Loader2,
   Music,
+  ShieldCheck,
   Video,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -16,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/format";
 import { downloadUrl } from "@/lib/download";
+import { loadFilePreferences } from "@/lib/file-preferences";
 import { toast } from "@/store/toast-store";
 import { cn } from "@/lib/utils";
 
@@ -122,6 +125,8 @@ export function FileViewer({
   size,
   rawUrl,
   onOpenExternal,
+  onOpenFolder,
+  onDownload,
   archive = null,
   archiveLoading = false,
   archiveError = null,
@@ -136,6 +141,8 @@ export function FileViewer({
   size?: number;
   rawUrl?: string;
   onOpenExternal?: () => void;
+  onOpenFolder?: () => void;
+  onDownload?: () => void | Promise<void>;
   /** Entries of a ZIP archive, listed without extracting it. */
   archive?: ArchiveEntry[] | null;
   archiveLoading?: boolean;
@@ -149,12 +156,32 @@ export function FileViewer({
   const [tab, setTab] = useState<"preview" | "source">("preview");
   const [zoom, setZoom] = useState(100);
   const [downloading, setDownloading] = useState(false);
+  const [allowScripts, setAllowScripts] = useState(false);
   const textSource = kind === "text" || kind === "markdown" || kind === "html";
   const isArchive =
     kind === "binary" &&
     (/\.zip$/i.test(name) || mime === "application/zip" || mime === "application/x-zip-compressed");
 
+  useEffect(() => {
+    let cancelled = false;
+    void loadFilePreferences().then((preferences) => {
+      if (!cancelled) setAllowScripts(preferences.htmlAllowScripts);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+
   async function saveFile() {
+    if (onDownload) {
+      setDownloading(true);
+      try {
+        await onDownload();
+      } finally {
+        setDownloading(false);
+      }
+      return;
+    }
     if (!rawUrl) return;
     setDownloading(true);
     try {
@@ -190,7 +217,21 @@ export function FileViewer({
           </>
         )}
         {truncated ? <Badge variant="yellow">truncado</Badge> : null}
-        {kind === "html" ? <Badge variant="yellow">scripts bloqueados</Badge> : null}
+        {kind === "html" ? (
+          <button
+            type="button"
+            onClick={() => setAllowScripts((current) => !current)}
+            className="inline-flex items-center gap-1 rounded-md border border-zinc-800 px-1.5 py-0.5 text-[11.5px] text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
+            title={
+              allowScripts
+                ? "Bloquear scripts nesta visualização"
+                : "Permitir scripts nesta visualização"
+            }
+          >
+            <ShieldCheck size={10} />
+            {allowScripts ? "scripts liberados" : "scripts bloqueados"}
+          </button>
+        ) : null}
         {textSource ? (
           <span className={cn("flex items-center gap-1 rounded-md border border-zinc-800 p-0.5", embedded && "ml-auto")}>
             {(["preview", "source"] as const).map((value) => (
@@ -216,7 +257,35 @@ export function FileViewer({
             abrir
           </Button>
         ) : null}
-        {blobUrl ? (
+        {onOpenFolder ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7"
+            onClick={onOpenFolder}
+            title="Abrir a pasta do arquivo"
+            aria-label="Abrir a pasta do arquivo"
+          >
+            <FolderOpen size={11} />
+          </Button>
+        ) : null}
+        {onDownload ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7"
+            onClick={() => void saveFile()}
+            disabled={downloading}
+            title={`Baixar ${name}`}
+          >
+            {downloading ? (
+              <Loader2 size={11} className="animate-spin" />
+            ) : (
+              <Download size={11} />
+            )}
+            baixar
+          </Button>
+        ) : blobUrl ? (
           <a
             href={blobUrl}
             download={name}
@@ -257,7 +326,7 @@ export function FileViewer({
         ) : kind === "html" ? (
           <iframe
             title={name}
-            sandbox=""
+            sandbox={allowScripts ? "allow-scripts" : ""}
             srcDoc={content}
             className="h-full min-h-[420px] w-full rounded-lg border border-zinc-800 bg-white"
           />

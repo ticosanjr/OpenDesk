@@ -4,7 +4,6 @@ import { readKanbanViews, writeKanbanViews } from "./kanban-views";
 const view = {
   id: "v1",
   name: "Revisão",
-  origin: "all" as const,
   query: "",
   agent: "",
   priority: "",

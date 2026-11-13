@@ -40,6 +40,8 @@ pub struct TaskRun {
     pub error_hint: Option<String>,
     #[sqlx(default)]
     pub task_title: Option<String>,
+    #[sqlx(default)]
+    pub task_origin: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -75,7 +77,7 @@ const COLUMNS: &str = "r.id, r.queue_job_id, r.workspace_id, r.task_id, r.schedu
     r.tokens_input, r.tokens_output, r.tokens_reasoning, r.tokens_cache_read, r.tokens_cache_write, \
     r.estimated_cost_usd, r.pricing_snapshot_json, r.duration_ms, r.log_path, r.raw_stdout_log, \
     r.summary_response, r.started_at, r.completed_at, r.error_code, r.error_message, \
-    r.error_hint, t.title AS task_title";
+    r.error_hint, t.title AS task_title, t.origin AS task_origin";
 
 pub async fn create(pool: &SqlitePool, input: CreateRunInput) -> AppResult<TaskRun> {
     let id = input.id;

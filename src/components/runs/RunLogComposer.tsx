@@ -55,8 +55,9 @@ export function RunLogComposer({
           routerHint={`Modelo automático. Último usado: ${lastModel ?? "desconhecido"}.`}
         />
       </div>
-      <div className="flex items-stretch gap-2">
+      <div className="flex w-full min-w-0 items-stretch gap-2">
         <SlashTextarea
+          containerClassName="min-w-0 flex-1"
           value={composer}
           onChange={onComposerChange}
           workspaceId={workspaceId}

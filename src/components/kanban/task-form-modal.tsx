@@ -131,6 +131,9 @@ export function TaskFormModal({
   const [model, setModel] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<string[]>([]);
   const [effort, setEffort] = useState("medium");
+  const [careLevel, setCareLevel] = useState<"quick" | "standard" | "careful">(
+    "standard",
+  );
   const [email, setEmail] = useState("");
   const [exportToGdocs, setExportToGdocs] = useState(false);
   const [saving, setSaving] = useState<"save" | "rerun" | null>(null);
@@ -151,6 +154,7 @@ export function TaskFormModal({
       setModel(source.preferred_model ?? null);
       setAttachments([]);
       setEffort(source.effort_level);
+      setCareLevel(source.care_level ?? "standard");
       setEmail(source.notify_email ?? "");
       setExportToGdocs(source.export_to_gdocs);
       try {
@@ -185,6 +189,7 @@ export function TaskFormModal({
       setModel(null);
       setAttachments([]);
       setEffort("medium");
+      setCareLevel("standard");
       setEmail("");
       setExportToGdocs(false);
       setTags("");
@@ -237,6 +242,7 @@ export function TaskFormModal({
         assigned_agent: agent.trim() || null,
         preferred_model: model,
         effort_level: effort,
+        care_level: careLevel,
         notify_email: email.trim() || null,
         export_to_gdocs: exportToGdocs,
         tags: parsedTags,
@@ -316,6 +322,7 @@ export function TaskFormModal({
     model ? `modelo: ${model}` : "roteador automático",
     `prioridade ${priority}`,
     agent ? `@${agent}` : null,
+    careLevel !== "standard" ? `cuidado: ${careLevel}` : null,
     tags.trim() ? "tags" : null,
     email.trim() ? "e-mail" : null,
     exportToGdocs ? "Google Docs" : null,
@@ -431,6 +438,20 @@ export function TaskFormModal({
             <option value="low">low</option>
             <option value="medium">medium</option>
             <option value="high">high</option>
+          </select>
+        </label>
+        <label>
+          <span className={labelClass}>Cuidado</span>
+          <select
+            value={careLevel}
+            onChange={(event) =>
+              setCareLevel(event.target.value as "quick" | "standard" | "careful")
+            }
+            className={inputClass}
+          >
+            <option value="quick">rápido (menos passos)</option>
+            <option value="standard">padrão (checklist curto)</option>
+            <option value="careful">cuidadoso (revisão completa)</option>
           </select>
         </label>
         <label>

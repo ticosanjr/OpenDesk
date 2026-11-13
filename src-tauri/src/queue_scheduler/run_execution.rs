@@ -250,6 +250,7 @@ mod tests {
             lease_expires_at: None,
             last_heartbeat_at: None,
             error_message: None,
+            task_origin: Some("MANUAL".into()),
         }
     }
 

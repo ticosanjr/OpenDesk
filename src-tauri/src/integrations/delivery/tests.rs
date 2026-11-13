@@ -175,6 +175,7 @@ fn test_run() -> runs::TaskRun {
         error_message: None,
         error_hint: None,
         task_title: Some("Tarefa".into()),
+        task_origin: Some("MANUAL".into()),
     }
 }
 

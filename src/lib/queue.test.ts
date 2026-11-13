@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { queueBadgeLabel, queueCounts } from "./queue";
+import { isWorkQueueJob, queueBadgeLabel, queueCounts, workQueue } from "./queue";
 
 describe("queue badge helpers", () => {
   it("counts only active jobs", () => {
@@ -27,5 +27,20 @@ describe("queue badge helpers", () => {
     expect(queueBadgeLabel(queueCounts([{ status: "QUEUED" }]))).toBe(
       "1 aguardando",
     );
+  });
+});
+
+describe("workQueue", () => {
+  it("keeps manual/capture jobs and hides automation jobs", () => {
+    const jobs = [
+      { id: "a", task_origin: "MANUAL" },
+      { id: "b", task_origin: "CAPTURE" },
+      { id: "c", task_origin: "RECIPE" },
+      { id: "d", task_origin: "ROUTINE" },
+      { id: "e", task_origin: null },
+    ];
+    expect(workQueue(jobs).map((job) => job.id)).toEqual(["a", "b"]);
+    expect(isWorkQueueJob({ task_origin: "MANUAL" })).toBe(true);
+    expect(isWorkQueueJob({ task_origin: "RECIPE" })).toBe(false);
   });
 });

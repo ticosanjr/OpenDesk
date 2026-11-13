@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ExternalLink, Sparkles } from "lucide-react";
+import { ExternalLink, Sparkles, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -13,22 +13,29 @@ export function ExternalResources({
   availableTemplateIds = [],
   onCreateWorkspace,
   query = "",
+  favoritesOnly = false,
+  isFavorite,
+  onToggleFavorite,
 }: {
   availableTemplateIds?: string[];
   onCreateWorkspace?: (templateId: string) => void;
   query?: string;
+  favoritesOnly?: boolean;
+  isFavorite?: (id: string) => boolean;
+  onToggleFavorite?: (id: string) => void;
 }) {
   const [group, setGroup] = useState<ExternalResourceGroup | "all">("all");
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return EXTERNAL_RESOURCES.filter((resource) => {
       if (group !== "all" && resource.group !== group) return false;
+      if (favoritesOnly && !isFavorite?.(resource.id)) return false;
       if (!needle) return true;
       return `${resource.name} ${resource.focus} ${resource.usage} ${resource.tags.join(" ")}`
         .toLowerCase()
         .includes(needle);
     });
-  }, [group, query]);
+  }, [favoritesOnly, group, isFavorite, query]);
 
   if (visible.length === 0) return null;
 
@@ -90,15 +97,45 @@ export function ExternalResources({
                       {resource.name}
                     </a>
                   </div>
-                  <a
-                    href={resource.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`Abrir ${resource.name}`}
-                    className="rounded p-1 text-zinc-500 hover:text-zinc-200 focus-visible:ring-2 focus-visible:ring-blue-500/60"
-                  >
-                    <ExternalLink size={13} />
-                  </a>
+                  <div className="flex items-center gap-0.5">
+                    {onToggleFavorite ? (
+                      <button
+                        type="button"
+                        aria-label={
+                          isFavorite?.(resource.id)
+                            ? `Remover ${resource.name} dos favoritos`
+                            : `Favoritar ${resource.name}`
+                        }
+                        title={
+                          isFavorite?.(resource.id)
+                            ? "Remover dos favoritos"
+                            : "Favoritar"
+                        }
+                        onClick={() => onToggleFavorite(resource.id)}
+                        className={
+                          isFavorite?.(resource.id)
+                            ? "rounded p-1 text-amber-300 hover:bg-amber-500/10"
+                            : "rounded p-1 text-zinc-500 hover:text-zinc-200"
+                        }
+                      >
+                        <Star
+                          size={13}
+                          fill={
+                            isFavorite?.(resource.id) ? "currentColor" : "none"
+                          }
+                        />
+                      </button>
+                    ) : null}
+                    <a
+                      href={resource.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`Abrir ${resource.name}`}
+                      className="rounded p-1 text-zinc-500 hover:text-zinc-200 focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                    >
+                      <ExternalLink size={13} />
+                    </a>
+                  </div>
                 </div>
                 <p className="mt-1 line-clamp-2 text-[12px] leading-snug text-zinc-500">
                   {resource.focus}

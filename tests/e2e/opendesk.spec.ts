@@ -622,7 +622,7 @@ test("studio reads global V1 MCP, skills, agents and commands", async ({ page, r
   // Effective is the default and must include the global fixture.
   await expect(page.getByText("global-skill").first()).toBeVisible();
   await expect(page.getByText("rea", { exact: true }).first()).toBeVisible();
-  await page.getByRole("button", { name: "Global" }).click();
+  await page.getByRole("button", { name: "Global", exact: true }).click();
   await expect(page.getByText("Global Agent").first()).toBeVisible();
   await page.getByRole("button", { name: "Skills" }).click();
   await expect(page.getByText("global-skill").first()).toBeVisible();

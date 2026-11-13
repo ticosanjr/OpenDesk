@@ -22,7 +22,8 @@ export function runStatusTone(status: string): StatusTone {
   if (status === "SUCCESS") return "green";
   if (status === "FAILED") return "red";
   if (status === "RUNNING") return "blue";
-  if (status === "CANCELLED" || status === "PENDING") return "yellow";
+  if (status === "PENDING") return "yellow";
+  if (status === "CANCELLED") return "default";
   return "default";
 }
 

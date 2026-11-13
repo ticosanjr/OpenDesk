@@ -364,6 +364,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/files/search", get(files::search))
         .route("/api/files/content", get(files::content))
         .route("/api/files/archive", get(files::archive))
+        .route("/api/files/save", axum::routing::post(files::save_file))
         .route("/api/files/raw", get(files::raw))
         .route("/api/files/media", get(files::media))
         .route(
@@ -478,6 +479,10 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/artifacts/{id}/archive",
             get(artifacts::artifact_archive),
+        )
+        .route(
+            "/api/artifacts/{id}/save",
+            axum::routing::post(artifacts::save_artifact),
         )
         .route("/api/router/config", get(router::get_config))
         .route("/api/router/model", put(router::set_router_model))

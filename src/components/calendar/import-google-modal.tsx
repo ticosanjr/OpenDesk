@@ -226,7 +226,10 @@ export function ImportGoogleModal({
                   onClick={() => void syncSource(source)}
                   disabled={busy}
                 >
-                  <RefreshCw size={12} />
+                  <RefreshCw
+                    size={12}
+                    className={busy ? "animate-spin" : undefined}
+                  />
                   Sincronizar
                 </Button>
                 <Button

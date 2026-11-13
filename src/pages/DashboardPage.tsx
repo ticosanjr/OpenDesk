@@ -71,6 +71,7 @@ export function DashboardPage() {
   const [agentStates, setAgentStates] = useState<Record<string, string>>({});
   const [presentation, setPresentation] = useState<Record<string, AgentFile>>({});
   const [agentsError, setAgentsError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [recentRuns, setRecentRuns] = useState<TaskRun[]>([]);
   const [recentArtifacts, setRecentArtifacts] = useState<Artifact[]>([]);
   const [pinnedArtifacts, setPinnedArtifacts] = useState<Artifact[]>([]);
@@ -260,6 +261,15 @@ export function DashboardPage() {
 
   const runningRuns = recentRuns.filter((run) => run.status === "RUNNING");
 
+  async function refreshAll() {
+    setRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   return (
     <PageBody>
       <PageHeader
@@ -267,8 +277,16 @@ export function DashboardPage() {
         description={`${activeWorkspace.name} · ${shortPath(activeWorkspace.root_path, 64)}`}
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={() => void refresh()}>
-              <RefreshCw size={14} />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void refreshAll()}
+              disabled={refreshing}
+            >
+              <RefreshCw
+                size={14}
+                className={refreshing ? "animate-spin" : undefined}
+              />
               Atualizar
             </Button>
             <Button variant="outline" size="sm" onClick={() => void restartDaemon()}>
@@ -344,7 +362,7 @@ export function DashboardPage() {
           value={`${dashboard?.queue_running ?? 0} rodando`}
           hint={`${dashboard?.queue_waiting ?? 0} aguardando · ${
             dashboard?.artifacts_total ?? 0
-          } artefatos`}
+          } artefatos · inclui automações`}
           active={(dashboard?.queue_running ?? 0) > 0}
         />
         </div>

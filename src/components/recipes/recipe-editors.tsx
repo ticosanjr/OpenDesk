@@ -258,6 +258,17 @@ export function RecipeStepper({
 
   return (
     <div className="space-y-3">
+      <label className="block">
+        <span className="mb-1 block text-[12px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+          Nome da receita
+        </span>
+        <input
+          value={String(recipe.name ?? "")}
+          onChange={(event) => onChange({ ...recipe, name: event.target.value })}
+          placeholder="Nome exibido nas listas e execuções"
+          className="h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 text-[13.5px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
+        />
+      </label>
       <section className="rounded-lg border border-blue-500/30 bg-blue-500/[0.04] p-2.5">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-[12px] font-semibold uppercase tracking-wide text-blue-200">
@@ -612,8 +623,58 @@ function SinkEditor({
   onChange: (value: Dictionary) => void;
 }) {
   const config = (sink.config ?? {}) as Dictionary;
+  const sinkType = String(sink.sink_type ?? "DOC_COMPILER");
+  function patchConfig(patch: Dictionary) {
+    onChange({ config: { ...config, ...patch } });
+  }
   return (
     <div className="mt-1.5 space-y-1.5">
+      {sinkType === "EMAIL_SMTP" ? (
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          <LabeledField
+            label="Para"
+            hint="Vazio usa o e-mail padrão do workspace."
+          >
+            <input
+              value={String(config.to ?? "")}
+              onChange={(event) => patchConfig({ to: event.target.value })}
+              placeholder="cliente@empresa.com"
+              className={inputClass}
+            />
+          </LabeledField>
+          <LabeledField label="Assunto">
+            <input
+              value={String(config.subject ?? "")}
+              onChange={(event) => patchConfig({ subject: event.target.value })}
+              placeholder="[OpenDesk] Resultado"
+              className={inputClass}
+            />
+          </LabeledField>
+          <LabeledField
+            label="Mensagem extra"
+            hint="Aparece antes do resumo do run no corpo do e-mail."
+          >
+            <textarea
+              value={String(config.body ?? "")}
+              onChange={(event) => patchConfig({ body: event.target.value })}
+              rows={3}
+              placeholder="Segue o resultado processado pela receita."
+              className={cn(inputClass, "h-auto py-2")}
+            />
+          </LabeledField>
+          <label className="flex items-center gap-2 self-end pb-1 text-[12.5px] text-zinc-400">
+            <input
+              type="checkbox"
+              checked={config.attach_artifacts !== false}
+              onChange={(event) =>
+                patchConfig({ attach_artifacts: event.target.checked })
+              }
+              className="accent-blue-500"
+            />
+            anexar artefatos (até 5)
+          </label>
+        </div>
+      ) : null}
       <div className="grid gap-1.5 sm:grid-cols-2">
         <LabeledField label="Tipo de saída">
           <select
@@ -629,7 +690,7 @@ function SinkEditor({
           </select>
         </LabeledField>
         <LabeledField
-          label="Configuração (JSON)"
+          label={sinkType === "EMAIL_SMTP" ? "Avançado (JSON)" : "Configuração (JSON)"}
           hint="Caminhos e destinatários aceitam variáveis do fluxo."
         >
           <input

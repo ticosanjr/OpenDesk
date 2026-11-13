@@ -4,8 +4,8 @@ O gate usa dois limites de linhas (llvm-cov):
 
 | Medida | Antes da onda 14 | Agora | Meta |
 |---|---:|---:|---:|
-| Total | 62,50% | **64,20%** | 80% |
-| Core (db, api, recipes, fila, io_bus, dsh_router, …) | 68,67% | **70,82%** | 80% |
+| Total | 62,50% | **64,81%** | 80% |
+| Core (db, api, recipes, fila, io_bus, dsh_router, …) | 68,67% | **71,14%** | 80% |
 
 Comandos:
 
@@ -18,7 +18,7 @@ scripts/coverage-core.sh /tmp/cov.txt
 
 ## Regra do ratchet
 
-- `scripts/gate.sh` falha abaixo de **64%** totais e **70,5%** core.
+- `scripts/gate.sh` falha abaixo de **64,5%** totais e **70,8%** core.
 - Ao cobrir um módulo, suba o limite até ~0,5 ponto abaixo do medido.
 - Nunca baixe o limite para “passar”; prefira marcar o teste como opt-in.
 

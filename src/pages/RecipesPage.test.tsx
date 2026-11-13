@@ -69,7 +69,9 @@ describe("RecipesPage", () => {
     await waitFor(() =>
       expect(screen.getByText("Receita E2E")).toBeInTheDocument(),
     );
-    expect(screen.getByText("Fluxo visual")).toBeInTheDocument();
+    expect(screen.getByText("Crie ou selecione uma receita")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Receita E2E"));
+    expect(await screen.findByText("Fluxo visual")).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByDisplayValue("Passo 1")).toBeInTheDocument(),
     );

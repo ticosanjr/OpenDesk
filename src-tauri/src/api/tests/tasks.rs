@@ -477,3 +477,92 @@ async fn missed_runs_can_be_listed_and_ignored() {
     .await;
     assert!(pending.as_array().expect("pending").is_empty());
 }
+
+#[tokio::test]
+async fn work_scope_hides_automation_tasks_from_the_kanban() {
+    let ctx = test_support::context().await;
+    let workspace = format!("?workspace_id={}", ctx.workspace_id);
+    for (title, origin) in [
+        ("Trabalho manual", "MANUAL"),
+        ("Captura rápida", "CAPTURE"),
+        ("Receita automática", "RECIPE"),
+        ("Rotina automática", "ROUTINE"),
+        ("Entrada externa", "IO_BUS"),
+    ] {
+        let (status, _) = call(
+            &ctx,
+            Method::POST,
+            &format!("/api/tasks{workspace}"),
+            Some(json!({
+                "title": title,
+                "description": "filtro de escopo",
+                "execution_mode": "BUILD_DIRECT",
+                "origin": origin
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{title}");
+    }
+
+    let (status, all) = call(&ctx, Method::GET, &format!("/api/tasks{workspace}"), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(all.as_array().expect("all").len(), 5);
+
+    let (status, work) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/tasks{workspace}&scope=work"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let titles: Vec<&str> = work
+        .as_array()
+        .expect("work")
+        .iter()
+        .filter_map(|task| task["title"].as_str())
+        .collect();
+    assert_eq!(titles.len(), 2);
+    assert!(titles.contains(&"Trabalho manual"));
+    assert!(titles.contains(&"Captura rápida"));
+}
+
+#[tokio::test]
+async fn care_level_persists_and_rejects_invalid_values() {
+    let ctx = test_support::context().await;
+    let workspace = format!("?workspace_id={}", ctx.workspace_id);
+    let (status, created) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/tasks{workspace}"),
+        Some(json!({
+            "title": "Tarefa rápida",
+            "description": "Resumo curto",
+            "execution_mode": "AUTO_DSH",
+            "care_level": "quick"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{created}");
+    assert_eq!(created["care_level"], "quick");
+    let id = created["id"].as_str().expect("id");
+
+    let (status, updated) = call(
+        &ctx,
+        Method::PATCH,
+        &format!("/api/tasks/{id}"),
+        Some(json!({ "care_level": "careful" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{updated}");
+    assert_eq!(updated["care_level"], "careful");
+
+    let (status, _) = call(
+        &ctx,
+        Method::PATCH,
+        &format!("/api/tasks/{id}"),
+        Some(json!({ "care_level": "extreme" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}

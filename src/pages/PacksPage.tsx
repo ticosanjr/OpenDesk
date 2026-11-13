@@ -12,7 +12,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconLabel } from "@/components/ui/icon-label";
 import { ExternalResources } from "@/components/packs/ExternalResources";
 import { RecommendedSkills } from "@/components/packs/RecommendedSkills";
-import { StudioInstallModal } from "@/components/studio/StudioInstallModal";
 import { PackInstallModal } from "@/components/packs/PackInstallModal";
 import { PackCatalog } from "@/components/packs/PackCatalog";
 import { PacksToolbar } from "@/components/packs/PacksToolbar";
@@ -30,6 +29,9 @@ import type {
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { useFavorites } from "@/lib/favorites";
 import type { RecommendedSkill } from "@/lib/recommended-skills";
+import { buildInstallTask } from "@/lib/install-task";
+import type { Task } from "@/lib/types";
+import { links } from "@/lib/links";
 import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
 import { useAppStore } from "@/store/app-store";
@@ -39,6 +41,7 @@ const ONBOARDING_KEY = "opendesk.starter-packs.onboarding-dismissed";
 
 export function PacksPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
+  const workspaces = useAppStore((state) => state.workspaces);
   const refresh = useAppStore((state) => state.refresh);
   const [packs, setPacks] = useState<PackSummary[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -53,8 +56,6 @@ export function PacksPage() {
   const [tab, setTab] = useState<
     "all" | "workspaces" | "packs" | "resources" | "recommended"
   >("all");
-  const [installRecommendation, setInstallRecommendation] =
-    useState<RecommendedSkill | null>(null);
   const { toggle: toggleFavorite, isFavorite } = useFavorites();
   const setWorkspaceDialogOpen = useUiStore(
     (state) => state.setWorkspaceDialogOpen,
@@ -137,15 +138,18 @@ export function PacksPage() {
     });
   }, [category, installFilter, isFavorite, packs, query]);
 
+  const favoritesOnly = installFilter === "favorites";
+
   const filteredTemplates = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return templates;
-    return templates.filter((template) =>
-      `${template.name} ${template.description} ${template.packs.join(" ")}`
+    return templates.filter((template) => {
+      if (favoritesOnly && !isFavorite("template", template.id)) return false;
+      if (!needle) return true;
+      return `${template.name} ${template.description} ${template.packs.join(" ")}`
         .toLowerCase()
-        .includes(needle),
-    );
-  }, [query, templates]);
+        .includes(needle);
+    });
+  }, [favoritesOnly, isFavorite, query, templates]);
 
   const searching = query.trim().length > 0;
 
@@ -447,7 +451,7 @@ export function PacksPage() {
     await refresh();
   }
 
-  function installRecommended(skill: RecommendedSkill) {
+  async function installRecommended(skill: RecommendedSkill) {
     if (!activeWorkspaceId) {
       toast({
         tone: "warning",
@@ -457,7 +461,52 @@ export function PacksPage() {
       setWorkspaceDialogOpen(true);
       return;
     }
-    setInstallRecommendation(skill);
+    const workspaceName =
+      workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.name ??
+      null;
+    const payload = buildInstallTask({
+      kind: "skill",
+      name: skill.name,
+      source: skill.source,
+      sourceType: skill.sourceType,
+      url: skill.url,
+      installCommand: skill.installCommand,
+      skillId: skill.skillId,
+      note: skill.note,
+      workspaceName,
+    });
+    try {
+      const task = await apiPost<Task>(
+        `/api/tasks?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+        {
+          title: payload.title,
+          description: payload.description,
+          execution_mode: "AUTO_DSH",
+          priority: 2,
+          care_level: "standard",
+          tags: payload.tags,
+          origin: "MANUAL",
+        },
+      );
+      if (!task.active_job_status) {
+        await apiPost(`/api/tasks/${task.id}/dispatch`, {}).catch(() => {
+          // The task is queued for manual execution when the engine is offline.
+        });
+      }
+      toast({
+        tone: "success",
+        title: "Instalação enviada para execução",
+        description: `${skill.name} está na tarefa ${task.title}.`,
+        href: links.task(task.id),
+      });
+      await refresh();
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível criar a tarefa de instalação",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
   }
 
   function dismissOnboarding() {
@@ -519,7 +568,11 @@ export function PacksPage() {
                 key={template.id}
                 template={template}
                 action="criar workspace"
+                favorite={isFavorite("template", template.id)}
                 onClick={() => openTemplate(template)}
+                onToggleFavorite={() =>
+                  toggleFavorite("template", template.id)
+                }
               />
             ))}
           </CardContent>
@@ -533,8 +586,14 @@ export function PacksPage() {
         searching={searching}
         filteredTemplates={filteredTemplates.length}
         filteredPacks={filtered.length}
+        favoritesOnly={favoritesOnly}
         onTabChange={setTab}
         onQueryChange={setQuery}
+        onToggleFavorites={() =>
+          setInstallFilter((current) =>
+            current === "favorites" ? "all" : "favorites",
+          )
+        }
       />
 
       {((searching && filteredTemplates.length > 0) ||
@@ -559,19 +618,24 @@ export function PacksPage() {
               <WorkspaceTemplateCard
                 key={template.id}
                 template={template}
+                favorite={isFavorite("template", template.id)}
                 onClick={() => openTemplate(template)}
+                onToggleFavorite={() =>
+                  toggleFavorite("template", template.id)
+                }
               />
             ))}
           </CardContent>
         </Card>
       ) : null}
 
-      {!searching && tab === "recommended" ? (
+      {tab === "recommended" || tab === "all" || searching ? (
         <RecommendedSkills
           query={query}
           isFavorite={(id) => isFavorite("skill", id)}
           onToggleFavorite={(id) => toggleFavorite("skill", id)}
-          onInstall={installRecommended}
+          onInstall={(skill) => void installRecommended(skill)}
+          favoritesOnly={favoritesOnly}
         />
       ) : null}
 
@@ -583,6 +647,9 @@ export function PacksPage() {
             const template = templates.find((item) => item.id === templateId);
             if (template) openTemplate(template);
           }}
+          favoritesOnly={favoritesOnly}
+          isFavorite={(id) => isFavorite("resource", id)}
+          onToggleFavorite={(id) => toggleFavorite("resource", id)}
         />
       ) : null}
 
@@ -660,36 +727,6 @@ export function PacksPage() {
         onInstall={() => void installPack()}
         onRemove={() => void removePack()}
         onInstallItem={(kind, id) => void installItem(kind, id)}
-      />
-
-      <StudioInstallModal
-        open={installRecommendation !== null}
-        workspaceId={activeWorkspaceId}
-        defaultScope="workspace"
-        initialSource={
-          installRecommendation
-            ? {
-                sourceType: installRecommendation.sourceType,
-                value: installRecommendation.source,
-                kind: "skill",
-              }
-            : undefined
-        }
-        preselectIds={
-          installRecommendation ? [installRecommendation.skillId] : undefined
-        }
-        lockSource
-        onClose={() => setInstallRecommendation(null)}
-        onInstalled={async () => {
-          const name = installRecommendation?.name ?? "Skill";
-          setInstallRecommendation(null);
-          toast({
-            tone: "success",
-            title: `${name} instalada`,
-            description: "A skill foi gravada no workspace ativo.",
-          });
-          await refresh();
-        }}
       />
 
       <WorkspaceTemplateModal

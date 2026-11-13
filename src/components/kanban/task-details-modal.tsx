@@ -309,7 +309,7 @@ export function TaskDetailsModal({
       title={task?.title ?? "Tarefa"}
       description={
         task
-          ? `${task.execution_mode} · ${task.effort_level} · ${task.assigned_agent ?? "router"}`
+          ? `${task.execution_mode} · effort ${task.effort_level} · cuidado ${task.care_level ?? "standard"} · ${task.assigned_agent ?? "router"}`
           : undefined
       }
       size="lg"
@@ -727,7 +727,7 @@ function runVariant(status: string): "green" | "red" | "blue" | "yellow" | "defa
   if (status === "SUCCESS") return "green";
   if (status === "FAILED") return "red";
   if (status === "RUNNING") return "blue";
-  if (status === "CANCELLED") return "yellow";
+  if (status === "CANCELLED") return "default";
   return "default";
 }
 

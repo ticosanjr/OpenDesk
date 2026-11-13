@@ -90,15 +90,16 @@ export function KanbanBoard({
         }}
       >
         {KANBAN_COLUMNS.map((column) => {
-          const columnTasks = tasks.filter((task) => {
+          const columnTasks = tasks
+            .filter((task) => {
             const pending = attentionByTask.get(task.id);
             const effective =
               pending &&
               (pending.interactions.length > 0 || pending.permissions.length > 0)
                 ? "WAITING_INPUT"
                 : workflowMeta(task).state;
-            return column.states.includes(effective);
-          });
+              return column.states.includes(effective);
+            });
           return (
             <Card
               key={column.id}

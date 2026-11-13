@@ -1,12 +1,6 @@
 import { format } from "date-fns";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock3,
-  Loader2,
-  XCircle,
-} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { runStatusMeta, RUN_STATUS_ICON_CLASS } from "@/components/ui/run-status";
 import { itemTimeLabel } from "@/lib/calendar";
 import type { CalendarItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -35,27 +29,22 @@ function statusClass(item: CalendarItem, ringActive: boolean): string | undefine
 }
 
 function executionMeta(status?: string | null) {
-  switch ((status ?? "").toUpperCase()) {
-    case "SUCCESS":
-    case "DONE":
-      return { icon: CheckCircle2, tone: "green" as const, label: "executado" };
-    case "FAILED":
-    case "BLOCKED":
-      return { icon: XCircle, tone: "red" as const, label: "falhou" };
-    case "RUNNING":
-      return { icon: Loader2, tone: "blue" as const, label: "executando" };
-    case "QUEUED":
-    case "PAUSED":
-      return { icon: Clock3, tone: "yellow" as const, label: "na fila" };
-    case "MISSED":
-      return { icon: AlertTriangle, tone: "yellow" as const, label: "perdida" };
-    case "CANCELLED":
-      return { icon: XCircle, tone: "default" as const, label: "cancelada" };
-    case "PENDING":
-      return { icon: Clock3, tone: "default" as const, label: "agendada" };
-    default:
-      return null;
-  }
+  const normalized = (status ?? "").toUpperCase();
+  if (!normalized) return null;
+  const meta = runStatusMeta(normalized);
+  const label =
+    normalized === "SUCCESS" || normalized === "DONE"
+      ? "executado"
+      : normalized === "FAILED" || normalized === "BLOCKED"
+        ? "falhou"
+        : normalized === "CANCELLED"
+          ? "cancelada"
+          : normalized === "MISSED"
+            ? "perdida"
+            : normalized === "PENDING"
+              ? "agendada"
+              : meta.label;
+  return { ...meta, label };
 }
 
 /**
@@ -105,7 +94,7 @@ export function CalendarItemChip({
               return meta ? (
                 <meta.icon
                   size={10}
-                  className={meta.tone === "green" ? "text-emerald-400" : meta.tone === "red" ? "text-red-400" : meta.tone === "yellow" ? "text-amber-400" : meta.tone === "blue" ? "text-blue-400" : "text-zinc-500"}
+                  className={RUN_STATUS_ICON_CLASS[meta.tone]}
                 />
               ) : null;
             })()}

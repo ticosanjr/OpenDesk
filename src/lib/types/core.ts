@@ -45,6 +45,7 @@ export interface QueueJob {
   resolved_model: string;
   resolved_effort: string;
   job_kind?: string | null;
+  task_origin?: string | null;
   output_dir?: string | null;
   scheduled_for?: string | null;
   enqueued_at: string;
@@ -83,6 +84,7 @@ export interface Task {
   agent_override?: boolean;
   model_override?: boolean;
   effort_level: string;
+  care_level: "quick" | "standard" | "careful";
   plan_markdown?: string | null;
   output_dir_path?: string | null;
   notify_email?: string | null;
@@ -192,6 +194,7 @@ export interface TaskRun {
   error_message?: string | null;
   error_hint?: string | null;
   task_title?: string | null;
+  task_origin?: string | null;
 }
 
 export interface TaskDiagnostics {

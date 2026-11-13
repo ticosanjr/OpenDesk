@@ -10,6 +10,7 @@ use axum::{
     response::Response,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -202,6 +203,54 @@ pub fn archive_entries(path: &Path) -> AppResult<Vec<ArchiveEntry>> {
             .then_with(|| left.name.cmp(&right.name))
     });
     Ok(entries)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SaveFileBody {
+    pub workspace_id: Option<String>,
+    pub path: String,
+    pub destination: String,
+}
+
+/// Copy a file to a user-chosen absolute destination (native save dialog).
+pub fn save_to_destination(source: &Path, destination: &str) -> AppResult<()> {
+    let destination = PathBuf::from(destination.trim());
+    if destination.as_os_str().is_empty() || !destination.is_absolute() {
+        return Err(AppError::BadRequest(
+            "o destino do download deve ser um caminho absoluto".into(),
+        ));
+    }
+    if let Some(parent) = destination.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).map_err(|error| {
+            AppError::Internal(format!(
+                "não foi possível criar a pasta de destino: {error}"
+            ))
+        })?;
+    }
+    if std::fs::canonicalize(source).ok() == std::fs::canonicalize(&destination).ok() {
+        return Err(AppError::BadRequest(
+            "origem e destino do download são o mesmo arquivo".into(),
+        ));
+    }
+    std::fs::copy(source, &destination).map_err(|error| {
+        AppError::Internal(format!("não foi possível salvar o download: {error}"))
+    })?;
+    Ok(())
+}
+
+pub async fn save_file(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<SaveFileBody>,
+) -> AppResult<Json<serde_json::Value>> {
+    let root = workspace_root(&state, body.workspace_id.as_deref()).await?;
+    let source = resolve_path(&root, Some(body.path.as_str()))?;
+    if !source.is_file() {
+        return Err(AppError::BadRequest("path is not a file".into()));
+    }
+    save_to_destination(&source, &body.destination)?;
+    Ok(Json(json!({ "path": body.destination })))
 }
 
 #[derive(Debug, Serialize)]
@@ -570,6 +619,22 @@ mod tests {
         let path = dir.path().join("notes.txt");
         std::fs::write(&path, b"plain").expect("file");
         assert!(archive_entries(&path).is_err());
+    }
+
+    #[test]
+    fn saves_copies_to_an_absolute_destination() {
+        let dir = tempfile::TempDir::new().expect("temp");
+        let source = dir.path().join("origem.md");
+        std::fs::write(&source, b"conteudo").expect("source");
+        let destination = dir.path().join("destino.md");
+        save_to_destination(&source, &destination.to_string_lossy()).expect("save");
+        assert_eq!(
+            std::fs::read_to_string(&destination).expect("read"),
+            "conteudo"
+        );
+
+        let relative = save_to_destination(&source, "destino-relativo.md");
+        assert!(relative.is_err());
     }
 
     #[test]

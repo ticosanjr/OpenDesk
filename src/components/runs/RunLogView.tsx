@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import { ArrowDown, Loader2, RefreshCw } from "lucide-react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { apiDelete, apiGet, apiPost, apiText } from "@/lib/api";
 import type {
@@ -25,6 +25,8 @@ import {
 } from "@/components/runs/run-log-parts";
 import { RunLogBands } from "@/components/runs/RunLogBands";
 import { RunLogComposer } from "@/components/runs/RunLogComposer";
+import { RunInputsStrip } from "@/components/runs/RunInputsStrip";
+import { useStickToBottom } from "@/lib/use-stick-to-bottom";
 
 export function RunLogView({
   runId,
@@ -68,6 +70,14 @@ export function RunLogView({
     }>
   >([]);
   const lastPermissionEvent = useAppStore((state) => state.lastPermissionEvent);
+  const {
+    ref: transcriptRef,
+    atBottom: transcriptAtBottom,
+    onScroll: onTranscriptScroll,
+    scrollToBottom: scrollTranscript,
+  } = useStickToBottom<HTMLDivElement>(
+    `${timeline?.events.length ?? 0}:${timeline?.events_count ?? 0}:${messages.length}:${interactions.length}:${permissions.length}:${view}:${filter}`,
+  );
 
   const loadMessages = useCallback(async (taskId: string) => {
     try {
@@ -382,8 +392,16 @@ export function RunLogView({
         <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
           {error}
         </p>
-        <Button size="sm" variant="outline" onClick={() => void load()}>
-          <RefreshCw size={13} />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => void refresh()}
+          disabled={refreshing}
+        >
+          <RefreshCw
+            size={13}
+            className={refreshing ? "animate-spin" : undefined}
+          />
           Tentar novamente
         </Button>
       </div>
@@ -428,6 +446,8 @@ export function RunLogView({
         onCopyExecution={copyExecution}
       />
 
+      <RunInputsStrip inputs={timeline?.inputs ?? []} />
+
       {showRaw ? (
         <div className="min-h-0 flex-1 overflow-auto p-4">
           {rawLoading ? (
@@ -443,7 +463,12 @@ export function RunLogView({
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
+          <div className="relative min-h-0 flex-1">
+          <div
+            ref={transcriptRef}
+            onScroll={onTranscriptScroll}
+            className="h-full space-y-2 overflow-auto p-3"
+          >
             {view === "bands" ? (
               <>
                 {interactions.map((interaction) => (
@@ -485,6 +510,19 @@ export function RunLogView({
                 onCopy={(value) => void copy(value)}
               />
             )}
+          </div>
+          {!transcriptAtBottom ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="absolute bottom-3 right-4 h-8 gap-1.5 rounded-full bg-zinc-950/95 shadow-lg"
+              onClick={() => scrollTranscript()}
+              title="Ir para as ações mais recentes"
+            >
+              <ArrowDown size={13} />
+              ir para o fim
+            </Button>
+          ) : null}
           </div>
           {timeline?.run?.task_id ? (
             <RunLogComposer

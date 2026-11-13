@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/field";
 import { ToolsCard } from "@/components/settings/ToolsCard";
 import { QueueSettingsCard } from "@/components/settings/QueueSettingsCard";
+import { FilePreferencesCard } from "@/components/settings/FilePreferencesCard";
 import { BackupsCard } from "@/components/settings/BackupsCard";
 import { AuditCard } from "@/components/settings/AuditCard";
 import { useAppStore } from "@/store/app-store";
@@ -278,6 +279,7 @@ export function SettingsPage() {
             </p>
           </CardContent>
         </Card>
+        <FilePreferencesCard />
       </div>
 
       ) : null}

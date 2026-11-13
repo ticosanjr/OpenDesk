@@ -3,7 +3,6 @@ import { useCallback, useState } from "react";
 export interface KanbanView {
   id: string;
   name: string;
-  origin: "work" | "automations" | "all";
   query: string;
   agent: string;
   priority: string;
@@ -20,15 +19,10 @@ function normalize(value: unknown): KanbanView[] {
     if (typeof record.id !== "string" || typeof record.name !== "string") {
       return [];
     }
-    const origin =
-      record.origin === "automations" || record.origin === "all"
-        ? record.origin
-        : "work";
     return [
       {
         id: record.id,
         name: record.name,
-        origin,
         query: typeof record.query === "string" ? record.query : "",
         agent: typeof record.agent === "string" ? record.agent : "",
         priority: typeof record.priority === "string" ? record.priority : "",

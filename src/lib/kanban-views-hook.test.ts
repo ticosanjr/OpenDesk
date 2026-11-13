@@ -9,7 +9,6 @@ import {
 
 const base = {
   name: "Revisão",
-  origin: "all" as const,
   query: "",
   agent: "",
   priority: "",
@@ -37,15 +36,15 @@ describe("useKanbanViews", () => {
 
   it("keeps valid views and normalizes optional fields", () => {
     const stored: unknown = [
-      { ...base, id: "a", origin: "automations", query: "x" },
-      { ...base, id: "b", origin: "all", attentionOnly: false },
+      { ...base, id: "a", query: "x" },
+      { ...base, id: "b", attentionOnly: false },
       { ...base, id: "c", origin: "unknown", attentionOnly: "yes" },
       { id: "d" },
     ];
     writeKanbanViews(stored as KanbanView[]);
     const views = readKanbanViews();
     expect(views.map((view) => view.id)).toEqual(["a", "b", "c"]);
-    expect(views[2]?.origin).toBe("work");
+    expect(views[2]?.name).toBe("Revisão");
     expect(views[2]?.attentionOnly).toBe(false);
     expect(views[0]?.query).toBe("x");
   });
