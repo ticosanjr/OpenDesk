@@ -2371,3 +2371,21 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Verificação: gate completo (TypeScript, ESLint, cobertura JS, fmt/clippy,
   377 testes Rust, cobertura Rust 64,2%/70,8%, build, 93 Playwright, goldens,
   axe e 74/74 features). Sem release.
+
+## 2026-11-13 — review completo, correções e release 0.51.0
+
+- Review do diff uncommitted encontrou e corrigiu: atualização cross-platform
+  aceitando binário de outro SO (agora valida `platform` e nome exato; macOS/
+  Windows usam instalador), paleta filtrando resultados já ranqueados, seleção
+  de pacotes vazando entre workspaces, filtros de run escondendo permissões,
+  ZIP abortando por entrada corrompida, boundary de artefato duplicado e
+  `release.sh` sobrescrevendo versão de outra plataforma.
+- `release.sh` normaliza `macos-arm64`→`aarch64`, valida versões entre
+  package/tauri/cargo, exige instaladores reais e não usa flags GNU-only.
+- Calendário dos goldens fixado em data passada para não depender do destaque
+  de “hoje”.
+- Gate completo verde após as correções: 198 Vitest, 380 testes Rust, 93
+  Playwright, 49 goldens, axe e 74/74 features.
+- Release **0.51.0** publicada: commit `87bea55`, tag `v0.51.0`, assets Linux
+  (deb/rpm/AppImage/binário), `latest.json` assinado, SHA256SUMS conferido e
+  retenção mantendo 0.50.0, 0.50.1 e 0.51.0.
