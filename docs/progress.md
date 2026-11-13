@@ -2275,3 +2275,6 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Fechamento do P2: **176 Vitest**, **93 Playwright**, **74/74 features**,
   cobertura Rust e JS acima do gate, clippy, build, axe em 1024/1440/1920 e
   goldens visuais estáveis.
+- Release 0.50.1 publica no binário as melhorias de P1/P2 (fila, busca, HITL,
+  modais, viewers, navegação responsiva e tipografia), com notas em
+  `docs/releases/0.50.1.md`.
