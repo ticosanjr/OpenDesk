@@ -2625,3 +2625,15 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   interpretar somente mensagens `assistant` criadas após o prompt. A resposta
   antiga não é mais reutilizada quando o modelo ainda está respondendo.
 - ADRs 0051 e 0052; 421 testes Rust.
+
+## 2026-11-14 — release 0.55.0
+
+- Folder Watch passou a usar fingerprint persistente (`recipe_file_state`,
+  migração 0036); reinícios e runs falhos sem alteração não reprocessam o mesmo
+  arquivo. Primeiro scan concilia runs antigos.
+- O chat aguarda o turno novo do OpenCode e interpreta somente mensagens
+  `assistant` criadas após o prompt; o Telegram deixou de repetir a resposta
+  anterior.
+- Release `5061662`, tag `v0.55.0`; assets Linux (deb/rpm/AppImage/binário),
+  `latest.json` assinado e SHA256SUMS conferido. Retenção manteve 0.53.0,
+  0.54.0 e 0.55.0.
