@@ -1,8 +1,8 @@
 # Verificação — fases 0 a 5
 
-Estado verificado na árvore local para o release **0.53.0**. O gate completo
-foi executado antes da publicação; as pendências manuais continuam listadas
-abaixo.
+Estado verificado na árvore local para o release **0.54.0**. Este release usou a
+verificação proporcional; o último gate completo registrado foi o de 0.53.0. As
+pendências manuais continuam listadas abaixo.
 
 ## Comandos e resultados
 
