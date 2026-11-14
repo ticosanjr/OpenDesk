@@ -2613,3 +2613,15 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Release `ca6dd93`, tag `v0.54.0`; assets Linux (deb/rpm/AppImage/binário),
   `latest.json` assinado e SHA256SUMS conferido. Retenção manteve 0.52.0,
   0.53.0 e 0.54.0.
+
+## 2026-11-14 — Folder Watch sem duplicatas e chat no turno certo
+
+- Folder Watch ganhou estado persistente em `recipe_file_state` (migração 0036):
+  fingerprint `mtime ns + tamanho`, `SEEN` para arquivos existentes, sem retry
+  automático de run falho sem alteração. O primeiro scan após a atualização
+  concilia arquivos já presentes em `recipe_runs` para evitar reprocessamento em
+  massa.
+- O chat passou a esperar o turno novo do OpenCode (`idle`/estabilidade) e a
+  interpretar somente mensagens `assistant` criadas após o prompt. A resposta
+  antiga não é mais reutilizada quando o modelo ainda está respondendo.
+- ADRs 0051 e 0052; 421 testes Rust.

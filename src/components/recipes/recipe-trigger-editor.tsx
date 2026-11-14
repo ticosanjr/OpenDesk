@@ -122,7 +122,10 @@ export function TriggerEditor({
                 className={inputClass}
               />
             </LabeledField>
-            <LabeledField label="Retentar após falha (min)">
+            <LabeledField
+              label="Retentar falha de início (min)"
+              hint="Não reprocessa um arquivo que já rodou e falhou; ele só volta quando o arquivo muda."
+            >
               <input
                 type="number"
                 min={1}

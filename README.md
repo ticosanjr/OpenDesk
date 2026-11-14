@@ -4,7 +4,7 @@ Sistema operacional visual de governança, automação e observabilidade sobre o
 OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
-> **Status:** release 0.54.0. O OpenDesk cobre fundação, Studio SSOT, execução
+> **Status:** release 0.55.0. O OpenDesk cobre fundação, Studio SSOT, execução
 > V2, automação, Google Workspace + MCP, governança de agentes, aprendizado,
 > observabilidade, CLI headless, browse, backups, atualizações e o barramento
 > universal de I/O. A refatoração segura e as frentes de produto e plataforma
@@ -293,6 +293,8 @@ docs/                       plano, decisões e histórico
 - [ADR 0048 — Telegram por long polling](docs/decisions/0048-telegram-long-polling.md)
 - [ADR 0049 — Atalho do AppImage no Linux](docs/decisions/0049-appimage-desktop-integration.md)
 - [ADR 0050 — Chat operacional e HITL no Telegram](docs/decisions/0050-telegram-operational-chat.md)
+- [ADR 0051 — Deduplicação persistente de Folder Watch](docs/decisions/0051-folder-watch-persistent-dedupe.md)
+- [ADR 0052 — Chat aguarda o turno novo](docs/decisions/0052-chat-waits-for-new-turn.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

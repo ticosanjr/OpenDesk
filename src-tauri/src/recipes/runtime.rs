@@ -14,10 +14,11 @@ use std::{
 use tokio::sync::Mutex;
 
 pub struct RecipeRuntime {
-    seen: Mutex<HashMap<String, HashSet<PathBuf>>>,
     pending: Mutex<HashMap<PathBuf, (u64, i64, Instant)>>,
-    retry_at: Mutex<HashMap<PathBuf, Instant>>,
-    run_checks: Mutex<HashMap<PathBuf, (String, String, u64)>>,
+    /// Retry only applies to a failure to *start* a run. A failed run keeps its
+    /// fingerprint and is not retried until the file changes.
+    retry_at: Mutex<HashMap<PathBuf, (Instant, String)>>,
+    run_checks: Mutex<HashMap<PathBuf, String>>,
     baselines: Mutex<HashMap<String, SystemTime>>,
     started_at: SystemTime,
 }
@@ -25,7 +26,6 @@ pub struct RecipeRuntime {
 impl Default for RecipeRuntime {
     fn default() -> Self {
         Self {
-            seen: Mutex::new(HashMap::new()),
             pending: Mutex::new(HashMap::new()),
             retry_at: Mutex::new(HashMap::new()),
             run_checks: Mutex::new(HashMap::new()),
@@ -156,9 +156,9 @@ async fn release_failed_runs(state: &Arc<AppState>, runtime: &Arc<RecipeRuntime>
         .lock()
         .await
         .iter()
-        .map(|(path, value)| (path.clone(), value.clone()))
+        .map(|(path, run_id)| (path.clone(), run_id.clone()))
         .collect::<Vec<_>>();
-    for (path, (run_id, seen_key, retry_minutes)) in checks {
+    for (path, run_id) in checks {
         let status = sqlx::query_scalar::<_, String>("SELECT status FROM recipe_runs WHERE id = ?")
             .bind(&run_id)
             .fetch_optional(&state.db)
@@ -169,16 +169,13 @@ async fn release_failed_runs(state: &Arc<AppState>, runtime: &Arc<RecipeRuntime>
             runtime.run_checks.lock().await.remove(&path);
             continue;
         };
-        if matches!(status.as_str(), "FAILED" | "REJECTED" | "TIMED_OUT") {
-            runtime.run_checks.lock().await.remove(&path);
-            if let Some(set) = runtime.seen.lock().await.get_mut(&seen_key) {
-                set.remove(&path);
-            }
-            runtime.retry_at.lock().await.insert(
-                path,
-                Instant::now() + Duration::from_secs(retry_minutes.max(1) * 60),
-            );
-        } else if status == "COMPLETED" {
+        let terminal = match status.as_str() {
+            "COMPLETED" => Some("COMPLETED"),
+            "FAILED" | "REJECTED" | "TIMED_OUT" => Some("FAILED"),
+            _ => None,
+        };
+        if let Some(terminal) = terminal {
+            let _ = db::recipe_files::update_status_by_run(&state.db, &run_id, terminal).await;
             runtime.run_checks.lock().await.remove(&path);
         }
     }
@@ -239,6 +236,41 @@ async fn scan_folder_triggers(
                     .entry(baseline_key)
                     .or_insert_with(SystemTime::now)
             };
+            let known_files =
+                db::recipe_files::list_for_trigger(&state.db, &recipe.id, path).await?;
+            // First scan after upgrading from the in-memory implementation:
+            // files already present in recipe_runs should not run again just
+            // because recipe_file_state did not exist yet.
+            let mut legacy_processed = HashSet::new();
+            if known_files.is_empty()
+                && let Ok(previous) =
+                    db::recipe_files::latest_run_files(&state.db, &recipe.id).await
+            {
+                for (legacy_path, started_at) in previous {
+                    let file = PathBuf::from(&legacy_path);
+                    let (Ok(metadata), Ok(started_at)) = (
+                        std::fs::metadata(&file),
+                        chrono::DateTime::parse_from_rfc3339(&started_at),
+                    ) else {
+                        continue;
+                    };
+                    let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+                    let started_at: SystemTime = started_at.with_timezone(&chrono::Utc).into();
+                    if modified <= started_at {
+                        let _ = db::recipe_files::upsert(
+                            &state.db,
+                            &recipe.id,
+                            path,
+                            &legacy_path,
+                            &file_fingerprint(&metadata),
+                            "SEEN",
+                            None,
+                        )
+                        .await;
+                        legacy_processed.insert(legacy_path);
+                    }
+                }
+            }
 
             for entry in entries.flatten() {
                 let file = entry.path();
@@ -258,23 +290,42 @@ async fn scan_folder_triggers(
                 if metadata.len() == 0 && !process_empty {
                     continue;
                 }
+                let fingerprint = file_fingerprint(&metadata);
+                let file_key = file.to_string_lossy().to_string();
+                if legacy_processed.contains(&file_key)
+                    || already_processed(known_files.get(&file_key), &fingerprint)
+                {
+                    continue;
+                }
                 if !process_existing
                     && metadata
                         .modified()
                         .map(|value| value < baseline)
                         .unwrap_or(false)
                 {
-                    let mut seen = runtime.seen.lock().await;
-                    seen.entry(format!("{}:{path}", recipe.id))
-                        .or_default()
-                        .insert(file.clone());
+                    let _ = db::recipe_files::upsert(
+                        &state.db,
+                        &recipe.id,
+                        path,
+                        &file_key,
+                        &fingerprint,
+                        "SEEN",
+                        None,
+                    )
+                    .await;
                     continue;
                 }
                 {
                     let retry = runtime.retry_at.lock().await;
-                    if retry.get(&file).is_some_and(|at| *at > Instant::now()) {
+                    if let Some((at, retry_fingerprint)) = retry.get(&file)
+                        && *at > Instant::now()
+                        && retry_fingerprint == &fingerprint
+                    {
                         continue;
                     }
+                }
+                if runtime.run_checks.lock().await.contains_key(&file) {
+                    continue;
                 }
                 if settle_secs > 0 {
                     let modified = metadata
@@ -302,12 +353,6 @@ async fn scan_folder_triggers(
                         }
                     }
                 }
-                let mut seen = runtime.seen.lock().await;
-                let set = seen.entry(format!("{}:{path}", recipe.id)).or_default();
-                if !set.insert(file.clone()) {
-                    continue;
-                }
-                drop(seen);
                 let trigger = serde_json::json!({
                     "file_path": file.to_string_lossy(),
                     "file_name": name,
@@ -327,21 +372,30 @@ async fn scan_folder_triggers(
                 .await
                 {
                     Ok(run) => {
-                        runtime.run_checks.lock().await.insert(
-                            file.clone(),
-                            (run.id, format!("{}:{path}", recipe.id), retry_minutes),
-                        );
+                        if let Err(error) = db::recipe_files::upsert(
+                            &state.db,
+                            &recipe.id,
+                            path,
+                            &file_key,
+                            &fingerprint,
+                            "RUNNING",
+                            Some(&run.id),
+                        )
+                        .await
+                        {
+                            tracing::warn!(path = %file.display(), error = %error, "could not persist recipe file state");
+                        }
+                        runtime.run_checks.lock().await.insert(file.clone(), run.id);
                     }
                     Err(error) => {
                         tracing::warn!(path = %file.display(), error = %error, "recipe folder trigger failed; will retry");
-                        let mut seen = runtime.seen.lock().await;
-                        if let Some(set) = seen.get_mut(&format!("{}:{path}", recipe.id)) {
-                            set.remove(&file);
-                        }
                         let mut retry = runtime.retry_at.lock().await;
                         retry.insert(
                             file.clone(),
-                            Instant::now() + Duration::from_secs(retry_minutes * 60),
+                            (
+                                Instant::now() + Duration::from_secs(retry_minutes * 60),
+                                fingerprint,
+                            ),
                         );
                     }
                 }
@@ -349,6 +403,20 @@ async fn scan_folder_triggers(
         }
     }
     Ok(())
+}
+
+fn already_processed(known: Option<&db::recipe_files::RecipeFileState>, fingerprint: &str) -> bool {
+    known.is_some_and(|known| known.fingerprint == fingerprint)
+}
+
+fn file_fingerprint(metadata: &std::fs::Metadata) -> String {
+    let modified = metadata
+        .modified()
+        .ok()
+        .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|value| value.as_nanos())
+        .unwrap_or(0);
+    format!("{modified}:{}", metadata.len())
 }
 
 async fn scan_calendar_triggers(state: &Arc<AppState>) -> AppResult<()> {
@@ -652,7 +720,7 @@ mod folder_option_tests {
     }
 
     #[tokio::test]
-    async fn failed_recipe_runs_are_released_for_retry() {
+    async fn failed_runs_keep_the_file_fingerprint_and_do_not_retry() {
         let ctx = crate::test_support::context().await;
         sqlx::query(
             "INSERT INTO recipes_index (id, workspace_id, name, file_path, trigger_type)
@@ -670,34 +738,67 @@ mod folder_option_tests {
         .execute(&ctx.state.db)
         .await
         .expect("run");
+        db::recipe_files::upsert(
+            &ctx.state.db,
+            "retry-recipe",
+            "input",
+            "/tmp/input/relatorio.pdf",
+            "100:10",
+            "RUNNING",
+            Some("retry-run"),
+        )
+        .await
+        .expect("state");
 
         let runtime = Arc::new(RecipeRuntime::default());
         let path = PathBuf::from("/tmp/input/relatorio.pdf");
-        runtime.run_checks.lock().await.insert(
-            path.clone(),
-            ("retry-run".into(), "retry-recipe:input".into(), 1),
-        );
         runtime
-            .seen
+            .run_checks
             .lock()
             .await
-            .entry("retry-recipe:input".into())
-            .or_default()
-            .insert(path.clone());
+            .insert(path.clone(), "retry-run".into());
 
         release_failed_runs(&ctx.state, &runtime).await;
 
-        assert!(runtime.retry_at.lock().await.contains_key(&path));
-        assert!(
-            !runtime
-                .seen
-                .lock()
-                .await
-                .get("retry-recipe:input")
-                .expect("seen")
-                .contains(&path)
-        );
+        assert!(runtime.retry_at.lock().await.is_empty());
         assert!(runtime.run_checks.lock().await.is_empty());
+        let states = db::recipe_files::list_for_trigger(&ctx.state.db, "retry-recipe", "input")
+            .await
+            .expect("list");
+        assert_eq!(
+            states
+                .get("/tmp/input/relatorio.pdf")
+                .expect("state")
+                .status,
+            "FAILED"
+        );
+    }
+
+    #[test]
+    fn skips_only_the_same_fingerprint_across_restarts() {
+        let state = db::recipe_files::RecipeFileState {
+            recipe_id: "recipe".into(),
+            trigger_path: "input".into(),
+            file_path: "/tmp/input/a.pdf".into(),
+            fingerprint: "100:10".into(),
+            status: "COMPLETED".into(),
+            run_id: Some("run-1".into()),
+            processed_at: String::new(),
+        };
+        assert!(already_processed(Some(&state), "100:10"));
+        assert!(!already_processed(Some(&state), "101:10"));
+        assert!(!already_processed(None, "100:10"));
+    }
+
+    #[test]
+    fn file_fingerprint_changes_with_mtime_or_size() {
+        let temp = tempfile::TempDir::new().expect("temp");
+        let file = temp.path().join("a.txt");
+        std::fs::write(&file, "a").expect("write");
+        let first = file_fingerprint(&std::fs::metadata(&file).expect("meta"));
+        std::fs::write(&file, "ab").expect("write");
+        let second = file_fingerprint(&std::fs::metadata(&file).expect("meta"));
+        assert_ne!(first, second);
     }
 
     #[test]

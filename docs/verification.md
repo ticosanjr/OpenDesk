@@ -1,6 +1,6 @@
 # Verificação — fases 0 a 5
 
-Estado verificado na árvore local para o release **0.54.0**. Este release usou a
+Estado verificado na árvore local para o release **0.55.0**. Este release usou a
 verificação proporcional; o último gate completo registrado foi o de 0.53.0. As
 pendências manuais continuam listadas abaixo.
 
@@ -75,6 +75,15 @@ pendências manuais continuam listadas abaixo.
   **Pacotes → Atualizar todos**.
 - Goldens do chat (`chat-1024`, `chat-1440`) e `dashboard-700` atualizados
   intencionalmente; o dashboard estava defasado pelo rótulo “inclui automações”.
+
+## Pós-0.54.0 — Folder Watch e turno do chat
+
+- Folder Watch: fingerprint persistente e retry apenas para falha de início;
+  testes de estado, skip, fingerprint e conciliação de runs antigos.
+- Chat: polling até `idle`/estabilidade e parsing somente do turno atual; testes
+  cobrem resposta antiga, turno novo e fake OpenCode.
+- `npm run verify` verde; **421 testes Rust** e 222 Vitest. Teste manual
+  pendente com bot real e uma pasta monitorada.
 
 ## Verificações manuais pendentes
 
