@@ -1,5 +1,5 @@
 import { FileInput, FolderOpen } from "lucide-react";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { openWorkspacePath } from "@/lib/open-path";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/format";
@@ -36,7 +36,7 @@ export function RunInputsStrip({ inputs }: { inputs: TimelineInput[] }) {
             className="h-5 w-5"
             aria-label={`Abrir arquivo de entrada ${input.name}`}
             title="Abrir arquivo"
-            onClick={() => void openPath(input.absolute_path).catch(() => {})}
+            onClick={() => void openWorkspacePath(input.absolute_path).catch(() => {})}
           >
             <FileInput size={10} />
           </Button>
@@ -46,7 +46,7 @@ export function RunInputsStrip({ inputs }: { inputs: TimelineInput[] }) {
             className="h-5 w-5"
             aria-label={`Abrir pasta do arquivo ${input.name}`}
             title="Abrir pasta"
-            onClick={() => void openPath(parentFolder(input.absolute_path)).catch(() => {})}
+            onClick={() => void openWorkspacePath(parentFolder(input.absolute_path)).catch(() => {})}
           >
             <FolderOpen size={10} />
           </Button>

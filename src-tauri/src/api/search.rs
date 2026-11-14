@@ -12,6 +12,7 @@ use std::{path::PathBuf, sync::Arc};
 
 #[derive(Debug, Deserialize, Default)]
 pub struct SearchQuery {
+    #[serde(default)]
     pub q: String,
     pub workspace_id: Option<String>,
     pub limit: Option<i64>,
@@ -453,4 +454,214 @@ fn snippet(value: &str, needle: &str) -> String {
         text.push('…');
     }
     text
+}
+
+/// Recent activity shown when the search box is empty. It intentionally uses
+/// the same hit shape as a normal search so the UI can reuse the row.
+pub async fn recent(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<SearchQuery>,
+) -> AppResult<Json<Vec<SearchHit>>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    let limit = query.limit.unwrap_or(24).clamp(1, 50);
+    let per_source = limit.max(4);
+    let mut hits = Vec::new();
+
+    let tasks = sqlx::query_as::<_, (String, String, String, String)>(
+        "SELECT id, title, description, updated_at FROM tasks
+         WHERE workspace_id = ? ORDER BY updated_at DESC LIMIT ?",
+    )
+    .bind(&workspace_id)
+    .bind(per_source)
+    .fetch_all(&state.db)
+    .await?;
+    for (id, title, description, updated_at) in tasks {
+        hits.push(SearchHit {
+            link: format!("/kanban?task={}", urlencode(&id)),
+            id,
+            kind: "task".into(),
+            title,
+            snippet: snippet(&description, ""),
+            updated_at: Some(updated_at),
+        });
+    }
+
+    let runs = sqlx::query_as::<_, (String, Option<String>, Option<String>, String)>(
+        "SELECT r.id, t.title, r.summary_response, r.started_at
+         FROM task_runs r LEFT JOIN tasks t ON t.id = r.task_id
+         WHERE r.workspace_id = ? ORDER BY r.started_at DESC LIMIT ?",
+    )
+    .bind(&workspace_id)
+    .bind(per_source)
+    .fetch_all(&state.db)
+    .await?;
+    for (id, title, summary, started_at) in runs {
+        hits.push(SearchHit {
+            link: format!("/runs/{}", urlencode(&id)),
+            id,
+            kind: "run".into(),
+            title: title.unwrap_or_else(|| "Execução".into()),
+            snippet: summary.unwrap_or_else(|| "sem resumo".into()),
+            updated_at: Some(started_at),
+        });
+    }
+
+    let artifacts = sqlx::query_as::<_, (String, String, String, String)>(
+        "SELECT id, file_path, creation_reason, created_at FROM artifacts_provenance
+         WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?",
+    )
+    .bind(&workspace_id)
+    .bind(per_source)
+    .fetch_all(&state.db)
+    .await?;
+    for (id, file_path, reason, created_at) in artifacts {
+        hits.push(SearchHit {
+            link: format!("/artifacts?id={}", urlencode(&id)),
+            id,
+            kind: "artifact".into(),
+            title: file_path,
+            snippet: reason,
+            updated_at: Some(created_at),
+        });
+    }
+
+    let comments = sqlx::query_as::<_, (String, String, String, String)>(
+        "SELECT m.id, m.task_id, m.content, m.created_at
+         FROM task_messages m JOIN tasks t ON t.id = m.task_id
+         WHERE t.workspace_id = ? ORDER BY m.created_at DESC LIMIT ?",
+    )
+    .bind(&workspace_id)
+    .bind(per_source)
+    .fetch_all(&state.db)
+    .await?;
+    for (id, task_id, content, created_at) in comments {
+        hits.push(SearchHit {
+            link: format!("/kanban?task={}", urlencode(&task_id)),
+            id,
+            kind: "comment".into(),
+            title: "Comentário em tarefa".into(),
+            snippet: content,
+            updated_at: Some(created_at),
+        });
+    }
+
+    let chats = sqlx::query_as::<_, (String, String, String, String)>(
+        "SELECT id, title, agent, updated_at FROM chat_threads
+         WHERE workspace_id = ? ORDER BY updated_at DESC LIMIT ?",
+    )
+    .bind(&workspace_id)
+    .bind(per_source)
+    .fetch_all(&state.db)
+    .await?;
+    for (id, title, agent, updated_at) in chats {
+        hits.push(SearchHit {
+            link: format!("/chat?thread={}", urlencode(&id)),
+            id,
+            kind: "comment".into(),
+            title,
+            snippet: format!("conversa com @{agent}"),
+            updated_at: Some(updated_at),
+        });
+    }
+
+    let schedules = sqlx::query_as::<_, (String, String, String, String)>(
+        "SELECT id, name, command_or_prompt, created_at FROM schedules
+         WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?",
+    )
+    .bind(&workspace_id)
+    .bind(per_source)
+    .fetch_all(&state.db)
+    .await?;
+    for (id, name, command, created_at) in schedules {
+        hits.push(SearchHit {
+            link: format!("/routines?schedule={}", urlencode(&id)),
+            id,
+            kind: "schedule".into(),
+            title: name,
+            snippet: command,
+            updated_at: Some(created_at),
+        });
+    }
+
+    if let Ok(workspace) = crate::db::workspaces::get(&state.db, &workspace_id).await {
+        for hit in recent_files(std::path::Path::new(&workspace.root_path), 8) {
+            hits.push(hit);
+        }
+    }
+
+    hits.sort_by(|left, right| {
+        right
+            .updated_at
+            .as_deref()
+            .unwrap_or_default()
+            .cmp(left.updated_at.as_deref().unwrap_or_default())
+    });
+    hits.truncate(limit as usize);
+    Ok(Json(hits))
+}
+
+fn recent_files(root: &std::path::Path, limit: usize) -> Vec<SearchHit> {
+    let mut files = Vec::new();
+    walk_recent(root, root, &mut files, limit, 0);
+    files.sort_by(|left, right| {
+        right
+            .updated_at
+            .as_deref()
+            .unwrap_or_default()
+            .cmp(left.updated_at.as_deref().unwrap_or_default())
+    });
+    files.truncate(limit);
+    files
+}
+
+fn walk_recent(
+    root: &std::path::Path,
+    directory: &std::path::Path,
+    files: &mut Vec<SearchHit>,
+    limit: usize,
+    depth: usize,
+) {
+    if depth > 4 || files.len() >= limit * 4 {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if matches!(
+            name.as_str(),
+            ".git" | "node_modules" | "target" | "dist" | ".cache" | ".vite"
+        ) {
+            continue;
+        }
+        let path = entry.path();
+        let Ok(metadata) = std::fs::symlink_metadata(&path) else {
+            continue;
+        };
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+        if metadata.is_dir() {
+            walk_recent(root, &path, files, limit, depth + 1);
+            continue;
+        }
+        let relative = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        files.push(SearchHit {
+            link: format!("/files?path={}", urlencode(&relative)),
+            id: relative.clone(),
+            kind: "file".into(),
+            title: relative,
+            snippet: format!("{} KB", metadata.len().div_ceil(1024)),
+            updated_at: metadata
+                .modified()
+                .ok()
+                .map(|value| chrono::DateTime::<chrono::Utc>::from(value).to_rfc3339()),
+        });
+    }
 }

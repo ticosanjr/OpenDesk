@@ -33,10 +33,17 @@ import { WorkingIndicator } from "@/components/ui/working-indicator";
 import { AttentionCard } from "@/components/dashboard/AttentionCard";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { CostMixCard } from "@/components/dashboard/CostMixCard";
+import { IntegrationFootprint } from "@/components/dashboard/IntegrationFootprint";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiGet } from "@/lib/api";
-import type { AgentFile, AgentInfo, Artifact, TaskRun } from "@/lib/types";
+import type {
+  AgentFile,
+  AgentInfo,
+  Artifact,
+  IntegrationOverviewItem,
+  TaskRun,
+} from "@/lib/types";
 import { ROUTER_POLICY_LABELS } from "@/lib/types";
 import {
   formatNumber,
@@ -75,6 +82,7 @@ export function DashboardPage() {
   const [recentRuns, setRecentRuns] = useState<TaskRun[]>([]);
   const [recentArtifacts, setRecentArtifacts] = useState<Artifact[]>([]);
   const [pinnedArtifacts, setPinnedArtifacts] = useState<Artifact[]>([]);
+  const [integrations, setIntegrations] = useState<IntegrationOverviewItem[]>([]);
   const lastRunEvent = useAppStore((state) => state.lastRunEvent);
   const lastArtifactEvent = useAppStore((state) => state.lastArtifactEvent);
   const lastPermissionEvent = useAppStore((state) => state.lastPermissionEvent);
@@ -162,6 +170,26 @@ export function DashboardPage() {
       cancelled = true;
     };
   }, [activeWorkspace, daemon?.online]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) {
+      setIntegrations([]);
+      return;
+    }
+    let cancelled = false;
+    void apiGet<IntegrationOverviewItem[]>(
+      `/api/integrations/overview?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+    )
+      .then((items) => {
+        if (!cancelled) setIntegrations(items);
+      })
+      .catch(() => {
+        if (!cancelled) setIntegrations([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspaceId]);
 
   useEffect(() => {
     if (!activeWorkspace) return;
@@ -611,6 +639,8 @@ export function DashboardPage() {
           onCreateTask={() => setTaskDialogOpen(true)}
         />
       </div>
+
+      <IntegrationFootprint items={integrations} />
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/20 px-4 py-3 text-[13px] text-zinc-500">
         <Gauge size={14} className="text-zinc-500" />

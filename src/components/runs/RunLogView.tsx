@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ArrowDown, Loader2, RefreshCw } from "lucide-react";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { openWorkspacePath } from "@/lib/open-path";
 import { apiDelete, apiGet, apiPost, apiText } from "@/lib/api";
 import type {
   RunTimeline,
@@ -295,7 +295,7 @@ export function RunLogView({
     if (!path) return;
     setOpeningFolder(true);
     try {
-      await openPath(path);
+      await openWorkspacePath(path);
     } catch (cause) {
       toast({
         tone: "error",

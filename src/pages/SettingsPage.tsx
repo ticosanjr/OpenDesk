@@ -335,10 +335,21 @@ export function SettingsPage() {
                           {workspace.name}
                         </p>
                         {active ? <Badge variant="accent">ativo</Badge> : null}
+                        {workspace.root_path.startsWith("/tmp/") ||
+                        workspace.root_path.startsWith("/var/tmp/") ? (
+                          <Badge variant="yellow">temporário</Badge>
+                        ) : null}
                       </div>
                       <p className="truncate font-mono text-[11.5px] text-zinc-500">
                         {shortPath(workspace.root_path, 80)}
                       </p>
+                      {workspace.root_path.startsWith("/tmp/") ||
+                      workspace.root_path.startsWith("/var/tmp/") ? (
+                        <p className="mt-0.5 text-[11.5px] leading-relaxed text-amber-300/80">
+                          Pasta temporária: edite a raiz para um diretório em
+                          Documentos/OpenDesk Workareas para preservar os arquivos.
+                        </p>
+                      ) : null}
                     </div>
                     <Badge variant="default">
                       {ROUTER_POLICY_LABELS[workspace.default_router_policy] ??

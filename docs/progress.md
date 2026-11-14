@@ -2637,3 +2637,19 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Release `5061662`, tag `v0.55.0`; assets Linux (deb/rpm/AppImage/binário),
   `latest.json` assinado e SHA256SUMS conferido. Retenção manteve 0.53.0,
   0.54.0 e 0.55.0.
+
+## 2026-11-14 — acabamento operacional (fase 1)
+
+- Dashboard ganhou rodapé discreto com status de SMTP, Google, Drive, Calendar,
+  Signal e Telegram (`/api/integrations/overview`).
+- Busca mostra as últimas atividades quando o campo está vazio
+  (`/api/search/recent`): tarefas, execuções, artefatos, comentários, conversas,
+  rotinas e arquivos recentes.
+- Receitas: execuções clicáveis com página `/recipe-runs/:id`, exclusão com
+  confirmação no mesmo botão e editor YAML com divisória redimensionável.
+- Abrir pasta/arquivo de workspace usa um comando Rust validado; o escopo do
+  plugin opener e workspaces em `/tmp` deixaram de bloquear a ação. Workspaces
+  temporários existentes mostram aviso em Configurações.
+- GETs read-only do Studio/agentes/modelos saíram do rate limiter local, e
+  `apiGet` repete uma vez em 429 respeitando `Retry-After`.
+- Verificação: 424 testes Rust, 223 Vitest, E2E `search-recent` e visual verdes.

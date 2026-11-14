@@ -11,7 +11,7 @@ import {
   RotateCw,
   Square,
 } from "lucide-react";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { openWorkspacePath } from "@/lib/open-path";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -245,7 +245,7 @@ export function QueueController({
                       size="sm"
                       className="h-6 px-1.5 text-[11.5px]"
                       title={job.output_dir}
-                      onClick={() => void openPath(job.output_dir ?? "")}
+                      onClick={() => void openWorkspacePath(job.output_dir ?? "").catch(() => {})}
                     >
                       <IconLabel icon={<FolderOpen size={10} />}>pasta</IconLabel>
                     </Button>

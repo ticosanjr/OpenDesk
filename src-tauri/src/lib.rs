@@ -24,6 +24,7 @@ mod mcp_control;
 mod mcp_server;
 mod media;
 mod metrics;
+mod open_paths;
 mod opencode_client;
 mod paths;
 mod proposals;
@@ -303,7 +304,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             api::commands::get_api_endpoint,
-            api::commands::get_daemon_status
+            api::commands::get_daemon_status,
+            open_paths::open_workspace_path
         ])
         .build(tauri::generate_context!())
         .expect("error while building the OpenDesk application");

@@ -115,6 +115,40 @@ pub async fn runs(
     })))
 }
 
+pub async fn delete_recipe(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Query(query): Query<RecipeQuery>,
+) -> AppResult<Json<serde_json::Value>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    let index = store::get(&state.db, &workspace_id, &id).await?;
+    let active: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM recipe_runs
+         WHERE recipe_id = ? AND workspace_id = ?
+           AND status IN ('RUNNING_STEP', 'WAITING_HITL', 'RUNNING_SINKS')",
+    )
+    .bind(&id)
+    .bind(&workspace_id)
+    .fetch_one(&state.db)
+    .await?;
+    if active > 0 {
+        return Err(AppError::Conflict(
+            "esta receita tem execuções em andamento; pare-as antes de excluir".into(),
+        ));
+    }
+    match std::fs::remove_file(&index.file_path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(AppError::Io(error));
+        }
+    }
+    crate::db::recipe_files::delete_for_recipe(&state.db, &id).await?;
+    crate::recipes::runtime::sync_workspace(&state, &workspace_id).await?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 pub async fn run_detail(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,

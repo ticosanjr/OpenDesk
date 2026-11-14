@@ -85,6 +85,17 @@ pendências manuais continuam listadas abaixo.
 - `npm run verify` verde; **421 testes Rust** e 222 Vitest. Teste manual
   pendente com bot real e uma pasta monitorada.
 
+## Pós-0.55.0 — acabamento operacional (fase 1)
+
+- Dashboard: overview de integrações; Busca: atividades recentes; Receitas:
+  execução clicável, exclusão com segundo clique e splitter YAML.
+- Abrir pasta: comando Rust valida workspaces/app; escopos do opener incluem
+  `$HOME` e `$TEMP`.
+- Rate limit: GETs read-only do Studio/agentes/modelos não contam; `apiGet`
+  repete uma vez em 429.
+- Verificação: `npm run verify` verde, 424 testes Rust, 223 Vitest, E2E
+  `search-recent` e `npm run test:visual` verdes.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

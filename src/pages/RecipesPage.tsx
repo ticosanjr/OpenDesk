@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -9,9 +10,10 @@ import {
   RefreshCw,
   Save,
   Sparkles,
+  Trash2,
   Workflow,
 } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +32,7 @@ import { useAppStore } from "@/store/app-store";
 import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
 import { relativeTime } from "@/lib/format";
+import { links } from "@/lib/links";
 import { cn } from "@/lib/utils";
 import {
   recipeRunStatusLabel,
@@ -97,9 +100,16 @@ export function RecipesPage() {
   const [runAttachments, setRunAttachments] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [yamlOpen, setYamlOpen] = useState(false);
+  const [yamlOpen, setYamlOpen] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [yamlWidth, setYamlWidth] = useState(() => {
+    const saved = Number(window.localStorage.getItem("opendesk.recipe.yamlWidth"));
+    return Number.isFinite(saved) && saved >= 320 && saved <= 900 ? saved : 460;
+  });
+  const [resizing, setResizing] = useState(false);
 
   const [recipe, setRecipe] = useState<Dictionary | null>(null);
+  const selectedRecipe = recipes.find((item) => item.id === selected) ?? null;
 
   // Parse with a short debounce: typing in the YAML editor no longer
   // re-renders the whole visual stepper on every keystroke.
@@ -151,6 +161,31 @@ export function RecipesPage() {
   useEffect(() => {
     if (focusRecipe) setSelected(focusRecipe);
   }, [focusRecipe]);
+
+  useEffect(() => {
+    setDeleteConfirm(null);
+  }, [selected]);
+
+  useEffect(() => {
+    if (!resizing) return;
+    function move(event: PointerEvent) {
+      const max = Math.min(900, Math.max(320, window.innerWidth - 420));
+      setYamlWidth(Math.min(max, Math.max(320, window.innerWidth - event.clientX - 28)));
+    }
+    function stop() {
+      setResizing(false);
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop, { once: true });
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+  }, [resizing]);
+
+  useEffect(() => {
+    window.localStorage.setItem("opendesk.recipe.yamlWidth", String(yamlWidth));
+  }, [yamlWidth]);
 
   useEffect(() => {
     if (!selected) return;
@@ -225,6 +260,27 @@ export function RecipesPage() {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function removeRecipe(item: RecipeIndex) {
+    if (deleteConfirm !== item.id) {
+      setDeleteConfirm(item.id);
+      window.setTimeout(() => {
+        setDeleteConfirm((current) => (current === item.id ? null : current));
+      }, 4000);
+      return;
+    }
+    setDeleteConfirm(null);
+    try {
+      await apiDelete(
+        `/api/recipes/${encodeURIComponent(item.id)}${workspaceQuery}`,
+      );
+      if (selected === item.id) setSelected(null);
+      await load();
+      toast({ tone: "success", title: "Receita excluída", description: item.name });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
     }
   }
 
@@ -399,14 +455,33 @@ export function RecipesPage() {
             </CardContent>
           </Card>
         ) : (
-        <div className="grid min-h-0 gap-3 xl:grid-cols-2">
-          <Card className="min-h-0">
+        <div
+          className="flex min-h-0 flex-col gap-3 xl:flex-row"
+          style={{ "--yaml-width": `${yamlWidth}px` } as CSSProperties}
+        >
+          <Card className="min-h-0 min-w-0 flex-1">
             <CardHeader className="py-3">
               <CardTitle className="flex items-center gap-2">
                 <GitBranch size={15} className="text-zinc-400" />
                 Fluxo visual
               </CardTitle>
-              <div className="flex gap-1">
+              <div className="flex flex-wrap gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "text-zinc-400",
+                    deleteConfirm === selected &&
+                      "border border-red-500/40 bg-red-500/10 text-red-300",
+                  )}
+                  onClick={() => {
+                    if (selectedRecipe) void removeRecipe(selectedRecipe);
+                  }}
+                  disabled={!selectedRecipe}
+                >
+                  <Trash2 size={12} />
+                  {deleteConfirm === selected ? "Tem certeza?" : "Excluir"}
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -441,38 +516,59 @@ export function RecipesPage() {
             </CardContent>
           </Card>
 
-          <Card className="min-h-0">
-            <CardHeader className="py-3">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setYamlOpen((current) => !current)}
-                  aria-expanded={yamlOpen}
-                  aria-label={yamlOpen ? "Recolher editor YAML" : "Expandir editor YAML"}
-                  className="flex items-center gap-2 text-left"
-                  title={yamlOpen ? "Recolher editor YAML" : "Expandir editor YAML"}
-                >
-                  {yamlOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                  <CardTitle>YAML</CardTitle>
-                </button>
-                <FieldHint hint="Editor simples local. Sempre abre offline e nunca fica carregando." />
-              </div>
-              <Button size="sm" onClick={() => void save()} disabled={!selected || saving}>
-                <IconLabel icon={saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}>
-                  Salvar
-                </IconLabel>
-              </Button>
-            </CardHeader>
-            {yamlOpen ? (
+          {yamlOpen ? (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Redimensionar editor YAML"
+              onPointerDown={() => setResizing(true)}
+              onDoubleClick={() => setYamlWidth(460)}
+              className="hidden w-2 shrink-0 cursor-col-resize items-center justify-center rounded-full bg-zinc-800/40 transition-colors hover:bg-blue-500/30 xl:flex"
+              title="Arraste para redimensionar; clique duplo restaura"
+            >
+              <span className="h-8 w-0.5 rounded-full bg-zinc-600" />
+            </div>
+          ) : null}
+
+          {yamlOpen ? (
+            <Card className="flex min-h-0 w-full flex-col overflow-hidden xl:w-[var(--yaml-width)]">
+              <CardHeader className="py-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setYamlOpen(false)}
+                    aria-expanded={true}
+                    aria-label="Recolher editor YAML"
+                    className="flex items-center gap-2 text-left"
+                    title="Recolher editor YAML"
+                  >
+                    <ChevronDown size={15} />
+                    <CardTitle>YAML</CardTitle>
+                  </button>
+                  <FieldHint hint="Editor local. Arraste a divisória para redimensionar." />
+                </div>
+                <Button size="sm" onClick={() => void save()} disabled={!selected || saving}>
+                  <IconLabel icon={saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}>
+                    Salvar
+                  </IconLabel>
+                </Button>
+              </CardHeader>
               <CardContent className="h-[70dvh] p-0">
                 <LocalYamlEditor value={yaml} onChange={setYaml} />
               </CardContent>
-            ) : (
-              <CardContent className="px-3 py-2 text-[12px] text-zinc-500">
-                Editor recolhido. O fluxo visual continua editável.
-              </CardContent>
-            )}
-          </Card>
+            </Card>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setYamlOpen(true)}
+              aria-label="Expandir editor YAML"
+              className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/30 px-3 py-2 text-[12.5px] text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200 xl:h-[70dvh] xl:w-11 xl:flex-col xl:px-0"
+              title="Abrir editor YAML"
+            >
+              <ChevronRight size={13} className="xl:rotate-0" />
+              <span className="xl:[writing-mode:vertical-rl]">YAML</span>
+            </button>
+          )}
         </div>
         )}
       </div>
@@ -487,14 +583,19 @@ export function RecipesPage() {
             <p className="p-2 text-[13px] text-zinc-500">Nenhuma execução ainda.</p>
           ) : (
             runs.map((run) => (
-              <div key={run.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2">
+              <Link
+                key={run.id}
+                to={links.recipeRun(run.id)}
+                className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2 transition-colors hover:border-blue-500/30 hover:bg-zinc-900/40"
+              >
                 <Badge variant={recipeRunStatusTone(run.status)}>
                   {recipeRunStatusLabel(run.status)}
                 </Badge>
                 <span className="font-mono text-[13px] text-zinc-400">{run.recipe_id}</span>
                 <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-zinc-500">{run.current_step_id ?? "—"}</span>
                 <span className="text-[13px] text-zinc-500">{relativeTime(run.started_at)}</span>
-              </div>
+                <ChevronRight size={13} className="text-zinc-600" />
+              </Link>
             ))
           )}
         </CardContent>

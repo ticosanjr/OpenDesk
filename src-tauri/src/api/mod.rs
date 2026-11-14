@@ -364,6 +364,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/runs/{id}/fork", post(tasks::fork_from_run))
         .route("/api/test/seed", post(seed::seed))
+        .route("/api/search/recent", get(search::recent))
         .route("/api/search", get(search::search))
         .route("/api/files/tree", get(files::tree))
         .route("/api/files/search", get(files::search))
@@ -402,7 +403,12 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             "/api/recipes/hitl/{token}/resolve",
             post(recipes::resolve_hitl),
         )
-        .route("/api/recipes/{id}", get(recipes::get).put(recipes::save))
+        .route(
+            "/api/recipes/{id}",
+            get(recipes::get)
+                .put(recipes::save)
+                .delete(recipes::delete_recipe),
+        )
         .route("/api/recipes/{id}/enabled", post(recipes::set_enabled))
         .route("/api/recipes/{id}/run", post(recipes::run))
         .route("/api/io/tools", get(io_bus::tools))
@@ -531,6 +537,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             "/api/schedules/{id}/active",
             post(schedules::set_schedule_active),
         )
+        .route("/api/integrations/overview", get(integrations::overview))
         .route(
             "/api/integrations/smtp",
             get(integrations::get_smtp).put(integrations::put_smtp),

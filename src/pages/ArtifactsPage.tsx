@@ -11,7 +11,7 @@ import {
   Star,
   X,
 } from "lucide-react";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { openWorkspacePath } from "@/lib/open-path";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -266,7 +266,7 @@ export function ArtifactsPage() {
 
   async function reveal(path: string) {
     try {
-      await openPath(path);
+      await openWorkspacePath(path);
     } catch (cause) {
       console.warn("OpenDesk: could not open path", cause);
     }

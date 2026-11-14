@@ -33,6 +33,15 @@ export interface Schedule {
   created_at: string;
 }
 
+export interface IntegrationOverviewItem {
+  id: string;
+  label: string;
+  configured: boolean;
+  active: boolean;
+  detail?: string | null;
+  href: string;
+}
+
 export interface SmtpSettings {
   workspace_id: string;
   host?: string | null;

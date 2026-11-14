@@ -123,6 +123,17 @@ pub fn rate_class(method: &Method, path: &str) -> Option<RateClass> {
     {
         return None;
     }
+    if method == Method::GET || method == Method::HEAD {
+        // The Studio loads several small read-only endpoints at once. They are
+        // local, token-protected and idempotent; counting them with the global
+        // read limiter caused false "rate_limited" errors while browsing.
+        if path.starts_with("/api/studio")
+            || path.starts_with("/api/agents")
+            || path.starts_with("/api/models")
+        {
+            return None;
+        }
+    }
     if is_sensitive(method, path) {
         return Some(RateClass::Sensitive);
     }
@@ -304,6 +315,12 @@ mod tests {
             Some(RateClass::Sensitive)
         );
         assert_eq!(rate_class(&Method::GET, "/healthz"), None);
+        assert_eq!(rate_class(&Method::GET, "/api/studio/agents"), None);
+        assert_eq!(rate_class(&Method::GET, "/api/agents"), None);
+        assert_eq!(
+            rate_class(&Method::POST, "/api/studio/agent"),
+            Some(RateClass::Sensitive)
+        );
         assert!(should_audit(&Method::POST, "/api/tasks"));
         assert!(!should_audit(&Method::GET, "/api/tasks"));
     }

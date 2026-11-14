@@ -10,6 +10,7 @@ export const links = {
     `/calendar?event=${encodeURIComponent(id)}`,
   artifact: (id: string) => `/artifacts?id=${encodeURIComponent(id)}`,
   schedule: (id: string) => `/routines?schedule=${encodeURIComponent(id)}`,
+  recipeRun: (id: string) => `/recipe-runs/${encodeURIComponent(id)}`,
   agent: (id: string, scope = "workspace", workspaceId?: string | null) => {
     const params = new URLSearchParams({ kind: "agent", id, scope });
     if (workspaceId) params.set("workspace_id", workspaceId);

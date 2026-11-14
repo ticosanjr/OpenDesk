@@ -11,7 +11,7 @@ import {
   Home,
   RefreshCw,
 } from "lucide-react";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { openWorkspacePath } from "@/lib/open-path";
 import { PageBody, PageBodyFill, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -248,7 +248,7 @@ export function FilesPage() {
     if (!workspace) return;
     const target = path ? `${workspace.root_path}/${path}` : workspace.root_path;
     try {
-      await openPath(target);
+      await openWorkspacePath(target);
     } catch (cause) {
       console.warn("OpenDesk: could not open path", cause);
       toast({

@@ -35,6 +35,25 @@ async function resolveEndpoint(): Promise<ApiEndpoint> {
   );
 }
 
+export class ApiError extends Error {
+  status: number;
+  retryAfter: number | null;
+
+  constructor(message: string, status: number, retryAfter: number | null = null) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.retryAfter = retryAfter;
+  }
+}
+
+function retryAfterSeconds(response: Response): number | null {
+  const raw = response.headers.get("retry-after");
+  if (!raw) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const { port, token } = await getEndpoint();
   const headers = new Headers(init.headers);
@@ -56,7 +75,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     } catch {
       // Keep the status-based message.
     }
-    throw new Error(message);
+    throw new ApiError(message, response.status, retryAfterSeconds(response));
   }
 
   if (response.status === 204) {
@@ -67,7 +86,14 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  return apiFetch<T>(path);
+  try {
+    return await apiFetch<T>(path);
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 429) throw error;
+    const delay = Math.min(2000, Math.max(250, (error.retryAfter ?? 1) * 1000));
+    await new Promise((resolve) => window.setTimeout(resolve, delay));
+    return apiFetch<T>(path);
+  }
 }
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {

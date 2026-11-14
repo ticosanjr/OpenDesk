@@ -59,6 +59,11 @@ const IntegrationsPage = lazy(() =>
 const RecipesPage = lazy(() =>
   import("@/pages/RecipesPage").then((module) => ({ default: module.RecipesPage })),
 );
+const RecipeRunDetailPage = lazy(() =>
+  import("@/pages/RecipeRunDetailPage").then((module) => ({
+    default: module.RecipeRunDetailPage,
+  })),
+);
 const SettingsPage = lazy(() =>
   import("@/pages/SettingsPage").then((module) => ({ default: module.SettingsPage })),
 );
@@ -83,6 +88,7 @@ export default function App() {
           <Route path="files" element={<FilesPage />} />
           <Route path="routines" element={<RoutinesPage />} />
           <Route path="recipes" element={<RecipesPage />} />
+          <Route path="recipe-runs/:runId" element={<RecipeRunDetailPage />} />
           <Route path="packs" element={<PacksPage />} />
           <Route path="studio" element={<StudioPage />} />
           <Route path="learning" element={<LearningPage />} />

@@ -64,6 +64,8 @@ export function SearchPage() {
       : "all";
   });
   const [hits, setHits] = useState<SearchHit[]>([]);
+  const [recentHits, setRecentHits] = useState<SearchHit[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recent, setRecent] = useState<string[]>([]);
@@ -72,6 +74,30 @@ export function SearchPage() {
   useEffect(() => {
     setRecent(loadRecentSearches(window.localStorage));
   }, []);
+
+  useEffect(() => {
+    if (!activeWorkspaceId || query.trim().length >= 2) return;
+    let cancelled = false;
+    const handle = window.setTimeout(() => {
+      setRecentLoading(true);
+      void apiGet<SearchHit[]>(
+        `/api/search/recent?workspace_id=${encodeURIComponent(activeWorkspaceId)}&limit=24`,
+      )
+        .then((results) => {
+          if (!cancelled) setRecentHits(Array.isArray(results) ? results : []);
+        })
+        .catch(() => {
+          if (!cancelled) setRecentHits([]);
+        })
+        .finally(() => {
+          if (!cancelled) setRecentLoading(false);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [activeWorkspaceId, query]);
 
   useEffect(() => {
     let cancelled = false;
@@ -233,6 +259,7 @@ export function SearchPage() {
             </button>
           </div>
         ) : null}
+        {query.trim().length >= 2 ? (
         <div
           role="tablist"
           aria-label="Tipos de resultado"
@@ -259,6 +286,7 @@ export function SearchPage() {
             </button>
           ))}
         </div>
+        ) : null}
       </div>
 
       {error ? (
@@ -268,11 +296,36 @@ export function SearchPage() {
       ) : null}
 
       {query.trim().length < 2 ? (
-        <EmptyState
-          icon={Search}
-          title="Busque em todo o workspace"
-          description="A busca cobre títulos, descrições, comentários, conteúdo textual de arquivos e metadados de execuções."
-        />
+        recentHits.length > 0 ? (
+          <section className="space-y-1.5">
+            <header className="flex items-center gap-2 px-1">
+              <Activity size={13} className="text-zinc-500" />
+              <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-zinc-400">
+                Últimas atividades
+              </h2>
+              <span className="font-mono text-[13px] text-zinc-500">
+                {recentHits.length}
+              </span>
+            </header>
+            <div className="space-y-1.5">
+              {recentHits.map((hit) => (
+                <SearchHitRow
+                  key={`recent:${hit.kind}:${hit.id}`}
+                  hit={hit}
+                  onOpen={() => remember(query)}
+                />
+              ))}
+            </div>
+          </section>
+        ) : recentLoading ? (
+          <p className="px-1 text-[13px] text-zinc-500">Carregando atividades recentes…</p>
+        ) : (
+          <EmptyState
+            icon={Search}
+            title="Busque em todo o workspace"
+            description="A busca cobre títulos, descrições, comentários, conteúdo textual de arquivos e metadados de execuções."
+          />
+        )
       ) : filtered.length === 0 && !loading ? (
         <EmptyState
           icon={Search}

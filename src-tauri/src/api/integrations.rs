@@ -5,7 +5,7 @@ use crate::{
         integrations::{self, SmtpSettingsInput},
     },
     error::{AppError, AppResult},
-    integrations::smtp_mailer,
+    integrations::{smtp_mailer, telegram},
 };
 use axum::{
     Json,
@@ -17,6 +17,102 @@ use std::sync::Arc;
 #[derive(Debug, Deserialize, Default)]
 pub struct IntegrationQuery {
     pub workspace_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct IntegrationOverviewItem {
+    pub id: String,
+    pub label: String,
+    pub configured: bool,
+    pub active: bool,
+    pub detail: Option<String>,
+    pub href: String,
+}
+
+pub async fn overview(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<IntegrationQuery>,
+) -> AppResult<Json<Vec<IntegrationOverviewItem>>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    let mut items = Vec::new();
+
+    let smtp = integrations::get(&state.db, &workspace_id).await?;
+    let smtp_configured = smtp
+        .as_ref()
+        .and_then(|settings| settings.smtp_host.as_deref())
+        .is_some_and(|value| !value.trim().is_empty())
+        && smtp
+            .as_ref()
+            .and_then(|settings| settings.smtp_from_email.as_deref())
+            .is_some_and(|value| !value.trim().is_empty());
+    items.push(IntegrationOverviewItem {
+        id: "smtp".into(),
+        label: "SMTP".into(),
+        configured: smtp_configured,
+        active: smtp_configured,
+        detail: smtp
+            .as_ref()
+            .and_then(|settings| settings.smtp_from_email.clone()),
+        href: "/integrations?section=smtp".into(),
+    });
+
+    let google = state.google.status(&workspace_id).await?;
+    let scopes = google.scopes.clone().unwrap_or_default();
+    items.push(IntegrationOverviewItem {
+        id: "google".into(),
+        label: "Google".into(),
+        configured: google.client_id_set,
+        active: google.connected,
+        detail: google.email.clone(),
+        href: "/integrations?section=google".into(),
+    });
+    items.push(IntegrationOverviewItem {
+        id: "drive".into(),
+        label: "Drive".into(),
+        configured: scopes.contains("drive"),
+        active: google.connected && scopes.contains("drive"),
+        detail: google.connected.then(|| google.email.clone()).flatten(),
+        href: "/integrations?section=google".into(),
+    });
+    items.push(IntegrationOverviewItem {
+        id: "calendar".into(),
+        label: "Calendar".into(),
+        configured: scopes.contains("calendar"),
+        active: google.connected && scopes.contains("calendar"),
+        detail: google.connected.then(|| google.email.clone()).flatten(),
+        href: "/integrations?section=google".into(),
+    });
+
+    let signal_config = crate::integrations::signal::load(&state.db).await?;
+    let signal_active = state.signal.is_running().await;
+    items.push(IntegrationOverviewItem {
+        id: "signal".into(),
+        label: "Signal".into(),
+        configured: signal_config.enabled
+            && !signal_config.account.trim().is_empty()
+            && !signal_config.allowlist.is_empty(),
+        active: signal_active,
+        detail: (!signal_config.account.trim().is_empty()).then(|| signal_config.account.clone()),
+        href: "/integrations?section=signal".into(),
+    });
+
+    let telegram_config = telegram::load(&state.db).await?;
+    let telegram_token = telegram::token(&state.secrets).is_some();
+    let telegram_active = state.telegram.is_running().await;
+    let bot = state.telegram.bot().await;
+    items.push(IntegrationOverviewItem {
+        id: "telegram".into(),
+        label: "Telegram".into(),
+        configured: telegram_config.enabled && telegram_token,
+        active: telegram_active,
+        detail: bot
+            .and_then(|bot| bot.username)
+            .map(|username| format!("@{username}")),
+        href: "/integrations?section=telegram".into(),
+    });
+
+    Ok(Json(items))
 }
 
 #[derive(Debug, Serialize)]

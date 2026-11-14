@@ -53,7 +53,8 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Kanban com transições que iniciam Plan/Build/Audit e erro acionável por tarefa.
 - Edição de tarefa já executada e reexecução sem recriar o card.
 - Agentes com slug automático, 20 presets de avatar e 8 presets de cor.
-- Dashboard com atividades clicáveis e status colorido.
+- Dashboard com atividades clicáveis, status colorido e rodapé discreto de
+  integrações ligadas.
 - Sobre & diagnóstico com modos simples/avançado, exportação JSON e reparo do
   atalho do AppImage no menu/barra de tarefas.
 - Chat interativo com qualquer agente, histórico, streaming por sessão e custo;
@@ -65,7 +66,8 @@ OpenCode permanecendo nos arquivos nativos do disco.
   permissões.
 - Studio efetivo (global + workspace), copiar/mover/duplicar, toggle, backups e
   instalação de GitHub/URL/local/npm/catálogo.
-- Explorador de arquivos do workspace com árvore, busca, breadcrumb e prévia.
+- Explorador de arquivos do workspace com árvore, busca, breadcrumb, prévia e
+  abertura de pastas validada pelo workspace.
 - Toasts, confirmação consistente, boundary de erro e notificações nativas.
 - Workspace editável/removível sem tocar na pasta do disco.
 - Kanban horizontal com busca/filtros e formulário único de tarefa.

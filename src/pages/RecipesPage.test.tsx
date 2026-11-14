@@ -12,7 +12,7 @@ vi.mock("@/store/toast-store", () => ({
   toast: vi.fn(),
 }));
 
-import { apiGet, apiPost, apiPut } from "@/lib/api";
+import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { RecipesPage } from "./RecipesPage";
 import { useAppStore } from "@/store/app-store";
 
@@ -58,6 +58,9 @@ describe("RecipesPage", () => {
       id: "run-1",
       status: "RUNNING_STEP",
     });
+    (apiDelete as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+    });
   });
 
   it("loads a recipe, renders the stepper and starts a dry-run", async () => {
@@ -93,6 +96,28 @@ describe("RecipesPage", () => {
             attachments: [],
           },
         },
+      ),
+    );
+  });
+
+  it("deletes only on the second click of the same button", async () => {
+    render(
+      <MemoryRouter>
+        <RecipesPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Receita E2E")).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByText("Receita E2E"));
+    const remove = await screen.findByRole("button", { name: "Excluir" });
+    fireEvent.click(remove);
+    expect(apiDelete).not.toHaveBeenCalled();
+    const confirm = screen.getByRole("button", { name: "Tem certeza?" });
+    fireEvent.click(confirm);
+    await waitFor(() =>
+      expect(apiDelete).toHaveBeenCalledWith(
+        "/api/recipes/receita-e2e?workspace_id=ws-1",
       ),
     );
   });
