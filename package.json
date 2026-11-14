@@ -28,7 +28,9 @@
     "gate:fast": "bash scripts/gate-fast.sh",
     "test:visual": "playwright test -c playwright.visual.config.ts",
     "test:visual:update": "playwright test -c playwright.visual.config.ts --update-snapshots",
-    "build:platform": "bash scripts/build-platform.sh"
+    "build:platform": "bash scripts/build-platform.sh",
+    "verify": "bash scripts/check-changed.sh",
+    "clean:all": "bash scripts/clean.sh --all"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

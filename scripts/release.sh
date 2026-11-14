@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
+# Local release: verify, build, collect artifacts, sign and publish.
+#
+# Usage:
+#   scripts/release.sh                  # changed-only verify + fast build
+#   scripts/release.sh --full-gate      # full gate (coverage, E2E, goldens) first
+#   scripts/release.sh --skip-gate      # trust an external verification
+#   scripts/release.sh --skip-build     # reuse the current release binary
+#   scripts/release.sh --reuse-build    # reuse binary only if sources are older
+#   scripts/release.sh --quality-build  # full LTO, codegen-units=1
+#   scripts/release.sh --no-appimage    # skip the AppImage (deb/rpm only)
+#   scripts/release.sh --refresh-appimage  # rebuild the AppImage from scratch
+#   scripts/release.sh --clean          # prune transient artifacts afterwards
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -39,15 +51,30 @@ case "$PLATFORM" in
 esac
 SKIP_GATE=0
 FULL_GATE=0
+QUALITY_BUILD=0
+REUSE_BUILD=0
+BUNDLE_APPIMAGE=1
+REFRESH_APPIMAGE=0
+CLEAN_AFTER=0
+COMPILE=1
 
 for argument in "$@"; do
   case "$argument" in
     --skip-build) SKIP_BUILD=1 ;;
     --skip-gate) SKIP_GATE=1 ;;
     --full-gate) FULL_GATE=1 ;;
+    --quality-build) QUALITY_BUILD=1 ;;
+    --reuse-build) REUSE_BUILD=1 ;;
+    --no-appimage) BUNDLE_APPIMAGE=0 ;;
+    --refresh-appimage) REFRESH_APPIMAGE=1 ;;
+    --clean) CLEAN_AFTER=1 ;;
+    --help|-h)
+      sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
     *)
       echo "unknown argument: $argument" >&2
-      echo "usage: $0 [--skip-build] [--skip-gate] [--full-gate]" >&2
+      echo "usage: $0 [--skip-build] [--skip-gate] [--full-gate] [--quality-build] [--reuse-build] [--no-appimage] [--refresh-appimage] [--clean]" >&2
       exit 2
       ;;
   esac
@@ -60,16 +87,163 @@ if [[ "$SKIP_GATE" != "1" ]]; then
     echo "==> Running the full local release gate"
     "$ROOT/scripts/gate.sh"
   else
-    echo "==> Running the fast release gate (use --full-gate for coverage and E2E)"
-    "$ROOT/scripts/gate-fast.sh"
+    echo "==> Running changed-only verification (use --full-gate for coverage, E2E and goldens)"
+    "$ROOT/scripts/check-changed.sh"
   fi
 else
   echo "==> Release gate skipped (--skip-gate)"
 fi
 
+if [[ "$SKIP_BUILD" != "1" && "$REUSE_BUILD" == "1" ]]; then
+  BINARY="$ROOT/src-tauri/target/release/${BIN_NAME}"
+  newer_source=""
+  if [[ -x "$BINARY" ]]; then
+    newer_source="$(
+      find \
+        "$ROOT/src" "$ROOT/public" "$ROOT/starter-packs" \
+        "$ROOT/src-tauri/src" "$ROOT/src-tauri/migrations" \
+        "$ROOT/src-tauri/capabilities" "$ROOT/src-tauri/icons" \
+        "$ROOT/src-tauri/gen" \
+        "$ROOT/src-tauri/build.rs" "$ROOT/src-tauri/Cargo.toml" \
+        "$ROOT/src-tauri/Cargo.lock" "$ROOT/src-tauri/tauri.conf.json" \
+        "$ROOT/src-tauri/update-signing-public-key.txt" \
+        "$ROOT/package.json" "$ROOT/package-lock.json" \
+        "$ROOT/index.html" "$ROOT/vite.config.ts" \
+        "$ROOT/tsconfig.json" "$ROOT/tsconfig.node.json" \
+        -type f -newer "$BINARY" -print -quit 2>/dev/null
+    )"
+  fi
+  if [[ -x "$BINARY" && -z "$newer_source" ]]; then
+    echo "==> Reusing existing release binary (--reuse-build)"
+    COMPILE=0
+  elif [[ -n "$newer_source" ]]; then
+    echo "    newer than the release binary: ${newer_source#"$ROOT"/}; building anyway"
+  else
+    echo "    no release binary found; building anyway"
+  fi
+fi
+
+appimage_arch() {
+  case "$(uname -m)" in
+    x86_64) printf 'amd64' ;;
+    aarch64|arm64) printf 'aarch64' ;;
+    armv7l) printf 'armhf' ;;
+    *) uname -m ;;
+  esac
+}
+
+# appimagetool ships inside the linuxdeploy plugin AppImage. Extract it once
+# into target/ so later releases only repackage the already-deployed AppDir.
+appimage_tool() {
+  local tool="$ROOT/src-tauri/target/appimage-tool/squashfs-root/usr/bin/appimagetool"
+  if [[ -x "$tool" ]]; then
+    printf '%s\n' "$tool"
+    return 0
+  fi
+  local plugin="$HOME/.cache/tauri/linuxdeploy-plugin-appimage.AppImage"
+  [[ -x "$plugin" ]] || return 1
+  mkdir -p "$ROOT/src-tauri/target/appimage-tool"
+  (
+    cd "$ROOT/src-tauri/target/appimage-tool" &&
+      rm -rf squashfs-root &&
+      "$plugin" --appimage-extract >/dev/null 2>&1
+  ) || return 1
+  [[ -x "$tool" ]] && printf '%s\n' "$tool"
+}
+
+# The AppDir holds the system libraries deployed by linuxdeploy. They only need
+# to be redeployed when the linked libraries, config or icons change. The
+# version is deliberately excluded so a version bump keeps the cache.
+appimage_cache_key() {
+  local binary="$ROOT/src-tauri/target/release/${BIN_NAME}"
+  {
+    node -e 'const c=require(process.argv[1]); delete c.version; process.stdout.write(JSON.stringify(c))' \
+      "$ROOT/src-tauri/tauri.conf.json" 2>/dev/null | sha256sum | awk '{print $1}'
+    if [[ -x "$binary" ]]; then
+      ldd "$binary" 2>/dev/null | awk '{print $1}' | sort | sha256sum | awk '{print $1}'
+    fi
+    find "$ROOT/src-tauri/icons" -type f -print0 2>/dev/null |
+      sort -z | xargs -0 sha256sum 2>/dev/null | awk '{print $1}'
+    uname -m
+  } | sha256sum | awk '{print $1}'
+}
+
+# Same marker Tauri's bundler writes for the AppImage target.
+patch_appimage_binary() {
+  python3 - "$1" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+data = path.read_bytes()
+new = b"__TAURI_BUNDLE_TYPE_VAR_APP"
+if new in data:
+    raise SystemExit(0)
+for marker in (b"UNK", b"DEB", b"RPM", b"NSS", b"MSI"):
+    old = b"__TAURI_BUNDLE_TYPE_VAR_" + marker
+    if data.count(old) == 1:
+        path.write_bytes(data.replace(old, new))
+        raise SystemExit(0)
+raise SystemExit(f"bundle type marker not found in {path}")
+PY
+}
+
+bundle_appimage() {
+  local outdir="$ROOT/src-tauri/target/release/bundle/appimage"
+  local appdir="$outdir/OpenDesk.AppDir"
+  local keyfile="$outdir/.opendesk-cache-key"
+  local key
+  key="$(appimage_cache_key)"
+  local tool=""
+
+  if [[ "$REFRESH_APPIMAGE" != "1" && -f "$appdir/AppRun" && -f "$keyfile" ]] &&
+    [[ "$(cat "$keyfile" 2>/dev/null)" == "$key" ]]; then
+    tool="$(appimage_tool || true)"
+  fi
+
+  if [[ -n "$tool" ]]; then
+    echo "==> Reusing the AppImage AppDir (linuxdeploy skipped)"
+    cp -f "$ROOT/src-tauri/target/release/${BIN_NAME}" "$appdir/usr/bin/opendesk"
+    patch_appimage_binary "$appdir/usr/bin/opendesk"
+    mkdir -p "$outdir"
+    ARCH="$(uname -m)" VERSION="$VERSION" \
+      "$tool" "$appdir" "$outdir/OpenDesk_${VERSION}_$(appimage_arch).AppImage"
+  else
+    echo "==> Building the AppImage from scratch (linuxdeploy)"
+    npx tauri bundle --bundles appimage
+    printf '%s\n' "$key" >"$keyfile"
+  fi
+}
+
+bundle_linux() {
+  echo "==> Bundling deb and rpm"
+  npx tauri bundle --bundles deb rpm
+  if [[ "$BUNDLE_APPIMAGE" == "1" ]]; then
+    bundle_appimage
+  else
+    echo "    AppImage skipped (--no-appimage)"
+  fi
+}
+
 if [[ "$SKIP_BUILD" != "1" ]]; then
-  echo "==> Building OpenDesk v${VERSION} for ${PLATFORM}"
-  npm run tauri build
+  if [[ "$COMPILE" == "1" ]]; then
+    echo "==> Building OpenDesk v${VERSION} for ${PLATFORM}"
+    if [[ "$QUALITY_BUILD" == "1" ]]; then
+      echo "    quality profile (full LTO, codegen-units=1)"
+      npm run tauri build -- --no-bundle
+    else
+      echo "    fast profile (thin LTO, codegen-units=16, incremental)"
+      CARGO_PROFILE_RELEASE_LTO=thin \
+        CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
+        CARGO_INCREMENTAL=1 \
+        npm run tauri build -- --no-bundle
+    fi
+  fi
+
+  case "$PLATFORM" in
+    linux-*) bundle_linux ;;
+    *) npx tauri bundle ;;
+  esac
 fi
 
 echo "==> Collecting v${VERSION} artifacts"
@@ -279,9 +453,10 @@ fi
 
 echo "==> Release v${VERSION} ready in releases/${VERSION}"
 
-if [[ "${OPENDESK_SKIP_CLEAN:-0}" != "1" ]]; then
-  echo "==> Cleaning build artifacts"
+if [[ "$CLEAN_AFTER" == "1" ]]; then
+  echo "==> Cleaning transient artifacts (build cache preserved)"
   "$ROOT/scripts/clean.sh"
 else
-  echo "    cleanup skipped (OPENDESK_SKIP_CLEAN=1)"
+  echo "==> Build cache preserved for the next release"
+  echo "    use --clean for transient cleanup or scripts/clean.sh --all to drop target/"
 fi

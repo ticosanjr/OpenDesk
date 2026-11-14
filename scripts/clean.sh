@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Keep the repository small. Build artifacts are reproducible and are never
-# needed after a release has copied its assets into releases/<version>/.
+# Keep the repository small without throwing away the incremental build cache.
+# `--all` removes src-tauri/target; `--deep` also removes node_modules.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -9,9 +9,8 @@ cd "$ROOT"
 MODE="${1:-}"
 BEFORE="$(du -sk . 2>/dev/null | awk '{print $1}')"
 
-echo "==> Removing build and test artifacts"
+echo "==> Removing transient build and test artifacts"
 rm -rf \
-  src-tauri/target \
   dist \
   coverage \
   test-results \
@@ -21,6 +20,11 @@ rm -rf \
   node_modules/.vite
 
 find . -type f \( -name '*.profraw' -o -name '*.profdata' -o -name 'lcov.info' -o -name '*.tmp' -o -name '.DS_Store' \) -delete 2>/dev/null || true
+
+if [[ "$MODE" == "--all" || "$MODE" == "--deep" ]]; then
+  echo "==> Removing src-tauri/target (next build will be cold)"
+  rm -rf src-tauri/target
+fi
 
 if [[ "$MODE" == "--deep" ]]; then
   echo "==> Removing node_modules (run npm install before developing again)"

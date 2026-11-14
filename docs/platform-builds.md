@@ -23,18 +23,26 @@ build nativo em cada sistema — cross-compile de WebView não é suportado.
 ## Comandos
 
 ```bash
-# build + gate rápido, sem publicar
+# build + verificação proporcional, sem publicar
 npm run build:platform
 
-# build sem repetir o gate (quando outra máquina já verificou)
+# build sem repetir a verificação (quando outra máquina já verificou)
 npm run build:platform -- --skip-gate
 
-# release completo na plataforma atual (gate + build + manifesto + tag)
+# perfil de build completo (LTO, codegen-units=1) para medir/validar
+npm run build:platform -- --quality-build
+
+# release completo na plataforma atual (verify + build + manifesto + tag)
 scripts/release.sh
 
 # release pulando o build (artefatos já gerados)
 scripts/release.sh --skip-build
 ```
+
+O release padrão usa o perfil rápido (thin LTO, `codegen-units=16`,
+incremental) e preserva `src-tauri/target` para o próximo build. O gate completo
+(cobertura, Playwright e goldens) só roda com `scripts/release.sh --full-gate`.
+`scripts/clean.sh --all` remove `target` quando o disco precisar.
 
 Os artefatos ficam em `src-tauri/target/release/bundle/` e a coleta do release
 usa `releases/<versão>/`. O manifesto registra a plataforma detectada

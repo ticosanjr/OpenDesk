@@ -2534,3 +2534,23 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Release `1d397c5`, tag `v0.52.0`; assets Linux (deb/rpm/AppImage/binário),
   `latest.json` assinado e SHA256SUMS conferido. Retenção manteve 0.50.1,
   0.51.0 e 0.52.0.
+
+## 2026-11-14 — fluxo de verificação e release rápido
+
+- A verificação padrão passou a ser proporcional (`npm run verify` →
+  `scripts/check-changed.sh`): só as áreas tocadas rodam, com Rust
+  (fmt/clippy/`cargo test --lib`) e frontend (ESLint/tsc/Vitest) separados.
+- `scripts/gate-fast.sh` continua como checagem ampla sem cobertura/E2E e ganhou
+  `--changed`.
+- Release padrão (`scripts/release.sh`) roda a verificação proporcional e o
+  perfil rápido de build (thin LTO, `codegen-units=16`, incremental);
+  `--quality-build` mantém LTO completo, `--full-gate` roda o gate completo e
+  `--reuse-build` reaproveita o binário quando nenhum fonte é mais novo.
+- `scripts/clean.sh` preserva `src-tauri/target`; `--all` remove o target e
+  `--deep` remove também `node_modules`. O release não limpa mais o cache.
+- `scripts/build-platform.sh` usa a mesma verificação proporcional e o perfil
+  rápido por padrão.
+- O AppImage deixou de rodar `linuxdeploy` em todo release: o AppDir é reusado e
+  só o `appimagetool` roda (~9 s). A chave de cache cobre bibliotecas ligadas
+  (`ldd`), configuração sem a versão e ícones; `--refresh-appimage` força o
+  rebuild e `--no-appimage` permite release só com `.deb`/`.rpm`.

@@ -171,16 +171,22 @@ No primeiro boot o OpenDesk:
 ```bash
 npm run check          # TypeScript
 npm run build          # frontend
-npm run test:rust      # 96 testes Rust
+npm run test:rust      # 397 testes Rust
 npm run test:ui        # Vitest + cobertura da lógica frontend
-npm run test:e2e       # 10 testes Playwright (headless + Vite)
-scripts/gate.sh        # gate local antes de release
-npm run clean          # remove build/cobertura após release
-npm run clean:deep     # remove também node_modules
+npm run test:e2e       # 93 testes Playwright (headless + Vite)
+npm run verify         # verificação proporcional (só o que mudou)
+npm run gate:fast      # checagem ampla sem cobertura/E2E
+scripts/gate.sh        # gate completo (cobertura, E2E e goldens) — sob demanda
+npm run clean          # limpeza transitória; preserva o cache de build
+npm run clean:deep     # remove target e node_modules (build frio depois)
 cd src-tauri && cargo check
 cd src-tauri && cargo test
-scripts/release.sh     # build + release local + retenção de 3 versões
+scripts/release.sh     # verify + build rápido + release local + retenção de 3 versões
 ```
+
+O release padrão usa verificação proporcional e perfil rápido (thin LTO,
+incremental), preservando `src-tauri/target`. Use `scripts/release.sh
+--quality-build` para LTO completo e `--full-gate` para o gate completo.
 
 Para inspecionar a API local durante o desenvolvimento:
 

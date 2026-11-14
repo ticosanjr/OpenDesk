@@ -8,12 +8,14 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 SKIP_GATE=0
+QUALITY_BUILD=0
 for argument in "$@"; do
   case "$argument" in
     --skip-gate) SKIP_GATE=1 ;;
+    --quality-build) QUALITY_BUILD=1 ;;
     *)
       echo "unknown argument: $argument" >&2
-      echo "usage: $0 [--skip-gate]" >&2
+      echo "usage: $0 [--skip-gate] [--quality-build]" >&2
       exit 2
       ;;
   esac
@@ -77,14 +79,23 @@ case "$PLATFORM" in
 esac
 
 if [[ "$SKIP_GATE" != "1" ]]; then
-  echo "==> Fast gate"
-  "$ROOT/scripts/gate-fast.sh"
+  echo "==> Changed-only verification (use --skip-gate when already verified)"
+  "$ROOT/scripts/check-changed.sh"
 else
-  echo "==> Fast gate skipped (--skip-gate)"
+  echo "==> Verification skipped (--skip-gate)"
 fi
 
 echo "==> tauri build"
-npm run tauri build
+if [[ "$QUALITY_BUILD" == "1" ]]; then
+  echo "    quality profile (full LTO, codegen-units=1)"
+  npm run tauri build
+else
+  echo "    fast profile (thin LTO, codegen-units=16, incremental)"
+  CARGO_PROFILE_RELEASE_LTO=thin \
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
+    CARGO_INCREMENTAL=1 \
+    npm run tauri build
+fi
 
 found=0
 case "$PLATFORM" in

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Local release gate. There is no CI by design: `release.sh` runs this before
-# building and publishing.
+# Full local gate (coverage, Playwright and goldens). Opt-in: run it when the
+# user asks for a complete verification (`scripts/release.sh --full-gate`). The
+# everyday check is `npm run verify`.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

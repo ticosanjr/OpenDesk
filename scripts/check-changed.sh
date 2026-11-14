@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Proportional verification for non-release work. The full gate (coverage +
-# Playwright) is only required when the user asks for a release.
+# Proportional verification for everyday work and quick releases. It only
+# checks the areas touched by the working tree; the full gate (coverage,
+# Playwright, goldens) stays opt-in via scripts/gate.sh.
 set -euo pipefail
+STARTED="$(date +%s)"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -18,6 +20,9 @@ if [[ -z "$changed" ]]; then
   exit 0
 fi
 
+echo "==> Whitespace"
+git diff --check
+
 rust=0
 frontend=0
 while IFS= read -r file; do
@@ -31,7 +36,7 @@ if [[ "$rust" == "1" ]]; then
   echo "==> Rust changed: fmt, clippy and unit tests"
   (cd src-tauri && cargo fmt -- --check)
   (cd src-tauri && cargo clippy --all-targets -- -D warnings)
-  (cd src-tauri && cargo test)
+  (cd src-tauri && cargo test --lib)
 fi
 
 if [[ "$frontend" == "1" ]]; then
@@ -41,4 +46,5 @@ if [[ "$frontend" == "1" ]]; then
   npm run test:ui
 fi
 
-echo "==> Changed-only verification passed"
+ELAPSED="$(( $(date +%s) - STARTED ))"
+echo "==> Changed-only verification passed in ${ELAPSED}s"

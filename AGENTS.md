@@ -25,10 +25,16 @@ original foi escrita para o OpenCode V1; **a implementação é V2-only** (ver
 5. **Segredos.** Senha do daemon e token da API local ficam em arquivos `0600`
    ou no keyring. Nunca logue senhas, tokens, prompts completos ou conteúdo de
    `.env`.
-6. **Verificação proporcional.** Sem release, rode `npm run check:changed`
-   (fmt/clippy/testes Rust e typecheck/Vitest quando os arquivos mudarem). O
-   gate completo (`scripts/gate.sh`, cobertura e Playwright) só roda quando o
-   usuário pedir um release.
+6. **Verificação proporcional.** Sem release, rode `npm run verify` (ou
+   `npm run check:changed`): só as áreas tocadas são verificadas
+   (fmt/clippy/testes Rust quando houver `.rs`; typecheck/ESLint/Vitest quando
+   houver frontend). `npm run gate:fast` cobre tudo sem cobertura/E2E. O gate
+   completo (`scripts/gate.sh`, cobertura, 93 Playwright e 49 goldens) roda
+   **somente quando o usuário pedir**. Release padrão usa a verificação
+   proporcional; `--full-gate` é opt-in.
+7. **Cache de build.** `scripts/clean.sh` preserva `src-tauri/target` por padrão
+   para o próximo release ser incremental. `--all` remove `target` e `--deep`
+   também remove `node_modules`; só use quando o disco exigir.
 
 ## Comandos
 
@@ -44,13 +50,22 @@ npm run test:features  # suíte funcional completa (sob demanda, fora do gate)
 npm run test:visual    # goldens de 18 rotas + 5 modais (também no gate)
 npm run test:visual:update  # regravar goldens após mudança visual intencional
 npm run check:changed  # verificação proporcional (sem release)
+npm run verify         # alias de check:changed
 npm run gate:fast      # gate rápido: fmt Rust, TS, lint e Vitest
 scripts/gate-fast.sh --rust  # inclui clippy e testes Rust
+scripts/gate-fast.sh --changed  # equivalente a npm run verify
 cd src-tauri && cargo check
 cd src-tauri && cargo test
-scripts/release.sh     # gate rápido + build local + retenção de 3 releases
+scripts/release.sh     # verify proporcional + build rápido + retenção de 3 releases
 scripts/release.sh --full-gate  # gate completo antes do build (sob demanda)
 scripts/release.sh --skip-gate  # build já verificado externamente
+scripts/release.sh --reuse-build  # reaproveita o binário se nenhum fonte for mais novo
+scripts/release.sh --quality-build  # LTO completo e codegen-units=1
+scripts/release.sh --no-appimage  # só .deb/.rpm (release mais curto)
+scripts/release.sh --refresh-appimage  # refaz o AppImage com linuxdeploy
+scripts/release.sh --clean  # limpeza transitória ao final (preserva target)
+npm run clean          # limpeza transitória; preserva src-tauri/target
+npm run clean:deep     # remove target e node_modules (build frio depois)
 ```
 
 ## Onde está o quê
@@ -70,7 +85,10 @@ scripts/release.sh --skip-gate  # build já verificado externamente
 - `docs/` — plano, ADRs e histórico.
 - `PRODUCT.md` — verdade de produto e usuários.
 - `DESIGN.md` — tokens, escala, componentes e regras visuais (ADR 0046).
-- `scripts/gate-fast.sh` — gate diário; o gate completo é `scripts/gate.sh`.
+- `scripts/check-changed.sh` — verificação proporcional padrão (`npm run verify`).
+- `scripts/gate-fast.sh` — checagem ampla sem cobertura/E2E; `--changed` delega
+  para `check-changed.sh`; o gate completo é `scripts/gate.sh` (opt-in).
+- `docs/release-flow.md` — fluxo rápido de verificação, release e cache de build.
 
 ## Convenções
 
@@ -134,5 +152,10 @@ contrato Google com conta dedicada (`docs/google-contract.md`).
 
 Releases são locais (`releases/`, máximo 3 versões) e nunca via CI. O remoto é
 `origin` em https://github.com/ticosanjr/OpenDesk (privado); `scripts/release.sh`
-faz commit, tag e push. `name` e `avatar` de agentes são metadados do OpenDesk no
-frontmatter; `color` é nativo (ADR 0002).
+faz verificação proporcional, build rápido (thin LTO/incremental), empacota
+`.deb`/`.rpm` e reaproveita o AppDir do AppImage (linuxdeploy só quando
+dependências/ícones mudam), depois commit, tag e push, preservando
+`src-tauri/target` para o próximo release. Use `--quality-build` para o perfil
+completo de LTO e `--refresh-appimage` para refazer o AppImage do zero. `name` e
+`avatar` de agentes são metadados do OpenDesk no frontmatter; `color` é nativo
+(ADR 0002).

@@ -6,6 +6,7 @@
 #   scripts/gate-fast.sh            # frontend + Rust formatting
 #   scripts/gate-fast.sh --rust     # also clippy and Rust unit tests
 #   scripts/gate-fast.sh --e2e      # also the Playwright smoke/scroll suite
+#   scripts/gate-fast.sh --changed  # only the areas touched by the working tree
 #
 # The full release gate remains `scripts/gate.sh` and only runs on request.
 set -euo pipefail
@@ -15,10 +16,12 @@ cd "$ROOT"
 
 WITH_RUST=0
 WITH_E2E=0
+WITH_CHANGED=0
 for argument in "$@"; do
   case "$argument" in
     --rust) WITH_RUST=1 ;;
     --e2e) WITH_E2E=1 ;;
+    --changed) WITH_CHANGED=1 ;;
     --help|-h)
       sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
@@ -29,6 +32,10 @@ for argument in "$@"; do
       ;;
   esac
 done
+
+if [[ "$WITH_CHANGED" == "1" ]]; then
+  exec "$ROOT/scripts/check-changed.sh"
+fi
 
 started="$(date +%s)"
 
