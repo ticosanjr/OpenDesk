@@ -1,6 +1,6 @@
 [package]
 name = "opendesk"
-version = "0.55.0"
+version = "0.56.0"
 description = "OpenDesk — visual governance, automation and observability for OpenCode"
 authors = ["OpenDesk"]
 edition = "2024"

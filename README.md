@@ -4,7 +4,7 @@ Sistema operacional visual de governança, automação e observabilidade sobre o
 OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
-> **Status:** release 0.55.0. O OpenDesk cobre fundação, Studio SSOT, execução
+> **Status:** release 0.56.0. O OpenDesk cobre fundação, Studio SSOT, execução
 > V2, automação, Google Workspace + MCP, governança de agentes, aprendizado,
 > observabilidade, CLI headless, browse, backups, atualizações e o barramento
 > universal de I/O. A refatoração segura e as frentes de produto e plataforma
