@@ -9,7 +9,7 @@ mod tests;
 
 use crate::{
     app_state::AppState,
-    db::{artifacts, deliveries, runs, schedules, tasks, workspaces},
+    db::{artifacts, deliveries, runs, schedules, task_watchers, tasks, workspaces},
     error::{AppError, AppResult},
     integrations::{
         google_api::GoogleApi,
@@ -50,6 +50,22 @@ pub async fn deliver_run(
     };
 
     if run.status != "SUCCESS" {
+        if let Some(task_id) = task_id {
+            let title = tasks::get(pool, task_id)
+                .await
+                .map(|task| task.title)
+                .unwrap_or_else(|_| {
+                    run.task_title
+                        .clone()
+                        .unwrap_or_else(|| "OpenDesk run".to_string())
+                });
+            let secrets = SecretStore::new(paths);
+            if let Err(error) =
+                notify_watchers(pool, &secrets, workspace_id, task_id, &title, &run, &[]).await
+            {
+                tracing::warn!(run = run_id, error = %error, "task watcher failed");
+            }
+        }
         return Ok(());
     }
 
@@ -201,10 +217,192 @@ pub async fn deliver_run(
         .await?;
     }
 
+    if let Some(task_id) = task_id
+        && let Err(error) = notify_watchers(
+            pool,
+            &secrets,
+            workspace_id,
+            task_id,
+            &title,
+            &run,
+            &artifact_list,
+        )
+        .await
+    {
+        tracing::warn!(run = run_id, error = %error, "task watcher failed");
+    }
+
     if let (Some(schedule), Some(hash)) = (&schedule, novelty_hash.as_deref()) {
         let _ = schedules::set_last_output_hash(pool, &schedule.id, Some(hash)).await;
     }
 
+    Ok(())
+}
+
+/// Completion watchers are per-task subscriptions. They fire on every terminal
+/// run, including failures, and are deduplicated per run+recipient through the
+/// same delivery ledger used by routine notifications.
+async fn notify_watchers(
+    pool: &SqlitePool,
+    secrets: &SecretStore,
+    workspace_id: &str,
+    task_id: &str,
+    title: &str,
+    run: &runs::TaskRun,
+    artifact_list: &[artifacts::ArtifactProvenance],
+) -> AppResult<()> {
+    let watchers = task_watchers::list_for_task(pool, task_id).await?;
+    if watchers.is_empty() {
+        return Ok(());
+    }
+    let artifact = artifact_list
+        .iter()
+        .find(|artifact| artifact.action_type != "DELETED");
+    let summary = run
+        .summary_response
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            run.error_message
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+        })
+        .unwrap_or("sem resumo");
+    let message = format!(
+        "[OpenDesk] {title}\nstatus: {}\n{}\n{}",
+        run.status,
+        summary,
+        artifact
+            .map(|artifact| artifact.file_path.as_str())
+            .unwrap_or("sem artefato")
+    );
+    let attachments = artifact_list
+        .iter()
+        .filter(|artifact| artifact.action_type != "DELETED")
+        .map(|artifact| artifact.absolute_path.clone())
+        .collect::<Vec<_>>();
+
+    for watcher in watchers {
+        match watcher.channel.as_str() {
+            "telegram" => {
+                let config = telegram::load(pool).await?;
+                let Some(token) = telegram::token(secrets) else {
+                    tracing::warn!(task = task_id, "Telegram watcher skipped: token missing");
+                    continue;
+                };
+                let requested = watcher
+                    .recipient
+                    .as_deref()
+                    .map(|recipient| vec![recipient.to_string()])
+                    .unwrap_or_else(|| config.allowlist.clone());
+                let recipients = telegram::resolve_recipients(pool, &requested).await;
+                if recipients.is_empty() {
+                    tracing::warn!(task = task_id, "Telegram watcher skipped: no known chat");
+                    continue;
+                }
+                for recipient in recipients {
+                    let key = format!("telegram:watch:{}:{}:{}", run.id, watcher.id, recipient);
+                    let Some(delivery) = deliveries::create_pending(
+                        pool,
+                        workspace_id,
+                        artifact.map(|artifact| artifact.id.as_str()),
+                        DeliveryChannel::Telegram.as_str(),
+                        &key,
+                    )
+                    .await?
+                    else {
+                        continue;
+                    };
+                    match telegram::send_text(&token, &recipient, &message).await {
+                        Ok(()) => {
+                            if let Some(artifact) = artifact {
+                                let path = Path::new(&artifact.absolute_path);
+                                if path.is_file()
+                                    && let Err(error) =
+                                        telegram::send_document(&token, &recipient, path, None)
+                                            .await
+                                {
+                                    tracing::warn!(
+                                        run = %run.id,
+                                        recipient,
+                                        error = %error,
+                                        "Telegram watcher attachment failed"
+                                    );
+                                }
+                            }
+                            let _ = deliveries::mark_success(pool, &delivery.id, None, None).await;
+                        }
+                        Err(error) => {
+                            let _ =
+                                deliveries::mark_failed(pool, &delivery.id, &format!("{error:#}"))
+                                    .await;
+                            tracing::warn!(
+                                run = %run.id,
+                                recipient,
+                                error = %error,
+                                "Telegram watcher failed"
+                            );
+                        }
+                    }
+                }
+            }
+            "signal" => {
+                let config = signal::load(pool).await?;
+                if config.account.trim().is_empty() {
+                    tracing::warn!(task = task_id, "Signal watcher skipped: account missing");
+                    continue;
+                }
+                let recipient = watcher
+                    .recipient
+                    .clone()
+                    .or_else(|| config.allowlist.first().cloned());
+                let Some(recipient) = recipient else {
+                    tracing::warn!(task = task_id, "Signal watcher skipped: no recipient");
+                    continue;
+                };
+                let key = format!("signal:watch:{}:{}:{}", run.id, watcher.id, recipient);
+                let Some(delivery) = deliveries::create_pending(
+                    pool,
+                    workspace_id,
+                    artifact.map(|artifact| artifact.id.as_str()),
+                    DeliveryChannel::Signal.as_str(),
+                    &key,
+                )
+                .await?
+                else {
+                    continue;
+                };
+                match signal::send_with_attachments(
+                    &config.cli_path,
+                    &config.account,
+                    &recipient,
+                    &message,
+                    &attachments,
+                )
+                .await
+                {
+                    Ok(()) => {
+                        let _ = deliveries::mark_success(pool, &delivery.id, None, None).await;
+                    }
+                    Err(error) => {
+                        let _ = deliveries::mark_failed(pool, &delivery.id, &format!("{error:#}"))
+                            .await;
+                        tracing::warn!(
+                            run = %run.id,
+                            recipient,
+                            error = %error,
+                            "Signal watcher failed"
+                        );
+                    }
+                }
+            }
+            other => {
+                tracing::warn!(task = task_id, channel = other, "unknown watcher channel");
+            }
+        }
+    }
     Ok(())
 }
 

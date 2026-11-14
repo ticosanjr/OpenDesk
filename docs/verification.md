@@ -104,6 +104,15 @@ pendências manuais continuam listadas abaixo.
 - Verificação: `npm run verify` verde; 427 testes Rust e 223 Vitest; golden de
   Aprendizado atualizado.
 
+## Pós-0.55.0 — arquivos no Telegram, anexos e watchers (fase 3)
+
+- Entrada de documentos, fotos, áudio, voz e vídeo no Telegram, com limite de
+  20 MB e salvamento em `input/telegram/`.
+- Sink `TELEGRAM_MSG` e entregas de rotinas enviam artefatos com `sendDocument`.
+- Watchers de conclusão por tarefa em Telegram/Signal, inclusive em falhas.
+- Migração 0038; API `GET/PUT /api/tasks/{id}/watchers`; testes de parsing de
+  arquivos, sanitização de nome, repositório e API.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

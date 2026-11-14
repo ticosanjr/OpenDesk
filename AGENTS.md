@@ -144,8 +144,10 @@ integração com OpenCode Browse para tarefas de navegação web e backup/restor
 completo do workspace em ZIP, observabilidade operacional (p95, fila, falhas) e
 contract test opt-in do OpenCode V2, rate limit e auditoria da API local,
 integração Telegram por long polling (chat operacional, “digitando…”, botões de
-HITL/permissões, atualização ao vivo, aprovações e avisos de rotinas) e atalho
-automático do AppImage no menu/barra de tarefas.
+HITL/permissões, atualização ao vivo, aprovações e avisos de rotinas, arquivos
+recebidos no workspace e envio de artefatos), contexto pessoal injetado nos
+prompts, inspetor de prompt com proveniência, watchers de conclusão em
+Telegram/Signal e atalho automático do AppImage no menu/barra de tarefas.
 Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
 Fábrica de Capacidades default (`meta-forge`). O MCP `opendesk-control` permite
 aos agentes operar tarefas, execuções, rotinas, receitas, fila e artefatos; o

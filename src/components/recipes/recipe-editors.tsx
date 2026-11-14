@@ -675,6 +675,42 @@ function SinkEditor({
           </label>
         </div>
       ) : null}
+      {sinkType === "TELEGRAM_MSG" ? (
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          <LabeledField
+            label="Chat ID"
+            hint="Use um chat que já tenha enviado /start ao bot."
+          >
+            <input
+              value={String(config.chat_id ?? "")}
+              onChange={(event) => patchConfig({ chat_id: event.target.value })}
+              placeholder="123456789"
+              className={inputClass}
+            />
+          </LabeledField>
+          <LabeledField
+            label="Segredo do token"
+            hint="Nome do segredo em Integrações; o padrão é telegram-token."
+          >
+            <input
+              value={String(config.token_ref ?? "telegram-token")}
+              onChange={(event) => patchConfig({ token_ref: event.target.value })}
+              className={inputClass}
+            />
+          </LabeledField>
+          <label className="flex items-center gap-2 self-end pb-1 text-[12.5px] text-zinc-400 sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={config.attach_artifacts !== false}
+              onChange={(event) =>
+                patchConfig({ attach_artifacts: event.target.checked })
+              }
+              className="accent-blue-500"
+            />
+            enviar artefatos como arquivos (até 5)
+          </label>
+        </div>
+      ) : null}
       <div className="grid gap-1.5 sm:grid-cols-2">
         <LabeledField label="Tipo de saída">
           <select

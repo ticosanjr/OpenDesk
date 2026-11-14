@@ -13,11 +13,11 @@ import { ModelCombobox } from "@/components/ui/model-combobox";
 import { PromptAttachments } from "@/components/ui/prompt-attachments";
 import { SlashTextarea } from "@/components/ui/slash-textarea";
 import { Switch } from "@/components/ui/switch";
-import { apiDelete, apiPatch, apiPost } from "@/lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
 import { links } from "@/lib/links";
 import { PRIORITY_LABEL } from "@/lib/task-ui";
 import { isTaskRunning } from "@/lib/task-state";
-import type { Task } from "@/lib/types";
+import type { Task, TaskWatcher } from "@/lib/types";
 import { toast } from "@/store/toast-store";
 import {
   fieldInputClass as inputClass,
@@ -135,6 +135,7 @@ export function TaskFormModal({
     "standard",
   );
   const [email, setEmail] = useState("");
+  const [watchChannels, setWatchChannels] = useState<string[]>([]);
   const [exportToGdocs, setExportToGdocs] = useState(false);
   const [saving, setSaving] = useState<"save" | "rerun" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -198,8 +199,43 @@ export function TaskFormModal({
     }
   }, [open, task, forkSource, mode]);
 
+  useEffect(() => {
+    if (!open) return;
+    if (!task) {
+      setWatchChannels([]);
+      return;
+    }
+    let cancelled = false;
+    void apiGet<TaskWatcher[]>(`/api/tasks/${task.id}/watchers`)
+      .then((watchers) => {
+        if (!cancelled) {
+          setWatchChannels(watchers.map((watcher) => watcher.channel));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setWatchChannels([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, task]);
+
   if (!open) return null;
   const running = task ? isTaskRunning(task) : false;
+
+  async function syncWatchers(taskId: string) {
+    try {
+      await apiPut(`/api/tasks/${taskId}/watchers`, {
+        channels: watchChannels,
+      });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Tarefa salva, mas os avisos não foram atualizados",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  }
 
   async function submit(rerun: boolean) {
     if (!workspaceId) return;
@@ -263,6 +299,7 @@ export function TaskFormModal({
           description: forked.title,
           href: links.task(forked.id),
         });
+        await syncWatchers(forked.id);
         await onSaved(forked, false);
       } else if (mode === "create") {
         const created = await apiPost<Task>(
@@ -279,6 +316,9 @@ export function TaskFormModal({
             : `“${created.title}” entrou no Kanban.`,
           href: links.task(created.id),
         });
+        if (!created.deduplicated) {
+          await syncWatchers(created.id);
+        }
         await onSaved(created, false);
       } else if (task) {
         const saved = await apiPatch<Task>(`/api/tasks/${task.id}`, {
@@ -294,6 +334,7 @@ export function TaskFormModal({
           description: saved.title,
           href: links.task(saved.id),
         });
+        await syncWatchers(saved.id);
         await onSaved(saved, rerun);
       }
     } catch (cause) {
@@ -325,6 +366,9 @@ export function TaskFormModal({
     careLevel !== "standard" ? `cuidado: ${careLevel}` : null,
     tags.trim() ? "tags" : null,
     email.trim() ? "e-mail" : null,
+    watchChannels.length > 0
+      ? `avisos: ${watchChannels.join(", ")}`
+      : null,
     exportToGdocs ? "Google Docs" : null,
   ]
     .filter(Boolean)
@@ -505,6 +549,36 @@ export function TaskFormModal({
             className={inputClass}
           />
         </label>
+        <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2 sm:col-span-2">
+          <p className="text-[13px] text-zinc-300">Avisar quando concluir</p>
+          <p className="mt-0.5 text-[11.5px] leading-snug text-zinc-500">
+            Sem escolha aqui, a tarefa não avisa ninguém. Ao marcar um canal, o
+            resultado, o status e o artefato principal são enviados ao terminar
+            cada execução, inclusive em falhas.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-4">
+            {(["telegram", "signal"] as const).map((channel) => (
+              <label
+                key={channel}
+                className="flex items-center gap-2 text-[12.5px] text-zinc-400"
+              >
+                <input
+                  type="checkbox"
+                  checked={watchChannels.includes(channel)}
+                  onChange={(event) =>
+                    setWatchChannels((current) =>
+                      event.target.checked
+                        ? [...current.filter((item) => item !== channel), channel]
+                        : current.filter((item) => item !== channel),
+                    )
+                  }
+                  className="accent-blue-500"
+                />
+                {channel === "telegram" ? "Telegram" : "Signal"}
+              </label>
+            ))}
+          </div>
+        </div>
         <label className="flex items-end gap-2 pb-2 text-[13px] text-zinc-400">
           <input
             type="checkbox"

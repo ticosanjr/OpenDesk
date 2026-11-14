@@ -59,6 +59,8 @@ OpenCode permanecendo nos arquivos nativos do disco.
   atalho do AppImage no menu/barra de tarefas.
 - Configurações → Prompt mostra o prompt completo enviado a qualquer tarefa,
   seção por seção e com a origem de cada bloco.
+- Telegram recebe arquivos no workspace e sinks entregam artefatos; tarefas
+  avisam conclusões no Telegram/Signal.
 - Chat interativo com qualquer agente, histórico, streaming por sessão e custo;
   pelo Telegram o agente cria tarefas, consulta execuções e resultados, executa
   rotinas/receitas e responde HITL.
@@ -300,6 +302,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0051 — Deduplicação persistente de Folder Watch](docs/decisions/0051-folder-watch-persistent-dedupe.md)
 - [ADR 0052 — Chat aguarda o turno novo](docs/decisions/0052-chat-waits-for-new-turn.md)
 - [ADR 0053 — Contexto pessoal e inspeção de prompt](docs/decisions/0053-personal-context-and-prompt-preview.md)
+- [ADR 0054 — Arquivos no Telegram, anexos e watchers](docs/decisions/0054-telegram-files-sink-attachments-and-watchers.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

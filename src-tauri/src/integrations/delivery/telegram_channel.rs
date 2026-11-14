@@ -54,6 +54,20 @@ pub(super) async fn deliver_telegram(
         };
         match telegram::send_text(&token, &recipient, &message).await {
             Ok(()) => {
+                if let Some(artifact) = artifact {
+                    let path = Path::new(&artifact.absolute_path);
+                    if path.is_file()
+                        && let Err(error) =
+                            telegram::send_document(&token, &recipient, path, None).await
+                    {
+                        tracing::warn!(
+                            run = run_id,
+                            recipient,
+                            error = %error,
+                            "Telegram artifact delivery failed"
+                        );
+                    }
+                }
                 let _ = deliveries::mark_success(pool, &delivery.id, None, None).await;
             }
             Err(error) => {

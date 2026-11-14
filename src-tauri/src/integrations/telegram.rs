@@ -1,13 +1,13 @@
 use crate::{
     app_state::AppState,
     chat,
-    db::{chat as chat_db, interactions, settings, tasks::Task},
+    db::{chat as chat_db, interactions, settings, tasks::Task, workspaces},
     error::{AppError, AppResult},
     secrets::SecretStore,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 
@@ -17,6 +17,8 @@ const TOKEN_KEY: &str = "bot_token";
 const OFFSET_KEY: &str = "telegram_last_update_id";
 const CHATS_KEY: &str = "telegram_chats";
 const MAX_MESSAGE_CHARS: usize = 3800;
+/// Bot API download limit. Larger files require a local Bot API server.
+const MAX_FILE_BYTES: usize = 20 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TelegramConfig {
@@ -73,6 +75,14 @@ pub struct KnownChat {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IncomingTelegramFile {
+    pub file_id: String,
+    pub file_name: String,
+    pub mime_type: Option<String>,
+    pub size: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IncomingTelegram {
     pub update_id: i64,
     pub message_id: i64,
@@ -80,6 +90,7 @@ pub struct IncomingTelegram {
     pub username: Option<String>,
     pub chat_title: Option<String>,
     pub text: String,
+    pub file: Option<IncomingTelegramFile>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -422,8 +433,27 @@ async fn handle_incoming(
     };
 
     let context = telegram_context(&thread.workspace_id);
+    let mut content = trimmed.to_string();
+    if let Some(file) = &incoming.file {
+        match save_incoming_file(state, &thread.workspace_id, &incoming, file, token).await {
+            Ok(path) => {
+                if content.is_empty() {
+                    content = format!(
+                        "Arquivo recebido:\n- `{path}`\n\nConfirme o recebimento em uma linha e diga o que pode fazer com ele."
+                    );
+                } else {
+                    content = format!("{content}\n\nArquivo recebido:\n- `{path}`");
+                }
+            }
+            Err(error) => {
+                let message = format!("Não consegui salvar o arquivo: {error}");
+                let _ = send_reply(token, &incoming.chat_id, incoming.message_id, &message).await;
+                return Ok(());
+            }
+        }
+    }
     let typing = TypingGuard::start(token.to_string(), incoming.chat_id.clone());
-    let result = chat::send_message_with_context(state, thread, trimmed, Some(&context)).await;
+    let result = chat::send_message_with_context(state, thread, &content, Some(&context)).await;
     drop(typing);
     match result {
         Ok(reply) => {
@@ -442,6 +472,156 @@ async fn handle_incoming(
         }
     }
     Ok(())
+}
+
+async fn save_incoming_file(
+    state: &Arc<AppState>,
+    workspace_id: &str,
+    incoming: &IncomingTelegram,
+    file: &IncomingTelegramFile,
+    token: &str,
+) -> AppResult<String> {
+    if file.size.is_some_and(|size| size > MAX_FILE_BYTES as i64) {
+        return Err(AppError::BadRequest(format!(
+            "o arquivo excede o limite de {} MB do Bot API",
+            MAX_FILE_BYTES / (1024 * 1024)
+        )));
+    }
+    let workspace = workspaces::get(&state.db, workspace_id).await?;
+    let day = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let relative_dir = Path::new("input").join("telegram").join(&day);
+    let file_name = safe_file_name(&format!(
+        "{}-{}-{}",
+        incoming.chat_id, incoming.message_id, file.file_name
+    ));
+    let relative = relative_dir.join(file_name);
+    let destination = Path::new(&workspace.root_path).join(&relative);
+    download_file(token, &file.file_id, &destination).await?;
+    Ok(relative.to_string_lossy().replace('\\', "/"))
+}
+
+/// `input/` is scanned into every task prompt, so names must stay portable and
+/// cannot escape the workspace.
+fn safe_file_name(value: &str) -> String {
+    let base = value.rsplit(['/', '\\']).next().unwrap_or(value);
+    let mut name = base
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '_' | ' ') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        .trim()
+        .trim_start_matches('.')
+        .to_string();
+    if name.is_empty() {
+        name = "arquivo".into();
+    }
+    name.chars().take(100).collect()
+}
+
+async fn download_file(token: &str, file_id: &str, destination: &Path) -> AppResult<()> {
+    let response = client()
+        .post(api_url(token, "getFile"))
+        .json(&json!({ "file_id": file_id }))
+        .timeout(Duration::from_secs(20))
+        .send()
+        .await
+        .map_err(|_| AppError::Daemon("Telegram: falha de rede no getFile".into()))?;
+    let value = parse_response("getFile", response).await?;
+    if value
+        .get("file_size")
+        .and_then(Value::as_i64)
+        .is_some_and(|size| size > MAX_FILE_BYTES as i64)
+    {
+        return Err(AppError::BadRequest(format!(
+            "o arquivo excede o limite de {} MB do Bot API",
+            MAX_FILE_BYTES / (1024 * 1024)
+        )));
+    }
+    let file_path = value
+        .get("file_path")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::Daemon("Telegram getFile sem file_path".into()))?;
+    let response = client()
+        .get(format!(
+            "https://api.telegram.org/file/bot{token}/{file_path}"
+        ))
+        .timeout(Duration::from_secs(120))
+        .send()
+        .await
+        .map_err(|_| AppError::Daemon("Telegram: falha de rede ao baixar o arquivo".into()))?;
+    if !response.status().is_success() {
+        return Err(AppError::Daemon(format!(
+            "Telegram respondeu {} ao baixar o arquivo",
+            response.status()
+        )));
+    }
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|_| AppError::Daemon("Telegram: arquivo interrompido".into()))?;
+    if bytes.len() > MAX_FILE_BYTES {
+        return Err(AppError::BadRequest(format!(
+            "o arquivo excede o limite de {} MB do Bot API",
+            MAX_FILE_BYTES / (1024 * 1024)
+        )));
+    }
+    if let Some(parent) = destination.parent() {
+        tokio::fs::create_dir_all(parent).await.map_err(|error| {
+            AppError::Internal(format!("could not create input folder: {error}"))
+        })?;
+    }
+    tokio::fs::write(destination, &bytes)
+        .await
+        .map_err(|error| AppError::Internal(format!("could not save Telegram file: {error}")))?;
+    Ok(())
+}
+
+/// Uploads a local file back to the chat. Used by completion watchers and the
+/// outbound Telegram sink.
+pub async fn send_document(
+    token: &str,
+    chat_id: &str,
+    path: &Path,
+    caption: Option<&str>,
+) -> AppResult<()> {
+    let bytes = tokio::fs::read(path)
+        .await
+        .map_err(|error| AppError::BadRequest(format!("arquivo indisponível: {error}")))?;
+    if bytes.len() > 49 * 1024 * 1024 {
+        return Err(AppError::BadRequest(
+            "arquivo excede o limite de 50 MB do Telegram".into(),
+        ));
+    }
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("artifact")
+        .to_string();
+    let mut form = reqwest::multipart::Form::new()
+        .text("chat_id", chat_id.to_string())
+        .part(
+            "document",
+            reqwest::multipart::Part::bytes(bytes)
+                .file_name(file_name)
+                .mime_str(crate::media::mime_for_path(path))
+                .map_err(|error| AppError::Internal(format!("invalid mime type: {error}")))?,
+        );
+    if let Some(caption) = caption.map(str::trim).filter(|value| !value.is_empty()) {
+        form = form.text("caption", truncate(caption, 900));
+    }
+    let response = client()
+        .post(api_url(token, "sendDocument"))
+        .multipart(form)
+        .timeout(Duration::from_secs(120))
+        .send()
+        .await
+        .map_err(|_| AppError::Daemon("Telegram: falha de rede ao enviar documento".into()))?;
+    parse_response("sendDocument", response).await.map(|_| ())
 }
 
 fn telegram_context(workspace_id: &str) -> String {
@@ -824,10 +1004,16 @@ pub fn parse_update(value: &Value) -> Option<IncomingTelegram> {
         .map(str::to_string);
     let text = message
         .get("text")
+        .or_else(|| message.get("caption"))
         .and_then(Value::as_str)
         .map(str::trim)
-        .filter(|text| !text.is_empty())?
+        .filter(|text| !text.is_empty())
+        .unwrap_or_default()
         .to_string();
+    let file = parse_message_file(message, message_id);
+    if text.is_empty() && file.is_none() {
+        return None;
+    }
     Some(IncomingTelegram {
         update_id,
         message_id,
@@ -835,7 +1021,72 @@ pub fn parse_update(value: &Value) -> Option<IncomingTelegram> {
         username,
         chat_title,
         text,
+        file,
     })
+}
+
+fn parse_message_file(message: &Value, message_id: i64) -> Option<IncomingTelegramFile> {
+    if let Some(document) = message.get("document") {
+        return file_from(document, message_id, "document");
+    }
+    if let Some(photos) = message.get("photo").and_then(Value::as_array) {
+        let best = photos.iter().max_by_key(|photo| {
+            photo
+                .get("file_size")
+                .and_then(Value::as_i64)
+                .unwrap_or_default()
+        })?;
+        return file_from(best, message_id, "photo");
+    }
+    for key in ["audio", "voice", "video"] {
+        if let Some(file) = message.get(key) {
+            return file_from(file, message_id, key);
+        }
+    }
+    None
+}
+
+fn file_from(value: &Value, message_id: i64, kind: &str) -> Option<IncomingTelegramFile> {
+    let file_id = value.get("file_id")?.as_str()?.to_string();
+    let mime_type = value
+        .get("mime_type")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let size = value.get("file_size").and_then(Value::as_i64);
+    let file_name = value
+        .get("file_name")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| default_file_name(kind, message_id, mime_type.as_deref()));
+    Some(IncomingTelegramFile {
+        file_id,
+        file_name,
+        mime_type,
+        size,
+    })
+}
+
+fn default_file_name(kind: &str, message_id: i64, mime: Option<&str>) -> String {
+    let extension = match mime.unwrap_or_default() {
+        "image/jpeg" => "jpg",
+        "image/png" => "png",
+        "image/webp" => "webp",
+        "audio/ogg" | "audio/opus" => "ogg",
+        "audio/mpeg" => "mp3",
+        "audio/mp4" => "m4a",
+        "video/mp4" => "mp4",
+        "application/pdf" => "pdf",
+        _ => match kind {
+            "photo" => "jpg",
+            "voice" => "ogg",
+            "video" => "mp4",
+            "audio" => "mp3",
+            _ => "bin",
+        },
+    };
+    format!("{kind}-{message_id}.{extension}")
 }
 
 pub fn parse_callback_update(value: &Value) -> Option<IncomingCallback> {
@@ -1287,6 +1538,61 @@ mod tests {
             }
         });
         assert!(parse_update(&value).is_none());
+    }
+
+    #[test]
+    fn parses_documents_with_caption() {
+        let value = json!({
+            "update_id": 2,
+            "message": {
+                "message_id": 11,
+                "from": { "id": 1, "is_bot": false },
+                "chat": { "id": 1, "type": "private" },
+                "caption": "Analise este PDF",
+                "document": {
+                    "file_id": "file-1",
+                    "file_name": "contrato.pdf",
+                    "mime_type": "application/pdf",
+                    "file_size": 2048
+                }
+            }
+        });
+        let message = parse_update(&value).expect("message");
+        assert_eq!(message.text, "Analise este PDF");
+        let file = message.file.expect("file");
+        assert_eq!(file.file_id, "file-1");
+        assert_eq!(file.file_name, "contrato.pdf");
+        assert_eq!(file.mime_type.as_deref(), Some("application/pdf"));
+        assert_eq!(file.size, Some(2048));
+    }
+
+    #[test]
+    fn picks_the_largest_photo_without_caption() {
+        let value = json!({
+            "update_id": 3,
+            "message": {
+                "message_id": 12,
+                "from": { "id": 1, "is_bot": false },
+                "chat": { "id": 1, "type": "private" },
+                "photo": [
+                    { "file_id": "small", "file_size": 100 },
+                    { "file_id": "large", "file_size": 900 }
+                ]
+            }
+        });
+        let message = parse_update(&value).expect("message");
+        assert!(message.text.is_empty());
+        let file = message.file.expect("file");
+        assert_eq!(file.file_id, "large");
+        assert_eq!(file.file_name, "photo-12.jpg");
+    }
+
+    #[test]
+    fn sanitizes_incoming_file_names() {
+        assert_eq!(safe_file_name("../../etc/passwd"), "passwd");
+        assert_eq!(safe_file_name("relatório final.pdf"), "relat_rio final.pdf");
+        assert_eq!(safe_file_name(""), "arquivo");
+        assert!(safe_file_name(&"a".repeat(300)).chars().count() <= 100);
     }
 
     #[test]

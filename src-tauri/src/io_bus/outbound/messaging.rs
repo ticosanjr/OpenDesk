@@ -42,7 +42,7 @@ pub async fn run(
     match sink.sink_type.as_str() {
         "SMTP_EMAIL" => smtp(ctx, &config, output, &message).await,
         "SIGNAL_MSG" => signal_channel(ctx, &config, &message, output).await,
-        "TELEGRAM_MSG" => telegram(ctx, &config, &message).await,
+        "TELEGRAM_MSG" => telegram(ctx, &config, &message, output).await,
         "MATRIX_MSG" => matrix(ctx, &config, &message).await,
         "MATTERMOST_MSG" => mattermost(&config, &message).await,
         other => Err(AppError::BadRequest(format!(
@@ -182,13 +182,27 @@ async fn signal_channel(
     Ok(vec![format!("signal:{recipient}")])
 }
 
-async fn telegram(ctx: &IoContext, config: &Config, message: &str) -> AppResult<Vec<String>> {
+async fn telegram(
+    ctx: &IoContext,
+    config: &Config,
+    message: &str,
+    output: &RunOutput,
+) -> AppResult<Vec<String>> {
     let token = secret(ctx, config)?;
     let chat_id = config
         .chat_id
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("Telegram sink exige chat_id".into()))?;
     crate::io_bus::chat::send_telegram(&token, chat_id, message, Some("HTML")).await?;
+    if config.attach_artifacts.unwrap_or(true) {
+        for path in artifact_paths(output).into_iter().take(5) {
+            if let Err(error) =
+                crate::integrations::telegram::send_document(&token, chat_id, path, None).await
+            {
+                tracing::warn!(path = %path.display(), error = %error, "Telegram sink attachment failed");
+            }
+        }
+    }
     Ok(vec![format!("telegram:{chat_id}")])
 }
 

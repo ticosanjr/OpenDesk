@@ -2664,3 +2664,16 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   contexto carregado pelo OpenCode (agente e skills).
 - Migração 0037; `GET /api/tasks/{id}/prompt-preview`; ADR 0053.
 - Verificação: 427 testes Rust e 223 Vitest.
+
+## 2026-11-14 — arquivos no Telegram, anexos e watchers (fase 3)
+
+- Telegram aceita documentos, fotos, áudio, voz e vídeo; os arquivos são salvos
+  em `input/telegram/YYYY-MM-DD/` e entram no prompt do chat.
+- `TELEGRAM_MSG` envia artefatos com `sendDocument`; a entrega de rotinas no
+  Telegram também anexa o artefato principal.
+- Tarefas podem assinar Telegram e/ou Signal. Cada execução terminal (sucesso,
+  falha ou cancelamento) envia status, resumo/erro e artefato principal, com
+  deduplicação em `integration_deliveries`.
+- Migração 0038 (`task_watchers`); `GET/PUT /api/tasks/{id}/watchers`.
+- Formulário de tarefa ganhou “Avisar quando concluir”; editor de receitas
+  ganhou configuração do sink Telegram com anexos.

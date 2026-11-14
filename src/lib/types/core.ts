@@ -117,6 +117,15 @@ export interface Task {
   updated_at: string;
 }
 
+export interface TaskWatcher {
+  id: string;
+  workspace_id: string;
+  task_id: string;
+  channel: "telegram" | "signal" | string;
+  recipient?: string | null;
+  created_at: string;
+}
+
 export interface DispatchDecision {
   phase: string;
   selected_agent: string;

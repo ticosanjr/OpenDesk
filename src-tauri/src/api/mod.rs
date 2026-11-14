@@ -40,6 +40,7 @@ pub mod signal;
 pub mod starter_packs;
 pub mod studio;
 pub mod studio_ops;
+pub mod task_watchers;
 pub mod tasks;
 pub mod telegram;
 pub mod updates;
@@ -305,6 +306,10 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/tasks/{id}/prompt-preview",
             get(prompt_preview::preview),
+        )
+        .route(
+            "/api/tasks/{id}/watchers",
+            get(task_watchers::list).put(task_watchers::replace),
         )
         .route("/api/tasks/{id}/context", get(permissions::context))
         .route("/api/tasks/{id}/compact", post(permissions::compact))

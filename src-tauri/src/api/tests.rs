@@ -73,6 +73,7 @@ mod metrics;
 mod missed_runs;
 mod phase1;
 mod phase2;
+mod phase3;
 mod resources;
 mod schedules;
 mod seed;
