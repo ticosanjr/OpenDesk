@@ -412,8 +412,8 @@ export function TaskDetailsModal({
 
           {running ? (
             <p className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-[12px] text-blue-200">
-              Esta tarefa está em execução. Cancele no controlador da fila antes de
-              editar agente, modelo ou prompt.
+              Esta tarefa está em execução. Pare na tela de execução ou no
+              controlador da fila antes de editar agente, modelo ou prompt.
             </p>
           ) : null}
 

@@ -618,6 +618,7 @@ pub async fn run_heartbeat(
         manual_model: None,
         manual_effort: None,
         execution_mode: None,
+        prompt_append: None,
     };
     if let Err(error) = crate::api::tasks::dispatch_task_internal(state, &task.id, body, None).await
     {

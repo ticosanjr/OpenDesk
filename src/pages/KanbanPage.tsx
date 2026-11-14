@@ -23,6 +23,7 @@ import {
   CreateTaskModal,
   EditTaskModal,
   ForkTaskModal,
+  ExecutionModal,
   LogDrawer,
   SwarmModal,
   TaskDetailsModal,
@@ -82,6 +83,7 @@ export function KanbanPage() {
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [executeTask, setExecuteTask] = useState<Task | null>(null);
   const [swarmTask, setSwarmTask] = useState<Task | null>(null);
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [logTask, setLogTask] = useState<Task | null>(null);
@@ -340,20 +342,6 @@ export function KanbanPage() {
       cancelled = true;
     };
   }, [tasks, searchParams, setSearchParams]);
-
-  async function dispatch(task: Task) {
-    setError(null);
-    try {
-      const response = await apiPost<{ decision: DispatchDecision }>(
-        `/api/tasks/${task.id}/dispatch`,
-        {},
-      );
-      setDecision(response.decision);
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  }
 
   async function approve(task: Task) {
     setError(null);
@@ -884,7 +872,7 @@ export function KanbanPage() {
           pinned={pinned}
           daemonOnline={Boolean(daemon?.online)}
           onOpenTask={setSelectedTask}
-          onDispatch={(task) => void dispatch(task)}
+          onDispatch={(task) => setExecuteTask(task)}
           onResume={(task) => void holdTask(task, false)}
           onCancel={(task) => void transitionTask(task, "CANCELLED")}
           onApprove={(task) => void approve(task)}
@@ -1010,7 +998,10 @@ export function KanbanPage() {
           setSelectedTask(null);
         }}
         onApprove={(task) => void approve(task)}
-        onDispatch={(task) => void dispatch(task)}
+        onDispatch={(task) => {
+          setExecuteTask(task);
+          setSelectedTask(null);
+        }}
         onStatus={(task, status) => void transitionTask(task, status)}
         onWait={(task) => void setWaiting(task)}
         onFork={(task) => {
@@ -1025,6 +1016,15 @@ export function KanbanPage() {
           setLogTask(task);
           setInitialRunId(null);
           setSelectedTask(null);
+        }}
+      />
+
+      <ExecutionModal
+        open={!!executeTask}
+        task={executeTask}
+        onClose={() => setExecuteTask(null)}
+        onChanged={async () => {
+          await load();
         }}
       />
 

@@ -204,6 +204,7 @@ pub async fn resolve_delegation(
                 manual_model: None,
                 manual_effort: None,
                 execution_mode: None,
+                prompt_append: None,
             },
             None,
         )

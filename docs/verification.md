@@ -122,6 +122,13 @@ pendências manuais continuam listadas abaixo.
   Signal.
 - Migração 0039; ADR 0055; testes de API, parsing remoto e componente.
 
+## Pós-0.55.0 — tela única de execução (fase 5)
+
+- Modal com modo, agente, modelo, effort, comando/skill e instrução avulsa.
+- `prompt_append` por execução, sem persistir na tarefa.
+- Status ao vivo e parada no mesmo lugar; aprovação de plano reaproveita a tela.
+- ADR 0056; testes do append e do modal.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

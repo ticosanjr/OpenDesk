@@ -70,6 +70,7 @@ pub async fn preview(
             .flatten(),
         manual_effort: None,
         execution_mode: Some(task.execution_mode.clone()),
+        prompt_append: None,
     };
     let decision = crate::api::tasks::task_dispatch::plan_decision(
         &state,

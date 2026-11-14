@@ -504,6 +504,7 @@ async fn execute_step(
         manual_model: step.model.clone(),
         manual_effort: step.effort.clone(),
         execution_mode: Some(mode_for_step(step)),
+        prompt_append: None,
     };
     crate::api::tasks::dispatch_task_with_session(
         state,

@@ -2691,3 +2691,13 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   nativa.
 - Receitas aceitam os quatro nomes e instruções de resposta por canal.
 - Migração 0039; ADR 0055; testes de API, parsing remoto e InteractionCard.
+
+## 2026-11-14 — tela única de execução (fase 5)
+
+- Modal de execução aberto pelo Kanban, lista e card de detalhes: modo, agente,
+  modelo, effort, comando/skill/instrução avulsa, status ao vivo e stop.
+- `DispatchBody.prompt_append` injeta “Instruções desta execução” no prompt do
+  job sem alterar a tarefa, com limite de 8.000 caracteres.
+- “Parar execução” usa a transição `CANCELLED` e encerra o job ativo.
+- Quando o plano aguarda aprovação, o mesmo botão aprova e executa.
+- ADR 0056; testes do modal e do append.

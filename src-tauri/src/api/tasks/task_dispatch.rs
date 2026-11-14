@@ -46,6 +46,16 @@ pub(crate) async fn dispatch_task_with_session(
     let decision = plan_decision(state, &task, &workspace, &body, approved_plan).await?;
     crate::governance::check_budget(&state.db, &task.workspace_id, &decision.selected_agent)
         .await?;
+    let extra = body
+        .prompt_append
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if extra.is_some_and(|value| value.chars().count() > 8_000) {
+        return Err(AppError::BadRequest(
+            "instruções desta execução excedem 8000 caracteres".into(),
+        ));
+    }
     let job = enqueue_decision_with_session(
         state,
         &task,
@@ -53,6 +63,7 @@ pub(crate) async fn dispatch_task_with_session(
         &decision,
         approved_plan,
         session_id,
+        extra,
     )
     .await?;
     Ok(serde_json::json!({
@@ -194,7 +205,14 @@ pub(super) async fn enqueue_decision(
     decision: &dsh_router::RouterDecision,
     approved_plan: Option<&str>,
 ) -> AppResult<crate::db::queue::QueueJob> {
-    enqueue_decision_with_session(state, task, workspace, decision, approved_plan, None).await
+    enqueue_decision_with_session(state, task, workspace, decision, approved_plan, None, None).await
+}
+
+fn append_instruction(prompt: String, extra: Option<&str>) -> String {
+    match extra.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(extra) => format!("{prompt}\n## Instruções desta execução\n\n{extra}\n"),
+        None => prompt,
+    }
 }
 
 pub(crate) async fn enqueue_decision_with_session(
@@ -204,6 +222,7 @@ pub(crate) async fn enqueue_decision_with_session(
     decision: &dsh_router::RouterDecision,
     approved_plan: Option<&str>,
     session_id: Option<&str>,
+    extra_instruction: Option<&str>,
 ) -> AppResult<crate::db::queue::QueueJob> {
     std::fs::create_dir_all(&decision.output_directory).map_err(|error| {
         AppError::Internal(format!("could not create output directory: {error}"))
@@ -240,6 +259,7 @@ pub(crate) async fn enqueue_decision_with_session(
         care_instructions(care),
         task.id
     );
+    let prompt = append_instruction(prompt, extra_instruction);
 
     tasks::move_to(&state.db, &task.id, "TODO", None).await?;
     tasks::set_phase(&state.db, &task.id, Some(&decision.phase)).await?;
@@ -278,6 +298,16 @@ pub(crate) async fn enqueue_decision_with_session(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn appends_one_off_execution_instructions() {
+        let prompt = append_instruction("base".into(), Some("  /resumir foco  "));
+        assert!(prompt.starts_with("base"));
+        assert!(prompt.contains("## Instruções desta execução"));
+        assert!(prompt.contains("/resumir foco"));
+        assert_eq!(append_instruction("base".into(), Some("   ")), "base");
+        assert_eq!(append_instruction("base".into(), None), "base");
+    }
 
     #[test]
     fn care_instructions_match_the_level() {

@@ -41,6 +41,9 @@ pub struct DispatchBody {
     pub manual_model: Option<String>,
     pub manual_effort: Option<String>,
     pub execution_mode: Option<String>,
+    /// One-off instructions for this execution. Never persisted on the task.
+    #[serde(default)]
+    pub prompt_append: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -252,6 +255,7 @@ pub async fn retry_other_model(
             manual_model: Some(fallback.clone()),
             manual_effort: None,
             execution_mode: None,
+            prompt_append: None,
         },
         None,
     )
@@ -312,6 +316,7 @@ pub async fn swarm_task(
                 manual_model: Some(model.clone()),
                 manual_effort: None,
                 execution_mode: Some(forked.execution_mode.clone()),
+                prompt_append: None,
             },
             None,
         )
