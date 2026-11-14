@@ -11,6 +11,7 @@ use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
+use walkdir::WalkDir;
 
 /// Everything that can be derived before the OpenCode session starts.
 #[derive(Debug, Clone)]
@@ -67,6 +68,7 @@ pub fn plan_run(
 
 /// Records every diff/write reported by a run. Kept separate from queue
 /// orchestration so provenance can be tested without an OpenCode session.
+#[allow(clippy::too_many_arguments)]
 pub async fn record_artifacts(
     pool: &SqlitePool,
     events: &EventBus,
@@ -74,6 +76,7 @@ pub async fn record_artifacts(
     run_id: &str,
     reason: &str,
     workspace_root: &Path,
+    output_dir: &Path,
     outcome: &RunOutcome,
 ) {
     let mut seen_files = std::collections::HashSet::new();
@@ -96,6 +99,7 @@ pub async fn record_artifacts(
             &diff.file,
             action,
             Some(&diff.patch),
+            None,
         )
         .await;
     }
@@ -116,6 +120,94 @@ pub async fn record_artifacts(
             &write.path,
             &write.action,
             write.diff_patch.as_deref(),
+            None,
+        )
+        .await;
+    }
+
+    scan_output_directory(
+        pool,
+        events,
+        job,
+        run_id,
+        reason,
+        workspace_root,
+        output_dir,
+    )
+    .await;
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn scan_output_directory(
+    pool: &SqlitePool,
+    events: &EventBus,
+    job: &queue::QueueJob,
+    run_id: &str,
+    reason: &str,
+    workspace_root: &Path,
+    output_dir: &Path,
+) {
+    if !output_dir.is_dir() {
+        return;
+    }
+    let mut recorded = 0;
+    for entry in WalkDir::new(output_dir)
+        .max_depth(8)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        if recorded >= 200 {
+            break;
+        }
+        let absolute = entry.path();
+        let relative = absolute
+            .strip_prefix(workspace_root)
+            .unwrap_or(absolute)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if artifacts::exists(pool, run_id, &relative)
+            .await
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        let (size, hash) = file_fingerprint(absolute);
+        let previous = artifacts::latest_for_path(pool, &job.workspace_id, &relative)
+            .await
+            .ok()
+            .flatten();
+        if previous.as_ref().is_some_and(|artifact| {
+            artifact.action_type != "DELETED"
+                && artifact.file_size_bytes == size
+                && artifact.content_sha256.as_deref() == hash.as_deref()
+        }) {
+            continue;
+        }
+        recorded += 1;
+        let action = if previous.is_some() {
+            "MODIFIED"
+        } else {
+            "CREATED"
+        };
+        record_artifact(
+            pool,
+            events,
+            &job.workspace_id,
+            job.task_id.as_deref(),
+            run_id,
+            &job.resolved_agent,
+            reason,
+            workspace_root,
+            &relative,
+            action,
+            None,
+            previous
+                .as_ref()
+                .and_then(|artifact| artifact.content_sha256.as_deref()),
         )
         .await;
     }
@@ -134,6 +226,7 @@ async fn record_artifact(
     file_path: &str,
     action: &str,
     diff_patch: Option<&str>,
+    previous_sha256: Option<&str>,
 ) {
     if artifacts::exists(pool, run_id, file_path)
         .await
@@ -169,7 +262,7 @@ async fn record_artifact(
             file_type,
             file_size_bytes: size,
             content_sha256: hash,
-            previous_sha256: None,
+            previous_sha256: previous_sha256.map(str::to_string),
             action_type: action.to_string(),
             created_by_agent: agent.to_string(),
             creation_reason: reason.to_string(),
@@ -341,6 +434,7 @@ mod tests {
             "run-artifacts",
             "teste",
             &context.workspace_root,
+            &context.workspace_root.join("no-output"),
             &outcome,
         )
         .await;
@@ -351,5 +445,130 @@ mod tests {
         .await
         .expect("count");
         assert_eq!(count, 2);
+    }
+
+    #[tokio::test]
+    async fn scans_shell_created_files_in_the_output_directory() {
+        use crate::opencode_client::session_runner::{RunOutcome, RunStatus};
+
+        let context = crate::test_support::context().await;
+        let output = context.workspace_root.join("output").join("tarefa");
+        std::fs::create_dir_all(&output).expect("output");
+        std::fs::write(output.join("poesia.txt"), "v1").expect("file");
+        let mut job = job();
+        job.workspace_id = context.workspace_id.clone();
+
+        let empty = || RunOutcome {
+            status: RunStatus::Success,
+            session_id: "session".into(),
+            usage: crate::db::runs::RunUsage::default(),
+            summary: None,
+            diffs: Vec::new(),
+            writes: Vec::new(),
+            error: None,
+            log_tail: None,
+            permissions: Vec::new(),
+        };
+        let create_run = |id: &'static str| {
+            let db = context.state.db.clone();
+            let workspace_id = context.workspace_id.clone();
+            async move {
+                crate::db::runs::create(
+                    &db,
+                    crate::db::runs::CreateRunInput {
+                        id: id.into(),
+                        queue_job_id: None,
+                        workspace_id,
+                        task_id: None,
+                        schedule_id: None,
+                        parent_run_id: None,
+                        phase: Some("build".into()),
+                        agent_name: "build".into(),
+                        execution_mode: "BUILD_DIRECT".into(),
+                        provider_id: Some("opencode-go".into()),
+                        model_id: "glm-5.3".into(),
+                        effort_level: "low".into(),
+                        pricing_snapshot_json: None,
+                        log_path: None,
+                    },
+                )
+                .await
+                .expect("run");
+            }
+        };
+
+        create_run("run-scan-1").await;
+        record_artifacts(
+            &context.state.db,
+            &context.state.events,
+            &job,
+            "run-scan-1",
+            "teste",
+            &context.workspace_root,
+            &output,
+            &empty(),
+        )
+        .await;
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM artifacts_provenance WHERE run_id = 'run-scan-1'",
+        )
+        .fetch_one(&context.state.db)
+        .await
+        .expect("count");
+        assert_eq!(count, 1);
+        let artifact = crate::db::artifacts::latest_for_path(
+            &context.state.db,
+            &context.workspace_id,
+            "output/tarefa/poesia.txt",
+        )
+        .await
+        .expect("artifact")
+        .expect("artifact row");
+        assert_eq!(artifact.action_type, "CREATED");
+
+        // Re-running the same run must not duplicate rows.
+        record_artifacts(
+            &context.state.db,
+            &context.state.events,
+            &job,
+            "run-scan-1",
+            "teste",
+            &context.workspace_root,
+            &output,
+            &empty(),
+        )
+        .await;
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM artifacts_provenance WHERE run_id = 'run-scan-1'",
+        )
+        .fetch_one(&context.state.db)
+        .await
+        .expect("count");
+        assert_eq!(count, 1);
+
+        create_run("run-scan-2").await;
+        std::fs::write(output.join("poesia.txt"), "v2").expect("file");
+        record_artifacts(
+            &context.state.db,
+            &context.state.events,
+            &job,
+            "run-scan-2",
+            "teste",
+            &context.workspace_root,
+            &output,
+            &empty(),
+        )
+        .await;
+        let artifact = crate::db::artifacts::latest_for_path(
+            &context.state.db,
+            &context.workspace_id,
+            "output/tarefa/poesia.txt",
+        )
+        .await
+        .expect("artifact")
+        .expect("artifact row");
+        assert_eq!(artifact.run_id, "run-scan-2");
+        assert_eq!(artifact.action_type, "MODIFIED");
+        assert!(artifact.previous_sha256.is_some());
     }
 }

@@ -149,7 +149,8 @@ recebidos no workspace e envio de artefatos), contexto pessoal injetado nos
 prompts, inspetor de prompt com proveniência, watchers de conclusão em
 Telegram/Signal, HITL 2.0 unificado (APPROVAL, SINGLE_CHOICE, MULTI_CHOICE,
 TEXT) com decisão/payload, modal global de decisão, tela única de execução
-(agente/modelo/comando/skill, status ao vivo e stop) e atalho automático do
+(agente/modelo/comando/skill, status ao vivo e stop), envio de arquivos pelo
+chat/Telegram e artefatos criados por shell, além do atalho automático do
 AppImage no menu/barra de tarefas.
 Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
 Fábrica de Capacidades default (`meta-forge`). O MCP `opendesk-control` permite

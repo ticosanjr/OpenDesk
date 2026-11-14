@@ -30,16 +30,6 @@ pub struct ChatUsage {
     pub estimated_cost_usd: f64,
 }
 
-pub async fn send_message(
-    state: &AppState,
-    thread: ChatThread,
-    content: &str,
-) -> AppResult<ChatReply> {
-    send_message_with_context(state, thread, content, None).await
-}
-
-/// Sends a chat message with an optional operational context that is prepended
-/// to the OpenCode prompt but never stored in the visible conversation.
 pub async fn send_message_with_context(
     state: &AppState,
     thread: ChatThread,
@@ -133,10 +123,17 @@ pub async fn send_message_with_context(
     let (answer, usage, error) = match prompt_result {
         Ok(Ok(value)) => {
             let (text, usage) = parse_assistant_since(&value, since_ms);
-            let text = text.unwrap_or_else(|| {
-                "O agente concluiu a execução sem retornar texto. Veja o log do run.".to_string()
-            });
-            (text, usage, None)
+            match text {
+                Some(text) => (text, usage, None),
+                None => {
+                    let message = "O agente encerrou o turno sem texto. Tente novamente; se persistir, veja os eventos da sessão.";
+                    (
+                        format!("⚠️ {message}"),
+                        usage,
+                        Some("empty assistant response".to_string()),
+                    )
+                }
+            }
         }
         Ok(Err(message)) => (format!("⚠️ {message}"), ChatUsage::default(), Some(message)),
         Err(_) => (
@@ -180,6 +177,23 @@ pub async fn send_message_with_context(
         usage,
         error,
     })
+}
+
+/// Operational context prepended to every channel prompt. Telegram, Signal and
+/// the desktop chat share one vocabulary so the agent always knows where it is
+/// and how to send a workspace file back to the user.
+pub fn channel_context(source: &str, workspace_id: &str, thread_id: &str) -> String {
+    let external = matches!(source.to_ascii_lowercase().as_str(), "telegram" | "signal");
+    let file_hint = if external {
+        format!(
+            "Para enviar um arquivo do workspace ao usuário, chame a ferramenta MCP `chat_send_file` com thread_id `{thread_id}` e o caminho relativo. Quando o usuário pedir um arquivo, envie-o; não diga que não consegue anexar.\n"
+        )
+    } else {
+        String::new()
+    };
+    format!(
+        "Contexto do canal {source} (não repita ao usuário):\nVocê está operando o OpenDesk no workspace `{workspace_id}` e nesta conversa `{thread_id}`.\nUse as ferramentas MCP `opendesk-control` quando o pedido envolver o OpenDesk: tarefas, execuções, rotinas, receitas, fila, artefatos e decisão humana (`ask_user`).\n{file_hint}Nunca ative rotina/receita nem aprove HITL/permissão sem pedido explícito.\nResponda em português, de forma curta, citando IDs e caminhos relevantes."
+    )
 }
 
 /// The daemon reports a missing session as a 404 or "session not found". Only
@@ -237,6 +251,20 @@ fn turn_has_idle(value: &Value, since_ms: i64) -> bool {
         .unwrap_or(false)
 }
 
+fn turn_has_text(value: &Value, since_ms: i64) -> bool {
+    value
+        .get("data")
+        .and_then(Value::as_array)
+        .map(|messages| {
+            messages.iter().any(|message| {
+                message.get("type").and_then(Value::as_str) == Some("assistant")
+                    && message_created(message).is_some_and(|created| created >= since_ms)
+                    && !message_text(message).trim().is_empty()
+            })
+        })
+        .unwrap_or(false)
+}
+
 fn turn_signature(value: &Value, since_ms: i64) -> String {
     value
         .get("data")
@@ -262,32 +290,50 @@ fn turn_signature(value: &Value, since_ms: i64) -> String {
 /// Waits for the current turn to finish before reading the answer. OpenCode's
 /// prompt endpoint is asynchronous; reading the message list immediately used
 /// to return the previous assistant reply.
+///
+/// A tool-using turn emits intermediate `assistant` messages that contain only
+/// tool calls. Those must never be mistaken for the final answer, so the idle
+/// marker is authoritative: the turn ends only when OpenCode reports idle and a
+/// text message from this turn exists. The quiet-signature fallback is only a
+/// safety net for a missing idle marker and requires text (30s of silence).
 async fn wait_for_turn(
     client: &crate::opencode_client::rest_client::RestClient,
     session_id: &str,
     since_ms: i64,
 ) -> Result<Value, String> {
+    const IDLE_WITHOUT_TEXT_GRACE: Duration = Duration::from_secs(2);
+    const TEXT_STABLE_GRACE: Duration = Duration::from_secs(30);
     let mut stable_signature = String::new();
     let mut stable_since: Option<std::time::Instant> = None;
+    let mut idle_without_text_since: Option<std::time::Instant> = None;
     loop {
         let value = client
             .messages(session_id)
             .await
             .map_err(|error| format!("could not read session messages: {error:#}"))?;
         let signature = turn_signature(&value, since_ms);
-        // Require at least one assistant message from this turn before
-        // accepting an idle marker; otherwise a late idle from the previous
-        // turn would return the old answer again.
-        if !signature.is_empty() && turn_has_idle(&value, since_ms) {
+        let has_text = turn_has_text(&value, since_ms);
+        let has_idle = turn_has_idle(&value, since_ms);
+
+        if has_text && has_idle {
             return Ok(value);
         }
-        if signature.is_empty() {
+        if has_idle && !has_text {
+            // The message list is ordered, but keep a tiny grace in case the
+            // final text lands just after the idle marker.
+            let since = *idle_without_text_since.get_or_insert_with(std::time::Instant::now);
+            if since.elapsed() >= IDLE_WITHOUT_TEXT_GRACE {
+                return Ok(value);
+            }
+        } else {
+            idle_without_text_since = None;
+        }
+
+        if !has_text {
             stable_signature.clear();
             stable_since = None;
         } else if signature == stable_signature {
-            if stable_since
-                .is_some_and(|since| since.elapsed() >= std::time::Duration::from_millis(1500))
-            {
+            if stable_since.is_some_and(|since| since.elapsed() >= TEXT_STABLE_GRACE) {
                 return Ok(value);
             }
         } else {
@@ -395,6 +441,8 @@ mod tests {
     fn parses_only_the_current_turn_and_ignores_the_old_answer() {
         let value = turn_fixture();
         assert!(turn_has_idle(&value, 1000));
+        assert!(turn_has_text(&value, 1000));
+        assert!(!turn_has_text(&value, 2300));
         assert!(!turn_has_idle(&value, 2300));
         let (text, usage) = parse_assistant_since(&value, 1000);
         assert_eq!(text.as_deref(), Some("Meu poema novo"));
@@ -447,6 +495,59 @@ mod tests {
             "secret".into(),
         );
         let value = wait_for_turn(&client, "ses-1", 1000).await.expect("turn");
+        let (text, _) = parse_assistant_since(&value, 1000);
+        assert_eq!(text.as_deref(), Some("Meu poema novo"));
+        handle.abort();
+    }
+
+    #[tokio::test]
+    async fn does_not_stop_on_a_tool_only_message() {
+        use axum::{Json, Router, extract::State, routing::get};
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+
+        async fn messages(State(calls): State<Arc<AtomicUsize>>) -> Json<serde_json::Value> {
+            let call = calls.fetch_add(1, Ordering::SeqCst);
+            if call < 3 {
+                // The agent is still working: an assistant message exists, but
+                // it only carries a tool call and there is no idle marker.
+                Json(serde_json::json!({
+                    "data": [{
+                        "id": "tool-step",
+                        "type": "assistant",
+                        "time": { "created": 2000 },
+                        "content": [{
+                            "type": "tool",
+                            "name": "execute",
+                            "state": { "status": "completed" }
+                        }]
+                    }]
+                }))
+            } else {
+                Json(turn_fixture())
+            }
+        }
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let app = Router::new()
+            .route("/api/session/{id}/message", get(messages))
+            .with_state(calls);
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .expect("listener");
+        let address = listener.local_addr().expect("address");
+        let handle = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        let client = crate::opencode_client::rest_client::RestClient::new_with_url(
+            &format!("http://{address}"),
+            "secret".into(),
+        );
+        let value = wait_for_turn(&client, "ses-1", 1000)
+            .await
+            .expect("turn with tools");
         let (text, _) = parse_assistant_since(&value, 1000);
         assert_eq!(text.as_deref(), Some("Meu poema novo"));
         handle.abort();

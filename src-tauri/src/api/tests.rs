@@ -62,6 +62,7 @@ mod audit;
 mod backups;
 mod browse;
 mod calendar;
+mod chat_files;
 mod core;
 mod dedupe;
 mod export;

@@ -186,6 +186,25 @@ pub async fn exists(pool: &SqlitePool, run_id: &str, file_path: &str) -> AppResu
     Ok(count > 0)
 }
 
+/// Latest record for a workspace-relative path, used by the output-directory
+/// scan to decide between CREATED, MODIFIED and no-op.
+pub async fn latest_for_path(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    file_path: &str,
+) -> AppResult<Option<ArtifactProvenance>> {
+    let query = format!(
+        "SELECT {COLUMNS} FROM artifacts_provenance
+         WHERE workspace_id = ? AND file_path = ?
+         ORDER BY created_at DESC LIMIT 1"
+    );
+    Ok(sqlx::query_as::<_, ArtifactProvenance>(&query)
+        .bind(workspace_id)
+        .bind(file_path)
+        .fetch_optional(pool)
+        .await?)
+}
+
 #[allow(dead_code)]
 pub async fn count_for_task(pool: &SqlitePool, task_id: &str) -> AppResult<i64> {
     Ok(

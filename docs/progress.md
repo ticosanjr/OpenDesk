@@ -2701,3 +2701,15 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - “Parar execução” usa a transição `CANCELLED` e encerra o job ativo.
 - Quando o plano aguarda aprovação, o mesmo botão aprova e executa.
 - ADR 0056; testes do modal e do append.
+
+## 2026-11-14 — chat com arquivos e correção do turno
+
+- O turno do chat só termina com texto + `idle`; mensagens de ferramenta sem
+  texto não encerram mais a leitura, e turno sem texto vira erro explícito.
+- `POST /api/chat/threads/{id}/files` + ferramenta MCP `chat_send_file` enviam
+  arquivos do workspace pelo Telegram/Signal, com validação de caminho e limite
+  de 50 MB.
+- Contexto de canal informa `thread_id` e a ferramenta de envio.
+- Runs agora varrem o diretório de saída e registram arquivos criados por shell,
+  com deduplicação por hash e `MODIFIED` quando o conteúdo muda.
+- ADR 0057.

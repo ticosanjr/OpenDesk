@@ -4,7 +4,7 @@ Sistema operacional visual de governança, automação e observabilidade sobre o
 OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
-> **Status:** release 0.56.0. O OpenDesk cobre fundação, Studio SSOT, execução
+> **Status:** release 0.57.0. O OpenDesk cobre fundação, Studio SSOT, execução
 > V2, automação, Google Workspace + MCP, governança de agentes, aprendizado,
 > observabilidade, CLI headless, browse, backups, atualizações e o barramento
 > universal de I/O. A refatoração segura e as frentes de produto e plataforma
@@ -67,6 +67,8 @@ OpenCode permanecendo nos arquivos nativos do disco.
   notificação nativa.
 - Tela única de execução com agente, modelo, comando/skill, status ao vivo e
   parada no mesmo modal.
+- Chat e Telegram podem enviar arquivos do workspace; arquivos criados por
+  shell também entram na proveniência.
 - Chat interativo com qualquer agente, histórico, streaming por sessão e custo;
   pelo Telegram o agente cria tarefas, consulta execuções e resultados, executa
   rotinas/receitas e responde HITL.
@@ -311,6 +313,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0054 — Arquivos no Telegram, anexos e watchers](docs/decisions/0054-telegram-files-sink-attachments-and-watchers.md)
 - [ADR 0055 — HITL 2.0 com estruturas explícitas](docs/decisions/0055-hitl-2-unified-kinds.md)
 - [ADR 0056 — Tela única de execução](docs/decisions/0056-single-execution-screen.md)
+- [ADR 0057 — Chat com arquivos e artefatos de shell](docs/decisions/0057-chat-files-and-shell-artifacts.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

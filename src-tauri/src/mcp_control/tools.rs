@@ -127,6 +127,19 @@ pub(super) fn tools() -> Vec<Value> {
             }),
         ),
         tool(
+            "chat_send_file",
+            "Envia um arquivo do workspace ao usuário no chat atual (Telegram/Signal). Use quando o usuário pedir um arquivo ou quando precisar entregar um resultado. O thread_id está no contexto do canal.",
+            json!({
+                "type": "object",
+                "required": ["thread_id", "path"],
+                "properties": {
+                    "thread_id": { "type": "string", "description": "ID da conversa atual, informado no contexto do canal." },
+                    "path": { "type": "string", "description": "Caminho do arquivo, relativo ao workspace ou absoluto dentro dele." },
+                    "caption": { "type": "string", "description": "Legenda opcional enviada junto do arquivo." }
+                }
+            }),
+        ),
+        tool(
             "task_message_list",
             "Lista as mensagens e comentários de uma tarefa.",
             json!({
@@ -417,6 +430,7 @@ mod tests {
             "task_move",
             "task_dispatch",
             "ask_user",
+            "chat_send_file",
             "task_message_list",
             "task_message_post",
             "run_list",
@@ -438,6 +452,6 @@ mod tests {
         ] {
             assert!(names.iter().any(|name| name == expected), "{expected}");
         }
-        assert_eq!(names.len(), 25);
+        assert_eq!(names.len(), 26);
     }
 }

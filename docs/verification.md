@@ -129,6 +129,14 @@ pendências manuais continuam listadas abaixo.
 - Status ao vivo e parada no mesmo lugar; aprovação de plano reaproveita a tela.
 - ADR 0056; testes do append e do modal.
 
+## Pós-0.56.0 — chat com arquivos e artefatos de shell
+
+- Turno do chat exige texto + idle; ferramenta sem texto não encerra mais.
+- Envio de arquivo por thread (`/api/chat/threads/{id}/files` e
+  `chat_send_file`) com validação de workspace e canais Telegram/Signal.
+- Varredura do diretório de saída registra arquivos criados por shell.
+- ADR 0057; testes de turno com ferramenta, envio por caminho e varredura.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

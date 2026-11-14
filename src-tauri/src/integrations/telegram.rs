@@ -420,7 +420,7 @@ async fn handle_incoming(
         }
     };
 
-    let context = telegram_context(&thread.workspace_id);
+    let context = telegram_context(&thread.workspace_id, &thread.id);
     let mut content = trimmed.to_string();
     if let Some(file) = &incoming.file {
         match save_incoming_file(state, &thread.workspace_id, &incoming, file, token).await {
@@ -612,10 +612,8 @@ pub async fn send_document(
     parse_response("sendDocument", response).await.map(|_| ())
 }
 
-fn telegram_context(workspace_id: &str) -> String {
-    format!(
-        "Contexto do canal Telegram (não repita ao usuário):\n         Você está operando o OpenDesk no workspace `{workspace_id}`.\n         Use as ferramentas MCP `opendesk-control` quando o pedido envolver o OpenDesk:\n         - tarefas: task_create, task_list, task_update, task_move, task_dispatch;\n         - execuções e estado: run_list, opendesk_status, attention_list;\n         - rotinas e receitas: routine_list, routine_run, recipe_list, recipe_run;\n         - fila, artefatos e resultados: queue_control, artifact_list, artifact_read;\n         - decisão humana: ask_user (a pergunta será enviada ao Telegram).\n         Consulte resultados de tarefas com artifact_list e artifact_read, e leia os\n         arquivos do workspace quando precisar do conteúdo completo.\n         Nunca ative rotina/receita nem aprove HITL/permissão sem pedido explícito.\n         Responda em português, de forma curta, citando IDs e caminhos relevantes."
-    )
+fn telegram_context(workspace_id: &str, thread_id: &str) -> String {
+    chat::channel_context("Telegram", workspace_id, thread_id)
 }
 
 /// Parses `#abcdef12 2` into (short code, answer). The code is at least four

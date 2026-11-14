@@ -392,7 +392,9 @@ async fn handle_incoming(
             }
         };
 
-    let reply = chat::send_message(state, thread, &incoming.text).await?;
+    let context = chat::channel_context("Signal", &thread.workspace_id, &thread.id);
+    let reply =
+        chat::send_message_with_context(state, thread, &incoming.text, Some(&context)).await?;
     send_text(
         &config.cli_path,
         &config.account,

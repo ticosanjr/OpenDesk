@@ -337,6 +337,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             "/api/chat/threads/{id}/messages",
             post(chat::send_message).layer(DefaultBodyLimit::max(attachments::MAX_BODY_BYTES)),
         )
+        .route("/api/chat/threads/{id}/files", post(chat::send_file))
         .route("/api/queue", get(queue::list_queue))
         .route("/api/queue/status", get(queue::queue_status))
         .route("/api/queue/pause", post(queue::pause_queue))

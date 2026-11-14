@@ -537,6 +537,7 @@ impl QueueManager {
             &run_id,
             &reason,
             &workspace_path,
+            &output_dir,
             &outcome,
         )
         .await;

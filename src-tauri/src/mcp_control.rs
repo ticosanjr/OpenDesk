@@ -87,6 +87,21 @@ async fn dispatch(workspace_id: &str, tool: &str, args: Value) -> Result<Value> 
             .await
         }
         "ask_user" => ask_user(&client, &endpoint, &args).await,
+        "chat_send_file" => {
+            let thread_id = required(&args, "thread_id")?;
+            let body = json!({
+                "path": required(&args, "path")?,
+                "caption": optional(&args, "caption"),
+            });
+            call(
+                &client,
+                &endpoint,
+                Method::POST,
+                &format!("/api/chat/threads/{thread_id}/files"),
+                Some(body),
+            )
+            .await
+        }
         "task_dispatch" => {
             let id = required(&args, "id")?;
             let body = json!({
