@@ -2569,3 +2569,15 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   Configurações → Sobre.
 - Testes: 410 Rust e 222 Vitest verdes; verificações manuais com bot real e
   ambiente gráfico continuam pendentes.
+
+## 2026-11-14 — release 0.53.0
+
+- Publicados a integração Telegram (long polling, token criptografado,
+  allowlist por chat ID/@username, chat, aprovações, HITL e avisos de rotinas) e
+  o atalho automático do AppImage com ícone correto na barra de tarefas.
+- O fluxo de verificação/release rápido entrou na versão: `npm run verify`,
+  perfil de build thin LTO/incremental, cache preservado e AppImage reaproveitando
+  o AppDir.
+- Release `77715ca`, tag `v0.53.0`; assets Linux (deb/rpm/AppImage/binário),
+  `latest.json` assinado e SHA256SUMS conferido. Retenção manteve 0.51.0,
+  0.52.0 e 0.53.0.
