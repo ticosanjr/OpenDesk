@@ -90,6 +90,10 @@ pub enum OpenDeskWsEvent {
         stage: String,
         phase_status: Option<String>,
     },
+    ChatUpdated {
+        thread_id: String,
+        workspace_id: String,
+    },
     PermissionRequested {
         request_id: String,
         run_id: String,

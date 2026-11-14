@@ -166,6 +166,16 @@ describe("websocket event reducer", () => {
       path: "/tmp/a.md",
       workspace_id: "ws-1",
     });
+
+    handleEvent({
+      event_id: 8,
+      event_type: "ChatUpdated",
+      payload: { thread_id: "thread-1", workspace_id: "ws-1" },
+    });
+    expect(useAppStore.getState().lastChatEvent).toMatchObject({
+      thread_id: "thread-1",
+      workspace_id: "ws-1",
+    });
   });
 
   it("applies task, run, artifact, schedule and budget events", async () => {

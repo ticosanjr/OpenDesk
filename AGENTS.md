@@ -143,8 +143,9 @@ heartbeat opt-in, CLI headless, export de sessão em Markdown/HTML/JSON e
 integração com OpenCode Browse para tarefas de navegação web e backup/restore
 completo do workspace em ZIP, observabilidade operacional (p95, fila, falhas) e
 contract test opt-in do OpenCode V2, rate limit e auditoria da API local,
-integração Telegram por long polling (chat, aprovações, HITL e avisos de
-rotinas) e atalho automático do AppImage no menu/barra de tarefas.
+integração Telegram por long polling (chat operacional, “digitando…”, botões de
+HITL/permissões, atualização ao vivo, aprovações e avisos de rotinas) e atalho
+automático do AppImage no menu/barra de tarefas.
 Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
 Fábrica de Capacidades default (`meta-forge`). O MCP `opendesk-control` permite
 aos agentes operar tarefas, execuções, rotinas, receitas, fila e artefatos; o

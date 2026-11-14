@@ -50,7 +50,7 @@ abaixo.
 
 ### Fase 4 — agente e cuidado
 - `care_level` persiste e altera as instruções do prompt.
-- Agente `opendesk` incluído no pacote base 1.1.0; cuidado rápido o usa quando
+- Agente `opendesk` incluído no pacote base 1.2.0; cuidado rápido o usa quando
   disponível e cai para `build` em workspaces antigos.
 - Tarefas de instalação usam cuidado padrão e continuam rastreáveis.
 
@@ -63,6 +63,18 @@ abaixo.
   e botão de reparo em Configurações → Sobre.
 - Testes automatizados: 410 Rust e 222 Vitest. O bridge real depende de um bot
   criado no `@BotFather` e do app em execução.
+
+## Pós-0.53.0 — chat operacional e HITL no Telegram
+
+- `npm run verify` verde; 417 testes Rust e 222 Vitest.
+- E2E `chat-scroll` valida rolagem interna e ausência de sobreposição com o
+  composer em 1100x700 e 1440x900.
+- `callback_query`, botões inline, `#código` e `artifact_read` têm cobertura
+  unitária; o bot real e a aprovação de uma tarefa HITL seguem manuais.
+- Pacote base `controle-opendesk` 1.2.0: workspaces antigos precisam de
+  **Pacotes → Atualizar todos**.
+- Goldens do chat (`chat-1024`, `chat-1440`) e `dashboard-700` atualizados
+  intencionalmente; o dashboard estava defasado pelo rótulo “inclui automações”.
 
 ## Verificações manuais pendentes
 

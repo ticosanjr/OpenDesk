@@ -98,21 +98,27 @@ async fn artifact_file_in_workspace(
     Ok(file)
 }
 
+#[derive(Debug, Deserialize, Default)]
+pub struct ContentQuery {
+    pub max_bytes: Option<usize>,
+}
+
 pub async fn artifact_content(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
+    Query(query): Query<ContentQuery>,
 ) -> AppResult<Json<ArtifactContent>> {
     let artifact = artifacts::get(&state.db, &id).await?;
     let file = artifact_file_in_workspace(&state, &artifact).await?;
 
     let bytes = std::fs::read(&file)
         .map_err(|error| AppError::Internal(format!("could not read artifact: {error}")))?;
-    let truncated = bytes.len() > 2 * 1024 * 1024;
-    let slice = if truncated {
-        &bytes[..2 * 1024 * 1024]
-    } else {
-        &bytes
-    };
+    let limit = query
+        .max_bytes
+        .unwrap_or(2 * 1024 * 1024)
+        .clamp(1024, 2 * 1024 * 1024);
+    let truncated = bytes.len() > limit;
+    let slice = if truncated { &bytes[..limit] } else { &bytes };
     let binary =
         slice.iter().take(8_000).any(|byte| *byte == 0) || std::str::from_utf8(slice).is_err();
     let content = if binary {

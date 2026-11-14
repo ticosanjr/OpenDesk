@@ -73,6 +73,11 @@ interface AppStore {
     schedule_id: string;
     workspace_id: string;
   } | null;
+  lastChatEvent: {
+    thread_id: string;
+    workspace_id: string;
+    seq: number;
+  } | null;
   lastGoogleEvent: {
     workspace_id: string;
     connected: boolean;
@@ -123,6 +128,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   lastProposalEvent: 0,
   lastPermissionEvent: null,
   lastScheduleEvent: null,
+  lastChatEvent: null,
   lastGoogleEvent: null,
   lastEngineUpdate: null,
   budgetAlert: null,
@@ -391,6 +397,22 @@ export function handleEvent(event: WsEvent) {
             run_id: payload.run_id,
             task_id: payload.task_id,
             chunk_type: payload.chunk_type ?? "event",
+            seq: event.event_id,
+          },
+        });
+      }
+      break;
+    }
+    case "ChatUpdated": {
+      const payload = event.payload as {
+        thread_id?: string;
+        workspace_id?: string;
+      };
+      if (payload.thread_id && payload.workspace_id) {
+        useAppStore.setState({
+          lastChatEvent: {
+            thread_id: payload.thread_id,
+            workspace_id: payload.workspace_id,
             seq: event.event_id,
           },
         });

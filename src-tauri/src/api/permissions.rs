@@ -37,12 +37,23 @@ pub async fn reply_permission(
     Path(request_id): Path<String>,
     Json(body): Json<ReplyBody>,
 ) -> AppResult<Json<permissions::PermissionRequest>> {
-    let request = permissions::decide(&state.db, &request_id, &body.decision).await?;
+    Ok(Json(
+        decide_internal(&state, &request_id, &body.decision).await?,
+    ))
+}
+
+/// Shared by the HTTP route, Telegram buttons and text replies.
+pub(crate) async fn decide_internal(
+    state: &Arc<AppState>,
+    request_id: &str,
+    decision: &str,
+) -> AppResult<permissions::PermissionRequest> {
+    let request = permissions::decide(&state.db, request_id, decision).await?;
     state.events.publish(OpenDeskWsEvent::PermissionDecided {
         request_id: request.request_id.clone(),
-        decision: body.decision,
+        decision: decision.to_string(),
     });
-    Ok(Json(request))
+    Ok(request)
 }
 
 #[derive(Debug, serde::Serialize)]

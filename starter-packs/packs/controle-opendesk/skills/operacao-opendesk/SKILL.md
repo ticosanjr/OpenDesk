@@ -73,8 +73,12 @@ mudança for estrutural ou ambígua.
 - `opendesk_status`: visão geral de workspace, motor, fila, budget e atenção.
 - `run_list`: execuções recentes ou detalhe/timeline de uma execução.
 - `artifact_list`: entregas por run, tarefa, agente ou ação.
+- `artifact_read`: conteúdo textual de um artefato (limite de bytes), para
+  responder “qual foi o resultado?” sem abrir o arquivo manualmente.
 - `queue_control`: status/pause/resume/cancel/retry quando o usuário pedir.
 - `attention_list`: o que está esperando uma pessoa.
+- `ask_user`: pergunta HITL de tarefa; o OpenDesk envia contexto e pergunta no
+  Telegram quando a integração está ativa.
 
 ## Anti-padrões
 

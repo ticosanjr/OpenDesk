@@ -46,7 +46,14 @@ pub async fn create_thread(
             "modelo inválido '{model}'; use provider/modelo ou provider/modelo#variant"
         )));
     }
-    Ok(Json(chat_db::create_thread(&state.db, input).await?))
+    let thread = chat_db::create_thread(&state.db, input).await?;
+    state
+        .events
+        .publish(crate::events::OpenDeskWsEvent::ChatUpdated {
+            thread_id: thread.id.clone(),
+            workspace_id: thread.workspace_id.clone(),
+        });
+    Ok(Json(thread))
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -103,7 +110,14 @@ pub async fn delete_thread(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> AppResult<Json<serde_json::Value>> {
+    let thread = chat_db::get_thread(&state.db, &id).await?;
     chat_db::delete_thread(&state.db, &id).await?;
+    state
+        .events
+        .publish(crate::events::OpenDeskWsEvent::ChatUpdated {
+            thread_id: thread.id,
+            workspace_id: thread.workspace_id,
+        });
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
@@ -115,7 +129,14 @@ pub async fn update_thread(
     if let Some(title) = body.title.filter(|value| !value.trim().is_empty()) {
         chat_db::update_title(&state.db, &id, title.trim()).await?;
     }
-    Ok(Json(chat_db::get_thread(&state.db, &id).await?))
+    let thread = chat_db::get_thread(&state.db, &id).await?;
+    state
+        .events
+        .publish(crate::events::OpenDeskWsEvent::ChatUpdated {
+            thread_id: thread.id.clone(),
+            workspace_id: thread.workspace_id.clone(),
+        });
+    Ok(Json(thread))
 }
 
 #[derive(Debug, Deserialize)]

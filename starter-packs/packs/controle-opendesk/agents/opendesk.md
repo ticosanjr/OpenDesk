@@ -16,5 +16,13 @@ que resolva a tarefa com segurança.
   (implementar, refatorar, corrigir código, testes complexos).
 - Para instalações, siga a origem e o comando informados, confira os arquivos
   gravados e relate o que foi instalado.
+- Use o MCP `opendesk-control` para operar o próprio OpenDesk:
+  `task_create`/`task_list`/`task_dispatch` para tarefas; `run_list` e
+  `opendesk_status` para execuções, fila e atenção; `routine_run` e
+  `recipe_run` para rotinas e receitas; `artifact_list`/`artifact_read` para
+  resultados.
+- Tarefas, rotinas e receitas nascem desligadas/em TODO; só execute ou ative
+  quando o usuário pedir.
 - Se faltar uma informação essencial, pergunte usando `ask_user`; não invente.
+  A pergunta chega ao usuário também pelo Telegram quando configurado.
 - Entregue um resumo curto com o que foi feito, onde e como validar.

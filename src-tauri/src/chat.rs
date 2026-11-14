@@ -35,6 +35,17 @@ pub async fn send_message(
     thread: ChatThread,
     content: &str,
 ) -> AppResult<ChatReply> {
+    send_message_with_context(state, thread, content, None).await
+}
+
+/// Sends a chat message with an optional operational context that is prepended
+/// to the OpenCode prompt but never stored in the visible conversation.
+pub async fn send_message_with_context(
+    state: &AppState,
+    thread: ChatThread,
+    content: &str,
+    context: Option<&str>,
+) -> AppResult<ChatReply> {
     let content = content.trim();
     if content.is_empty() {
         return Err(AppError::BadRequest("message is required".into()));
@@ -52,7 +63,7 @@ pub async fn send_message(
         )
     })?;
 
-    let session_id = match thread.opencode_session_id.clone() {
+    let mut session_id = match thread.opencode_session_id.clone() {
         Some(session_id) => session_id,
         None => {
             let session_id = client
@@ -72,12 +83,44 @@ pub async fn send_message(
     };
 
     let user = chat::add_message(&state.db, &thread.id, "user", content, None).await?;
+    state
+        .events
+        .publish(crate::events::OpenDeskWsEvent::ChatUpdated {
+            thread_id: thread.id.clone(),
+            workspace_id: thread.workspace_id.clone(),
+        });
+
+    let prompt_text = match context.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(context) => format!("{context}\n\n{content}"),
+        None => content.to_string(),
+    };
 
     let prompt_result = tokio::time::timeout(CHAT_TIMEOUT, async {
-        client
-            .prompt(&session_id, content)
-            .await
-            .map_err(|error| format!("could not send prompt: {error:#}"))?;
+        if let Err(error) = client.prompt(&session_id, &prompt_text).await {
+            let message = format!("{error:#}");
+            if !is_missing_session_error(&message) {
+                return Err(format!("could not send prompt: {message}"));
+            }
+            // The daemon may have restarted or pruned old sessions. Recreate
+            // once so the local thread keeps its history and context.
+            let session_id_new = client
+                .create_session(
+                    &workspace.root_path,
+                    &thread.title,
+                    &thread.agent,
+                    thread.model.as_deref().and_then(parse_model_ref),
+                )
+                .await
+                .map_err(|error| format!("could not recreate chat session: {error:#}"))?;
+            chat::update_session(&state.db, &thread.id, &session_id_new)
+                .await
+                .map_err(|error| format!("could not persist new chat session: {error}"))?;
+            session_id = session_id_new;
+            client
+                .prompt(&session_id, &prompt_text)
+                .await
+                .map_err(|error| format!("could not send prompt: {error:#}"))?;
+        }
         // The wait endpoint is preferred; if it is unavailable, polling the
         // message list below still gives a useful answer.
         let _ =
@@ -118,6 +161,12 @@ pub async fn send_message(
         Some(&metadata.to_string()),
     )
     .await?;
+    state
+        .events
+        .publish(crate::events::OpenDeskWsEvent::ChatUpdated {
+            thread_id: thread.id.clone(),
+            workspace_id: thread.workspace_id.clone(),
+        });
 
     let thread = chat::get_thread(&state.db, &thread.id).await?;
     if thread.title == "Nova conversa" {
@@ -133,6 +182,15 @@ pub async fn send_message(
         usage,
         error,
     })
+}
+
+/// The daemon reports a missing session as a 404 or "session not found". Only
+/// those cases are safe to retry with a fresh session; other errors (network,
+/// budget, invalid model) must surface without creating duplicate work.
+fn is_missing_session_error(message: &str) -> bool {
+    let lower = message.to_lowercase();
+    lower.contains("404")
+        || (lower.contains("session") && (lower.contains("not found") || lower.contains("unknown")))
 }
 
 fn parse_model_ref(model: &str) -> Option<ModelRefDto> {
@@ -198,6 +256,18 @@ mod tests {
             None
         );
         assert!(parse_model_ref("no-provider").is_none());
+    }
+
+    #[test]
+    fn detects_only_missing_session_errors() {
+        assert!(is_missing_session_error(
+            "OpenCode prompt failed (404 Not Found): {\"error\":\"session not found\"}"
+        ));
+        assert!(is_missing_session_error("unknown session abc"));
+        assert!(!is_missing_session_error(
+            "OpenCode prompt failed (500): timeout"
+        ));
+        assert!(!is_missing_session_error("could not send OpenCode prompt"));
     }
 
     #[test]

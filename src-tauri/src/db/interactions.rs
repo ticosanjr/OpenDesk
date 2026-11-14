@@ -100,6 +100,26 @@ pub async fn pending_for_workspace(
         .await?)
 }
 
+/// Finds a pending interaction by the short code sent to remote chats.
+pub async fn find_pending_by_prefix(
+    pool: &SqlitePool,
+    prefix: &str,
+) -> AppResult<Option<TaskInteraction>> {
+    let prefix = prefix.trim();
+    if prefix.len() < 4 {
+        return Ok(None);
+    }
+    let query = format!(
+        "SELECT {COLUMNS} FROM task_interactions
+         WHERE status = 'PENDING' AND id LIKE ?
+         ORDER BY created_at ASC LIMIT 1"
+    );
+    Ok(sqlx::query_as::<_, TaskInteraction>(&query)
+        .bind(format!("{prefix}%"))
+        .fetch_optional(pool)
+        .await?)
+}
+
 pub async fn resolve(
     pool: &SqlitePool,
     id: &str,
@@ -129,4 +149,51 @@ pub async fn resolve(
         ));
     }
     get(pool, id).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn finds_pending_interactions_by_short_prefix() {
+        let temp = TempDir::new().expect("temp");
+        let pool = crate::db::init(&temp.path().join("interactions.db"))
+            .await
+            .expect("db");
+        sqlx::query(
+            "INSERT INTO workspaces (id, name, root_path) VALUES ('ws-1', 'WS', '/tmp/ws-1')",
+        )
+        .execute(&pool)
+        .await
+        .expect("workspace");
+        sqlx::query(
+            "INSERT INTO tasks (id, workspace_id, title, description)
+             VALUES ('task-1', 'ws-1', 'Tarefa', 'Descrição')",
+        )
+        .execute(&pool)
+        .await
+        .expect("task");
+        sqlx::query(
+            "INSERT INTO task_interactions
+                (id, workspace_id, task_id, question, options_json, expires_at)
+             VALUES ('abcdef12-0000-0000-0000-000000000000', 'ws-1', 'task-1', 'Aprovar?', '[]', '2999-01-01T00:00:00Z')",
+        )
+        .execute(&pool)
+        .await
+        .expect("interaction");
+
+        let found = find_pending_by_prefix(&pool, "abcdef12")
+            .await
+            .expect("find")
+            .expect("interaction");
+        assert_eq!(found.task_id, "task-1");
+        assert!(
+            find_pending_by_prefix(&pool, "abc")
+                .await
+                .expect("short")
+                .is_none()
+        );
+    }
 }

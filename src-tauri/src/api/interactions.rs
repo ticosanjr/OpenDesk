@@ -118,6 +118,24 @@ pub async fn ask(
         stage: "IN_REVIEW".into(),
         phase_status: Some("awaiting_input".into()),
     });
+    let notify_state = state.clone();
+    let notify_interaction = interaction.clone();
+    let notify_task = task.clone();
+    tokio::spawn(async move {
+        if let Err(error) = crate::integrations::telegram::notify_task_interaction(
+            &notify_state,
+            &notify_interaction,
+            &notify_task,
+        )
+        .await
+        {
+            tracing::warn!(
+                error = %error,
+                interaction = %notify_interaction.id,
+                "Telegram HITL notification failed"
+            );
+        }
+    });
     Ok(Json(interaction))
 }
 
@@ -126,28 +144,40 @@ pub async fn resolve(
     Path(id): Path<String>,
     Json(body): Json<ResolveInteractionBody>,
 ) -> AppResult<Json<TaskInteraction>> {
-    let current = interactions::get(&state.db, &id).await?;
+    Ok(Json(
+        resolve_internal(&state, &id, body.selected, body.text).await?,
+    ))
+}
+
+/// Shared by the HTTP route, Telegram buttons and text replies. Keeps the task
+/// phase transition in one place.
+pub(crate) async fn resolve_internal(
+    state: &Arc<AppState>,
+    id: &str,
+    selected: Vec<String>,
+    text: Option<String>,
+) -> AppResult<TaskInteraction> {
+    let current = interactions::get(&state.db, id).await?;
     if current.status != "PENDING" {
         return Err(AppError::Conflict(
             "esta interação já foi respondida ou expirou".into(),
         ));
     }
-    let text = body
-        .text
+    let text = text
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string);
-    if body.selected.is_empty() && text.is_none() {
+    if selected.is_empty() && text.is_none() {
         return Err(AppError::BadRequest(
             "selecione uma opção ou escreva uma resposta".into(),
         ));
     }
     let answer: Value = json!({
-        "selected": body.selected,
+        "selected": selected,
         "text": text,
     });
-    let interaction = interactions::resolve(&state.db, &id, &answer, "RESOLVED").await?;
+    let interaction = interactions::resolve(&state.db, id, &answer, "RESOLVED").await?;
     let task = tasks::get(&state.db, &interaction.task_id).await?;
     if !matches!(task.status.as_str(), "DONE" | "CANCELLED" | "BLOCKED") {
         tasks::replace_phase_status(&state.db, &task.id, Some("running"), Some("IN_PROGRESS"))
@@ -159,5 +189,5 @@ pub async fn resolve(
             phase_status: Some("running".into()),
         });
     }
-    Ok(Json(interaction))
+    Ok(interaction)
 }

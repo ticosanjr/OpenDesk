@@ -559,22 +559,23 @@ async fn handle_event(
 
                 if let Ok(config) = telegram::load(pool).await
                     && config.enabled
-                    && let Some(token) = telegram::token(secrets)
+                    && telegram::token(secrets).is_some()
                 {
-                    let text = format!(
-                        "OpenDesk aguardando decisão\nAção: {action}\nRecursos: {}\nResponda: APROVAR {} ou NEGAR {}",
-                        resources.join(", "),
-                        &request_id[..request_id.len().min(12)],
-                        &request_id[..request_id.len().min(12)],
-                    );
-                    let targets = telegram::resolve_recipients(pool, &config.allowlist).await;
-                    for target in targets {
-                        let token = token.clone();
-                        let text = text.clone();
-                        tokio::spawn(async move {
-                            let _ = telegram::send_text(&token, &target, &text).await;
-                        });
-                    }
+                    let pool = pool.clone();
+                    let secrets = secrets.clone();
+                    let action = action.clone();
+                    let resources = resources.clone();
+                    let request_id = request_id.clone();
+                    tokio::spawn(async move {
+                        let _ = telegram::notify_permission(
+                            &pool,
+                            &secrets,
+                            &action,
+                            &resources,
+                            &request_id,
+                        )
+                        .await;
+                    });
                 }
 
                 let minutes = settings::get(pool, "permission_timeout_minutes")

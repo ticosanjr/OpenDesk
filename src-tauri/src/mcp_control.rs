@@ -258,6 +258,20 @@ async fn dispatch(workspace_id: &str, tool: &str, args: Value) -> Result<Value> 
         .map(attention_summary),
         "queue_control" => queue_control(&client, &endpoint, workspace_id, &args).await,
         "artifact_list" => artifact_list(&client, &endpoint, workspace_id, &args).await,
+        "artifact_read" => {
+            let id = required(&args, "id")?;
+            let max_bytes = integer_arg(&args, "max_bytes")
+                .unwrap_or(65_536)
+                .clamp(1024, 2 * 1024 * 1024);
+            call(
+                &client,
+                &endpoint,
+                Method::GET,
+                &format!("/api/artifacts/{id}/content?max_bytes={max_bytes}"),
+                None,
+            )
+            .await
+        }
         "artifact_pin" => {
             let id = required(&args, "id")?;
             let pinned = bool_arg(&args, "pinned")

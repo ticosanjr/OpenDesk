@@ -2581,3 +2581,21 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Release `77715ca`, tag `v0.53.0`; assets Linux (deb/rpm/AppImage/binário),
   `latest.json` assinado e SHA256SUMS conferido. Retenção manteve 0.51.0,
   0.52.0 e 0.53.0.
+
+## 2026-11-14 — chat operacional e HITL no Telegram
+
+- Chat do Telegram ganhou contexto operacional para usar o MCP
+  `opendesk-control`: tarefas, execuções, rotinas, receitas, fila, atenção e
+  artefatos. Novo `artifact_read` lê resultados textuais com limite de bytes.
+- Indicador “digitando…” via `sendChatAction`, respostas encadeadas com
+  `reply_parameters`, reutilização de thread entre workspaces e recuperação de
+  sessão expirada do OpenCode.
+- `ChatUpdated` mantém a thread aberta no OpenDesk atualizada ao vivo.
+- `ask_user` de tarefas envia contexto/pergunta ao Telegram com botões inline;
+  texto `#código` é o fallback. Permissões do OpenCode também têm botões
+  Aprovar/Negar. `callback_query` entrou no long polling.
+- Chat com altura definida e rolagem interna; composer não é mais coberto por
+  mensagens. Goldens `chat-1024`/`chat-1440` atualizados e E2E `chat-scroll`.
+- Pacote base `controle-opendesk` 1.2.0; workspaces antigos precisam de
+  **Pacotes → Atualizar todos**.
+- Verificação: 417 testes Rust e 222 Vitest; `npm run verify` verde.

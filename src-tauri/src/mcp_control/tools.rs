@@ -359,6 +359,18 @@ pub(super) fn tools() -> Vec<Value> {
             }),
         ),
         tool(
+            "artifact_read",
+            "Lê o conteúdo textual de um artefato (até max_bytes, padrão 64 KB). Use artifact_list para descobrir o id e o caminho.",
+            json!({
+                "type": "object",
+                "required": ["id"],
+                "properties": {
+                    "id": { "type": "string" },
+                    "max_bytes": { "type": "integer", "minimum": 1024 }
+                }
+            }),
+        ),
+        tool(
             "artifact_pin",
             "Fixa ou desafixa um artefato como entregável. Passe pinned=true/false.",
             json!({
@@ -415,11 +427,12 @@ mod tests {
             "attention_list",
             "queue_control",
             "artifact_list",
+            "artifact_read",
             "artifact_pin",
             "artifact_rollback",
         ] {
             assert!(names.iter().any(|name| name == expected), "{expected}");
         }
-        assert_eq!(names.len(), 24);
+        assert_eq!(names.len(), 25);
     }
 }

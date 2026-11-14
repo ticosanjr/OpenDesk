@@ -91,6 +91,26 @@ pub async fn find_external(
         .await?)
 }
 
+/// Finds the most recent thread for an external chat regardless of workspace.
+/// Used by remote integrations so switching the active workspace does not fork
+/// the same Telegram/Signal conversation.
+pub async fn find_external_any_workspace(
+    pool: &SqlitePool,
+    source: &str,
+    external_id: &str,
+) -> AppResult<Option<ChatThread>> {
+    let query = format!(
+        "SELECT {THREAD_COLUMNS} FROM chat_threads
+         WHERE source = ? AND external_id = ?
+         ORDER BY COALESCE(last_message_at, updated_at) DESC LIMIT 1"
+    );
+    Ok(sqlx::query_as::<_, ChatThread>(&query)
+        .bind(source)
+        .bind(external_id)
+        .fetch_optional(pool)
+        .await?)
+}
+
 pub async fn create_thread(pool: &SqlitePool, input: CreateThreadInput) -> AppResult<ChatThread> {
     let agent = input.agent.trim();
     if agent.is_empty() {
@@ -283,5 +303,24 @@ mod tests {
             Some(thread.id)
         );
         assert!(create_thread(&pool, value).await.is_err());
+
+        sqlx::query(
+            "INSERT INTO workspaces (id, name, root_path) VALUES ('ws-2', 'WS 2', '/tmp/ws-2')",
+        )
+        .execute(&pool)
+        .await
+        .expect("workspace");
+        let mut other = input();
+        other.workspace_id = "ws-2".into();
+        other.source = Some("telegram".into());
+        other.external_id = Some("42".into());
+        let other_thread = create_thread(&pool, other).await.expect("other");
+        assert_eq!(
+            find_external_any_workspace(&pool, "telegram", "42")
+                .await
+                .expect("find any")
+                .map(|item| item.id),
+            Some(other_thread.id)
+        );
     }
 }

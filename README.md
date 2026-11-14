@@ -56,10 +56,13 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Dashboard com atividades clicáveis e status colorido.
 - Sobre & diagnóstico com modos simples/avançado, exportação JSON e reparo do
   atalho do AppImage no menu/barra de tarefas.
-- Chat interativo com qualquer agente, histórico, streaming por sessão e custo.
+- Chat interativo com qualquer agente, histórico, streaming por sessão e custo;
+  pelo Telegram o agente cria tarefas, consulta execuções e resultados, executa
+  rotinas/receitas e responde HITL.
 - Signal: vínculo por QR (`signal-cli link`), allowlist e bridge de mensagens.
-- Telegram: Bot API por long polling, token criptografado, allowlist e chat com
-  o agente pelo celular.
+- Telegram: Bot API por long polling, token criptografado e allowlist; chat
+  operacional com “digitando…”, atualização ao vivo e botões para HITL e
+  permissões.
 - Studio efetivo (global + workspace), copiar/mover/duplicar, toggle, backups e
   instalação de GitHub/URL/local/npm/catálogo.
 - Explorador de arquivos do workspace com árvore, busca, breadcrumb e prévia.
@@ -111,7 +114,8 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Compactação de contexto, A/B swarm, fork por run e rollback de artefato.
 - Quick Capture global e blueprints de equipe.
 - Prompt caching com métrica de cache hit, metadados de mídia via ffprobe.
-- Aprovação remota de permissões pelo Signal e Telegram e chat com anexos.
+- Aprovação remota de permissões e HITL de tarefas pelo Signal e Telegram, com
+  botões inline, contexto e fallback por texto.
 - Janela maximizada, “X” mantendo o app na bandeja e abas em Configurações,
   Integrações e Kanban.
 - Timeline de execução ao vivo com links para artefatos e pasta de resultados.
@@ -288,6 +292,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0030 — Propostas de configuração de agentes](docs/decisions/0030-agent-config-proposals.md)
 - [ADR 0048 — Telegram por long polling](docs/decisions/0048-telegram-long-polling.md)
 - [ADR 0049 — Atalho do AppImage no Linux](docs/decisions/0049-appimage-desktop-integration.md)
+- [ADR 0050 — Chat operacional e HITL no Telegram](docs/decisions/0050-telegram-operational-chat.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

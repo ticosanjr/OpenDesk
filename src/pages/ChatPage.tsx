@@ -60,6 +60,7 @@ export function ChatPage() {
   const [titleDraft, setTitleDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [params, setParams] = useSearchParams();
+  const lastChatEvent = useAppStore((state) => state.lastChatEvent);
 
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
   const filteredThreads = threads.filter((item) => {
@@ -134,6 +135,54 @@ export function ChatPage() {
     };
   }, [selectedId]);
 
+  const refreshThreads = useCallback(async () => {
+    if (!activeWorkspaceId) return null;
+    try {
+      const list = await apiGet<ChatThread[]>(
+        `/api/chat/threads?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+      );
+      setThreads(list);
+      return list;
+    } catch {
+      // Live refresh is best-effort; the manual Atualizar button remains.
+      return null;
+    }
+  }, [activeWorkspaceId]);
+
+  const reloadSelected = useCallback(async (id: string) => {
+    try {
+      const value = await apiGet<{ thread: ChatThread; messages: ChatMessage[] }>(
+        `/api/chat/threads/${id}`,
+      );
+      setThread(value.thread);
+      setMessages(value.messages);
+    } catch {
+      // Keep the current view; the thread may have been deleted elsewhere.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!lastChatEvent || !activeWorkspaceId) return;
+    if (lastChatEvent.workspace_id !== activeWorkspaceId) return;
+    void (async () => {
+      const list = await refreshThreads();
+      if (!list) return;
+      if (!selectedId) {
+        if (list.some((item) => item.id === lastChatEvent.thread_id)) {
+          setSelectedId(lastChatEvent.thread_id);
+        }
+        return;
+      }
+      if (!list.some((item) => item.id === selectedId)) {
+        setSelectedId(null);
+        return;
+      }
+      if (lastChatEvent.thread_id === selectedId) {
+        void reloadSelected(selectedId);
+      }
+    })();
+  }, [lastChatEvent, activeWorkspaceId, selectedId, refreshThreads, reloadSelected]);
+
   const {
     ref: transcriptRef,
     atBottom: transcriptAtBottom,
@@ -198,7 +247,15 @@ export function ChatPage() {
           })),
         },
       );
-      setMessages((current) => [...current, reply.user, reply.assistant]);
+      setMessages((current) => {
+        const known = new Set(current.map((message) => message.id));
+        return [
+          ...current,
+          ...[reply.user, reply.assistant].filter(
+            (message) => !known.has(message.id),
+          ),
+        ];
+      });
       setThread(reply.thread);
       if (reply.error) setError(reply.error);
       await loadThreads();
@@ -289,7 +346,7 @@ export function ChatPage() {
       ) : null}
 
       <div className="grid gap-3 lg:grid-cols-[320px_1fr]">
-        <Card className="flex max-h-[680px] flex-col">
+        <Card className="flex h-[680px] max-h-[calc(100dvh-190px)] min-h-[460px] flex-col overflow-hidden">
           <CardHeader className="px-4 py-3.5">
             <div>
               <CardTitle>Conversas</CardTitle>
@@ -374,7 +431,7 @@ export function ChatPage() {
           </div>
         </Card>
 
-        <Card className="flex max-h-[680px] min-h-[460px] flex-col">
+        <Card className="flex h-[680px] max-h-[calc(100dvh-190px)] min-h-[460px] flex-col overflow-hidden">
           <CardHeader className="px-4 py-3">
             <div className="min-w-0 flex-1">
               {renaming && thread ? (
@@ -445,11 +502,12 @@ export function ChatPage() {
             </div>
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-0">
-            <div className="relative min-h-0 flex-1">
+            <div className="relative min-h-0 flex-1 overflow-hidden">
             <div
               ref={transcriptRef}
+              data-testid="chat-transcript"
               onScroll={onTranscriptScroll}
-              className="h-full space-y-3 overflow-y-auto px-4 py-3"
+              className="h-full min-h-0 space-y-3 overflow-y-auto overscroll-contain px-4 py-3"
             >
               {!thread ? (
                 <EmptyState
@@ -503,7 +561,8 @@ export function ChatPage() {
             ) : null}
             </div>
             <div
-              className="border-t border-zinc-800/70 p-3"
+              data-testid="chat-composer"
+              className="shrink-0 border-t border-zinc-800/70 p-3"
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 event.preventDefault();
