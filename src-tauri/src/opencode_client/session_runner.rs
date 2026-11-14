@@ -1,7 +1,9 @@
 use crate::{
     db::{permissions, runs::RunUsage, settings},
     events::{EventBus, OpenDeskWsEvent},
+    integrations::telegram,
     opencode_client::rest_client::{FileDiff, ModelRefDto, RestClient},
+    secrets::SecretStore,
 };
 use futures_util::StreamExt;
 use serde_json::Value;
@@ -63,6 +65,7 @@ pub struct RunOutcome {
 
 pub struct RunRequest<'a> {
     pub pool: &'a SqlitePool,
+    pub secrets: &'a SecretStore,
     pub workspace_id: &'a str,
     pub run_id: &'a str,
     pub task_id: Option<&'a str>,
@@ -199,6 +202,7 @@ pub async fn execute_run(
                                     request.task_id,
                                     request.workspace_id,
                                     request.pool,
+                                    request.secrets,
                                     request.log_path,
                                     events,
                                     &rest,
@@ -409,6 +413,7 @@ async fn handle_event(
     task_id: Option<&str>,
     workspace_id: &str,
     pool: &SqlitePool,
+    secrets: &SecretStore,
     log_path: &Path,
     events: &EventBus,
     rest: &RestClient,
@@ -548,6 +553,26 @@ async fn handle_event(
                                 &cli, &account, &recipient, &text,
                             )
                             .await;
+                        });
+                    }
+                }
+
+                if let Ok(config) = telegram::load(pool).await
+                    && config.enabled
+                    && let Some(token) = telegram::token(secrets)
+                {
+                    let text = format!(
+                        "OpenDesk aguardando decisão\nAção: {action}\nRecursos: {}\nResponda: APROVAR {} ou NEGAR {}",
+                        resources.join(", "),
+                        &request_id[..request_id.len().min(12)],
+                        &request_id[..request_id.len().min(12)],
+                    );
+                    let targets = telegram::resolve_recipients(pool, &config.allowlist).await;
+                    for target in targets {
+                        let token = token.clone();
+                        let text = text.clone();
+                        tokio::spawn(async move {
+                            let _ = telegram::send_text(&token, &target, &text).await;
                         });
                     }
                 }
@@ -870,6 +895,7 @@ mod tests {
             rest,
             RunRequest {
                 pool: &pool,
+                secrets: &SecretStore::with_dir(temp.path().join("secrets")),
                 workspace_id: "ws-1",
                 run_id: "run-1",
                 task_id: None,

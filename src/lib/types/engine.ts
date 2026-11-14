@@ -150,6 +150,7 @@ export interface AboutInfo {
     installer: string;
     token_configured: boolean;
   };
+  desktop: DesktopIntegration;
   logs: Array<{
     name?: string | null;
     path: string;
@@ -158,6 +159,15 @@ export interface AboutInfo {
   }>;
   started_at: string;
   api_port: number;
+}
+
+export interface DesktopIntegration {
+  supported: boolean;
+  appimage?: string | null;
+  desktop_file?: string | null;
+  icon_path?: string | null;
+  installed: boolean;
+  message?: string | null;
 }
 
 export interface ModelHealth {

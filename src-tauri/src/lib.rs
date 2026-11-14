@@ -8,6 +8,7 @@ mod cli;
 mod config_sync;
 mod db;
 mod dedupe;
+mod desktop_integration;
 mod doctor;
 mod dsh_router;
 mod error;
@@ -81,6 +82,7 @@ fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
             state.io_bus.stop().await;
             state.queue.shutdown().await;
             state.signal.stop().await;
+            state.telegram.stop().await;
             state.daemon.shutdown().await;
             app.exit(0);
         });
@@ -95,6 +97,7 @@ fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
             state.io_bus.stop().await;
             state.queue.shutdown().await;
             state.signal.stop().await;
+            state.telegram.stop().await;
             state.daemon.shutdown().await;
             app.exit(0);
         });
@@ -192,6 +195,9 @@ pub fn run() {
     let app = builder
         .setup(|app| {
             let paths = AppPaths::discover()?;
+            if let Err(error) = desktop_integration::ensure(&paths, env!("CARGO_PKG_VERSION")) {
+                tracing::warn!(error = %error, "desktop shortcut integration failed");
+            }
             let state = tauri::async_runtime::block_on(AppState::initialize(paths))?;
             let state = Arc::new(state);
 
@@ -212,6 +218,16 @@ pub fn run() {
             {
                 tracing::warn!(error = %error, "Signal bridge was not started");
             }
+            let telegram_state = state.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = telegram_state
+                    .telegram
+                    .start_if_enabled(telegram_state.clone())
+                    .await
+                {
+                    tracing::warn!(error = %error, "Telegram bridge was not started");
+                }
+            });
             state.queue.spawn_worker();
             state.cron.spawn();
             tauri::async_runtime::spawn(crate::db::maintenance::run_loop(
@@ -339,6 +355,9 @@ pub fn run_headless() {
         state.refresh_watcher().await.expect("config watcher");
         if let Err(error) = state.signal.start_if_enabled(state.clone()).await {
             tracing::warn!(error = %error, "Signal bridge was not started");
+        }
+        if let Err(error) = state.telegram.start_if_enabled(state.clone()).await {
+            tracing::warn!(error = %error, "Telegram bridge was not started");
         }
         state.queue.spawn_worker();
         tauri::async_runtime::spawn(crate::db::maintenance::run_loop(

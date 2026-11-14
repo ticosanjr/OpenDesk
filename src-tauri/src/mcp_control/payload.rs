@@ -100,6 +100,8 @@ pub(super) fn routine_body(workspace_id: &str, args: &Value) -> Result<Value> {
         "notify_email_recipients": optional(args, "notify_email_recipients"),
         "notify_signal": bool_arg(args, "notify_signal").unwrap_or(false),
         "notify_signal_recipients": optional(args, "notify_signal_recipients"),
+        "notify_telegram": bool_arg(args, "notify_telegram").unwrap_or(false),
+        "notify_telegram_recipients": optional(args, "notify_telegram_recipients"),
         "notify_only_on_change": bool_arg(args, "notify_only_on_change").unwrap_or(false),
         "recurrence_json": recurrence,
         "one_time": false,
@@ -129,6 +131,7 @@ pub(super) fn routine_update_body(args: &Value) -> Result<Value> {
         "output_folder_template",
         "notify_email_recipients",
         "notify_signal_recipients",
+        "notify_telegram_recipients",
         "misfire_policy",
     ] {
         if let Some(value) = args.get(key).filter(|value| !value.is_null()) {
@@ -137,6 +140,7 @@ pub(super) fn routine_update_body(args: &Value) -> Result<Value> {
     }
     for key in [
         "notify_signal",
+        "notify_telegram",
         "notify_only_on_change",
         "safe_readonly_mode",
         "sync_to_google_docs",

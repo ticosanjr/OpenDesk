@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 pub mod email;
 pub mod signal;
+pub mod telegram;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum HitlResolution {
@@ -104,6 +105,7 @@ pub async fn request(
             "DESKTOP_UI" => Ok("desktop".to_string()),
             "EMAIL" => email::dispatch(state, &payload).await,
             "SIGNAL" => signal::dispatch(state, &payload).await,
+            "TELEGRAM" => telegram::dispatch(state, &payload).await,
             other => Err(AppError::BadRequest(format!(
                 "canal HITL desconhecido: {other}"
             ))),

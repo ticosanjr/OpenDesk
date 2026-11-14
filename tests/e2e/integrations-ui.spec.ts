@@ -34,6 +34,9 @@ test("SMTP setup tests a real connection and integration tabs render", async ({
   await expect(page.getByRole("tab", { name: "Google" })).toBeVisible();
   await page.goto("/#/integrations?section=signal");
   await expect(page.getByRole("tab", { name: "Signal" })).toBeVisible();
+  await page.goto("/#/integrations?section=telegram");
+  await expect(page.getByRole("tab", { name: "Telegram" })).toBeVisible();
+  await expect(page.getByText("Telegram (celular)")).toBeVisible();
   await page.goto("/#/integrations?section=inbound");
   await expect(page.getByRole("tab", { name: "Entradas" })).toBeVisible();
   await page.goto("/#/integrations?section=sinks");

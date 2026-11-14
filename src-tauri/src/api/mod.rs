@@ -39,6 +39,7 @@ pub mod starter_packs;
 pub mod studio;
 pub mod studio_ops;
 pub mod tasks;
+pub mod telegram;
 pub mod updates;
 pub mod ws;
 
@@ -95,6 +96,10 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/health", get(health))
         .route("/api/meta", get(meta))
         .route("/api/about", get(about::about))
+        .route(
+            "/api/about/desktop-integration",
+            post(about::repair_desktop),
+        )
         .route("/api/meta/build", post(meta::build))
         .route("/api/daemon/status", get(daemon_status))
         .route("/api/daemon/restart", post(restart_daemon))
@@ -563,6 +568,13 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/integrations/signal/link", post(signal::link))
         .route("/api/integrations/signal/start", post(signal::start))
         .route("/api/integrations/signal/stop", post(signal::stop))
+        .route(
+            "/api/integrations/telegram",
+            get(telegram::status).put(telegram::put_config),
+        )
+        .route("/api/integrations/telegram/start", post(telegram::start))
+        .route("/api/integrations/telegram/stop", post(telegram::stop))
+        .route("/api/integrations/telegram/test", post(telegram::test))
         .route("/ws", get(ws::ws_handler))
         .fallback(not_found)
         .layer(middleware::from_fn_with_state(

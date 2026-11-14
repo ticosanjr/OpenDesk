@@ -43,8 +43,8 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Rotinas com recorrência intuitiva (calendário, dias da semana, mensal e cron
   custom), timezone local editável, prévia dos próximos disparos, edição,
   pasta determinística, idempotência de slot e execução manual.
-- Notificações por e-mail e Signal, com opção de só avisar quando o artefato
-  principal mudar.
+- Notificações por e-mail, Signal e Telegram, com opção de só avisar quando o
+  artefato principal mudar.
 - SMTP por workspace com segredo criptografado (AES-256-GCM, 0600), teste de
   conexão e entrega pós-run com anexos e idempotência.
 - Motor OpenCode resiliente: descoberta do binário fora do `PATH`,
@@ -54,9 +54,12 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Edição de tarefa já executada e reexecução sem recriar o card.
 - Agentes com slug automático, 20 presets de avatar e 8 presets de cor.
 - Dashboard com atividades clicáveis e status colorido.
-- Sobre & diagnóstico com modos simples/avançado e exportação JSON.
+- Sobre & diagnóstico com modos simples/avançado, exportação JSON e reparo do
+  atalho do AppImage no menu/barra de tarefas.
 - Chat interativo com qualquer agente, histórico, streaming por sessão e custo.
 - Signal: vínculo por QR (`signal-cli link`), allowlist e bridge de mensagens.
+- Telegram: Bot API por long polling, token criptografado, allowlist e chat com
+  o agente pelo celular.
 - Studio efetivo (global + workspace), copiar/mover/duplicar, toggle, backups e
   instalação de GitHub/URL/local/npm/catálogo.
 - Explorador de arquivos do workspace com árvore, busca, breadcrumb e prévia.
@@ -108,14 +111,14 @@ OpenCode permanecendo nos arquivos nativos do disco.
 - Compactação de contexto, A/B swarm, fork por run e rollback de artefato.
 - Quick Capture global e blueprints de equipe.
 - Prompt caching com métrica de cache hit, metadados de mídia via ffprobe.
-- Aprovação remota de permissões pelo Signal e chat com anexos.
+- Aprovação remota de permissões pelo Signal e Telegram e chat com anexos.
 - Janela maximizada, “X” mantendo o app na bandeja e abas em Configurações,
   Integrações e Kanban.
 - Timeline de execução ao vivo com links para artefatos e pasta de resultados.
 - Barramento universal de I/O: dropzone/OCR/áudio, IMAP, webhooks, SQL poller,
   Telegram/Matrix e sinks de PDF/XLSX, FS, S3, Git, SQL e chat.
 - Ferramentas externas opcionais em pasta própria, com detecção e download.
-- Receitas YAML com editor visual, HITL por UI/e-mail/Signal e sinks.
+- Receitas YAML com editor visual, HITL por UI/e-mail/Signal/Telegram e sinks.
 - Rsync para pastas locais e remotas, com chave SSH e `--delete` opt-in.
 - Agentes podem propor agentes, skills, comandos, receitas, rotinas e MCPs;
   toda mudança exige Aprovar/Negar no Attention Card.
@@ -283,6 +286,8 @@ docs/                       plano, decisões e histórico
 - [SPEC_IO_BUS](docs/specs/SPEC_IO_BUS.md)
 - [ADR 0029 — Receitas, HITL e Rsync](docs/decisions/0029-recipes-hitl.md)
 - [ADR 0030 — Propostas de configuração de agentes](docs/decisions/0030-agent-config-proposals.md)
+- [ADR 0048 — Telegram por long polling](docs/decisions/0048-telegram-long-polling.md)
+- [ADR 0049 — Atalho do AppImage no Linux](docs/decisions/0049-appimage-desktop-integration.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

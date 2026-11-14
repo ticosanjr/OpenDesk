@@ -62,10 +62,16 @@ pub async fn about(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>>
             "installer": updates::installer_kind(),
             "token_configured": updates::token(&state.secrets).is_some(),
         },
+        "desktop": crate::desktop_integration::status(&state.paths),
         "logs": log_files(&state.paths.log_dir),
         "started_at": state.started_at,
         "api_port": state.api_port,
     })))
+}
+
+pub async fn repair_desktop(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>> {
+    let desktop = crate::desktop_integration::ensure(&state.paths, env!("CARGO_PKG_VERSION"))?;
+    Ok(Json(json!({ "desktop": desktop })))
 }
 
 fn command_version(program: &str) -> Option<String> {

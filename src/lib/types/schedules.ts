@@ -16,6 +16,8 @@ export interface Schedule {
   notify_email_recipients?: string | null;
   notify_signal: boolean;
   notify_signal_recipients?: string | null;
+  notify_telegram: boolean;
+  notify_telegram_recipients?: string | null;
   notify_only_on_change: boolean;
   recurrence_json?: string | null;
   one_time: boolean;
@@ -90,6 +92,22 @@ export interface SignalStatus {
   cli_version?: string | null;
   bridge_running: boolean;
   link_running: boolean;
+}
+
+export interface TelegramConfig {
+  enabled: boolean;
+  allowlist: string[];
+  workspace_id?: string | null;
+  agent: string;
+}
+
+export interface TelegramStatus {
+  config: TelegramConfig;
+  token_configured: boolean;
+  bot_username?: string | null;
+  bot_name?: string | null;
+  bridge_running: boolean;
+  last_error?: string | null;
 }
 
 export interface Recurrence {

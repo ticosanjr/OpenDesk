@@ -3,6 +3,7 @@
 pub enum DeliveryChannel {
     Smtp,
     Signal,
+    Telegram,
     Gmail,
     GoogleDocs,
     GoogleDrive,
@@ -15,6 +16,7 @@ impl DeliveryChannel {
         match self {
             Self::Smtp => "SMTP",
             Self::Signal => "SIGNAL",
+            Self::Telegram => "TELEGRAM",
             Self::Gmail => "GMAIL",
             Self::GoogleDocs => "GDOCS",
             Self::GoogleDrive => "DRIVE",
@@ -27,6 +29,7 @@ impl DeliveryChannel {
         match value {
             "SMTP" => Some(Self::Smtp),
             "SIGNAL" => Some(Self::Signal),
+            "TELEGRAM" => Some(Self::Telegram),
             "GMAIL" => Some(Self::Gmail),
             "GDOCS" => Some(Self::GoogleDocs),
             "DRIVE" => Some(Self::GoogleDrive),
@@ -46,6 +49,7 @@ mod tests {
         for channel in [
             DeliveryChannel::Smtp,
             DeliveryChannel::Signal,
+            DeliveryChannel::Telegram,
             DeliveryChannel::Gmail,
             DeliveryChannel::GoogleDocs,
             DeliveryChannel::GoogleDrive,

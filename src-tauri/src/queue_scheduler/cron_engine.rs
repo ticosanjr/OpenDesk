@@ -772,6 +772,8 @@ mod tests {
             notify_email_recipients: None,
             notify_signal: false,
             notify_signal_recipients: None,
+            notify_telegram: false,
+            notify_telegram_recipients: None,
             notify_only_on_change: false,
             recurrence_json: None,
             one_time: false,

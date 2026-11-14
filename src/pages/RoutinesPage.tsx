@@ -144,7 +144,11 @@ export function RoutinesPage() {
   }
 
   async function testNotification(schedule: Schedule) {
-    const channel = schedule.notify_email_recipients ? "email" : "signal";
+    const channel = schedule.notify_email_recipients
+      ? "email"
+      : schedule.notify_telegram
+        ? "telegram"
+        : "signal";
     try {
       const result = await apiPost<{ sent: number; channel: string }>(
         `/api/schedules/${schedule.id}/notify-test`,
@@ -262,7 +266,7 @@ export function RoutinesPage() {
     <PageBody>
       <PageHeader
         title="Rotinas & Gatilhos"
-        description={`${workspace?.name ?? "Workspace"} · horário, pasta, e-mail, Signal, webhook ou SQL; executa prompt ou receita.`}
+        description={`${workspace?.name ?? "Workspace"} · horário, pasta, e-mail, Signal, Telegram, webhook ou SQL; executa prompt ou receita.`}
         actions={
           <>
             <Button variant="outline" size="sm" onClick={() => void load()}>
@@ -334,7 +338,7 @@ export function RoutinesPage() {
             <EmptyState
               icon={CalendarClock}
               title="Nenhuma rotina configurada"
-              description="Crie rotinas por horário, pasta, e-mail, Signal, webhook ou SQL. A rotina pode executar um prompt ou uma receita."
+              description="Crie rotinas por horário, pasta, e-mail, Signal, Telegram, webhook ou SQL. A rotina pode executar um prompt ou uma receita."
               compact
               action={
                 <Button

@@ -2554,3 +2554,18 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   só o `appimagetool` roda (~9 s). A chave de cache cobre bibliotecas ligadas
   (`ldd`), configuração sem a versão e ícones; `--refresh-appimage` força o
   rebuild e `--no-appimage` permite release só com `.deb`/`.rpm`.
+
+## 2026-11-14 — Telegram e atalho do AppImage
+
+- Integração Telegram por Bot API em long polling, sem webhook: token no
+  `SecretStore`, allowlist por chat ID ou `@username`, offset persistido,
+  `/start`/`/help`, `aprovar`/`negar`, HITL e thread de chat `source=telegram`.
+- Notificações de rotinas por Telegram (`notify_telegram*`), canal `TELEGRAM`
+  no ledger de entregas e teste de aviso; migração 0035.
+- Pedidos de permissão do OpenCode também são enviados à allowlist do Telegram.
+- AppImage no Linux passa a criar/atualizar o `.desktop` do usuário com
+  `StartupWMClass=Opendesk` e ícone absoluto extraído de `$APPDIR`, corrigindo a
+  engrenagem genérica na barra de tarefas. Botão **Reintegrar atalho** em
+  Configurações → Sobre.
+- Testes: 410 Rust e 222 Vitest verdes; verificações manuais com bot real e
+  ambiente gráfico continuam pendentes.

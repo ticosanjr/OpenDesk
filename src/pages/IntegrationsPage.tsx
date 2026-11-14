@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Switch } from "@/components/ui/switch";
 import { SignalCard } from "@/components/settings/SignalCard";
+import { TelegramCard } from "@/components/settings/TelegramCard";
 import { SectionNav } from "@/components/ui/section-nav";
 import { InboundSourcesCard } from "@/components/integrations/InboundSourcesCard";
 import { OutboundSinksCard } from "@/components/integrations/OutboundSinksCard";
@@ -100,6 +101,7 @@ export function IntegrationsPage() {
     { id: "smtp", label: "SMTP", icon: Mail, group: "Mensageria" },
     { id: "google", label: "Google", icon: Cloud, group: "Mensageria" },
     { id: "signal", label: "Signal", icon: Plug, group: "Mensageria" },
+    { id: "telegram", label: "Telegram", icon: Send, group: "Mensageria" },
     { id: "browser", label: "Browser", icon: Globe, group: "I/O" },
     { id: "inbound", label: "Entradas", icon: Inbox, group: "I/O" },
     { id: "sinks", label: "Saídas", icon: Package, group: "I/O" },
@@ -309,7 +311,7 @@ export function IntegrationsPage() {
     <PageBody>
       <PageHeader
         title="Integrações"
-        description={`${workspace?.name ?? "Workspace"} · SMTP, Google Workspace e Signal. Segredos ficam criptografados em repouso (AES-256-GCM, 0600).`}
+        description={`${workspace?.name ?? "Workspace"} · SMTP, Google Workspace, Signal e Telegram. Segredos ficam criptografados em repouso (AES-256-GCM, 0600).`}
         actions={
           <Button variant="outline" size="sm" onClick={() => void load()}>
             <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
@@ -525,6 +527,12 @@ export function IntegrationsPage() {
       {activeTab === "signal" ? (
         <div id="integrations-signal">
           <SignalCard />
+        </div>
+      ) : null}
+
+      {activeTab === "telegram" ? (
+        <div id="integrations-telegram">
+          <TelegramCard />
         </div>
       ) : null}
 

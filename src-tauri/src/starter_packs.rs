@@ -951,6 +951,8 @@ pub async fn install(
                 notify_email_recipients: input.notify_email_recipients.clone(),
                 notify_signal: Some(input.notify_signal),
                 notify_signal_recipients: input.notify_signal_recipients.clone(),
+                notify_telegram: Some(input.notify_telegram),
+                notify_telegram_recipients: input.notify_telegram_recipients.clone(),
                 notify_only_on_change: Some(input.notify_only_on_change),
                 recurrence_json: input.recurrence_json.clone(),
                 one_time: Some(input.one_time),

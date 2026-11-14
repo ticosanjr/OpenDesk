@@ -6,7 +6,7 @@ use crate::{
     },
     error::{AppError, AppResult},
     events::OpenDeskWsEvent,
-    integrations::{signal, smtp_mailer},
+    integrations::{signal, smtp_mailer, telegram},
     queue_scheduler::{cron_engine, recurrence},
     secrets::SecretStore,
     text::split_recipients,
@@ -709,8 +709,36 @@ pub async fn test_notification(
                 "channel": "signal"
             })))
         }
+        "telegram" => {
+            let config = telegram::load(&state.db).await?;
+            if !config.enabled {
+                return Err(AppError::BadRequest(
+                    "Telegram não está habilitado neste OpenDesk".into(),
+                ));
+            }
+            let token = telegram::token_for(&state).await?;
+            let mut recipients =
+                split_recipients(schedule.notify_telegram_recipients.as_deref().unwrap_or(""));
+            if recipients.is_empty() {
+                recipients = config.allowlist.clone();
+            }
+            let recipients = telegram::resolve_recipients(&state.db, &recipients).await;
+            if recipients.is_empty() {
+                return Err(AppError::BadRequest(
+                    "a rotina não tem destinatários Telegram conhecidos".into(),
+                ));
+            }
+            let message = format!("[OpenDesk] Teste da rotina {}", schedule.name);
+            for recipient in &recipients {
+                telegram::send_text(&token, recipient, &message).await?;
+            }
+            Ok(Json(serde_json::json!({
+                "sent": recipients.len(),
+                "channel": "telegram"
+            })))
+        }
         other => Err(AppError::BadRequest(format!(
-            "invalid notification channel '{other}'; expected email or signal"
+            "invalid notification channel '{other}'; expected email, signal or telegram"
         ))),
     }
 }

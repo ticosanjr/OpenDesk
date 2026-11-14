@@ -75,6 +75,8 @@ export function CreateScheduleModal({
   const [recipients, setRecipients] = useState("");
   const [signalEnabled, setSignalEnabled] = useState(false);
   const [signalRecipients, setSignalRecipients] = useState("");
+  const [telegramEnabled, setTelegramEnabled] = useState(false);
+  const [telegramRecipients, setTelegramRecipients] = useState("");
   const [onlyOnChange, setOnlyOnChange] = useState(false);
   const [timezone, setTimezone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
@@ -130,6 +132,8 @@ export function CreateScheduleModal({
     setRecipients(schedule?.notify_email_recipients ?? workspace?.default_email_recipient ?? "");
     setSignalEnabled(schedule?.notify_signal ?? false);
     setSignalRecipients(schedule?.notify_signal_recipients ?? "");
+    setTelegramEnabled(schedule?.notify_telegram ?? false);
+    setTelegramRecipients(schedule?.notify_telegram_recipients ?? "");
     setOnlyOnChange(schedule?.notify_only_on_change ?? false);
     setTimezone(schedule?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC");
     setMisfirePolicy(schedule?.misfire_policy ?? "SKIP_TO_NEXT");
@@ -320,6 +324,10 @@ export function CreateScheduleModal({
         notify_email_recipients: recipients.trim() || null,
         notify_signal: signalEnabled,
         notify_signal_recipients: signalEnabled ? signalRecipients.trim() || null : null,
+        notify_telegram: telegramEnabled,
+        notify_telegram_recipients: telegramEnabled
+          ? telegramRecipients.trim() || null
+          : null,
         notify_only_on_change: onlyOnChange,
         recurrence_json:
           triggerType === "CRON" ? JSON.stringify(recurrence) : null,
@@ -808,11 +816,19 @@ export function CreateScheduleModal({
               <span className={labelClass}>Signal (números, opcional)</span>
               <input value={signalRecipients} onChange={(event) => setSignalRecipients(event.target.value)} placeholder="vazio usa a allowlist do Signal" className={inputClass} />
             </label>
+            <label>
+              <span className={labelClass}>Telegram (chats, opcional)</span>
+              <input value={telegramRecipients} onChange={(event) => setTelegramRecipients(event.target.value)} placeholder="vazio usa a allowlist do Telegram" className={inputClass} />
+            </label>
           </div>
           <div className="mt-2 flex flex-wrap gap-4 text-[13px] text-zinc-400">
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={signalEnabled} onChange={(event) => setSignalEnabled(event.target.checked)} className="accent-blue-500" />
               notificar por Signal
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={telegramEnabled} onChange={(event) => setTelegramEnabled(event.target.checked)} className="accent-blue-500" />
+              notificar por Telegram
             </label>
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={onlyOnChange} onChange={(event) => setOnlyOnChange(event.target.checked)} className="accent-blue-500" />

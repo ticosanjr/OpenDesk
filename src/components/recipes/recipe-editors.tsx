@@ -54,7 +54,7 @@ export const SINK_TYPES = [
   { value: "SQL_INSERT", label: "Inserir no SQL (SQL_INSERT)" },
 ];
 
-const CHANNELS = ["DESKTOP_UI", "EMAIL", "SIGNAL"];
+const CHANNELS = ["DESKTOP_UI", "EMAIL", "SIGNAL", "TELEGRAM"];
 
 const ON_TIMEOUT = [
   { value: "PAUSE_AND_ALERT", label: "Pausar e avisar" },

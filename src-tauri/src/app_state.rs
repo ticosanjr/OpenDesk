@@ -3,7 +3,7 @@ use crate::{
     db::{self, settings, workspaces},
     error::AppResult,
     events::EventBus,
-    integrations::{google_oauth::GoogleOAuth, signal::SignalBridge},
+    integrations::{google_oauth::GoogleOAuth, signal::SignalBridge, telegram::TelegramBridge},
     opencode_client::{binary::OpenCodeLocator, daemon_manager::DaemonManager},
     paths::AppPaths,
     queue_scheduler::{CronEngine, QueueManager},
@@ -38,6 +38,7 @@ pub struct AppState {
     pub secrets: Arc<SecretStore>,
     pub google: Arc<GoogleOAuth>,
     pub signal: Arc<SignalBridge>,
+    pub telegram: Arc<TelegramBridge>,
     pub io_bus: Arc<crate::io_bus::runtime::IoBus>,
     pub rate_limiter: crate::audit::RateLimiter,
     pub api_port: u16,
@@ -96,6 +97,7 @@ impl AppState {
 
         let google = GoogleOAuth::new(db.clone(), secrets.clone(), events.clone());
         let signal = Arc::new(SignalBridge::default());
+        let telegram = Arc::new(TelegramBridge::default());
         let io_bus = Arc::new(crate::io_bus::runtime::IoBus::new());
         let concurrency = settings::get(&db, QUEUE_CONCURRENCY_SETTING)
             .await?
@@ -128,6 +130,7 @@ impl AppState {
             secrets,
             google,
             signal,
+            telegram,
             io_bus,
             rate_limiter: crate::audit::RateLimiter::new(crate::audit::RateLimits::from_env()),
             api_port,

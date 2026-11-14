@@ -273,7 +273,7 @@ export function ChatPage() {
     <PageBody>
       <PageHeader
         title="Chat & Criador"
-        description={`${workspace?.name ?? "Workspace"} · converse com qualquer agente, com histórico local. Threads do Signal aparecem com o selo correspondente.`}
+        description={`${workspace?.name ?? "Workspace"} · converse com qualquer agente, com histórico local. Threads do Signal e do Telegram aparecem com o selo correspondente.`}
         actions={
           <Button variant="outline" size="sm" onClick={() => void loadThreads()}>
             <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />

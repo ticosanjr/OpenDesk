@@ -3,6 +3,7 @@ mod email;
 mod google;
 mod render;
 mod signal_channel;
+mod telegram_channel;
 #[cfg(test)]
 mod tests;
 
@@ -15,6 +16,7 @@ use crate::{
         google_oauth::GoogleOAuth,
         signal,
         smtp_mailer::{self, EmailAttachment},
+        telegram,
     },
     media::mime_for_path,
     paths::AppPaths,
@@ -31,6 +33,7 @@ use signal_channel::deliver_signal;
 use sqlx::SqlitePool;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use telegram_channel::deliver_telegram;
 
 pub async fn deliver_run(
     pool: &SqlitePool,
@@ -181,6 +184,23 @@ pub async fn deliver_run(
         .await?;
     }
 
+    if let Some(schedule) = &schedule
+        && schedule.notify_telegram
+        && !unchanged_output
+    {
+        deliver_telegram(
+            pool,
+            &secrets,
+            workspace_id,
+            run_id,
+            &title,
+            &run,
+            artifact_list.first(),
+            schedule,
+        )
+        .await?;
+    }
+
     if let (Some(schedule), Some(hash)) = (&schedule, novelty_hash.as_deref()) {
         let _ = schedules::set_last_output_hash(pool, &schedule.id, Some(hash)).await;
     }
@@ -249,7 +269,7 @@ async fn retry_delivery(state: &AppState, delivery: &deliveries::Delivery) -> Ap
         Some(DeliveryChannel::GoogleDocs) => retry_gdocs(state, delivery, &payload).await,
         Some(DeliveryChannel::GoogleDrive) => retry_drive(state, delivery, &payload).await,
         Some(DeliveryChannel::Smtp) => retry_email(state, delivery, &payload).await,
-        Some(DeliveryChannel::Signal) => Ok(()),
+        Some(DeliveryChannel::Signal) | Some(DeliveryChannel::Telegram) => Ok(()),
         Some(DeliveryChannel::Gmail)
         | Some(DeliveryChannel::GoogleCalendar)
         | Some(DeliveryChannel::GoogleTasks) => {

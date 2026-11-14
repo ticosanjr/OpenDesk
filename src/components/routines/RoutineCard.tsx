@@ -94,6 +94,11 @@ export function RoutineCard({
         Signal
       </Badge>
     ) : null,
+    schedule.notify_telegram ? (
+      <Badge key="telegram" variant="green">
+        Telegram
+      </Badge>
+    ) : null,
     schedule.one_time ? (
       <Badge key="once" variant="purple">
         uma vez
@@ -270,7 +275,9 @@ export function RoutineCard({
               <MenuItem icon={<FlaskConical size={14} />} onClick={() => action(onDryRun)}>
                 Dry-run
               </MenuItem>
-              {schedule.notify_email_recipients || schedule.notify_signal ? (
+              {schedule.notify_email_recipients ||
+              schedule.notify_signal ||
+              schedule.notify_telegram ? (
                 <MenuItem icon={<Send size={14} />} onClick={() => action(onTestNotification)}>
                   Testar aviso
                 </MenuItem>

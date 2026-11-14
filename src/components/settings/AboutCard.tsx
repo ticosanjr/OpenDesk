@@ -14,7 +14,7 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 import { shortPath } from "@/lib/format";
 import type { AboutInfo } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,8 @@ export function AboutCard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<"summary" | "json" | null>(null);
+  const [desktopBusy, setDesktopBusy] = useState(false);
+  const [desktopMessage, setDesktopMessage] = useState<string | null>(null);
 
   async function load() {
     setBusy(true);
@@ -42,6 +44,26 @@ export function AboutCard() {
   useEffect(() => {
     void load();
   }, []);
+
+  async function repairShortcut() {
+    setDesktopBusy(true);
+    setDesktopMessage(null);
+    try {
+      const value = await apiPost<{ desktop: AboutInfo["desktop"] }>(
+        "/api/about/desktop-integration",
+      );
+      setInfo((current) =>
+        current ? { ...current, desktop: value.desktop } : current,
+      );
+      setDesktopMessage(
+        value.desktop.message ?? "Atalho do sistema atualizado.",
+      );
+    } catch (cause) {
+      setDesktopMessage(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setDesktopBusy(false);
+    }
+  }
 
   async function copy(kind: "summary" | "json") {
     if (!info) return;
@@ -185,7 +207,27 @@ export function AboutCard() {
                 <FolderOpen size={13} />
                 Abrir dados
               </Button>
+              {info.desktop.supported && info.desktop.appimage ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void repairShortcut()}
+                  disabled={desktopBusy}
+                >
+                  {desktopBusy ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <RefreshCw size={13} />
+                  )}
+                  Reintegrar atalho
+                </Button>
+              ) : null}
             </div>
+            {desktopMessage ? (
+              <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[12px] text-zinc-400">
+                {desktopMessage}
+              </p>
+            ) : null}
           </>
         ) : (
           <>
@@ -245,6 +287,23 @@ export function AboutCard() {
                 label="Token GitHub"
                 value={info.updates.token_configured ? "configurado" : "ausente"}
               />
+            </Section>
+            <Section title="Atalho do sistema">
+              <Row
+                label="Integração"
+                value={
+                  !info.desktop.supported
+                    ? "indisponível nesta plataforma"
+                    : info.desktop.appimage
+                      ? info.desktop.installed
+                        ? "instalada"
+                        : "pendente"
+                      : "apenas AppImage"
+                }
+              />
+              <Row label="AppImage" value={info.desktop.appimage ?? "—"} />
+              <Row label="Atalho" value={info.desktop.desktop_file ?? "—"} />
+              <Row label="Ícone" value={info.desktop.icon_path ?? "—"} />
             </Section>
             <Section title="Arquivos de log">
               {info.logs.length === 0 ? (

@@ -22,6 +22,8 @@ pub struct Schedule {
     pub notify_email_recipients: Option<String>,
     pub notify_signal: bool,
     pub notify_signal_recipients: Option<String>,
+    pub notify_telegram: bool,
+    pub notify_telegram_recipients: Option<String>,
     pub notify_only_on_change: bool,
     pub recurrence_json: Option<String>,
     pub one_time: bool,
@@ -69,6 +71,10 @@ pub struct CreateScheduleInput {
     #[serde(default)]
     pub notify_signal_recipients: Option<String>,
     #[serde(default)]
+    pub notify_telegram: bool,
+    #[serde(default)]
+    pub notify_telegram_recipients: Option<String>,
+    #[serde(default)]
     pub notify_only_on_change: bool,
     #[serde(default)]
     pub recurrence_json: Option<String>,
@@ -105,6 +111,8 @@ pub struct UpdateScheduleInput {
     pub notify_email_recipients: Option<String>,
     pub notify_signal: Option<bool>,
     pub notify_signal_recipients: Option<String>,
+    pub notify_telegram: Option<bool>,
+    pub notify_telegram_recipients: Option<String>,
     pub notify_only_on_change: Option<bool>,
     pub recurrence_json: Option<String>,
     pub one_time: Option<bool>,
@@ -158,7 +166,8 @@ fn default_misfire_policy() -> String {
 const COLUMNS: &str = "id, workspace_id, name, description, cron_expression, timezone, \
     agent_name, command_or_prompt, trigger_type, trigger_config_json, target_kind, recipe_id, \
     router_policy, output_folder_template, \
-    notify_email_recipients, notify_signal, notify_signal_recipients, notify_only_on_change, \
+    notify_email_recipients, notify_signal, notify_signal_recipients, notify_telegram, \
+    notify_telegram_recipients, notify_only_on_change, \
     recurrence_json, one_time, last_output_hash, misfire_policy, safe_readonly_mode, \
     sync_to_google_docs, sync_to_google_calendar, is_active, last_run_at, last_run_status, \
     next_run_at, created_at";
@@ -306,10 +315,11 @@ pub async fn create(pool: &SqlitePool, input: CreateScheduleInput) -> AppResult<
             id, workspace_id, name, description, cron_expression, timezone,
             agent_name, command_or_prompt, trigger_type, trigger_config_json, target_kind, recipe_id,
             router_policy, output_folder_template,
-            notify_email_recipients, notify_signal, notify_signal_recipients, notify_only_on_change,
+            notify_email_recipients, notify_signal, notify_signal_recipients, notify_telegram,
+            notify_telegram_recipients, notify_only_on_change,
             recurrence_json, one_time, misfire_policy, safe_readonly_mode,
             sync_to_google_docs, sync_to_google_calendar, is_active
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&input.workspace_id)
@@ -333,6 +343,8 @@ pub async fn create(pool: &SqlitePool, input: CreateScheduleInput) -> AppResult<
     .bind(input.notify_email_recipients.as_deref())
     .bind(input.notify_signal)
     .bind(input.notify_signal_recipients.as_deref())
+    .bind(input.notify_telegram)
+    .bind(input.notify_telegram_recipients.as_deref())
     .bind(input.notify_only_on_change)
     .bind(input.recurrence_json.as_deref())
     .bind(input.one_time)
@@ -374,6 +386,7 @@ pub async fn update(
             command_or_prompt = ?, trigger_type = ?, trigger_config_json = ?, target_kind = ?,
             recipe_id = ?, router_policy = ?, output_folder_template = ?,
             notify_email_recipients = ?, notify_signal = ?, notify_signal_recipients = ?,
+            notify_telegram = ?, notify_telegram_recipients = ?,
             notify_only_on_change = ?, recurrence_json = ?, one_time = ?,
             misfire_policy = ?, safe_readonly_mode = ?,
             sync_to_google_docs = ?, sync_to_google_calendar = ?, is_active = ?
@@ -419,6 +432,12 @@ pub async fn update(
         input
             .notify_signal_recipients
             .or(current.notify_signal_recipients),
+    )
+    .bind(input.notify_telegram.unwrap_or(current.notify_telegram))
+    .bind(
+        input
+            .notify_telegram_recipients
+            .or(current.notify_telegram_recipients),
     )
     .bind(
         input
@@ -549,6 +568,8 @@ mod tests {
             notify_email_recipients: Some("ops@example.com".into()),
             notify_signal: false,
             notify_signal_recipients: None,
+            notify_telegram: false,
+            notify_telegram_recipients: None,
             notify_only_on_change: false,
             recurrence_json: None,
             one_time: false,
@@ -617,6 +638,8 @@ mod tests {
             Some(r#"{"frequency":"weekly","interval":1,"time":"09:30","weekdays":[1,3]}"#.into());
         value.notify_signal = true;
         value.notify_signal_recipients = Some("+5511999999999".into());
+        value.notify_telegram = true;
+        value.notify_telegram_recipients = Some("123456".into());
         value.notify_only_on_change = true;
         value.one_time = false;
         let schedule = create(&pool, value).await.expect("create");
@@ -627,6 +650,8 @@ mod tests {
             loaded.notify_signal_recipients.as_deref(),
             Some("+5511999999999")
         );
+        assert!(loaded.notify_telegram);
+        assert_eq!(loaded.notify_telegram_recipients.as_deref(), Some("123456"));
         assert!(loaded.notify_only_on_change);
         assert_eq!(
             loaded.recurrence_json.as_deref(),
@@ -646,6 +671,7 @@ mod tests {
             &schedule.id,
             UpdateScheduleInput {
                 notify_signal: Some(false),
+                notify_telegram: Some(false),
                 notify_only_on_change: Some(false),
                 one_time: Some(true),
                 ..Default::default()
@@ -654,6 +680,7 @@ mod tests {
         .await
         .expect("update");
         assert!(!updated.notify_signal);
+        assert!(!updated.notify_telegram);
         assert!(!updated.notify_only_on_change);
         assert!(updated.one_time);
     }

@@ -78,6 +78,9 @@ npm run clean:deep     # remove target e node_modules (build frio depois)
 - `starter-packs/packs/controle-opendesk/` — skill e comandos do pacote base
   instalado automaticamente em novos workspaces (ADR 0044).
 - `src-tauri/src/db/` — migrações, modelos e repositórios.
+- `src-tauri/src/integrations/telegram.rs` — bot Telegram (long polling,
+  allowlist, chat, aprovações e avisos).
+- `src-tauri/src/desktop_integration.rs` — atalho e ícone do AppImage no Linux.
 - `src-tauri/src/events.rs` — contrato dos eventos em tempo real.
 - `src-tauri/src/paths.rs` — diretórios do app e layout de workspace.
 - `src/pages/` — as 20 páginas roteadas.
@@ -139,7 +142,9 @@ agentes com organograma, metas, budgets, quota, performance, delegação HITL e
 heartbeat opt-in, CLI headless, export de sessão em Markdown/HTML/JSON e
 integração com OpenCode Browse para tarefas de navegação web e backup/restore
 completo do workspace em ZIP, observabilidade operacional (p95, fila, falhas) e
-contract test opt-in do OpenCode V2, rate limit e auditoria da API local.
+contract test opt-in do OpenCode V2, rate limit e auditoria da API local,
+integração Telegram por long polling (chat, aprovações, HITL e avisos de
+rotinas) e atalho automático do AppImage no menu/barra de tarefas.
 Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
 Fábrica de Capacidades default (`meta-forge`). O MCP `opendesk-control` permite
 aos agentes operar tarefas, execuções, rotinas, receitas, fila e artefatos; o

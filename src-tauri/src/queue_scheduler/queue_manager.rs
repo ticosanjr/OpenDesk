@@ -9,6 +9,7 @@ use crate::{
     },
     paths::AppPaths,
     queue_scheduler::{run_execution, settlement},
+    secrets::SecretStore,
 };
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -487,8 +488,10 @@ impl QueueManager {
             .insert(job.id.clone(), cancel.clone());
 
         let started = Instant::now();
+        let secrets = SecretStore::new(&self.paths);
         let request = RunRequest {
             pool: &self.pool,
+            secrets: &secrets,
             workspace_id: &job.workspace_id,
             run_id: &run_id,
             task_id: job.task_id.as_deref(),

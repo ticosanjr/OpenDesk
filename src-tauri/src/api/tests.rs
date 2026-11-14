@@ -76,3 +76,4 @@ mod schedules;
 mod seed;
 mod studio;
 mod tasks;
+mod telegram;

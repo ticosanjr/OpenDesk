@@ -54,6 +54,16 @@ abaixo.
   disponível e cai para `build` em workspaces antigos.
 - Tarefas de instalação usam cuidado padrão e continuam rastreáveis.
 
+## Integração Telegram e atalho do AppImage (2026-11-14)
+
+- Telegram: configuração, token criptografado, allowlist por ID/@username,
+  long polling, `/start`, chat com agente, `aprovar`/`negar`, HITL e avisos de
+  rotinas; migração 0035 e canal `TELEGRAM` no ledger.
+- AppImage: `.desktop` automático com `StartupWMClass=Opendesk`, ícone absoluto
+  e botão de reparo em Configurações → Sobre.
+- Testes automatizados: 410 Rust e 222 Vitest. O bridge real depende de um bot
+  criado no `@BotFather` e do app em execução.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:
@@ -62,9 +72,13 @@ Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:
    e-mail de receita para destinatário explícito e para o e-mail padrão.
 2. **Signal real:** vincular um celular escaneando o QR e enviar/receber uma
    mensagem pela bridge.
-3. **Windows/macOS:** gerar instaladores e validar assinatura/updater nas
+3. **Telegram real:** criar bot no `@BotFather`, enviar `/start`, conversar com
+   o agente, aprovar uma permissão/HITL e receber um aviso de rotina.
+4. **Windows/macOS:** gerar instaladores e validar assinatura/updater nas
    máquinas nativas (`docs/platform-builds.md`).
-4. **Contrato Google:** executar com a conta dedicada (`docs/google-contract.md`).
+5. **Contrato Google:** executar com a conta dedicada (`docs/google-contract.md`).
+6. **Atalho do AppImage:** confirmar no Cinnamon que a barra de tarefas usa o
+   mesmo ícone do tray após reintegrar o atalho.
 
 ## Próximo passo
 

@@ -210,6 +210,8 @@ pub(super) fn tools() -> Vec<Value> {
                     "notify_email_recipients": { "type": "string" },
                     "notify_signal": { "type": "boolean" },
                     "notify_signal_recipients": { "type": "string" },
+                    "notify_telegram": { "type": "boolean" },
+                    "notify_telegram_recipients": { "type": "string" },
                     "notify_only_on_change": { "type": "boolean" },
                     "misfire_policy": { "type": "string" },
                     "safe_readonly_mode": { "type": "boolean" }
@@ -243,6 +245,8 @@ pub(super) fn tools() -> Vec<Value> {
                     "notify_email_recipients": { "type": "string" },
                     "notify_signal": { "type": "boolean" },
                     "notify_signal_recipients": { "type": "string" },
+                    "notify_telegram": { "type": "boolean" },
+                    "notify_telegram_recipients": { "type": "string" },
                     "notify_only_on_change": { "type": "boolean" },
                     "misfire_policy": { "type": "string" },
                     "safe_readonly_mode": { "type": "boolean" }
