@@ -61,3 +61,49 @@ export interface LearningScanResult {
   analyzed: number;
   lessons: number;
 }
+
+export interface PersonalContextGroup {
+  id: string;
+  workspace_id?: string | null;
+  scope: "workspace" | "global";
+  name: string;
+  instructions: string;
+  is_enabled: boolean;
+  position: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PromptPreviewSection {
+  id: string;
+  label: string;
+  source: string;
+  content: string;
+}
+
+export interface PromptPreview {
+  task_id: string;
+  workspace_id: string;
+  phase: string;
+  agent: string;
+  model: string;
+  output_directory: string;
+  prompt: string;
+  sections: PromptPreviewSection[];
+  opencode: {
+    agent?: {
+      id: string;
+      scope: string;
+      path: string;
+      system: string;
+    } | null;
+    skills: Array<{
+      id: string;
+      scope: string;
+      name: string;
+      description?: string | null;
+      path: string;
+    }>;
+    note?: string;
+  };
+}

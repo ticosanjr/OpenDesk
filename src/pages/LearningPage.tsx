@@ -47,6 +47,7 @@ import type {
   LearningSettings,
 } from "@/lib/types";
 import { smallInputClass, smallLabelClass } from "@/lib/ui-classes";
+import { PersonalContextCard } from "@/components/learning/PersonalContextCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { toast } from "@/store/toast-store";
@@ -368,6 +369,8 @@ export function LearningPage() {
           />
         </div>
       ) : null}
+
+      <PersonalContextCard />
 
       {settings ? (
         <Card>

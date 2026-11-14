@@ -2653,3 +2653,14 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - GETs read-only do Studio/agentes/modelos saíram do rate limiter local, e
   `apiGet` repete uma vez em 429 respeitando `Retry-After`.
 - Verificação: 424 testes Rust, 223 Vitest, E2E `search-recent` e visual verdes.
+
+## 2026-11-14 — contexto pessoal e inspeção de prompt (fase 2)
+
+- Aprendizado ganhou grupos de Personal Context (`workspace` ou `global`), com
+  CRUD, ativação, remoção, ordem e injeção automática nos prompts.
+- O prompt de tarefas, continuações, rotinas/receitas e chat agora inclui uma
+  seção “Contexto pessoal do usuário”.
+- Nova aba Configurações → Prompt com o prompt final, seções por origem e o
+  contexto carregado pelo OpenCode (agente e skills).
+- Migração 0037; `GET /api/tasks/{id}/prompt-preview`; ADR 0053.
+- Verificação: 427 testes Rust e 223 Vitest.

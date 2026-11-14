@@ -96,6 +96,14 @@ pendências manuais continuam listadas abaixo.
 - Verificação: `npm run verify` verde, 424 testes Rust, 223 Vitest, E2E
   `search-recent` e `npm run test:visual` verdes.
 
+## Pós-0.55.0 — contexto pessoal e prompt (fase 2)
+
+- Personal Context com escopos workspace/global, CRUD e injeção automática.
+- Prompt preview com seções e origem; aba Configurações → Prompt.
+- Migração 0037; testes de CRUD, render, prompt preview e parsing de seções.
+- Verificação: `npm run verify` verde; 427 testes Rust e 223 Vitest; golden de
+  Aprendizado atualizado.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

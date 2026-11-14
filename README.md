@@ -57,6 +57,8 @@ OpenCode permanecendo nos arquivos nativos do disco.
   integrações ligadas.
 - Sobre & diagnóstico com modos simples/avançado, exportação JSON e reparo do
   atalho do AppImage no menu/barra de tarefas.
+- Configurações → Prompt mostra o prompt completo enviado a qualquer tarefa,
+  seção por seção e com a origem de cada bloco.
 - Chat interativo com qualquer agente, histórico, streaming por sessão e custo;
   pelo Telegram o agente cria tarefas, consulta execuções e resultados, executa
   rotinas/receitas e responde HITL.
@@ -297,6 +299,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0050 — Chat operacional e HITL no Telegram](docs/decisions/0050-telegram-operational-chat.md)
 - [ADR 0051 — Deduplicação persistente de Folder Watch](docs/decisions/0051-folder-watch-persistent-dedupe.md)
 - [ADR 0052 — Chat aguarda o turno novo](docs/decisions/0052-chat-waits-for-new-turn.md)
+- [ADR 0053 — Contexto pessoal e inspeção de prompt](docs/decisions/0053-personal-context-and-prompt-preview.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

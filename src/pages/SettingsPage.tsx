@@ -7,6 +7,7 @@ import {
   Cpu,
   Download,
   ExternalLink,
+  FileCode2,
   FolderOpen,
   FolderPlus,
   HardDrive,
@@ -40,6 +41,7 @@ import { QueueSettingsCard } from "@/components/settings/QueueSettingsCard";
 import { FilePreferencesCard } from "@/components/settings/FilePreferencesCard";
 import { BackupsCard } from "@/components/settings/BackupsCard";
 import { AuditCard } from "@/components/settings/AuditCard";
+import { PromptPreviewCard } from "@/components/settings/PromptPreviewCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiDelete, apiGet, apiPatch, apiPut } from "@/lib/api";
@@ -76,6 +78,7 @@ export function SettingsPage() {
     { id: "general", label: "Geral", icon: Settings, group: "Geral" },
     { id: "engine", label: "Engine", icon: Cpu, group: "Motor" },
     { id: "updates", label: "Atualizações", icon: Download, group: "Motor" },
+    { id: "prompt", label: "Prompt", icon: FileCode2, group: "Motor" },
     { id: "notifications", label: "Notificações", icon: Bell, group: "Operação" },
     { id: "queue", label: "Fila", icon: ListChecks, group: "Operação" },
     { id: "backups", label: "Backups", icon: Archive, group: "Operação" },
@@ -168,6 +171,11 @@ export function SettingsPage() {
       {activeTab === "about" ? (
         <div id="settings-about">
           <AboutCard />
+        </div>
+      ) : null}
+      {activeTab === "prompt" ? (
+        <div id="settings-prompt">
+          <PromptPreviewCard />
         </div>
       ) : null}
       {activeTab === "notifications" ? <NotificationCard /> : null}

@@ -72,7 +72,7 @@ pub(super) fn base_model(model: &str) -> String {
     format!("{provider}/{id}")
 }
 
-pub(super) async fn plan_decision(
+pub(crate) async fn plan_decision(
     state: &AppState,
     task: &tasks::Task,
     workspace: &workspaces::Workspace,
@@ -173,7 +173,7 @@ fn opendesk_agent_available(workspace_root: &std::path::Path) -> bool {
     })
 }
 
-fn care_instructions(care: &str) -> &'static str {
+pub(crate) fn care_instructions(care: &str) -> &'static str {
     match care {
         "quick" => {
             "\n\n## Nível de cuidado: rápido\n\nSeja direto. Não faça plano formal nem auditoria. Execute o necessário, faça no máximo uma validação objetiva e entregue o resultado. Evite exploração extensa de arquivos."
@@ -221,6 +221,7 @@ pub(crate) async fn enqueue_decision_with_session(
         &tags,
     )
     .await?;
+    let personal_context = crate::personal_context::render(&state.db, &task.workspace_id).await?;
     let prompt = dsh_router::pack(&PackContext {
         workspace_root: std::path::Path::new(&workspace.root_path),
         output_directory: &decision.output_directory,
@@ -232,6 +233,7 @@ pub(crate) async fn enqueue_decision_with_session(
         plan: approved_plan.or(task.plan_markdown.as_deref()),
         agent: &selected_agent,
         needs_browser,
+        personal_context: &personal_context,
     });
     let prompt = format!(
         "{prompt}{}\n\n## Contexto OpenDesk\n\nTask ID: `{}`. Se faltar informação essencial para continuar, use a ferramenta MCP `ask_user` com este task_id antes de assumir.\n",

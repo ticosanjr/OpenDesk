@@ -90,9 +90,13 @@ pub async fn send_message_with_context(
             workspace_id: thread.workspace_id.clone(),
         });
 
+    let personal_context = crate::personal_context::render(&state.db, &thread.workspace_id)
+        .await
+        .unwrap_or_default();
     let prompt_text = match context.map(str::trim).filter(|value| !value.is_empty()) {
-        Some(context) => format!("{context}\n\n{content}"),
-        None => content.to_string(),
+        Some(context) => format!("{personal_context}\n\n{context}\n\n{content}"),
+        None if personal_context.is_empty() => content.to_string(),
+        None => format!("{personal_context}\n\n{content}"),
     };
 
     let since_ms = now_ms();

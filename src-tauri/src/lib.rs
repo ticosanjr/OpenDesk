@@ -27,6 +27,7 @@ mod metrics;
 mod open_paths;
 mod opencode_client;
 mod paths;
+mod personal_context;
 mod proposals;
 mod queue_scheduler;
 mod recipes;

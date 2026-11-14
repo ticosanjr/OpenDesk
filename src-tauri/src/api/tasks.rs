@@ -22,7 +22,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-mod task_dispatch;
+pub(crate) mod task_dispatch;
 
 use task_dispatch::{base_model, concurrency_group, enqueue_decision, model_key, plan_decision};
 pub(crate) use task_dispatch::{dispatch_task_internal, dispatch_task_with_session};
@@ -617,6 +617,7 @@ pub async fn post_task_message(
         &tags,
     )
     .await?;
+    let personal_context = crate::personal_context::render(&state.db, &task.workspace_id).await?;
     let packed = dsh_router::pack(&PackContext {
         workspace_root: std::path::Path::new(&workspace.root_path),
         output_directory: &decision.output_directory,
@@ -628,6 +629,7 @@ pub async fn post_task_message(
         plan: task.plan_markdown.as_deref(),
         agent: &decision.selected_agent,
         needs_browser,
+        personal_context: &personal_context,
     });
     let prompt = format!(
         "{packed}\n\n## Conversa com o usuário\n\n{conversation}\n\nContinue a execução considerando a mensagem acima. Task ID: `{}`. Se precisar de uma decisão, use a ferramenta MCP `ask_user` com este task_id antes de assumir.",

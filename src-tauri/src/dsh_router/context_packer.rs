@@ -12,6 +12,7 @@ pub struct PackContext<'a> {
     pub plan: Option<&'a str>,
     pub agent: &'a str,
     pub needs_browser: bool,
+    pub personal_context: &'a str,
 }
 
 pub fn pack(context: &PackContext<'_>) -> String {
@@ -28,6 +29,11 @@ pub fn pack(context: &PackContext<'_>) -> String {
     prompt.push_str("- O resultado está salvo no diretório de saída.\n");
     prompt.push_str("- O resumo final cita os caminhos reais dos arquivos.\n");
     prompt.push_str("- Nenhum arquivo final foi deixado na raiz do projeto.\n\n");
+
+    if !context.personal_context.trim().is_empty() {
+        prompt.push_str(context.personal_context.trim());
+        prompt.push_str("\n\n");
+    }
 
     if let Ok(memory) =
         std::fs::read_to_string(context.workspace_root.join(".opencode").join("MEMORY.md"))
@@ -157,6 +163,7 @@ mod tests {
             plan: Some("1. Ler input"),
             agent: "build",
             needs_browser: false,
+            personal_context: "",
         });
         assert!(prompt.contains("DIRETÓRIO DE SAÍDA OBRIGATÓRIO"));
         assert!(prompt.contains("/tmp/out/2026-11/task"));
@@ -174,6 +181,7 @@ mod tests {
             plan: None,
             agent: "build",
             needs_browser: true,
+            personal_context: "",
         });
         assert!(browser_prompt.contains("OpenCode Browse"));
         assert!(browser_prompt.contains("session_new"));

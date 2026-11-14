@@ -630,6 +630,9 @@ impl CronEngine {
         } else {
             false
         };
+        let personal_context = crate::personal_context::render(&self.pool, &schedule.workspace_id)
+            .await
+            .unwrap_or_default();
         let packed = dsh_router::pack(&PackContext {
             workspace_root: &workspace_root,
             output_directory: &decision.output_directory,
@@ -641,6 +644,7 @@ impl CronEngine {
             plan: None,
             agent: &decision.selected_agent,
             needs_browser,
+            personal_context: &personal_context,
         });
 
         match self

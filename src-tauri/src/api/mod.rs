@@ -26,6 +26,8 @@ pub mod meta;
 pub mod metrics;
 pub mod missed_runs;
 pub mod permissions;
+pub mod personal_context;
+pub mod prompt_preview;
 pub mod proposals;
 pub mod queue;
 pub mod recipes;
@@ -174,6 +176,14 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             post(blueprints::apply_blueprint),
         )
         .route("/api/cost/mix", get(cost::model_mix))
+        .route(
+            "/api/personal-context",
+            get(personal_context::list).post(personal_context::create),
+        )
+        .route(
+            "/api/personal-context/{id}",
+            put(personal_context::update).delete(personal_context::delete),
+        )
         .route("/api/permissions", get(permissions::list_permissions))
         .route(
             "/api/permissions/{request_id}/reply",
@@ -292,6 +302,10 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/tasks/{id}/diagnostics", get(tasks::task_diagnostics))
         .route("/api/tasks/{id}/fork", post(tasks::fork_task))
         .route("/api/tasks/{id}/swarm", post(tasks::swarm_task))
+        .route(
+            "/api/tasks/{id}/prompt-preview",
+            get(prompt_preview::preview),
+        )
         .route("/api/tasks/{id}/context", get(permissions::context))
         .route("/api/tasks/{id}/compact", post(permissions::compact))
         .route(
