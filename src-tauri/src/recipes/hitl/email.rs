@@ -22,9 +22,12 @@ pub async fn dispatch(state: &Arc<AppState>, payload: &HitlRequestPayload) -> Ap
     let config = smtp_mailer::load_config(&state.db, &state.secrets, &payload.workspace_id)
         .await?
         .ok_or_else(|| AppError::BadRequest("SMTP não configurado".into()))?;
+    let instructions =
+        crate::recipes::hitl::reply_instructions(&payload.interaction_type, &payload.options);
     let html = format!(
-        "<html><body><pre style=\"white-space:pre-wrap\">{}</pre><p>Responda com APROVAR, REJEITAR ou escreva o feedback na primeira linha.</p></body></html>",
-        html_escape::encode_text(&payload.message_body)
+        "<html><body><pre style=\"white-space:pre-wrap\">{}</pre><p style=\"white-space:pre-wrap\">{}</p></body></html>",
+        html_escape::encode_text(&payload.message_body),
+        html_escape::encode_text(&instructions)
     );
     let attachments = payload
         .attachments

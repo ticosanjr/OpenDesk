@@ -50,7 +50,10 @@ describe("HITL helpers", () => {
   });
 
   it("labels types and clamps countdowns", () => {
-    expect(hitlTypeLabel("MULTI_CHOICE")).toBe("Escolha de opção");
+    expect(hitlTypeLabel("MULTI_CHOICE")).toBe("Múltipla escolha");
+    expect(hitlTypeLabel("SINGLE_CHOICE")).toBe("Escolha de opção");
+    expect(hitlTypeLabel("APPROVAL")).toBe("Aprovação");
+    expect(hitlTypeLabel("TEXT")).toBe("Resposta livre");
     expect(hitlTypeLabel("OTHER")).toBe("OTHER");
     expect(hitlSecondsLeft("2026-01-01T00:01:00Z", Date.parse("2026-01-01T00:00:00Z"))).toBe(
       60,

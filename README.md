@@ -61,6 +61,10 @@ OpenCode permanecendo nos arquivos nativos do disco.
   seção por seção e com a origem de cada bloco.
 - Telegram recebe arquivos no workspace e sinks entregam artefatos; tarefas
   avisam conclusões no Telegram/Signal.
+- HITL 2.0 com aprovação, escolha única, múltipla escolha e texto livre; o
+  agente escolhe a estrutura e toda decisão aceita payload opcional.
+- Modal global de decisão em qualquer página, além de Telegram, Signal e
+  notificação nativa.
 - Chat interativo com qualquer agente, histórico, streaming por sessão e custo;
   pelo Telegram o agente cria tarefas, consulta execuções e resultados, executa
   rotinas/receitas e responde HITL.
@@ -303,6 +307,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0052 — Chat aguarda o turno novo](docs/decisions/0052-chat-waits-for-new-turn.md)
 - [ADR 0053 — Contexto pessoal e inspeção de prompt](docs/decisions/0053-personal-context-and-prompt-preview.md)
 - [ADR 0054 — Arquivos no Telegram, anexos e watchers](docs/decisions/0054-telegram-files-sink-attachments-and-watchers.md)
+- [ADR 0055 — HITL 2.0 com estruturas explícitas](docs/decisions/0055-hitl-2-unified-kinds.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

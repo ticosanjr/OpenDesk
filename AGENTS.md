@@ -147,7 +147,9 @@ integração Telegram por long polling (chat operacional, “digitando…”, bo
 HITL/permissões, atualização ao vivo, aprovações e avisos de rotinas, arquivos
 recebidos no workspace e envio de artefatos), contexto pessoal injetado nos
 prompts, inspetor de prompt com proveniência, watchers de conclusão em
-Telegram/Signal e atalho automático do AppImage no menu/barra de tarefas.
+Telegram/Signal, HITL 2.0 unificado (APPROVAL, SINGLE_CHOICE, MULTI_CHOICE,
+TEXT) com decisão/payload, modal global de decisão e atalho automático do
+AppImage no menu/barra de tarefas.
 Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
 Fábrica de Capacidades default (`meta-forge`). O MCP `opendesk-control` permite
 aos agentes operar tarefas, execuções, rotinas, receitas, fila e artefatos; o

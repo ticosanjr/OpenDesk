@@ -113,6 +113,15 @@ pendências manuais continuam listadas abaixo.
 - Migração 0038; API `GET/PUT /api/tasks/{id}/watchers`; testes de parsing de
   arquivos, sanitização de nome, repositório e API.
 
+## Pós-0.55.0 — HITL 2.0 (fase 4)
+
+- Estruturas APPROVAL, SINGLE_CHOICE, MULTI_CHOICE e TEXT em tarefas e
+  receitas, com payload opcional e mapeamento dos tipos legados.
+- `ask_user` com `kind`; resposta com `decision`; validação por estrutura.
+- Modal global de HITL em qualquer página, notificação nativa, Telegram e
+  Signal.
+- Migração 0039; ADR 0055; testes de API, parsing remoto e componente.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

@@ -15,8 +15,11 @@ pub async fn dispatch(state: &Arc<AppState>, payload: &HitlRequestPayload) -> Ap
         ));
     }
     let text = format!(
-        "[OD-#{}] {}\n\n{}\n\nResponda APROVAR, REJEITAR ou escreva o feedback.",
-        payload.token, payload.title, payload.message_body
+        "[OD-#{}] {}\n\n{}\n\n{}",
+        payload.token,
+        payload.title,
+        payload.message_body,
+        crate::recipes::hitl::reply_instructions(&payload.interaction_type, &payload.options)
     );
     let sent = telegram::send_to_allowlist(state, &text).await?;
     if sent == 0 {

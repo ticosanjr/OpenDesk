@@ -13,9 +13,14 @@ export interface HitlConsequences {
 }
 
 export const HITL_TYPE_LABEL: Record<string, string> = {
+  APPROVAL: "Aprovação",
   BINARY_GATE: "Aprovação binária",
   APPROVAL_WITH_FEEDBACK: "Aprovação com ajustes",
-  MULTI_CHOICE: "Escolha de opção",
+  ARTIFACT_EDIT_HANDOFF: "Aprovação de artefato",
+  TOOL_PERMISSION_PROXY: "Permissão de ferramenta",
+  SINGLE_CHOICE: "Escolha de opção",
+  MULTI_CHOICE: "Múltipla escolha",
+  TEXT: "Resposta livre",
   ACKNOWLEDGE: "Ciência",
   ARTIFACT_REVIEW: "Revisão de artefato",
 };

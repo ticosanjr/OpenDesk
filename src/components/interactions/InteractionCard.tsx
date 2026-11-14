@@ -1,11 +1,26 @@
 import { useMemo, useState } from "react";
-import { CheckCircle2, MessageCircleQuestion, ShieldAlert } from "lucide-react";
+import {
+  CheckCircle2,
+  MessageCircleQuestion,
+  ShieldAlert,
+  X,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiPost } from "@/lib/api";
 import { toast } from "@/store/toast-store";
 import type { TaskInteraction } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+type Decision = "approve" | "deny" | "answer";
+type Kind = "APPROVAL" | "SINGLE_CHOICE" | "MULTI_CHOICE" | "TEXT";
+
+const KIND_LABEL: Record<Kind, string> = {
+  APPROVAL: "aprovação",
+  SINGLE_CHOICE: "escolha única",
+  MULTI_CHOICE: "múltipla escolha",
+  TEXT: "resposta livre",
+};
 
 function parseOptions(value: string): string[] {
   try {
@@ -16,6 +31,28 @@ function parseOptions(value: string): string[] {
   } catch {
     return [];
   }
+}
+
+function kindOf(interaction: TaskInteraction, options: string[]): Kind {
+  const raw = interaction.kind?.toUpperCase();
+  if (
+    raw === "APPROVAL" ||
+    raw === "BINARY_GATE" ||
+    raw === "APPROVAL_WITH_FEEDBACK" ||
+    raw === "ARTIFACT_EDIT_HANDOFF" ||
+    raw === "TOOL_PERMISSION_PROXY" ||
+    raw === "ACKNOWLEDGE" ||
+    raw === "ARTIFACT_REVIEW"
+  ) {
+    return "APPROVAL";
+  }
+  if (raw === "SINGLE_CHOICE") return "SINGLE_CHOICE";
+  if (raw === "MULTI_CHOICE") return "MULTI_CHOICE";
+  if (raw === "TEXT" || raw === "FEEDBACK") return "TEXT";
+  if (options.length > 0) {
+    return interaction.multiple ? "MULTI_CHOICE" : "SINGLE_CHOICE";
+  }
+  return "TEXT";
 }
 
 export function InteractionCard({
@@ -29,17 +66,19 @@ export function InteractionCard({
     () => parseOptions(interaction.options_json),
     [interaction.options_json],
   );
+  const kind = kindOf(interaction, options);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [text, setText] = useState("");
-  const [sending, setSending] = useState(false);
+  const [sending, setSending] = useState<Decision | null>(null);
 
   const expires = interaction.expires_at
     ? new Date(interaction.expires_at).toLocaleString("pt-BR")
     : null;
+  const payloadEnabled = interaction.allow_custom || kind === "TEXT";
 
   function toggle(option: string) {
     setSelected((current) => {
-      if (!interaction.multiple) return new Set([option]);
+      if (kind !== "MULTI_CHOICE") return new Set([option]);
       const next = new Set(current);
       if (next.has(option)) next.delete(option);
       else next.add(option);
@@ -47,17 +86,33 @@ export function InteractionCard({
     });
   }
 
-  async function submit() {
-    if (selected.size === 0 && !text.trim()) return;
-    setSending(true);
+  function canSubmit(decision: Decision): boolean {
+    const payload = text.trim();
+    if (decision === "approve" || decision === "deny") {
+      return true;
+    }
+    if (kind === "APPROVAL") return false;
+    if (kind === "TEXT") return Boolean(payload);
+    return selected.size > 0 || Boolean(payload);
+  }
+
+  async function submit(decision: Decision) {
+    if (!canSubmit(decision)) return;
+    setSending(decision);
     try {
       await apiPost(`/api/interactions/${interaction.id}/resolve`, {
+        decision,
         selected: Array.from(selected),
         text: text.trim() || null,
       });
       toast({
-        tone: "success",
-        title: "Resposta enviada",
+        tone: decision === "deny" ? "warning" : "success",
+        title:
+          decision === "approve"
+            ? "Aprovado"
+            : decision === "deny"
+              ? "Negado"
+              : "Resposta enviada",
         description: "A execução foi retomada.",
       });
       onResolved?.();
@@ -68,7 +123,7 @@ export function InteractionCard({
         description: cause instanceof Error ? cause.message : String(cause),
       });
     } finally {
-      setSending(false);
+      setSending(null);
     }
   }
 
@@ -81,9 +136,7 @@ export function InteractionCard({
             <p className="text-[13.5px] font-medium text-amber-100">
               O agente precisa da sua resposta
             </p>
-            <Badge variant="yellow">
-              {interaction.multiple ? "múltipla escolha" : "escolha"}
-            </Badge>
+            <Badge variant="yellow">{KIND_LABEL[kind]}</Badge>
           </div>
           {expires ? (
             <p className="mt-0.5 text-[11.5px] text-zinc-500">expira em {expires}</p>
@@ -100,7 +153,7 @@ export function InteractionCard({
         </pre>
       ) : null}
 
-      {options.length > 0 ? (
+      {kind !== "TEXT" && kind !== "APPROVAL" && options.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
           {options.map((option) => {
             const active = selected.has(option);
@@ -124,26 +177,71 @@ export function InteractionCard({
         </div>
       ) : null}
 
-      {interaction.allow_custom ? (
+      {payloadEnabled ? (
         <textarea
           value={text}
           onChange={(event) => setText(event.target.value)}
-          rows={3}
-          placeholder="Ou escreva sua própria resposta…"
+          rows={kind === "TEXT" ? 4 : 2}
+          placeholder={
+            kind === "TEXT"
+              ? "Escreva a resposta para o agente…"
+              : kind === "APPROVAL"
+                ? "Payload opcional (vai junto com a aprovação/negação)…"
+                : "Payload opcional ou resposta própria…"
+          }
           className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950/60 px-2.5 py-2 text-[13px] text-zinc-200 outline-none placeholder:text-zinc-500 focus:border-amber-500/50"
-          aria-label="Resposta livre"
+          aria-label={kind === "TEXT" ? "Resposta livre" : "Payload opcional"}
         />
       ) : null}
 
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button
-          size="sm"
-          onClick={() => void submit()}
-          disabled={sending || (selected.size === 0 && !text.trim())}
-        >
-          <CheckCircle2 size={12} />
-          {sending ? "Enviando…" : "Enviar resposta"}
-        </Button>
+        {kind === "APPROVAL" ? (
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-red-500/30 text-red-300"
+              disabled={sending !== null}
+              onClick={() => void submit("deny")}
+            >
+              <X size={12} />
+              {sending === "deny" ? "Negando…" : "Negar"}
+            </Button>
+            <Button
+              size="sm"
+              disabled={sending !== null}
+              onClick={() => void submit("approve")}
+            >
+              <CheckCircle2 size={12} />
+              {sending === "approve" ? "Aprovando…" : "Aprovar"}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-red-500/30 text-red-300"
+              disabled={sending !== null}
+              onClick={() => void submit("deny")}
+            >
+              <X size={12} />
+              Negar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void submit("answer")}
+              disabled={sending !== null || !canSubmit("answer")}
+            >
+              <CheckCircle2 size={12} />
+              {sending === "answer"
+                ? "Enviando…"
+                : kind === "TEXT"
+                  ? "Enviar resposta"
+                  : "Enviar escolha"}
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );

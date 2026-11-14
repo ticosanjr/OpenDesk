@@ -34,11 +34,16 @@ export function HitlCard({
 }) {
   const consequences = hitlConsequences(request);
   const options = parseHitlOptions(request.options_json);
-  const isChoice = request.interaction_type === "MULTI_CHOICE";
+  const isChoice =
+    request.interaction_type === "MULTI_CHOICE" ||
+    request.interaction_type === "SINGLE_CHOICE";
+  const isText = request.interaction_type === "TEXT";
   const isAck = request.interaction_type === "ACKNOWLEDGE";
   const supportsFeedback =
+    request.interaction_type === "APPROVAL" ||
     request.interaction_type === "APPROVAL_WITH_FEEDBACK" ||
-    request.interaction_type === "ARTIFACT_REVIEW";
+    request.interaction_type === "ARTIFACT_REVIEW" ||
+    isText;
   const expiry = request.expires_at
     ? new Date(request.expires_at).toLocaleString("pt-BR")
     : null;
@@ -140,14 +145,14 @@ export function HitlCard({
               disabled={busy || !feedbackText.trim()}
               onClick={onFeedback}
             >
-              Enviar ajustes
+              {isText ? "Enviar resposta" : "Enviar ajustes"}
             </Button>
           </div>
         </div>
       ) : null}
 
       <div className="flex flex-wrap items-center justify-end gap-1.5">
-        {!isChoice ? (
+        {!isChoice && !isText ? (
           <Button size="sm" className="h-7" disabled={busy} onClick={onApprove}>
             {isAck ? "Entendi, continuar" : "Aprovar e continuar"}
           </Button>
@@ -160,7 +165,7 @@ export function HitlCard({
             disabled={busy}
             onClick={onToggleFeedback}
           >
-            Pedir ajustes
+            {isText ? "Responder" : "Pedir ajustes"}
           </Button>
         ) : null}
         {!isAck ? (

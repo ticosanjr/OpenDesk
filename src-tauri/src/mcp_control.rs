@@ -588,6 +588,7 @@ async fn ask_user(client: &Client, endpoint: &ApiEndpoint, args: &Value) -> Resu
     let task_id = required(args, "task_id")?;
     let body = json!({
         "question": required(args, "question")?,
+        "kind": optional(args, "kind"),
         "context": optional(args, "context"),
         "options": args.get("options").cloned().unwrap_or_else(|| json!([])),
         "multiple": bool_arg(args, "multiple").unwrap_or(false),

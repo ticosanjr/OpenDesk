@@ -161,6 +161,7 @@ export interface TaskInteraction {
   question: string;
   context_markdown?: string | null;
   options_json: string;
+  kind: "APPROVAL" | "SINGLE_CHOICE" | "MULTI_CHOICE" | "TEXT" | string;
   multiple: boolean;
   allow_custom: boolean;
   status: "PENDING" | "RESOLVED" | "EXPIRED" | "CANCELLED" | string;

@@ -14,6 +14,7 @@ mod dsh_router;
 mod error;
 mod events;
 mod governance;
+mod hitl;
 mod integrations;
 mod internal_api;
 mod io_bus;

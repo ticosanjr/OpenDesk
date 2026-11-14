@@ -1,3 +1,5 @@
+import type { TaskInteraction } from "@/lib/types";
+
 export interface PermissionRequest {
   id: string;
   request_id: string;
@@ -50,22 +52,7 @@ export interface Attention {
     run_id?: string | null;
     error_message?: string | null;
   }>;
-  task_interactions: Array<{
-    id: string;
-    workspace_id: string;
-    task_id: string;
-    run_id?: string | null;
-    question: string;
-    context_markdown?: string | null;
-    options_json: string;
-    multiple: boolean;
-    allow_custom: boolean;
-    status: string;
-    answer_json?: string | null;
-    expires_at: string;
-    created_at: string;
-    resolved_at?: string | null;
-  }>;
+  task_interactions: TaskInteraction[];
   hitl: HitlRequest[];
   proposals: Proposal[];
   awaiting_approval: Array<{

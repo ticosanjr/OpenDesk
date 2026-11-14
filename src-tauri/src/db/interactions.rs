@@ -12,6 +12,7 @@ pub struct TaskInteraction {
     pub question: String,
     pub context_markdown: Option<String>,
     pub options_json: String,
+    pub kind: String,
     pub multiple: bool,
     pub allow_custom: bool,
     pub status: String,
@@ -22,7 +23,8 @@ pub struct TaskInteraction {
 }
 
 const COLUMNS: &str = "id, workspace_id, task_id, run_id, question, context_markdown, \
-    options_json, multiple, allow_custom, status, answer_json, expires_at, created_at, resolved_at";
+    options_json, kind, multiple, allow_custom, status, answer_json, expires_at, created_at, \
+    resolved_at";
 
 #[derive(Debug, Clone)]
 pub struct CreateInteractionInput {
@@ -32,6 +34,7 @@ pub struct CreateInteractionInput {
     pub question: String,
     pub context_markdown: Option<String>,
     pub options: Vec<String>,
+    pub kind: String,
     pub multiple: bool,
     pub allow_custom: bool,
     pub expires_at: String,
@@ -46,8 +49,8 @@ pub async fn create(
     sqlx::query(
         "INSERT INTO task_interactions (
             id, workspace_id, task_id, run_id, question, context_markdown,
-            options_json, multiple, allow_custom, expires_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            options_json, kind, multiple, allow_custom, expires_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&input.workspace_id)
@@ -56,6 +59,7 @@ pub async fn create(
     .bind(input.question.trim())
     .bind(input.context_markdown.as_deref())
     .bind(&options)
+    .bind(&input.kind)
     .bind(input.multiple)
     .bind(input.allow_custom)
     .bind(&input.expires_at)

@@ -1,4 +1,7 @@
-use crate::error::{AppError, AppResult};
+use crate::{
+    error::{AppError, AppResult},
+    hitl::HitlKind,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -269,19 +272,12 @@ pub fn validate(recipe: &Recipe) -> AppResult<()> {
                         checkpoint.id, checkpoint.after_step
                     )));
                 }
-                if !matches!(
-                    checkpoint.interaction_type.as_str(),
-                    "BINARY_GATE"
-                        | "MULTI_CHOICE"
-                        | "APPROVAL_WITH_FEEDBACK"
-                        | "ARTIFACT_EDIT_HANDOFF"
-                        | "TOOL_PERMISSION_PROXY"
-                ) {
-                    return Err(AppError::BadRequest(format!(
+                let kind = HitlKind::parse(&checkpoint.interaction_type).ok_or_else(|| {
+                    AppError::BadRequest(format!(
                         "interaction_type inválido '{}'",
                         checkpoint.interaction_type
-                    )));
-                }
+                    ))
+                })?;
                 if !matches!(
                     checkpoint.on_timeout.as_str(),
                     "PAUSE_AND_ALERT" | "AUTO_APPROVE" | "ABORT"
@@ -291,10 +287,11 @@ pub fn validate(recipe: &Recipe) -> AppResult<()> {
                         checkpoint.on_timeout
                     )));
                 }
-                if checkpoint.interaction_type == "MULTI_CHOICE" && checkpoint.options.is_empty() {
+                if kind.requires_options() && checkpoint.options.is_empty() {
                     return Err(AppError::BadRequest(format!(
-                        "checkpoint {} MULTI_CHOICE precisa de options",
-                        id
+                        "checkpoint {} {} precisa de options",
+                        id,
+                        kind.as_str()
                     )));
                 }
                 if checkpoint.prompt_template.trim().is_empty() {

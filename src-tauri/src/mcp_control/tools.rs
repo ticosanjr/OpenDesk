@@ -106,17 +106,22 @@ pub(super) fn tools() -> Vec<Value> {
         ),
         tool(
             "ask_user",
-            "Faz uma pergunta de esclarecimento ao humano e pausa a tarefa até a resposta. Use quando faltar informação essencial e não for seguro assumir. Informe o task_id recebido no contexto OpenDesk.",
+            "Faz uma pergunta de esclarecimento ao humano e pausa a tarefa até a resposta. Use quando faltar informação essencial e não for seguro assumir. Escolha o kind: APPROVAL para aprovar/negar uma ação (com payload opcional), SINGLE_CHOICE ou MULTI_CHOICE quando houver options, TEXT para resposta livre. Informe o task_id recebido no contexto OpenDesk.",
             json!({
                 "type": "object",
                 "required": ["task_id", "question"],
                 "properties": {
                     "task_id": { "type": "string" },
                     "question": { "type": "string" },
+                    "kind": {
+                        "type": "string",
+                        "enum": ["APPROVAL", "SINGLE_CHOICE", "MULTI_CHOICE", "TEXT"],
+                        "description": "APPROVAL exige aprovar/negar; escolhas exigem options; TEXT aceita resposta livre."
+                    },
                     "context": { "type": "string" },
                     "options": { "type": "array", "items": { "type": "string" } },
-                    "multiple": { "type": "boolean" },
-                    "allow_custom": { "type": "boolean" },
+                    "multiple": { "type": "boolean", "description": "Compatibilidade: MULTI_CHOICE já implica múltipla seleção." },
+                    "allow_custom": { "type": "boolean", "description": "Permite payload/texto livre junto da decisão." },
                     "timeout_minutes": { "type": "integer", "minimum": 1, "maximum": 120 }
                 }
             }),

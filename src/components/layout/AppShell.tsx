@@ -7,6 +7,7 @@ import { CommandPalette } from "@/components/layout/CommandPalette";
 import { WorkspaceDialog } from "@/components/layout/WorkspaceDialog";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { GlobalHitlModal } from "@/components/interactions/GlobalHitlModal";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Modal } from "@/components/ui/modal";
 import { Toaster } from "@/components/ui/toaster";
@@ -527,6 +528,7 @@ export function AppShell() {
       <CommandPalette />
       <WorkspaceDialog />
       <ConfirmDialog />
+      <GlobalHitlModal />
       <Modal
         open={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}

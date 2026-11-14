@@ -3,6 +3,7 @@ use crate::{
     chat,
     db::{chat as chat_db, interactions, settings, tasks::Task, workspaces},
     error::{AppError, AppResult},
+    hitl::HitlKind,
     secrets::SecretStore,
 };
 use serde::{Deserialize, Serialize};
@@ -334,34 +335,21 @@ async fn handle_incoming(
     if let Some((short, answer)) = parse_interaction_reply(trimmed)
         && let Some(interaction) = interactions::find_pending_by_prefix(&state.db, short).await?
     {
-        let options = interaction_options(&interaction);
-        let selected = parse_selected_options(answer, &options, interaction.multiple);
-        let text = if selected.is_empty() && interaction.allow_custom {
-            Some(answer.trim().to_string()).filter(|value| !value.is_empty())
-        } else {
-            None
-        };
-        if selected.is_empty() && text.is_none() {
-            send_reply(
-                token,
-                &incoming.chat_id,
-                incoming.message_id,
-                &format!(
-                    "Responda com o código e uma opção válida: #{} 1",
-                    short_id(&interaction.id)
-                ),
-            )
-            .await?;
-            return Ok(());
-        }
-        crate::api::interactions::resolve_internal(state, &interaction.id, selected, text).await?;
-        send_reply(
-            token,
-            &incoming.chat_id,
-            incoming.message_id,
-            "Resposta registrada. A tarefa foi retomada.",
+        let (decision, selected, text) =
+            crate::api::interactions::parse_remote_answer(&interaction, answer);
+        let message = match crate::api::interactions::resolve_internal(
+            state,
+            &interaction.id,
+            selected,
+            text,
+            Some(decision),
         )
-        .await?;
+        .await
+        {
+            Ok(_) => "Resposta registrada. A tarefa foi retomada.".to_string(),
+            Err(error) => format!("Não consegui registrar a resposta: {error}"),
+        };
+        send_reply(token, &incoming.chat_id, incoming.message_id, &message).await?;
         return Ok(());
     }
 
@@ -650,24 +638,9 @@ fn interaction_options(interaction: &crate::db::interactions::TaskInteraction) -
     serde_json::from_str(&interaction.options_json).unwrap_or_default()
 }
 
+#[cfg(test)]
 fn parse_selected_options(answer: &str, options: &[String], multiple: bool) -> Vec<String> {
-    if options.is_empty() {
-        return Vec::new();
-    }
-    let mut selected = Vec::new();
-    for part in answer.split([',', ' ']).filter(|part| !part.is_empty()) {
-        let Ok(index) = part.parse::<usize>() else {
-            return Vec::new();
-        };
-        if index == 0 || index > options.len() {
-            return Vec::new();
-        }
-        selected.push(options[index - 1].clone());
-        if !multiple {
-            break;
-        }
-    }
-    selected
+    crate::api::interactions::parse_option_indices(answer, options, multiple)
 }
 
 async fn handle_callback(
@@ -704,24 +677,31 @@ async fn handle_callback(
 }
 
 async fn resolve_interaction_callback(state: &Arc<AppState>, rest: &str) -> AppResult<String> {
-    let (id, index) = rest
+    let (id, action) = rest
         .rsplit_once(':')
         .ok_or_else(|| AppError::BadRequest("callback de interação inválido".into()))?;
     let interaction = interactions::get(&state.db, id).await?;
     if interaction.status != "PENDING" {
         return Ok("Esta pergunta já foi respondida ou expirou.".into());
     }
-    let options = interaction_options(&interaction);
-    let index = index
-        .parse::<usize>()
-        .ok()
-        .filter(|index| *index < options.len())
-        .ok_or_else(|| AppError::BadRequest("opção inexistente".into()))?;
+    let (selected, decision) = match action {
+        "approve" | "deny" => (Vec::new(), action.to_string()),
+        _ => {
+            let options = interaction_options(&interaction);
+            let index = action
+                .parse::<usize>()
+                .ok()
+                .filter(|index| *index < options.len())
+                .ok_or_else(|| AppError::BadRequest("opção inexistente".into()))?;
+            (vec![options[index].clone()], "answer".to_string())
+        }
+    };
     crate::api::interactions::resolve_internal(
         state,
         &interaction.id,
-        vec![options[index].clone()],
+        selected,
         None,
+        Some(decision),
     )
     .await?;
     Ok("Resposta registrada. A tarefa foi retomada.".into())
@@ -770,10 +750,14 @@ fn format_task_interaction(
     task: &Task,
 ) -> String {
     let options = interaction_options(interaction);
+    let kind = HitlKind::effective(&interaction.kind, &options, interaction.multiple);
     let short = short_id(&interaction.id);
     let mut message = format!(
-        "[OpenDesk] Decisão necessária\nTarefa: {}\nStatus: {}\n\nPergunta: {}\n\nCódigo: #{short}",
-        task.title, task.status, interaction.question
+        "[OpenDesk] Decisão necessária\nTarefa: {}\nStatus: {}\nTipo: {}\n\nPergunta: {}\n\nCódigo: #{short}",
+        task.title,
+        task.status,
+        kind.as_str(),
+        interaction.question
     );
     if let Some(context) = interaction
         .context_markdown
@@ -784,38 +768,55 @@ fn format_task_interaction(
         message.push_str("\n\nContexto:\n");
         message.push_str(&truncate(context, 1800));
     }
-    if !options.is_empty() {
-        message.push_str("\n\nOpções:");
-        for (index, option) in options.iter().enumerate() {
-            message.push_str(&format!("\n{}. {}", index + 1, option));
-        }
-        if interaction.multiple {
+    match kind {
+        HitlKind::Approval => {
             message.push_str(&format!(
-                "\n\nResponda com `#{short} 1,2` (separe as opções por vírgula)."
-            ));
-        } else {
-            message.push_str(&format!(
-                "\n\nResponda com os botões ou `#{short} <número>`."
+                "\n\nAprove ou negue pelos botões, ou responda `#{short} aprovar <payload>` / `#{short} negar <payload>`."
             ));
         }
-        if interaction.allow_custom {
-            message.push_str(&format!("\nOu escreva `#{short} <texto livre>`."));
+        HitlKind::SingleChoice | HitlKind::MultiChoice => {
+            message.push_str("\n\nOpções:");
+            for (index, option) in options.iter().enumerate() {
+                message.push_str(&format!("\n{}. {}", index + 1, option));
+            }
+            if kind == HitlKind::MultiChoice {
+                message.push_str(&format!(
+                    "\n\nResponda com `#{short} 1,2` (separe as opções por vírgula) ou `#{short} negar`."
+                ));
+            } else {
+                message.push_str(&format!(
+                    "\n\nResponda com os botões ou `#{short} <número>`; use `#{short} negar` para recusar."
+                ));
+            }
+            message.push_str(&format!("\nPayload opcional: `#{short} <número> <texto>`."));
         }
-    } else {
-        message.push_str(&format!("\n\nResponda com `#{short} <sua resposta>`."));
+        HitlKind::Text => {
+            message.push_str(&format!(
+                "\n\nResponda com `#{short} <sua resposta>` ou `#{short} negar` para encerrar."
+            ));
+        }
     }
     message
 }
 
 fn interaction_markup(interaction: &crate::db::interactions::TaskInteraction) -> Option<Value> {
+    let options = interaction_options(interaction);
+    let kind = HitlKind::effective(&interaction.kind, &options, interaction.multiple);
+    if kind == HitlKind::Approval {
+        return Some(json!({
+            "inline_keyboard": [[
+                { "text": "Aprovar", "callback_data": format!("ti:{}:approve", interaction.id) },
+                { "text": "Negar", "callback_data": format!("ti:{}:deny", interaction.id) },
+            ]]
+        }));
+    }
     if interaction.multiple {
         return None;
     }
-    let options = interaction_options(interaction);
     if options.is_empty() {
         return None;
     }
-    let rows = options
+    let mut rows = options
         .iter()
         .enumerate()
         .map(|(index, option)| {
@@ -825,6 +826,10 @@ fn interaction_markup(interaction: &crate::db::interactions::TaskInteraction) ->
             }])
         })
         .collect::<Vec<_>>();
+    rows.push(json!([{
+        "text": "Negar",
+        "callback_data": format!("ti:{}:deny", interaction.id),
+    }]));
     Some(json!({ "inline_keyboard": rows }))
 }
 
@@ -1627,6 +1632,7 @@ mod tests {
             question: "Aprovar?".into(),
             context_markdown: None,
             options_json: r#"["Aprovar","Rejeitar"]"#.into(),
+            kind: "SINGLE_CHOICE".into(),
             multiple: false,
             allow_custom: true,
             status: "PENDING".into(),
@@ -1637,12 +1643,30 @@ mod tests {
         };
         let markup = interaction_markup(&interaction).expect("markup");
         let rows = markup["inline_keyboard"].as_array().expect("rows");
-        assert_eq!(rows.len(), 2);
+        assert_eq!(rows.len(), 3);
         assert_eq!(
             rows[0][0]["callback_data"],
             "ti:abcdef12-0000-0000-0000-000000000000:0"
         );
+        assert_eq!(
+            rows[2][0]["callback_data"],
+            "ti:abcdef12-0000-0000-0000-000000000000:deny"
+        );
         assert!(rows[0][0]["callback_data"].as_str().unwrap().len() <= 64);
+
+        let approval = crate::db::interactions::TaskInteraction {
+            kind: "APPROVAL".into(),
+            multiple: false,
+            options_json: "[]".into(),
+            ..interaction
+        };
+        let markup = interaction_markup(&approval).expect("approval markup");
+        let rows = markup["inline_keyboard"].as_array().expect("rows");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0][1]["callback_data"],
+            "ti:abcdef12-0000-0000-0000-000000000000:deny"
+        );
     }
 
     #[tokio::test]

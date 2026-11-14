@@ -2677,3 +2677,17 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Migração 0038 (`task_watchers`); `GET/PUT /api/tasks/{id}/watchers`.
 - Formulário de tarefa ganhou “Avisar quando concluir”; editor de receitas
   ganhou configuração do sink Telegram com anexos.
+
+## 2026-11-14 — HITL 2.0 (fase 4)
+
+- HITL unificado em `APPROVAL`, `SINGLE_CHOICE`, `MULTI_CHOICE` e `TEXT`,
+  com mapeamento dos nomes legados de receita.
+- `ask_user` ganhou `kind`; o agente escolhe a estrutura e pode incluir um
+  payload opcional junto da decisão.
+- Resposta única em `POST /api/interactions/{id}/resolve` com
+  `{ decision, selected, text }` e validação por estrutura.
+- Telegram com botões Aprovar/Negar e payload por texto; Signal com
+  notificação e resposta `#código`; modal global no AppShell com notificação
+  nativa.
+- Receitas aceitam os quatro nomes e instruções de resposta por canal.
+- Migração 0039; ADR 0055; testes de API, parsing remoto e InteractionCard.

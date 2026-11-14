@@ -1,8 +1,9 @@
 use crate::{
     app_state::AppState,
     chat,
-    db::{chat as chat_db, settings},
+    db::{chat as chat_db, interactions, settings, tasks::Task},
     error::{AppError, AppResult},
+    hitl::HitlKind,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -302,6 +303,32 @@ async fn handle_incoming(
         return Ok(());
     }
     let trimmed = incoming.text.trim();
+    if let Some((short, answer)) = crate::integrations::telegram::parse_interaction_reply(trimmed)
+        && let Some(interaction) = interactions::find_pending_by_prefix(&state.db, short).await?
+    {
+        let (decision, selected, text) =
+            crate::api::interactions::parse_remote_answer(&interaction, answer);
+        let message = match crate::api::interactions::resolve_internal(
+            state,
+            &interaction.id,
+            selected,
+            text,
+            Some(decision),
+        )
+        .await
+        {
+            Ok(_) => "Resposta registrada. A tarefa foi retomada.".to_string(),
+            Err(error) => format!("Não consegui registrar a resposta: {error}"),
+        };
+        send_text(
+            &config.cli_path,
+            &config.account,
+            &incoming.source,
+            &message,
+        )
+        .await?;
+        return Ok(());
+    }
     let lower = trimmed.to_lowercase();
     if let Some(rest) = lower
         .strip_prefix("aprovar ")
@@ -374,6 +401,61 @@ async fn handle_incoming(
     )
     .await?;
     Ok(())
+}
+
+/// Sends a task HITL request to every allowlisted Signal recipient.
+pub async fn notify_task_interaction(
+    state: &Arc<AppState>,
+    interaction: &crate::db::interactions::TaskInteraction,
+    task: &Task,
+) -> AppResult<usize> {
+    let config = load(&state.db).await?;
+    if !config.enabled || config.account.trim().is_empty() || config.allowlist.is_empty() {
+        return Ok(0);
+    }
+    let kind = HitlKind::parse(&interaction.kind).unwrap_or(HitlKind::Text);
+    let options =
+        serde_json::from_str::<Vec<String>>(&interaction.options_json).unwrap_or_default();
+    let short = crate::integrations::telegram::short_id(&interaction.id);
+    let mut message = format!(
+        "[OpenDesk] Decisão necessária\nTarefa: {}\nStatus: {}\n\nPergunta: {}\n\nCódigo: #{short}",
+        task.title, task.status, interaction.question
+    );
+    if let Some(context) = interaction
+        .context_markdown
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        message.push_str("\n\nContexto:\n");
+        message.push_str(context);
+    }
+    message.push_str("\n\n");
+    match kind {
+        HitlKind::Approval => {
+            message.push_str(&format!(
+                "Responda `#{short} aprovar` ou `#{short} negar`. Para explicar, use `#{short} aprovar <payload>`."
+            ));
+        }
+        HitlKind::SingleChoice | HitlKind::MultiChoice => {
+            message.push_str("Opções:");
+            for (index, option) in options.iter().enumerate() {
+                message.push_str(&format!("\n{}. {option}", index + 1));
+            }
+            message.push_str(&format!(
+                "\n\nResponda `#{short} 1` (ou `#{short} 1,2` para várias) ou `#{short} negar`."
+            ));
+        }
+        HitlKind::Text => {
+            message.push_str(&format!(
+                "Responda `#{short} <sua resposta>`. Use `#{short} negar` para encerrar sem responder."
+            ));
+        }
+    }
+    for recipient in &config.allowlist {
+        send_text(&config.cli_path, &config.account, recipient, &message).await?;
+    }
+    Ok(config.allowlist.len())
 }
 
 pub async fn send_text(

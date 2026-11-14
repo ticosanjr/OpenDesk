@@ -1,6 +1,7 @@
 use crate::{
     app_state::AppState,
     error::{AppError, AppResult},
+    hitl::HitlKind,
     recipes::{
         parser::HitlCheckpoint,
         store::{self, HitlRequest, RecipeRun},
@@ -179,6 +180,30 @@ pub async fn resolve(
     Ok(resolved)
 }
 
+/// Channel-facing instructions for a checkpoint, in the same vocabulary the
+/// Desktop UI uses.
+pub fn reply_instructions(interaction_type: &str, options: &[String]) -> String {
+    let kind = HitlKind::parse(interaction_type).unwrap_or(HitlKind::Text);
+    match kind {
+        HitlKind::Approval => {
+            "Responda APROVAR ou REJEITAR. Para explicar, escreva APROVAR/REJEITAR seguido do payload."
+                .to_string()
+        }
+        HitlKind::SingleChoice | HitlKind::MultiChoice => {
+            let list = options
+                .iter()
+                .enumerate()
+                .map(|(index, option)| format!("{}. {option}", index + 1))
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!(
+                "Responda com o número da opção (ou números separados por vírgula).\n{list}"
+            )
+        }
+        HitlKind::Text => "Responda com o texto desejado na primeira linha.".to_string(),
+    }
+}
+
 pub fn parse_reply(
     interaction_type: &str,
     options: &[String],
@@ -203,21 +228,41 @@ pub fn parse_reply(
     ) {
         return ("REJECTED".into(), Some(clean));
     }
-    if interaction_type == "MULTI_CHOICE"
-        && let Ok(index) = clean.parse::<usize>()
-        && index >= 1
-        && index <= options.len()
-    {
-        return (
-            "CHOICE".into(),
-            Some(
-                serde_json::json!({
-                    "option_index": index - 1,
-                    "option_value": options[index - 1],
-                })
-                .to_string(),
-            ),
-        );
+    let kind = HitlKind::parse(interaction_type).unwrap_or(HitlKind::Text);
+    if kind.requires_options() {
+        let mut selected = Vec::new();
+        for part in clean
+            .split(',')
+            .map(str::trim)
+            .filter(|part| !part.is_empty())
+        {
+            let Ok(index) = part.parse::<usize>() else {
+                selected.clear();
+                break;
+            };
+            if index == 0 || index > options.len() {
+                selected.clear();
+                break;
+            }
+            selected.push(index - 1);
+        }
+        if let Some(first) = selected.first() {
+            let value = selected
+                .iter()
+                .map(|index| options[*index].as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            return (
+                "CHOICE".into(),
+                Some(
+                    serde_json::json!({
+                        "option_index": first,
+                        "option_value": value,
+                    })
+                    .to_string(),
+                ),
+            );
+        }
     }
     ("FEEDBACK".into(), Some(clean))
 }
@@ -376,6 +421,9 @@ mod tests {
         assert_eq!(payload.as_deref(), Some("não"));
         assert_eq!(parse_reply("BINARY_GATE", &[], "> citado\n").0, "FEEDBACK");
 
+        let (kind, _payload) = parse_reply("SINGLE_CHOICE", &["sim".into(), "não".into()], "2");
+        assert_eq!(kind, "CHOICE");
+        assert_eq!(parse_reply("TEXT", &[], "revisar o texto").0, "FEEDBACK");
         let (kind, payload) = parse_reply("MULTI_CHOICE", &["sim".into(), "não".into()], "2");
         assert_eq!(kind, "CHOICE");
         assert!(payload.expect("payload").contains("\"option_index\":1"));
