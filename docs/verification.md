@@ -1,6 +1,6 @@
 # Verificação — fases 0 a 5
 
-Estado verificado na árvore local para o release **0.52.0**. O gate completo
+Estado verificado na árvore local para o release **0.53.0**. O gate completo
 foi executado antes da publicação; as pendências manuais continuam listadas
 abaixo.
 
