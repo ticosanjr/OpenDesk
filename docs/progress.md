@@ -2599,3 +2599,17 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Pacote base `controle-opendesk` 1.2.0; workspaces antigos precisam de
   **Pacotes → Atualizar todos**.
 - Verificação: 417 testes Rust e 222 Vitest; `npm run verify` verde.
+
+## 2026-11-14 — release 0.54.0
+
+- Publicado o chat operacional do Telegram: tarefas, execuções, rotinas,
+  receitas, fila, atenção, resultados e `artifact_read`; “digitando…”,
+  continuidade de thread/sessão, atualização ao vivo e botões inline para HITL
+  de tarefa e permissões.
+- Chat interno corrigido: transcript com rolagem própria, composer sempre
+  visível, atualização ao vivo e goldens `chat-1024`/`chat-1440`.
+- `dashboard-700` atualizado após o rótulo “inclui automações”. Pacote base
+  `controle-opendesk` 1.2.0.
+- Release `ca6dd93`, tag `v0.54.0`; assets Linux (deb/rpm/AppImage/binário),
+  `latest.json` assinado e SHA256SUMS conferido. Retenção manteve 0.52.0,
+  0.53.0 e 0.54.0.
