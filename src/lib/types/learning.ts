@@ -72,6 +72,8 @@ export interface PersonalContextGroup {
   position: number;
   created_at: string;
   updated_at: string;
+  source?: "manual" | "agent" | string;
+  source_quote?: string | null;
 }
 
 export interface PromptPreviewSection {
@@ -131,6 +133,7 @@ export interface PromptTemplateField {
   id: string;
   label: string;
   description: string;
+  group: string;
   placeholders: string[];
 }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Clipboard, FileText, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { Clipboard, FileText, Loader2, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,15 +10,18 @@ import { useAppStore } from "@/store/app-store";
 import { toast } from "@/store/toast-store";
 import { cn } from "@/lib/utils";
 import { smallInputClass as inputClass } from "@/lib/ui-classes";
-
-type View = "sections" | "prompt" | "composed" | "opencode";
+import {
+  PromptPreviewTabs,
+  type PromptPreviewView,
+} from "./PromptPreviewTabs";
+import { OpenCodeLayerView } from "./OpenCodeLayerView";
 
 export function PromptPreviewCard() {
   const workspaceId = useAppStore((state) => state.activeWorkspaceId);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [preview, setPreview] = useState<PromptPreview | null>(null);
-  const [view, setView] = useState<View>("sections");
+  const [view, setView] = useState<PromptPreviewView>("sections");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -122,29 +125,7 @@ export function PromptPreviewCard() {
                   </option>
                 ))}
               </select>
-              <div className="flex rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5">
-                {(["sections", "prompt", "composed", "opencode"] as const).map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setView(value)}
-                    className={cn(
-                      "rounded-md px-2 py-1 text-[12px]",
-                      view === value
-                        ? "bg-zinc-800 text-zinc-100"
-                        : "text-zinc-500 hover:text-zinc-300",
-                    )}
-                  >
-                    {value === "sections"
-                      ? "Seções OpenDesk"
-                      : value === "prompt"
-                        ? "Prompt OpenDesk"
-                        : value === "composed"
-                          ? "Final (reconstruído)"
-                          : "OpenCode"}
-                  </button>
-                ))}
-              </div>
+              <PromptPreviewTabs view={view} onChange={setView} />
             </div>
 
             {preview ? (
@@ -179,7 +160,7 @@ export function PromptPreviewCard() {
                   </div>
                 ) : null}
 
-                {view === "prompt" ? (
+                {view === "desk" ? (
                   <div className="space-y-2">
                     <div className="flex justify-end">
                       <Button
@@ -197,7 +178,7 @@ export function PromptPreviewCard() {
                   </div>
                 ) : null}
 
-                {view === "composed" ? (
+                {view === "final" ? (
                   <div className="space-y-2">
                     <p className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-3 py-2 text-[11.5px] text-amber-200/80">
                       Reconstrução do prompt: inclui o texto exato do OpenDesk e
@@ -223,105 +204,7 @@ export function PromptPreviewCard() {
                 ) : null}
 
                 {view === "opencode" ? (
-                  <div className="space-y-2">
-                    <p className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-3 py-2 text-[11.5px] text-amber-200/80">
-                      {preview.opencode.note ??
-                        "Este conteúdo é carregado pelo OpenCode, não faz parte do prompt enviado pelo OpenDesk."}
-                    </p>
-                    <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 p-3">
-                      <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-zinc-300">
-                        <Sparkles size={12} />
-                        Agente
-                      </p>
-                      {preview.opencode.agent ? (
-                        <>
-                          <p className="mt-1 font-mono text-[11.5px] text-zinc-500">
-                            {preview.opencode.agent.scope} · {preview.opencode.agent.path}
-                          </p>
-                          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[11.5px] leading-relaxed text-zinc-400">
-                            {preview.opencode.agent.system || "(sem prompt próprio)"}
-                          </pre>
-                        </>
-                      ) : (
-                        <p className="mt-1 text-[12px] text-zinc-500">
-                          Agente sem arquivo de prompt próprio.
-                        </p>
-                      )}
-                    </div>
-                    {preview.opencode.agents_md.map((file) => (
-                      <div
-                        key={`${file.scope}:${file.path}`}
-                        className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 p-3"
-                      >
-                        <p className="text-[12.5px] font-medium text-zinc-300">
-                          AGENTS.md · {file.scope}
-                        </p>
-                        <p className="mt-1 break-all font-mono text-[11.5px] text-zinc-500">
-                          {file.path}
-                        </p>
-                        <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap font-mono text-[11.5px] leading-relaxed text-zinc-400">
-                          {file.content}
-                        </pre>
-                      </div>
-                    ))}
-                    <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 p-3">
-                      <p className="text-[12.5px] font-medium text-zinc-300">
-                        Skills disponíveis
-                      </p>
-                      {preview.opencode.skills.length === 0 ? (
-                        <p className="mt-1 text-[12px] text-zinc-500">Nenhuma skill.</p>
-                      ) : (
-                        <div className="mt-1 space-y-1">
-                          {preview.opencode.skills.map((skill) => (
-                            <p key={`${skill.scope}:${skill.id}`} className="text-[12px] text-zinc-400">
-                              <span className="font-mono text-zinc-500">{skill.scope}</span>{" "}
-                              {skill.name}
-                              {skill.description ? ` — ${skill.description}` : ""}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 p-3">
-                      <p className="text-[12.5px] font-medium text-zinc-300">
-                        Comandos
-                      </p>
-                      {preview.opencode.commands.length === 0 ? (
-                        <p className="mt-1 text-[12px] text-zinc-500">Nenhum comando.</p>
-                      ) : (
-                        <div className="mt-1 space-y-1">
-                          {preview.opencode.commands.map((command) => (
-                            <p key={`${command.scope}:${command.id}`} className="text-[12px] text-zinc-400">
-                              <span className="font-mono text-zinc-500">{command.scope}</span>{" "}
-                              /{command.id}
-                              {command.description ? ` — ${command.description}` : ""}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 p-3">
-                      <p className="text-[12.5px] font-medium text-zinc-300">
-                        Servidores MCP
-                      </p>
-                      {preview.opencode.mcp_servers.length === 0 ? (
-                        <p className="mt-1 text-[12px] text-zinc-500">Nenhum servidor MCP.</p>
-                      ) : (
-                        <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap font-mono text-[11.5px] leading-relaxed text-zinc-400">
-                          {JSON.stringify(
-                            preview.opencode.mcp_servers.map((item) => ({
-                              scope: item.scope,
-                              ...(typeof item.server === "object" && item.server
-                                ? item.server
-                                : { server: item.server }),
-                            })),
-                            null,
-                            2,
-                          )}
-                        </pre>
-                      )}
-                    </div>
-                  </div>
+                  <OpenCodeLayerView layer={preview.opencode} />
                 ) : null}
               </>
             ) : loading ? (

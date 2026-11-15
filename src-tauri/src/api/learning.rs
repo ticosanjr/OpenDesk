@@ -26,6 +26,22 @@ pub struct ScanQuery {
 }
 
 #[derive(Debug, Deserialize, Default)]
+pub struct CreateLessonBody {
+    #[serde(default)]
+    pub workspace_id: Option<String>,
+    pub title: String,
+    pub detail: String,
+    #[serde(default)]
+    pub category: Option<String>,
+    #[serde(default)]
+    pub severity: Option<String>,
+    #[serde(default)]
+    pub agent_name: Option<String>,
+    #[serde(default)]
+    pub remember: bool,
+}
+
+#[derive(Debug, Deserialize, Default)]
 pub struct ResolveLearningBody {
     #[serde(default)]
     pub requested_by: Option<String>,
@@ -53,6 +69,34 @@ pub async fn overview(
         "lessons": lessons,
         "proposals": pending,
     })))
+}
+
+pub async fn create_lesson(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<CreateLessonBody>,
+) -> crate::error::AppResult<Json<crate::learning::LearningLesson>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, body.workspace_id.as_deref()).await?;
+    let workspace = workspaces::get(&state.db, &workspace_id).await?;
+    let lesson = learning::save_manual(
+        &state.db,
+        std::path::Path::new(&workspace.root_path),
+        &state.paths.backups_dir,
+        &workspace_id,
+        learning::ManualLessonInput {
+            title: body.title,
+            detail: body.detail,
+            category: body.category,
+            severity: body.severity,
+            agent_name: body.agent_name,
+            remember: body.remember,
+        },
+    )
+    .await?;
+    state
+        .events
+        .publish(OpenDeskWsEvent::LearningUpdated { workspace_id });
+    Ok(Json(lesson))
 }
 
 pub async fn update_settings(

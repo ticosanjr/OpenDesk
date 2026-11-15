@@ -276,11 +276,21 @@ export function PersonalContextCard() {
                         >
                           {group.scope}
                         </Badge>
+                        {group.source === "agent" ? (
+                          <Badge variant="yellow">via agente</Badge>
+                        ) : null}
                       </div>
                       {!isEditing ? (
-                        <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-relaxed text-zinc-400">
-                          {group.instructions}
-                        </p>
+                        <>
+                          <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-relaxed text-zinc-400">
+                            {group.instructions}
+                          </p>
+                          {group.source === "agent" && group.source_quote ? (
+                            <p className="mt-1 text-[11px] italic text-zinc-600">
+                              Pedido: “{group.source_quote}”
+                            </p>
+                          ) : null}
+                        </>
                       ) : null}
                     </div>
                     <div className="flex items-center gap-1">

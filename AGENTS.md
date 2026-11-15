@@ -151,8 +151,9 @@ Telegram/Signal, HITL 2.0 unificado (APPROVAL, SINGLE_CHOICE, MULTI_CHOICE,
 TEXT) com decisão/payload, modal global de decisão, tela única de execução
 (agente/modelo/comando/skill, status ao vivo e stop), envio de arquivos pelo
 chat/Telegram e artefatos criados por shell, chat com execuções/stop e
-observabilidade por origem, templates de prompt e prévia HTML/JSON, além do
-atalho automático do AppImage no menu/barra de tarefas.
+observabilidade por origem, templates de prompt em três abas, memória via MCP
+(aprendizado vs contexto pessoal) e prévia HTML/JSON, além do atalho automático
+do AppImage no menu/barra de tarefas.
 Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
 Fábrica de Capacidades default (`meta-forge`). O MCP `opendesk-control` permite
 aos agentes operar tarefas, execuções, rotinas, receitas, fila e artefatos; o

@@ -126,11 +126,19 @@ pub async fn send_message_with_context(
             &[("personal_context", &personal_body)],
         )
     };
-    let prompt_text = match context.map(str::trim).filter(|value| !value.is_empty()) {
-        Some(context) => format!("{personal_context}\n\n{context}\n\n{content}"),
-        None if personal_context.is_empty() => content.to_string(),
-        None => format!("{personal_context}\n\n{content}"),
-    };
+    let memory_policy = crate::dsh_router::prompt_templates::render(&templates.memory_policy, &[]);
+    let mut parts = Vec::new();
+    if !personal_context.trim().is_empty() {
+        parts.push(personal_context.trim().to_string());
+    }
+    if let Some(context) = context.map(str::trim).filter(|value| !value.is_empty()) {
+        parts.push(context.to_string());
+    }
+    if !memory_policy.trim().is_empty() {
+        parts.push(memory_policy);
+    }
+    parts.push(content.to_string());
+    let prompt_text = parts.join("\n\n");
 
     let since_ms = now_ms();
     let mut prompt_message = Value::Null;

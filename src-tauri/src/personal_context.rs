@@ -21,10 +21,12 @@ pub struct PersonalContextGroup {
     pub position: i64,
     pub created_at: String,
     pub updated_at: String,
+    pub source: String,
+    pub source_quote: Option<String>,
 }
 
 const COLUMNS: &str = "id, workspace_id, scope, name, instructions, is_enabled, position, \
-    created_at, updated_at";
+    created_at, updated_at, source, source_quote";
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PersonalContextInput {
@@ -41,6 +43,9 @@ pub struct PersonalContextInput {
     pub is_enabled: bool,
     #[serde(default)]
     pub position: Option<i64>,
+    /// Present only when the agent saves on an explicit user request.
+    #[serde(default)]
+    pub source_quote: Option<String>,
 }
 
 fn default_scope() -> String {
@@ -133,10 +138,21 @@ pub async fn create(
             max.unwrap_or(-1) + 1
         }
     };
+    let source_quote = input
+        .source_quote
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let source = if source_quote.is_some() {
+        "agent"
+    } else {
+        "manual"
+    };
     sqlx::query(
         "INSERT INTO personal_context_groups
-            (id, workspace_id, scope, name, instructions, is_enabled, position)
-         VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (id, workspace_id, scope, name, instructions, is_enabled, position, source, source_quote)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&workspace_id)
@@ -145,6 +161,8 @@ pub async fn create(
     .bind(&instructions)
     .bind(input.is_enabled)
     .bind(position)
+    .bind(source)
+    .bind(source_quote.as_deref())
     .execute(pool)
     .await?;
     get(pool, &id).await
@@ -157,10 +175,23 @@ pub async fn update(
 ) -> AppResult<PersonalContextGroup> {
     let current = get(pool, id).await?;
     let (scope, workspace_id, name, instructions) = validate(&input, pool, None).await?;
+    let source_quote = input
+        .source_quote
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .or_else(|| current.source_quote.clone());
+    let source = if source_quote.is_some() {
+        "agent"
+    } else {
+        current.source.as_str()
+    };
     sqlx::query(
         "UPDATE personal_context_groups SET
             workspace_id = ?, scope = ?, name = ?, instructions = ?,
-            is_enabled = ?, position = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            is_enabled = ?, position = ?, source = ?, source_quote = ?,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
          WHERE id = ?",
     )
     .bind(&workspace_id)
@@ -169,6 +200,8 @@ pub async fn update(
     .bind(&instructions)
     .bind(input.is_enabled)
     .bind(input.position.unwrap_or(current.position))
+    .bind(source)
+    .bind(source_quote.as_deref())
     .bind(id)
     .execute(pool)
     .await?;
@@ -277,6 +310,7 @@ mod tests {
                 instructions: "Responda de forma direta.".into(),
                 is_enabled: true,
                 position: None,
+                source_quote: None,
             },
         )
         .await
@@ -290,6 +324,7 @@ mod tests {
                 instructions: "Prefira português.".into(),
                 is_enabled: true,
                 position: Some(10),
+                source_quote: None,
             },
         )
         .await
@@ -303,6 +338,7 @@ mod tests {
                 instructions: "Não deve aparecer.".into(),
                 is_enabled: false,
                 position: Some(20),
+                source_quote: None,
             },
         )
         .await

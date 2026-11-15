@@ -74,6 +74,8 @@ OpenCode permanecendo nos arquivos nativos do disco.
   é cortado em cinco minutos.
 - Observabilidade por origem (trabalho, rotina, receita, automação,
   Telegram/Signal/Desktop) e templates editáveis de prompt.
+- Configurações → Prompt com três abas e previews Seções/OpenDesk/OpenCode/
+  Final reconstruído; `learning_save` e `personal_context_save` no MCP.
 - Prévia HTML com recarga, JSON formatado, contexto pessoal sem título e
   ferramentas externas no Dashboard.
 - Chat interativo com qualquer agente, histórico, streaming por sessão e custo;
@@ -324,6 +326,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0058 — Turnos de chat como execuções](docs/decisions/0058-chat-turns-as-executions.md)
 - [ADR 0059 — Templates de prompt e reconstrução](docs/decisions/0059-prompt-templates-and-reconstruction.md)
 - [ADR 0060 — Prévia HTML/JSON, contexto pessoal e ferramentas](docs/decisions/0060-file-viewer-personal-context-and-tools.md)
+- [ADR 0061 — Abas de prompt e memória via MCP](docs/decisions/0061-prompt-tabs-and-memory-destinations.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

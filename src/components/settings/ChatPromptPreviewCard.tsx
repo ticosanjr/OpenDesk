@@ -10,8 +10,11 @@ import { useAppStore } from "@/store/app-store";
 import { toast } from "@/store/toast-store";
 import { cn } from "@/lib/utils";
 import { smallInputClass as inputClass } from "@/lib/ui-classes";
-
-type View = "sections" | "prompt" | "composed";
+import {
+  PromptPreviewTabs,
+  type PromptPreviewView,
+} from "./PromptPreviewTabs";
+import { OpenCodeLayerView } from "./OpenCodeLayerView";
 
 export function ChatPromptPreviewCard() {
   const workspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -19,7 +22,7 @@ export function ChatPromptPreviewCard() {
   const [selected, setSelected] = useState("");
   const [content, setContent] = useState("");
   const [preview, setPreview] = useState<ChatPromptPreview | null>(null);
-  const [view, setView] = useState<View>("sections");
+  const [view, setView] = useState<PromptPreviewView>("sections");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -125,27 +128,7 @@ export function ChatPromptPreviewCard() {
                   </option>
                 ))}
               </select>
-              <div className="flex rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5">
-                {(["sections", "prompt", "composed"] as const).map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setView(value)}
-                    className={cn(
-                      "rounded-md px-2 py-1 text-[12px]",
-                      view === value
-                        ? "bg-zinc-800 text-zinc-100"
-                        : "text-zinc-500 hover:text-zinc-300",
-                    )}
-                  >
-                    {value === "sections"
-                      ? "Seções"
-                      : value === "prompt"
-                        ? "Prompt exato"
-                        : "Final (reconstruído)"}
-                  </button>
-                ))}
-              </div>
+              <PromptPreviewTabs view={view} onChange={setView} />
             </div>
 
             <label>
@@ -194,7 +177,7 @@ export function ChatPromptPreviewCard() {
                   </div>
                 ) : null}
 
-                {view === "prompt" ? (
+                {view === "desk" ? (
                   <div className="space-y-2">
                     <div className="flex justify-end">
                       <Button
@@ -212,7 +195,11 @@ export function ChatPromptPreviewCard() {
                   </div>
                 ) : null}
 
-                {view === "composed" ? (
+                {view === "opencode" ? (
+                  <OpenCodeLayerView layer={preview.opencode} />
+                ) : null}
+
+                {view === "final" ? (
                   <div className="space-y-2">
                     <p className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-3 py-2 text-[11.5px] text-amber-200/80">
                       {preview.opencode.note}

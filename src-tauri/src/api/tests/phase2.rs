@@ -12,11 +12,14 @@ async fn personal_context_crud_and_prompt_preview() {
             "workspace_id": ctx.workspace_id,
             "name": "Tom",
             "instructions": "Responda de forma direta e em português.",
-            "is_enabled": true
+            "is_enabled": true,
+            "source_quote": "Salve no contexto pessoal"
         })),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{group}");
+    assert_eq!(group["source"], "agent");
+    assert_eq!(group["source_quote"], "Salve no contexto pessoal");
     let id = group["id"].as_str().expect("id");
 
     let (status, listed) = call(

@@ -479,10 +479,20 @@ async fn execute_step(
     )
     .await?;
     let prompt = parser::render(&step.prompt, trigger, run_vars, outputs)?;
-    let prompt = match &feedback {
-        Some(feedback) => format!(
-            "{prompt}\n\n## Correção do usuário\n\n{feedback}\n\nRefaça o step considerando a correção."
-        ),
+    let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
+        &state.db,
+        Some(&run.workspace_id),
+    )
+    .await
+    .unwrap_or_default();
+    let prompt = match feedback.as_deref() {
+        Some(feedback) => {
+            let block = crate::dsh_router::prompt_templates::render(
+                &templates.recipe_feedback,
+                &[("feedback", feedback)],
+            );
+            format!("{prompt}\n\n{block}")
+        }
         None => prompt,
     };
     tasks::update(

@@ -535,10 +535,6 @@ pub struct ModelTestResult {
     pub error_message: Option<String>,
 }
 
-/// The smallest useful prompt: it validates provider auth/quota without a
-/// session, history or tools. It costs a handful of tokens.
-const MODEL_TEST_PROMPT: &str = "Output only: OK";
-
 /// Performs one stateless generation with the selected model so the UI can
 /// distinguish engine connectivity from provider quota/auth failures.
 pub async fn test_model(
@@ -548,7 +544,13 @@ pub async fn test_model(
     let model = ModelRefDto::parse(&body.model)
         .ok_or_else(|| AppError::BadRequest(format!("modelo inválido '{}'", body.model)))?;
     let model_label = format!("{}/{}", model.provider_id, model.id);
-    let _ = crate::api::tasks::resolve_workspace_id(&state, body.workspace_id.as_deref()).await?;
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, body.workspace_id.as_deref()).await?;
+    let templates =
+        crate::dsh_router::prompt_templates::PromptTemplates::load(&state.db, Some(&workspace_id))
+            .await
+            .unwrap_or_default();
+    let model_test_prompt = crate::dsh_router::prompt_templates::render(&templates.model_test, &[]);
     let Some(client) = state.daemon.client().await else {
         return Ok(Json(ModelTestResult {
             ok: false,
@@ -576,7 +578,7 @@ pub async fn test_model(
 
     let result = tokio::time::timeout(
         Duration::from_secs(45),
-        client.generate_text(MODEL_TEST_PROMPT, Some(model.clone())),
+        client.generate_text(&model_test_prompt, Some(model.clone())),
     )
     .await;
 

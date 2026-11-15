@@ -206,6 +206,12 @@ pub fn pack_sections(context: &PackContext<'_>, templates: &PromptTemplates) -> 
         "OpenDesk HITL",
         render(&templates.opendesk_context, &[("task_id", context.task_id)]),
     );
+    push(
+        "memory_policy",
+        "Política de memória",
+        "Aprendizado/MCP",
+        render(&templates.memory_policy, &[]),
+    );
 
     sections
 }

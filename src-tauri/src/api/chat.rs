@@ -193,10 +193,19 @@ pub async fn prompt_preview(
     }
     sections.push(PromptSection {
         id: "channel".into(),
-        label: "Contexto do canal".into(),
+        label: "Prompt do chat".into(),
         source: cap_first(&thread.source),
         content: channel.clone(),
     });
+    let memory_policy = crate::dsh_router::prompt_templates::render(&templates.memory_policy, &[]);
+    if !memory_policy.trim().is_empty() {
+        sections.push(PromptSection {
+            id: "memory_policy".into(),
+            label: "Política de memória".into(),
+            source: "Aprendizado/MCP".into(),
+            content: memory_policy.clone(),
+        });
+    }
     if !content.trim().is_empty() {
         sections.push(PromptSection {
             id: "message".into(),
@@ -205,11 +214,16 @@ pub async fn prompt_preview(
             content: content.clone(),
         });
     }
-    let prompt = [personal.trim(), channel.trim(), content.trim()]
-        .into_iter()
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n\n");
+    let prompt = [
+        personal.trim(),
+        channel.trim(),
+        memory_policy.trim(),
+        content.trim(),
+    ]
+    .into_iter()
+    .filter(|part| !part.is_empty())
+    .collect::<Vec<_>>()
+    .join("\n\n");
     let layer =
         super::prompt_layer::snapshot(std::path::Path::new(&workspace.root_path), &thread.agent);
     let composed = super::prompt_layer::compose(&prompt, &layer);

@@ -186,7 +186,7 @@ mod migration_tests {
                 .fetch_all(&pool)
                 .await
                 .unwrap();
-        assert_eq!(rows.last().unwrap().0, 40, "rows: {rows:?}");
+        assert_eq!(rows.last().unwrap().0, 41, "rows: {rows:?}");
         let calendar_table: Option<(String,)> = sqlx::query_as(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'calendar_events'",
         )

@@ -93,6 +93,8 @@ async fn chat_prompt_preview_shows_channel_and_thread_context() {
     assert!(prompt.contains("Contexto do canal Telegram"));
     assert!(prompt.contains(&thread.id));
     assert!(prompt.contains("chat_send_file"));
+    assert!(prompt.contains("learning_save"));
+    assert!(prompt.contains("personal_context_save"));
     assert!(
         preview["sections"]
             .as_array()

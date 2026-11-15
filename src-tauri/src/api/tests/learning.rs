@@ -224,3 +224,28 @@ async fn learning_settings_can_disable_capture() {
     .await;
     assert_eq!(scan["lessons"], 0);
 }
+
+#[tokio::test]
+async fn manual_learning_is_saved_and_can_be_remembered() {
+    let ctx = test_support::context().await;
+    let (status, lesson) = call(
+        &ctx,
+        Method::POST,
+        "/api/learning/lessons",
+        Some(json!({
+            "workspace_id": ctx.workspace_id,
+            "title": "Preferência de resposta",
+            "detail": "Responder em português e citar fontes.",
+            "category": "manual",
+            "remember": true
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{lesson}");
+    assert_eq!(lesson["category"], "manual");
+    assert!(lesson["remembered_at"].is_string());
+    let memory =
+        std::fs::read_to_string(ctx.workspace_root.join(".opencode/MEMORY.md")).expect("memory");
+    assert!(memory.contains("Preferência de resposta"));
+    assert!(memory.contains("Responder em português"));
+}

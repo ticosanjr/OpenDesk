@@ -87,6 +87,44 @@ async fn dispatch(workspace_id: &str, tool: &str, args: Value) -> Result<Value> 
             .await
         }
         "ask_user" => ask_user(&client, &endpoint, &args).await,
+        "learning_save" => {
+            let body = json!({
+                "title": required(&args, "title")?,
+                "detail": required(&args, "detail")?,
+                "category": optional(&args, "category"),
+                "severity": optional(&args, "severity"),
+                "agent_name": optional(&args, "agent_name"),
+                "remember": bool_arg(&args, "remember").unwrap_or(false),
+                "workspace_id": optional(&args, "workspace_id"),
+            });
+            call(
+                &client,
+                &endpoint,
+                Method::POST,
+                "/api/learning/lessons",
+                Some(body),
+            )
+            .await
+        }
+        "personal_context_save" => {
+            let body = json!({
+                "scope": optional(&args, "scope").unwrap_or_else(|| "workspace".into()),
+                "name": optional(&args, "name"),
+                "instructions": required(&args, "instructions")?,
+                "user_request": required(&args, "user_request")?,
+                "is_enabled": true,
+                "source_quote": required(&args, "user_request")?,
+                "workspace_id": optional(&args, "workspace_id"),
+            });
+            call(
+                &client,
+                &endpoint,
+                Method::POST,
+                "/api/personal-context",
+                Some(body),
+            )
+            .await
+        }
         "chat_send_file" => {
             let thread_id = required(&args, "thread_id")?;
             let body = json!({

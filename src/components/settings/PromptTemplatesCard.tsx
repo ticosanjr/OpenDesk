@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, RotateCcw, Save, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,14 @@ export function PromptTemplatesCard() {
   }, [load]);
 
   const field = fields.find((item) => item.id === selected) ?? null;
+  const groups = useMemo(() => {
+    const map = new Map<string, PromptTemplateField[]>();
+    for (const item of fields) {
+      const group = item.group || "Geral";
+      map.set(group, [...(map.get(group) ?? []), item]);
+    }
+    return Array.from(map.entries());
+  }, [fields]);
 
   async function save() {
     setSaving(true);
@@ -111,7 +119,7 @@ export function PromptTemplatesCard() {
         <div>
           <CardTitle className="flex items-center gap-2">
             <SlidersHorizontal size={15} className="text-zinc-500" />
-            Prompts automáticos
+            Templates de prompts
           </CardTitle>
           <p className="mt-1 text-xs text-zinc-500">
             Edite cada bloco que o OpenDesk injeta antes de enviar a tarefa ao
@@ -148,21 +156,28 @@ export function PromptTemplatesCard() {
           </p>
         ) : (
           <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <div className="scroll-area max-h-[420px] space-y-0.5 overflow-y-auto rounded-lg border border-zinc-800/70 bg-zinc-950/30 p-1">
-              {fields.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setSelected(item.id)}
-                  className={cn(
-                    "w-full rounded-md px-2 py-1.5 text-left text-[12.5px] transition-colors",
-                    selected === item.id
-                      ? "bg-zinc-800 text-zinc-100"
-                      : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200",
-                  )}
-                >
-                  {item.label}
-                </button>
+            <div className="scroll-area max-h-[420px] space-y-2 overflow-y-auto rounded-lg border border-zinc-800/70 bg-zinc-950/30 p-1">
+              {groups.map(([group, items]) => (
+                <div key={group}>
+                  <p className="px-2 pb-1 pt-1 text-[10.5px] font-medium uppercase tracking-[0.12em] text-zinc-600">
+                    {group}
+                  </p>
+                  {items.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setSelected(item.id)}
+                      className={cn(
+                        "w-full rounded-md px-2 py-1.5 text-left text-[12.5px] transition-colors",
+                        selected === item.id
+                          ? "bg-zinc-800 text-zinc-100"
+                          : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200",
+                      )}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               ))}
             </div>
             {field ? (

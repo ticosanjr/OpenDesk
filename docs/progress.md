@@ -2730,3 +2730,13 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Arquivos: prévia HTML com recarga automática/botão, JSON formatado nativo,
   contexto pessoal sem título e ferramentas externas detectadas no Dashboard.
 - Migração 0040; ADRs 0058, 0059 e 0060.
+
+## 2026-11-15 — abas de prompt, cobertura e memória via MCP
+
+- Configurações → Prompt divididas em Templates de prompts, Prompts enviados e
+  Prompts de chat; previews com Seções, OpenDesk, OpenCode e Final reconstruído.
+- Templates ganharam política de memória, correção de step de receita e prompt
+  de teste de modelo; o prompt do chat é o contexto de canal.
+- MCP: `learning_save` (aprendizado/MEMORY.md) e `personal_context_save` só com
+  pedido explícito e citação do usuário.
+- Migração 0041 (`source`/`source_quote` do contexto pessoal); ADR 0061.

@@ -147,6 +147,14 @@ pendências manuais continuam listadas abaixo.
   detecção ampliada de ferramentas externas.
 - Migração 0040; ADRs 0058–0060.
 
+## Pós-0.58.0 — abas de prompt e memória via MCP
+
+- Configurações → Prompt com três abas e previews na ordem Seções/OpenDesk/
+  OpenCode/Final reconstruído.
+- Templates adicionais: memória, correção de receita e teste de modelo.
+- `learning_save` e `personal_context_save` com citação explícita; migração
+  0041; ADR 0061.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

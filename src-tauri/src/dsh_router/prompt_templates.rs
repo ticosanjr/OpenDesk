@@ -29,6 +29,9 @@ pub struct PromptTemplates {
     pub chat_channel: String,
     pub follow_up: String,
     pub execution_instruction: String,
+    pub memory_policy: String,
+    pub recipe_feedback: String,
+    pub model_test: String,
 }
 
 impl Default for PromptTemplates {
@@ -52,6 +55,9 @@ impl Default for PromptTemplates {
             opendesk_context: "## Contexto OpenDesk\n\nTask ID: `{{task_id}}`. Se faltar informação essencial para continuar, use a ferramenta MCP `ask_user` com este task_id antes de assumir.".into(),
             follow_up: "## Conversa com o usuário\n\n{{conversation}}\n\nContinue a execução considerando a mensagem acima.".into(),
             execution_instruction: "## Instruções desta execução\n\n{{instruction}}".into(),
+            memory_policy: "## Memória e contexto pessoal\n\nPara aprendizados, preferências e pedidos de \"memorize\", use `learning_save` (com remember=true quando o usuário pedir para memorizar).\nSó use `personal_context_save` quando o usuário pedir explicitamente para salvar no contexto pessoal. Caso contrário, salve como aprendizado.".into(),
+            recipe_feedback: "## Correção do usuário\n\n{{feedback}}\n\nRefaça o step considerando a correção.".into(),
+            model_test: "Output only: OK".into(),
             chat_channel: "Contexto do canal {{source}} (não repita ao usuário):\nVocê está operando o OpenDesk no workspace `{{workspace_id}}` e nesta conversa `{{thread_id}}`.\nUse as ferramentas MCP `opendesk-control` quando o pedido envolver o OpenDesk: tarefas, execuções, rotinas, receitas, fila, artefatos e decisão humana (`ask_user`).\n{{file_hint}}Nunca ative rotina/receita nem aprove HITL/permissão sem pedido explícito.\nResponda em português, de forma curta, citando IDs e caminhos relevantes.".into(),
         }
     }
@@ -84,6 +90,7 @@ pub struct PromptTemplateField {
     pub id: &'static str,
     pub label: &'static str,
     pub description: &'static str,
+    pub group: &'static str,
     pub placeholders: &'static [&'static str],
 }
 
@@ -92,30 +99,35 @@ pub const FIELDS: &[PromptTemplateField] = &[
         id: "permanent",
         label: "Instruções permanentes",
         description: "Prefixo estável de toda tarefa.",
+        group: "Tarefa",
         placeholders: &[],
     },
     PromptTemplateField {
         id: "completion",
         label: "Critérios de conclusão",
         description: "O que o agente deve garantir antes de terminar.",
+        group: "Tarefa",
         placeholders: &[],
     },
     PromptTemplateField {
         id: "personal_block",
         label: "Contexto pessoal",
         description: "Bloco que envolve as regras pessoais.",
+        group: "Tarefa",
         placeholders: &["personal_context"],
     },
     PromptTemplateField {
         id: "memory_block",
         label: "Memória do workspace",
         description: "Bloco de MEMORY.md.",
+        group: "Tarefa",
         placeholders: &["memory"],
     },
     PromptTemplateField {
         id: "task_meta",
         label: "Metadados da tarefa",
         description: "Título, prioridade, tags, fase, agente e workspace.",
+        group: "Tarefa",
         placeholders: &[
             "task_title",
             "priority",
@@ -129,70 +141,122 @@ pub const FIELDS: &[PromptTemplateField] = &[
         id: "description",
         label: "Descrição da tarefa",
         description: "Onde entra o pedido do usuário.",
+        group: "Tarefa",
         placeholders: &["task_description"],
     },
     PromptTemplateField {
         id: "output",
         label: "Diretório de saída",
         description: "Regra obrigatória de entrega.",
+        group: "Tarefa",
         placeholders: &["output_directory"],
     },
     PromptTemplateField {
         id: "inputs",
         label: "Arquivos de entrada",
         description: "Lista de arquivos disponíveis no workspace.",
+        group: "Tarefa",
         placeholders: &["input_files"],
     },
     PromptTemplateField {
         id: "plan_phase",
         label: "Fase PLAN",
         description: "Instruções quando o roteador escolhe plano.",
+        group: "Tarefa",
         placeholders: &[],
     },
     PromptTemplateField {
         id: "build_phase",
         label: "Fase BUILD",
         description: "Instruções de execução; use plan_block para o plano aprovado.",
+        group: "Tarefa",
         placeholders: &["plan_block"],
     },
     PromptTemplateField {
         id: "audit_phase",
         label: "Fase AUDIT",
         description: "Instruções de auditoria.",
+        group: "Tarefa",
         placeholders: &["output_directory"],
     },
     PromptTemplateField {
         id: "browse",
         label: "Navegação web",
         description: "Instruções do OpenCode Browse; allowlist_line é dinâmica.",
+        group: "Tarefa",
         placeholders: &["allowlist_line"],
     },
     PromptTemplateField {
         id: "care_quick",
         label: "Cuidado: rápido",
         description: "Nível quick.",
+        group: "Tarefa",
         placeholders: &[],
     },
     PromptTemplateField {
         id: "care_standard",
         label: "Cuidado: padrão",
         description: "Nível standard.",
+        group: "Tarefa",
         placeholders: &[],
     },
     PromptTemplateField {
         id: "care_careful",
         label: "Cuidado: cuidadoso",
         description: "Nível careful.",
+        group: "Tarefa",
         placeholders: &[],
     },
     PromptTemplateField {
         id: "opendesk_context",
         label: "Contexto OpenDesk",
         description: "Task ID e instrução do ask_user.",
+        group: "Tarefa",
         placeholders: &["task_id"],
     },
+    PromptTemplateField {
+        id: "follow_up",
+        label: "Continuação de tarefa",
+        description: "Mensagem do usuário em uma continuação de execução.",
+        group: "Tarefa",
+        placeholders: &["conversation"],
+    },
+    PromptTemplateField {
+        id: "execution_instruction",
+        label: "Instrução avulsa da execução",
+        description: "Comando/skill/instrução adicionada na tela de execução.",
+        group: "Tarefa",
+        placeholders: &["instruction"],
+    },
+    PromptTemplateField {
+        id: "chat_channel",
+        label: "Prompt do chat",
+        description: "Instruções gerais do chat por canal (Desktop/Telegram/Signal).",
+        group: "Chat",
+        placeholders: &["source", "workspace_id", "thread_id", "file_hint"],
+    },
+    PromptTemplateField {
+        id: "memory_policy",
+        label: "Política de memória",
+        description: "Diz ao agente quando usar aprendizado e quando usar contexto pessoal.",
+        group: "Memória",
+        placeholders: &[],
+    },
+    PromptTemplateField {
+        id: "recipe_feedback",
+        label: "Correção de step de receita",
+        description: "Bloco enviado ao refazer um passo de receita.",
+        group: "Rotina e receita",
+        placeholders: &["feedback"],
+    },
+    PromptTemplateField {
+        id: "model_test",
+        label: "Teste de modelo",
+        description: "Prompt mínimo do diagnóstico de modelo. Altere com cuidado.",
+        group: "Diagnóstico",
+        placeholders: &[],
+    },
 ];
-
 pub async fn load(
     pool: &sqlx::SqlitePool,
     workspace_id: Option<&str>,
@@ -281,6 +345,9 @@ mod tests {
                 "chat_channel" => &templates.chat_channel,
                 "follow_up" => &templates.follow_up,
                 "execution_instruction" => &templates.execution_instruction,
+                "memory_policy" => &templates.memory_policy,
+                "recipe_feedback" => &templates.recipe_feedback,
+                "model_test" => &templates.model_test,
                 _ => panic!("uncovered field {}", field.id),
             };
             assert!(!value.trim().is_empty(), "field {}", field.id);

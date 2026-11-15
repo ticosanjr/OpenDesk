@@ -140,6 +140,38 @@ pub(super) fn tools() -> Vec<Value> {
             }),
         ),
         tool(
+            "learning_save",
+            "Salva um aprendizado do agente no workspace. Use para preferências, lições e pedidos de memorizar. remember=true grava também no MEMORY.md. Nunca use esta ferramenta para contexto pessoal; para isso existe personal_context_save, somente com pedido explícito do usuário.",
+            json!({
+                "type": "object",
+                "required": ["title", "detail"],
+                "properties": {
+                    "title": { "type": "string", "description": "Título curto do aprendizado." },
+                    "detail": { "type": "string", "description": "O que deve ser lembrado, com contexto suficiente." },
+                    "category": { "type": "string", "description": "Categoria livre; padrão manual." },
+                    "severity": { "type": "string", "enum": ["info", "warning", "critical"] },
+                    "remember": { "type": "boolean", "description": "true quando o usuário pedir para memorizar; grava no MEMORY.md." },
+                    "agent_name": { "type": "string" },
+                    "workspace_id": { "type": "string", "description": "Workspace alvo; vazio usa o ativo." }
+                }
+            }),
+        ),
+        tool(
+            "personal_context_save",
+            "Salva uma regra no contexto pessoal. SÓ use quando o usuário pedir explicitamente para salvar no contexto pessoal; copie o pedido literal em user_request. Para memorizações genéricas use learning_save.",
+            json!({
+                "type": "object",
+                "required": ["instructions", "user_request"],
+                "properties": {
+                    "instructions": { "type": "string", "description": "A regra que deve entrar nos prompts." },
+                    "user_request": { "type": "string", "description": "Citação literal do pedido explícito do usuário para salvar no contexto pessoal." },
+                    "scope": { "type": "string", "enum": ["workspace", "global"] },
+                    "name": { "type": "string", "description": "Rótulo interno opcional." },
+                    "workspace_id": { "type": "string", "description": "Workspace alvo; vazio usa o ativo." }
+                }
+            }),
+        ),
+        tool(
             "task_message_list",
             "Lista as mensagens e comentários de uma tarefa.",
             json!({
@@ -431,6 +463,8 @@ mod tests {
             "task_dispatch",
             "ask_user",
             "chat_send_file",
+            "learning_save",
+            "personal_context_save",
             "task_message_list",
             "task_message_post",
             "run_list",
@@ -452,6 +486,6 @@ mod tests {
         ] {
             assert!(names.iter().any(|name| name == expected), "{expected}");
         }
-        assert_eq!(names.len(), 26);
+        assert_eq!(names.len(), 28);
     }
 }

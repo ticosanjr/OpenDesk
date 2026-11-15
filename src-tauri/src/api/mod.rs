@@ -494,6 +494,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             post(governance::resolve_delegation),
         )
         .route("/api/learning", get(learning::overview))
+        .route("/api/learning/lessons", post(learning::create_lesson))
         .route("/api/learning/settings", put(learning::update_settings))
         .route("/api/learning/scan", post(learning::scan))
         .route(
