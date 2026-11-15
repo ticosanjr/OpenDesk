@@ -3,16 +3,22 @@ use crate::{
     db::{
         budget,
         chat::{self, ChatMessage, ChatThread},
+        chat_turns::{self, CreateChatTurnInput},
+        runs::{self, CreateChatRunInput, RunUsage},
         workspaces,
     },
     error::{AppError, AppResult},
     opencode_client::rest_client::ModelRefDto,
 };
+use chrono::Utc;
 use serde::Serialize;
 use serde_json::Value;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
 
-const CHAT_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+const CHAT_TIMEOUT: Duration = Duration::from_secs(2 * 60 * 60);
+const CANCEL_MESSAGE: &str = "chat turn cancelled";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ChatReply {
@@ -21,12 +27,17 @@ pub struct ChatReply {
     pub assistant: ChatMessage,
     pub usage: ChatUsage,
     pub error: Option<String>,
+    pub run_id: Option<String>,
+    pub turn_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ChatUsage {
     pub tokens_input: i64,
     pub tokens_output: i64,
+    pub tokens_reasoning: i64,
+    pub tokens_cache_read: i64,
+    pub tokens_cache_write: i64,
     pub estimated_cost_usd: f64,
 }
 
@@ -72,6 +83,25 @@ pub async fn send_message_with_context(
         }
     };
 
+    let started = Instant::now();
+    let started_at = Utc::now().to_rfc3339();
+    let turn = chat_turns::create(
+        &state.db,
+        CreateChatTurnInput {
+            workspace_id: thread.workspace_id.clone(),
+            thread_id: thread.id.clone(),
+            source: thread.source.clone(),
+            agent: thread.agent.clone(),
+            model: thread.model.clone(),
+            user_content: content.to_string(),
+        },
+    )
+    .await
+    .ok();
+    let cancel = turn
+        .as_ref()
+        .map(|turn| state.begin_chat_turn(&thread.id, &turn.id, Some(&session_id)));
+
     let user = chat::add_message(&state.db, &thread.id, "user", content, None).await?;
     state
         .events
@@ -90,63 +120,174 @@ pub async fn send_message_with_context(
     };
 
     let since_ms = now_ms();
+    let mut prompt_message = Value::Null;
     let prompt_result = tokio::time::timeout(CHAT_TIMEOUT, async {
-        if let Err(error) = client.prompt(&session_id, &prompt_text).await {
-            let message = format!("{error:#}");
-            if !is_missing_session_error(&message) {
-                return Err(format!("could not send prompt: {message}"));
+        match client.prompt(&session_id, &prompt_text).await {
+            Ok(value) => prompt_message = value,
+            Err(error) => {
+                let message = format!("{error:#}");
+                if !is_missing_session_error(&message) {
+                    return Err(format!("could not send prompt: {message}"));
+                }
+                // The daemon may have restarted or pruned old sessions.
+                // Recreate once so the local thread keeps its history/context.
+                let session_id_new = client
+                    .create_session(
+                        &workspace.root_path,
+                        &thread.title,
+                        &thread.agent,
+                        thread.model.as_deref().and_then(parse_model_ref),
+                    )
+                    .await
+                    .map_err(|error| format!("could not recreate chat session: {error:#}"))?;
+                chat::update_session(&state.db, &thread.id, &session_id_new)
+                    .await
+                    .map_err(|error| format!("could not persist new chat session: {error}"))?;
+                session_id = session_id_new;
+                prompt_message = client
+                    .prompt(&session_id, &prompt_text)
+                    .await
+                    .map_err(|error| format!("could not send prompt: {error:#}"))?;
             }
-            // The daemon may have restarted or pruned old sessions. Recreate
-            // once so the local thread keeps its history and context.
-            let session_id_new = client
-                .create_session(
-                    &workspace.root_path,
-                    &thread.title,
-                    &thread.agent,
-                    thread.model.as_deref().and_then(parse_model_ref),
-                )
-                .await
-                .map_err(|error| format!("could not recreate chat session: {error:#}"))?;
-            chat::update_session(&state.db, &thread.id, &session_id_new)
-                .await
-                .map_err(|error| format!("could not persist new chat session: {error}"))?;
-            session_id = session_id_new;
-            client
-                .prompt(&session_id, &prompt_text)
-                .await
-                .map_err(|error| format!("could not send prompt: {error:#}"))?;
         }
-        wait_for_turn(&client, &session_id, since_ms).await
+        match cancel.as_ref() {
+            Some(cancel) => wait_for_turn(&client, &session_id, since_ms, cancel).await,
+            None => wait_for_turn(&client, &session_id, since_ms, &CancellationToken::new()).await,
+        }
     })
     .await;
 
-    let (answer, usage, error) = match prompt_result {
+    let (answer, usage, error, status, turn_value) = match prompt_result {
         Ok(Ok(value)) => {
             let (text, usage) = parse_assistant_since(&value, since_ms);
             match text {
-                Some(text) => (text, usage, None),
+                Some(text) => (text, usage, None, "SUCCESS", Some(value)),
                 None => {
                     let message = "O agente encerrou o turno sem texto. Tente novamente; se persistir, veja os eventos da sessão.";
                     (
                         format!("⚠️ {message}"),
                         usage,
                         Some("empty assistant response".to_string()),
+                        "FAILED",
+                        Some(value),
                     )
                 }
             }
         }
-        Ok(Err(message)) => (format!("⚠️ {message}"), ChatUsage::default(), Some(message)),
-        Err(_) => (
-            "⚠️ A resposta excedeu o tempo limite de 5 minutos.".to_string(),
+        Ok(Err(message)) if message == CANCEL_MESSAGE => (
+            "Execução interrompida.".to_string(),
             ChatUsage::default(),
-            Some("chat timeout after 5 minutes".to_string()),
+            Some("cancelled".to_string()),
+            "CANCELLED",
+            None,
+        ),
+        Ok(Err(message)) => (
+            format!("⚠️ {message}"),
+            ChatUsage::default(),
+            Some(message),
+            "FAILED",
+            None,
+        ),
+        Err(_) => (
+            "⚠️ A execução excedeu o limite de 2 horas. Use Parar para encerrar antes.".to_string(),
+            ChatUsage::default(),
+            Some("chat timeout after 2 hours".to_string()),
+            "FAILED",
+            None,
         ),
     };
+
+    let duration_ms = started.elapsed().as_millis() as i64;
+    let prompt_message_id = prompt_message
+        .pointer("/data/info/id")
+        .or_else(|| prompt_message.pointer("/info/id"))
+        .or_else(|| prompt_message.pointer("/data/id"))
+        .or_else(|| prompt_message.get("id"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let (has_tool, writes) = turn_value
+        .as_ref()
+        .map(|value| crate::opencode_client::session_runner::chat_turn_signals(value, since_ms))
+        .unwrap_or((false, Vec::new()));
+    let diffs = if let (Some(value), Some(message_id)) = (&turn_value, prompt_message_id.as_deref())
+    {
+        let _ = value;
+        client
+            .diff_for_message(&session_id, message_id)
+            .await
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    let used_tools = has_tool || !diffs.is_empty() || !writes.is_empty();
+
+    let mut run_id = None;
+    if used_tools {
+        let (provider_id, model_id) = turn_value
+            .as_ref()
+            .and_then(|value| turn_model(value, since_ms))
+            .or_else(|| {
+                thread
+                    .model
+                    .as_deref()
+                    .and_then(parse_model_ref)
+                    .map(|model| (Some(model.provider_id), model.id))
+            })
+            .unwrap_or((None, "auto".to_string()));
+        let id = Uuid::now_v7().to_string();
+        let run = runs::create_chat(
+            &state.db,
+            CreateChatRunInput {
+                id: id.clone(),
+                workspace_id: thread.workspace_id.clone(),
+                session_id: Some(session_id.clone()),
+                agent_name: thread.agent.clone(),
+                provider_id,
+                model_id,
+                channel: thread.source.clone(),
+                origin_ref: thread.id.clone(),
+                started_at: started_at.clone(),
+            },
+        )
+        .await;
+        if let Ok(_run) = run {
+            let _ = runs::finish(
+                &state.db,
+                &id,
+                status,
+                &run_usage(&usage),
+                duration_ms,
+                Some(&answer),
+                None,
+            )
+            .await;
+            if let Some(error) = &error {
+                let _ = runs::set_error(&state.db, &id, "chat_turn_failed", error, "").await;
+            }
+            if let Some(turn) = &turn {
+                let _ = chat_turns::set_run(&state.db, &turn.id, &id).await;
+            }
+            crate::queue_scheduler::run_execution::record_chat_artifacts(
+                &state.db,
+                &state.events,
+                &thread.workspace_id,
+                &id,
+                &thread.agent,
+                &format!("Chat · {}", thread.source),
+                std::path::Path::new(&workspace.root_path),
+                &diffs,
+                &writes,
+            )
+            .await;
+            run_id = Some(id);
+        }
+    }
 
     let metadata = serde_json::json!({
         "usage": usage,
         "error": error,
         "session_id": session_id,
+        "run_id": run_id,
     });
     let assistant = chat::add_message(
         &state.db,
@@ -163,6 +304,21 @@ pub async fn send_message_with_context(
             workspace_id: thread.workspace_id.clone(),
         });
 
+    if let Some(turn) = &turn {
+        let _ = chat_turns::finish(
+            &state.db,
+            &turn.id,
+            status,
+            Some(&answer),
+            &run_usage(&usage),
+            duration_ms,
+            error.as_deref().map(|_| "chat_turn_failed"),
+            error.as_deref(),
+        )
+        .await;
+        state.finish_chat_turn(&thread.id, &turn.id);
+    }
+
     let thread = chat::get_thread(&state.db, &thread.id).await?;
     if thread.title == "Nova conversa" {
         let title = content.chars().take(60).collect::<String>();
@@ -176,7 +332,47 @@ pub async fn send_message_with_context(
         assistant,
         usage,
         error,
+        run_id,
+        turn_id: turn.map(|turn| turn.id),
     })
+}
+
+fn run_usage(usage: &ChatUsage) -> RunUsage {
+    RunUsage {
+        tokens_input: usage.tokens_input,
+        tokens_output: usage.tokens_output,
+        tokens_reasoning: usage.tokens_reasoning,
+        tokens_cache_read: usage.tokens_cache_read,
+        tokens_cache_write: usage.tokens_cache_write,
+        estimated_cost_usd: usage.estimated_cost_usd,
+    }
+}
+
+fn turn_model(value: &Value, since_ms: i64) -> Option<(Option<String>, String)> {
+    let messages = value.get("data").and_then(Value::as_array)?;
+    for message in messages.iter().rev() {
+        if message.get("type").and_then(Value::as_str) != Some("assistant") {
+            continue;
+        }
+        let created = message
+            .pointer("/time/created")
+            .and_then(Value::as_i64)
+            .unwrap_or(0);
+        if created < since_ms {
+            continue;
+        }
+        let Some(model_id) = message.get("modelID").and_then(Value::as_str) else {
+            continue;
+        };
+        return Some((
+            message
+                .get("providerID")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            model_id.to_string(),
+        ));
+    }
+    None
 }
 
 /// Operational context prepended to every channel prompt. Telegram, Signal and
@@ -300,6 +496,7 @@ async fn wait_for_turn(
     client: &crate::opencode_client::rest_client::RestClient,
     session_id: &str,
     since_ms: i64,
+    cancel: &CancellationToken,
 ) -> Result<Value, String> {
     const IDLE_WITHOUT_TEXT_GRACE: Duration = Duration::from_secs(2);
     const TEXT_STABLE_GRACE: Duration = Duration::from_secs(30);
@@ -307,6 +504,9 @@ async fn wait_for_turn(
     let mut stable_since: Option<std::time::Instant> = None;
     let mut idle_without_text_since: Option<std::time::Instant> = None;
     loop {
+        if cancel.is_cancelled() {
+            return Err(CANCEL_MESSAGE.into());
+        }
         let value = client
             .messages(session_id)
             .await
@@ -340,7 +540,10 @@ async fn wait_for_turn(
             stable_signature = signature;
             stable_since = Some(std::time::Instant::now());
         }
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        tokio::select! {
+            _ = cancel.cancelled() => return Err(CANCEL_MESSAGE.into()),
+            _ = tokio::time::sleep(Duration::from_millis(500)) => {}
+        }
     }
 }
 
@@ -363,6 +566,11 @@ fn parse_assistant_since(value: &Value, since_ms: i64) -> (Option<String>, ChatU
         if let Some(tokens) = message.get("tokens") {
             usage.tokens_input += tokens.get("input").and_then(Value::as_i64).unwrap_or(0);
             usage.tokens_output += tokens.get("output").and_then(Value::as_i64).unwrap_or(0);
+            usage.tokens_reasoning += tokens.get("reasoning").and_then(Value::as_i64).unwrap_or(0);
+            if let Some(cache) = tokens.get("cache") {
+                usage.tokens_cache_read += cache.get("read").and_then(Value::as_i64).unwrap_or(0);
+                usage.tokens_cache_write += cache.get("write").and_then(Value::as_i64).unwrap_or(0);
+            }
         }
         let text = message_text(message);
         if !text.trim().is_empty() {
@@ -494,7 +702,9 @@ mod tests {
             &format!("http://{address}"),
             "secret".into(),
         );
-        let value = wait_for_turn(&client, "ses-1", 1000).await.expect("turn");
+        let value = wait_for_turn(&client, "ses-1", 1000, &CancellationToken::new())
+            .await
+            .expect("turn");
         let (text, _) = parse_assistant_since(&value, 1000);
         assert_eq!(text.as_deref(), Some("Meu poema novo"));
         handle.abort();
@@ -545,7 +755,7 @@ mod tests {
             &format!("http://{address}"),
             "secret".into(),
         );
-        let value = wait_for_turn(&client, "ses-1", 1000)
+        let value = wait_for_turn(&client, "ses-1", 1000, &CancellationToken::new())
             .await
             .expect("turn with tools");
         let (text, _) = parse_assistant_since(&value, 1000);

@@ -7,6 +7,7 @@ import {
   MessageCircle,
   Plug,
   Send,
+  Wrench,
 } from "lucide-react";
 import type { IntegrationOverviewItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ const ICONS: Record<string, typeof Plug> = {
   calendar: CalendarDays,
   signal: MessageCircle,
   telegram: Send,
+  tools: Wrench,
 };
 
 export function IntegrationFootprint({

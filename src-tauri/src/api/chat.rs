@@ -109,8 +109,27 @@ pub async fn send_message(
         }
     }
     let context = chat::channel_context("Desktop", &thread.workspace_id, &thread.id);
+    // Detach the turn so a browser reload does not abort the OpenCode work. The
+    // handler still waits for the reply in the normal case, while the task keeps
+    // running (and persisting messages) if the request is dropped.
+    let handle = tokio::spawn(async move {
+        chat::send_message_with_context(&state, thread, &content, Some(&context)).await
+    });
+    match handle.await {
+        Ok(result) => Ok(Json(result?)),
+        Err(error) => Err(AppError::Internal(format!(
+            "chat task terminated unexpectedly: {error}"
+        ))),
+    }
+}
+
+pub async fn latest_turn(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<Option<crate::db::chat_turns::ChatTurn>>> {
+    let _ = chat_db::get_thread(&state.db, &id).await?;
     Ok(Json(
-        chat::send_message_with_context(&state, thread, &content, Some(&context)).await?,
+        crate::db::chat_turns::latest_for_thread(&state.db, &id).await?,
     ))
 }
 
@@ -227,6 +246,45 @@ pub(crate) fn resolve_workspace_file(
         ));
     }
     Ok(canonical)
+}
+
+/// Stops the active chat turn. The wait loop sees the cancellation token and
+/// marks the chat turn as CANCELLED; OpenCode is interrupted as well.
+pub async fn interrupt_thread(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<serde_json::Value>> {
+    let thread = chat_db::get_thread(&state.db, &id).await?;
+    let (turn_id, session_id) = match state.cancel_chat_turn(&thread.id) {
+        Some(value) => value,
+        None => {
+            let Some(active) = crate::db::chat_turns::active_for_thread(&state.db, &id).await?
+            else {
+                return Err(AppError::Conflict(
+                    "nenhuma execução em andamento nesta conversa".into(),
+                ));
+            };
+            let _ = crate::db::chat_turns::finish(
+                &state.db,
+                &active.id,
+                "CANCELLED",
+                active.assistant_content.as_deref(),
+                &crate::db::runs::RunUsage::default(),
+                active.duration_ms,
+                Some("cancelled"),
+                Some("interrompido pelo usuário"),
+            )
+            .await;
+            (active.id, thread.opencode_session_id.clone())
+        }
+    };
+    let session = session_id.or(thread.opencode_session_id);
+    if let Some(session) = session
+        && let Some(client) = state.daemon.client().await
+    {
+        let _ = client.interrupt(&session).await;
+    }
+    Ok(Json(serde_json::json!({ "ok": true, "turn_id": turn_id })))
 }
 
 pub async fn delete_thread(

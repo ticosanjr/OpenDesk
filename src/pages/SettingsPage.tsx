@@ -42,6 +42,7 @@ import { FilePreferencesCard } from "@/components/settings/FilePreferencesCard";
 import { BackupsCard } from "@/components/settings/BackupsCard";
 import { AuditCard } from "@/components/settings/AuditCard";
 import { PromptPreviewCard } from "@/components/settings/PromptPreviewCard";
+import { PromptTemplatesCard } from "@/components/settings/PromptTemplatesCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiDelete, apiGet, apiPatch, apiPut } from "@/lib/api";
@@ -174,7 +175,8 @@ export function SettingsPage() {
         </div>
       ) : null}
       {activeTab === "prompt" ? (
-        <div id="settings-prompt">
+        <div id="settings-prompt" className="space-y-3">
+          <PromptTemplatesCard />
           <PromptPreviewCard />
         </div>
       ) : null}

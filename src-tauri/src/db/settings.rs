@@ -34,6 +34,14 @@ pub async fn set(pool: &SqlitePool, key: &str, value: &serde_json::Value) -> App
     Ok(())
 }
 
+pub async fn delete(pool: &SqlitePool, key: &str) -> AppResult<()> {
+    sqlx::query("DELETE FROM app_settings WHERE key = ?")
+        .bind(key)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 pub async fn all(pool: &SqlitePool) -> AppResult<Vec<AppSetting>> {
     Ok(sqlx::query_as::<_, AppSetting>(
         "SELECT key, value_json, updated_at FROM app_settings ORDER BY key",

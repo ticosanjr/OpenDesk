@@ -298,7 +298,7 @@ impl RestClient {
             .ok_or_else(|| anyhow::anyhow!("OpenCode generate response had no text: {value}"))
     }
 
-    pub async fn prompt(&self, session_id: &str, text: &str) -> Result<()> {
+    pub async fn prompt(&self, session_id: &str, text: &str) -> Result<Value> {
         let response = self
             .request(
                 reqwest::Method::POST,
@@ -309,11 +309,11 @@ impl RestClient {
             .await
             .context("could not send OpenCode prompt")?;
         let status = response.status();
+        let value = response.json::<Value>().await.unwrap_or(Value::Null);
         if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("OpenCode prompt failed ({status}): {body}");
+            anyhow::bail!("OpenCode prompt failed ({status}): {value}");
         }
-        Ok(())
+        Ok(value)
     }
 
     pub async fn interrupt(&self, session_id: &str) -> Result<()> {
@@ -358,6 +358,22 @@ impl RestClient {
     pub async fn diff(&self, session_id: &str) -> Result<Vec<FileDiff>> {
         let envelope: DataEnvelope<Vec<FileDiff>> = self
             .get_json(&format!("/api/session/{session_id}/diff"), None)
+            .await?;
+        Ok(envelope.data)
+    }
+
+    /// Diff for one user message. Without the message id OpenCode returns an
+    /// empty list, so chat turns must pass the id returned by the prompt.
+    pub async fn diff_for_message(
+        &self,
+        session_id: &str,
+        message_id: &str,
+    ) -> Result<Vec<FileDiff>> {
+        let envelope: DataEnvelope<Vec<FileDiff>> = self
+            .get_json(
+                &format!("/api/session/{session_id}/diff?messageID={message_id}"),
+                None,
+            )
             .await?;
         Ok(envelope.data)
     }
@@ -546,7 +562,7 @@ mod tests {
             )
             .route(
                 "/api/session/{id}/prompt",
-                post(|| async { StatusCode::NO_CONTENT }),
+                post(|| async { Json(serde_json::json!({ "data": { "id": "msg-user" } })) }),
             )
             .route(
                 "/api/session/{id}/interrupt",

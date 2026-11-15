@@ -12,6 +12,8 @@ pub async fn boot_check(pool: &SqlitePool) -> AppResult<()> {
     if result != "ok" {
         tracing::error!(result, "SQLite quick_check failed");
     }
+    // Chat turns are in-flight only while the process is alive.
+    let _ = crate::db::chat_turns::mark_interrupted(pool).await;
     Ok(())
 }
 

@@ -1,6 +1,6 @@
 use crate::{
     app_state::AppState,
-    config_sync::{agents, paths::StudioPaths, skills},
+    config_sync::{agents, commands, jsonc_editor, paths::StudioPaths, skills},
     db::{tasks, workspaces},
     dsh_router::{self, PackContext},
     error::AppResult,
@@ -12,14 +12,6 @@ use axum::{
 use serde::Serialize;
 use serde_json::Value;
 use std::sync::Arc;
-
-#[derive(Debug, Serialize)]
-pub struct PromptSection {
-    pub id: String,
-    pub label: String,
-    pub source: String,
-    pub content: String,
-}
 
 #[derive(Debug, Serialize)]
 pub struct OpenCodeAgent {
@@ -36,6 +28,17 @@ pub struct OpenCodeSkill {
     pub name: String,
     pub description: Option<String>,
     pub path: String,
+    pub body: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OpenCodeCommand {
+    pub id: String,
+    pub scope: String,
+    pub description: Option<String>,
+    pub agent: Option<String>,
+    pub template: String,
+    pub path: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -47,8 +50,11 @@ pub struct PromptPreview {
     pub model: String,
     pub output_directory: String,
     pub prompt: String,
-    pub sections: Vec<PromptSection>,
+    pub sections: Vec<crate::dsh_router::context_packer::PromptSection>,
     pub opencode: Value,
+    /// OpenDesk prompt plus everything read from the OpenCode native files. It
+    /// is a reconstruction, not the provider wire payload.
+    pub composed: String,
 }
 
 pub async fn preview(
@@ -81,9 +87,15 @@ pub async fn preview(
     )
     .await?;
     let personal_context = crate::personal_context::render(&state.db, &task.workspace_id).await?;
-    let packed = dsh_router::pack(&PackContext {
+    let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
+        &state.db,
+        Some(&task.workspace_id),
+    )
+    .await?;
+    let context = PackContext {
         workspace_root: std::path::Path::new(&workspace.root_path),
         output_directory: &decision.output_directory,
+        task_id: &task.id,
         task_title: &task.title,
         task_description: &task.description,
         tags: &tags,
@@ -91,18 +103,21 @@ pub async fn preview(
         phase: &decision.phase,
         plan: task.plan_markdown.as_deref(),
         agent: &decision.selected_agent,
+        care_level: &task.care_level,
         needs_browser: crate::browse::needs_browser(&task.title, &task.description, &tags),
         personal_context: &personal_context,
-    });
-    let prompt = format!(
-        "{packed}{}\n\n## Contexto OpenDesk\n\nTask ID: `{}`. Se faltar informação essencial para continuar, use a ferramenta MCP `ask_user` com este task_id antes de assumir.\n",
-        crate::api::tasks::task_dispatch::care_instructions(&task.care_level),
-        task.id
-    );
-    let sections = split_sections(&prompt);
+    };
+    let sections = dsh_router::context_packer::pack_sections(&context, &templates);
+    let prompt = sections
+        .iter()
+        .map(|section| section.content.as_str())
+        .collect::<Vec<_>>()
+        .join("\n\n");
     let paths = StudioPaths::new(Some(std::path::PathBuf::from(&workspace.root_path)));
     let mut open_agent = None;
     let mut open_skills = Vec::new();
+    let mut open_commands = Vec::new();
+    let mut open_mcp = Vec::new();
     for scope in ["workspace", "global"] {
         if open_agent.is_none()
             && let Ok(items) = agents::list(&paths, scope)
@@ -128,10 +143,86 @@ pub async fn preview(
                         name: skill.name,
                         description: skill.description,
                         path: skill.path,
+                        body: skill.body,
                     }),
             );
         }
+        if let Ok(items) = commands::list(&paths, scope) {
+            open_commands.extend(items.into_iter().filter(|command| !command.disabled).map(
+                |command| OpenCodeCommand {
+                    id: command.id,
+                    scope: command.scope,
+                    description: command.description,
+                    agent: command.agent,
+                    template: command.template,
+                    path: command.path,
+                },
+            ));
+        }
+        if let Ok(document) = jsonc_editor::read_for_scope(&paths, scope) {
+            for server in jsonc_editor::list_mcp_servers(&document) {
+                open_mcp.push(serde_json::json!({
+                    "scope": scope,
+                    "server": server,
+                }));
+            }
+        }
     }
+
+    let mut agents_md = Vec::new();
+    for (scope, path) in [
+        (
+            "workspace",
+            std::path::Path::new(&workspace.root_path).join("AGENTS.md"),
+        ),
+        ("global", paths.global_dir.join("AGENTS.md")),
+    ] {
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            agents_md.push(serde_json::json!({
+                "scope": scope,
+                "path": path.to_string_lossy(),
+                "content": content,
+            }));
+        }
+    }
+
+    let mut composed = prompt.clone();
+    if let Some(agent) = &open_agent
+        && !agent.system.trim().is_empty()
+    {
+        composed.push_str(&format!(
+            "\n\n## OpenCode — prompt do agente @{}\n\n{}",
+            agent.id,
+            agent.system.trim()
+        ));
+    }
+    for file in &agents_md {
+        let scope = file.get("scope").and_then(Value::as_str).unwrap_or("");
+        let content = file.get("content").and_then(Value::as_str).unwrap_or("");
+        if !content.trim().is_empty() {
+            composed.push_str(&format!(
+                "\n\n## OpenCode — AGENTS.md ({scope})\n\n{}",
+                content.trim()
+            ));
+        }
+    }
+    for skill in &open_skills {
+        let body = skill.body.trim();
+        let body = body.chars().take(8_000).collect::<String>();
+        composed.push_str(&format!(
+            "\n\n## OpenCode — skill {} ({})\n\n{}",
+            skill.name, skill.scope, body
+        ));
+    }
+    for command in &open_commands {
+        composed.push_str(&format!(
+            "\n\n## OpenCode — comando /{} ({})\n\n{}",
+            command.id,
+            command.scope,
+            command.template.trim()
+        ));
+    }
+
     Ok(Json(PromptPreview {
         task_id: task.id,
         workspace_id: task.workspace_id,
@@ -143,93 +234,12 @@ pub async fn preview(
         sections,
         opencode: serde_json::json!({
             "agent": open_agent,
+            "agents_md": agents_md,
             "skills": open_skills,
-            "note": "O agente e as skills são carregados pelo OpenCode; o texto acima é o prompt enviado pelo OpenDesk."
+            "commands": open_commands,
+            "mcp_servers": open_mcp,
+            "note": "O OpenCode monta o payload do provedor internamente. Esta visão reúne o prompt exato do OpenDesk e tudo o que o OpenCode lê da configuração nativa; o system prompt interno e os schemas de ferramentas não são expostos pela API."
         }),
+        composed,
     }))
-}
-
-fn split_sections(prompt: &str) -> Vec<PromptSection> {
-    let mut sections = Vec::new();
-    let mut current: Option<(String, String, String)> = None;
-    let mut buffer = String::new();
-    for line in prompt.lines() {
-        let heading = line.starts_with("# ");
-        let subheading = line.starts_with("## ");
-        if heading || subheading {
-            if let Some((id, label, source)) = current.take() {
-                sections.push(PromptSection {
-                    id,
-                    label,
-                    source,
-                    content: buffer.trim().to_string(),
-                });
-            }
-            buffer.clear();
-            let text = line.trim_start_matches('#').trim().to_string();
-            let (id, source) = source_for(&text);
-            current = Some((id.to_string(), text, source.to_string()));
-        }
-        buffer.push_str(line);
-        buffer.push('\n');
-    }
-    if let Some((id, label, source)) = current {
-        sections.push(PromptSection {
-            id,
-            label,
-            source,
-            content: buffer.trim().to_string(),
-        });
-    } else if !buffer.trim().is_empty() {
-        sections.push(PromptSection {
-            id: "base".into(),
-            label: "Prompt".into(),
-            source: "OpenDesk".into(),
-            content: buffer.trim().to_string(),
-        });
-    }
-    sections
-}
-
-fn source_for(label: &str) -> (&'static str, &'static str) {
-    let lower = label.to_lowercase();
-    if lower.contains("instruções permanentes") || lower == "critérios de conclusão" {
-        ("permanent", "OpenDesk")
-    } else if lower.contains("contexto pessoal") {
-        ("personal", "Contexto pessoal")
-    } else if lower.contains("memória") {
-        ("memory", "Aprendizado/MEMORY.md")
-    } else if lower.contains("tarefa") || lower == "descrição" {
-        ("task", "Tarefa")
-    } else if lower.contains("diretório de saída") {
-        ("output", "Workspace")
-    } else if lower.contains("arquivos de entrada") {
-        ("inputs", "Workspace")
-    } else if lower.contains("instruções da fase") || lower.contains("plano aprovado") {
-        ("phase", "Roteador/Plano")
-    } else if lower.contains("opencode browse") {
-        ("browser", "OpenCode Browse")
-    } else if lower.contains("nível de cuidado") {
-        ("care", "Nível de cuidado")
-    } else if lower.contains("contexto opendesk") {
-        ("context", "OpenDesk HITL")
-    } else {
-        ("other", "Outro")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn splits_prompt_by_origin() {
-        let sections = split_sections(
-            "# OpenDesk — instruções permanentes\nA\n\n## Contexto pessoal do usuário\nB\n\n# Tarefa OpenDesk\nC\n\n## Contexto OpenDesk\nD\n",
-        );
-        assert!(sections.iter().any(|s| s.id == "permanent"));
-        assert!(sections.iter().any(|s| s.id == "personal"));
-        assert!(sections.iter().any(|s| s.id == "task"));
-        assert!(sections.iter().any(|s| s.id == "context"));
-    }
 }

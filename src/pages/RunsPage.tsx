@@ -354,7 +354,10 @@ export function RunsPage() {
                             className="block truncate font-medium text-zinc-100 hover:text-blue-200"
                             onClick={(event) => event.stopPropagation()}
                           >
-                            {run.task_title ?? run.agent_name}
+                            {run.task_title ??
+                              (run.source === "chat"
+                                ? `Chat · ${run.channel ?? "desktop"}`
+                                : run.agent_name)}
                           </Link>
                           <span className="font-mono text-[11.5px] text-zinc-500">
                             {run.phase ?? "run"}
@@ -411,7 +414,10 @@ export function RunsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate text-[14px] font-medium text-zinc-100">
-                        {run.task_title ?? run.agent_name}
+                        {run.task_title ??
+                          (run.source === "chat"
+                            ? `Chat · ${run.channel ?? "desktop"}`
+                            : run.agent_name)}
                       </p>
                       <Badge variant={runStatusTone(run.status)}>
                         {runStatusLabel(run.status)}

@@ -90,6 +90,7 @@ export interface PromptPreview {
   output_directory: string;
   prompt: string;
   sections: PromptPreviewSection[];
+  composed: string;
   opencode: {
     agent?: {
       id: string;
@@ -97,13 +98,48 @@ export interface PromptPreview {
       path: string;
       system: string;
     } | null;
+    agents_md: Array<{
+      scope: string;
+      path: string;
+      content: string;
+    }>;
     skills: Array<{
       id: string;
       scope: string;
       name: string;
       description?: string | null;
       path: string;
+      body: string;
+    }>;
+    commands: Array<{
+      id: string;
+      scope: string;
+      description?: string | null;
+      agent?: string | null;
+      template: string;
+      path: string;
+    }>;
+    mcp_servers: Array<{
+      scope: string;
+      server: unknown;
     }>;
     note?: string;
   };
+}
+
+export interface PromptTemplateField {
+  id: string;
+  label: string;
+  description: string;
+  placeholders: string[];
+}
+
+export type PromptTemplates = Record<string, string>;
+
+export interface PromptTemplatesResponse {
+  workspace_id?: string | null;
+  scope: "workspace" | "global" | string;
+  templates: PromptTemplates;
+  defaults: PromptTemplates;
+  fields: PromptTemplateField[];
 }

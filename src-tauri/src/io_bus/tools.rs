@@ -347,19 +347,50 @@ fn detect_path(name: &str) -> Option<PathBuf> {
     {
         return Some(PathBuf::from(value));
     }
-    let output = Command::new(if cfg!(windows) { "where" } else { "which" })
-        .arg(name)
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
+    let candidates: Vec<&str> = match name {
+        "whisper-cli" => vec!["whisper-cli", "whisper-cpp", "whisper"],
+        "ffprobe" => vec!["ffprobe", "ffmpeg"],
+        _ => vec![name],
+    };
+    for candidate in &candidates {
+        let output = Command::new(if cfg!(windows) { "where" } else { "which" })
+            .arg(candidate)
+            .output()
+            .ok();
+        if let Some(output) = output
+            && output.status.success()
+            && let Some(line) = String::from_utf8_lossy(&output.stdout).lines().next()
+            && Path::new(line.trim()).is_file()
+        {
+            return Some(PathBuf::from(line.trim()));
+        }
+        for dir in detection_dirs() {
+            let path = dir.join(candidate);
+            if path.is_file() {
+                return Some(path);
+            }
+        }
     }
-    let path = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .next()?
-        .trim()
-        .to_string();
-    (!path.is_empty()).then(|| PathBuf::from(path))
+    None
+}
+
+fn detection_dirs() -> Vec<PathBuf> {
+    let mut dirs = vec![
+        PathBuf::from("/usr/bin"),
+        PathBuf::from("/usr/local/bin"),
+        PathBuf::from("/bin"),
+        PathBuf::from("/snap/bin"),
+        PathBuf::from("/opt/homebrew/bin"),
+        PathBuf::from("/opt/local/bin"),
+        PathBuf::from("/var/lib/flatpak/exports/bin"),
+    ];
+    if let Some(home) = std::env::var_os("HOME") {
+        let home = PathBuf::from(home);
+        dirs.push(home.join(".local/bin"));
+        dirs.push(home.join(".cargo/bin"));
+        dirs.push(home.join("bin"));
+    }
+    dirs
 }
 
 fn manual_paths_file() -> PathBuf {

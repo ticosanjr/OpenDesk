@@ -112,6 +112,17 @@ pub async fn overview(
         href: "/integrations?section=telegram".into(),
     });
 
+    let tools = crate::io_bus::tools::list();
+    let installed = tools.iter().filter(|tool| tool.installed).count();
+    items.push(IntegrationOverviewItem {
+        id: "tools".into(),
+        label: "Ferramentas".into(),
+        configured: installed > 0,
+        active: installed == tools.len(),
+        detail: Some(format!("{installed}/{}", tools.len())),
+        href: "/settings?section=tools".into(),
+    });
+
     Ok(Json(items))
 }
 

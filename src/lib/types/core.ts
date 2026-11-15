@@ -205,6 +205,9 @@ export interface TaskRun {
   error_hint?: string | null;
   task_title?: string | null;
   task_origin?: string | null;
+  source?: string | null;
+  channel?: string | null;
+  origin_ref?: string | null;
 }
 
 export interface TaskDiagnostics {
@@ -242,6 +245,9 @@ export interface Artifact {
   google_drive_url?: string | null;
   emailed_to?: string | null;
   pinned?: boolean;
+  source?: string | null;
+  channel?: string | null;
+  origin_ref?: string | null;
   created_at: string;
 }
 

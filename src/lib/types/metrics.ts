@@ -24,6 +24,7 @@ export interface Metrics {
   runs_success: number;
   runs_failed: number;
   runs_cancelled: number;
+  chat_messages: number;
   success_rate: number;
   cost_usd: number;
   tokens: number;
@@ -36,5 +37,17 @@ export interface Metrics {
   queue_avg_wait_ms: number;
   failure_codes: FailureCode[];
   agents: AgentMetrics[];
+  sources: SourceMetrics[];
   daily: DailyMetrics[];
+}
+
+export interface SourceMetrics {
+  source: string;
+  channel?: string | null;
+  executions: number;
+  messages: number;
+  tokens: number;
+  cost_usd: number;
+  success_rate: number;
+  p95_duration_ms: number;
 }

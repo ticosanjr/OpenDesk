@@ -2713,3 +2713,19 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Runs agora varrem o diretório de saída e registram arquivos criados por shell,
   com deduplicação por hash e `MODIFIED` quando o conteúdo muda.
 - ADR 0057.
+
+## 2026-11-15 — chat como execução, prompts configuráveis e prévias
+
+- Chat/Telegram: todo turno fica em `chat_turns`; turnos com ferramenta ou
+  arquivo criam uma execução (`task_runs` com `source=chat`, canal e thread),
+  registram artefatos e aparecem em Execuções/Artefatos.
+- “Pensando” com tempo decorrido, Parar no chat e `/parar` no Telegram; turnos
+  longos não são mais cortados em 5 minutos.
+- Observabilidade ganhou a tabela “Por origem” (trabalho, rotina, receita,
+  automação, chat desktop/Telegram/Signal).
+- Prompt: seções estruturadas, templates editáveis com placeholders, camada
+  OpenCode (agente, AGENTS.md, skills, comandos e MCP) e visão final
+  reconstruída.
+- Arquivos: prévia HTML com recarga automática/botão, JSON formatado nativo,
+  contexto pessoal sem título e ferramentas externas detectadas no Dashboard.
+- Migração 0040; ADRs 0058, 0059 e 0060.

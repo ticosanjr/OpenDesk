@@ -633,19 +633,30 @@ impl CronEngine {
         let personal_context = crate::personal_context::render(&self.pool, &schedule.workspace_id)
             .await
             .unwrap_or_default();
-        let packed = dsh_router::pack(&PackContext {
-            workspace_root: &workspace_root,
-            output_directory: &decision.output_directory,
-            task_title: &schedule.name,
-            task_description: &prompt,
-            tags: &[],
-            priority: 2,
-            phase: &decision.phase,
-            plan: None,
-            agent: &decision.selected_agent,
-            needs_browser,
-            personal_context: &personal_context,
-        });
+        let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
+            &self.pool,
+            Some(&schedule.workspace_id),
+        )
+        .await
+        .unwrap_or_default();
+        let packed = dsh_router::pack(
+            &PackContext {
+                workspace_root: &workspace_root,
+                output_directory: &decision.output_directory,
+                task_id: "",
+                task_title: &schedule.name,
+                task_description: &prompt,
+                tags: &[],
+                priority: 2,
+                phase: &decision.phase,
+                plan: None,
+                agent: &decision.selected_agent,
+                care_level: "standard",
+                needs_browser,
+                personal_context: &personal_context,
+            },
+            &templates,
+        );
 
         match self
             .queue

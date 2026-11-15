@@ -459,7 +459,14 @@ export function ArtifactsPage() {
                         </div>
                       </td>
                       <td className="px-3 py-2.5">
-                        <Badge variant="purple">@{artifact.created_by_agent}</Badge>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <Badge variant="purple">@{artifact.created_by_agent}</Badge>
+                          {artifact.source === "chat" ? (
+                            <Badge variant="blue">
+                              chat · {artifact.channel ?? "desktop"}
+                            </Badge>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="max-w-[260px] px-3 py-2.5">
                         <p className="truncate text-[13.5px] text-zinc-400">
@@ -545,6 +552,11 @@ export function ArtifactsPage() {
                 <Badge variant="default">
                   {artifactActionLabel(selected.action_type)}
                 </Badge>
+                {selected.source === "chat" ? (
+                  <Badge variant="blue">
+                    chat · {selected.channel ?? "desktop"}
+                  </Badge>
+                ) : null}
                 <Badge variant="default">{relativeTime(selected.created_at)}</Badge>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">

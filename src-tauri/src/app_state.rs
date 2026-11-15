@@ -14,10 +14,12 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::{
+    collections::HashMap,
     net::TcpListener,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 /// App setting that stores the user-chosen OpenCode binary path. It is
@@ -26,6 +28,13 @@ use uuid::Uuid;
 pub const OPENCODE_BIN_SETTING: &str = "opencode_bin_path";
 /// Number of queue jobs that may run concurrently (1–4).
 pub const QUEUE_CONCURRENCY_SETTING: &str = "queue_concurrency";
+
+#[derive(Debug, Clone)]
+pub struct ActiveChatTurn {
+    pub turn_id: String,
+    pub session_id: Option<String>,
+    pub cancel: CancellationToken,
+}
 
 pub struct AppState {
     pub paths: AppPaths,
@@ -46,6 +55,7 @@ pub struct AppState {
     pub listener: Mutex<Option<TcpListener>>,
     pub studio_watcher: Mutex<ConfigWatcher>,
     pub started_at: DateTime<Utc>,
+    chat_turns: Mutex<HashMap<String, ActiveChatTurn>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -138,10 +148,67 @@ impl AppState {
             listener: Mutex::new(Some(listener)),
             studio_watcher: Mutex::new(ConfigWatcher::new()),
             started_at: Utc::now(),
+            chat_turns: Mutex::new(HashMap::new()),
         };
 
         state.write_api_lock()?;
         Ok(state)
+    }
+
+    /// Registers the active turn for a chat thread. The returned token lets the
+    /// wait loop stop immediately when the user presses Parar.
+    pub fn begin_chat_turn(
+        &self,
+        thread_id: &str,
+        turn_id: &str,
+        session_id: Option<&str>,
+    ) -> CancellationToken {
+        let cancel = CancellationToken::new();
+        self.chat_turns
+            .lock()
+            .expect("chat turn mutex is not poisoned")
+            .insert(
+                thread_id.to_string(),
+                ActiveChatTurn {
+                    turn_id: turn_id.to_string(),
+                    session_id: session_id.map(str::to_string),
+                    cancel: cancel.clone(),
+                },
+            );
+        cancel
+    }
+
+    pub fn finish_chat_turn(&self, thread_id: &str, turn_id: &str) {
+        let mut turns = self
+            .chat_turns
+            .lock()
+            .expect("chat turn mutex is not poisoned");
+        if turns
+            .get(thread_id)
+            .is_some_and(|turn| turn.turn_id == turn_id)
+        {
+            turns.remove(thread_id);
+        }
+    }
+
+    pub fn active_chat_turn(&self, thread_id: &str) -> Option<String> {
+        self.chat_turns
+            .lock()
+            .expect("chat turn mutex is not poisoned")
+            .get(thread_id)
+            .map(|turn| turn.turn_id.clone())
+    }
+
+    /// Cancels the active turn and returns its session so the caller can also
+    /// interrupt the OpenCode execution.
+    pub fn cancel_chat_turn(&self, thread_id: &str) -> Option<(String, Option<String>)> {
+        let turns = self
+            .chat_turns
+            .lock()
+            .expect("chat turn mutex is not poisoned");
+        let turn = turns.get(thread_id)?;
+        turn.cancel.cancel();
+        Some((turn.turn_id.clone(), turn.session_id.clone()))
     }
 
     pub fn take_listener(&self) -> Option<TcpListener> {

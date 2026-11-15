@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowDown,
   Bot,
@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Search,
   Send,
+  Square,
   Sparkles,
   Trash2,
   Wand2,
@@ -25,7 +26,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
-import type { ChatMessage, ChatReply, ChatThread } from "@/lib/types";
+import type { ChatMessage, ChatReply, ChatThread, ChatTurn } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { relativeTime } from "@/lib/format";
 import { AgentCombobox } from "@/components/ui/agent-combobox";
@@ -55,6 +56,9 @@ export function ChatPage() {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [latestTurn, setLatestTurn] = useState<ChatTurn | null>(null);
+  const [stopping, setStopping] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [threadQuery, setThreadQuery] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -134,6 +138,57 @@ export function ChatPage() {
       cancelled = true;
     };
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setLatestTurn(null);
+      return;
+    }
+    let cancelled = false;
+    void apiGet<ChatTurn | null>(
+      `/api/chat/threads/${encodeURIComponent(selectedId)}/turns/latest`,
+    )
+      .then((value) => {
+        if (!cancelled) setLatestTurn(value);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
+
+  const turnRunning = latestTurn?.status === "RUNNING";
+  const thinking = sending || turnRunning;
+
+  useEffect(() => {
+    if (!selectedId || (!sending && !turnRunning)) return;
+    const interval = window.setInterval(() => {
+      void apiGet<ChatTurn | null>(
+        `/api/chat/threads/${encodeURIComponent(selectedId)}/turns/latest`,
+      )
+        .then((value) => setLatestTurn(value))
+        .catch(() => {});
+    }, 2_000);
+    return () => window.clearInterval(interval);
+  }, [selectedId, sending, turnRunning]);
+
+  const startedAt = latestTurn?.started_at ?? null;
+  useEffect(() => {
+    if (!turnRunning || !startedAt) {
+      setElapsed(0);
+      return;
+    }
+    const started = Date.parse(startedAt);
+    const update = () =>
+      setElapsed(
+        Number.isFinite(started)
+          ? Math.max(0, Math.round((Date.now() - started) / 1000))
+          : 0,
+      );
+    update();
+    const interval = window.setInterval(update, 1_000);
+    return () => window.clearInterval(interval);
+  }, [turnRunning, startedAt]);
 
   const refreshThreads = useCallback(async () => {
     if (!activeWorkspaceId) return null;
@@ -258,6 +313,11 @@ export function ChatPage() {
       });
       setThread(reply.thread);
       if (reply.error) setError(reply.error);
+      void apiGet<ChatTurn | null>(
+        `/api/chat/threads/${thread.id}/turns/latest`,
+      )
+        .then((value) => setLatestTurn(value))
+        .catch(() => {});
       await loadThreads();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -265,6 +325,30 @@ export function ChatPage() {
       setAttachments(files);
     } finally {
       setSending(false);
+    }
+  }
+
+  async function stopExecution() {
+    if (!thread) return;
+    setStopping(true);
+    try {
+      await apiPost(`/api/chat/threads/${thread.id}/interrupt`, {});
+      toast({
+        tone: "warning",
+        title: "Interrompendo…",
+        description: "O turno atual será encerrado.",
+      });
+      setLatestTurn((current) =>
+        current ? { ...current, status: "CANCELLED" } : current,
+      );
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível interromper",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setStopping(false);
     }
   }
 
@@ -496,9 +580,22 @@ export function ChatPage() {
                   <Trash2 size={13} />
                 </Button>
               ) : null}
-              <Badge variant="blue">
-                {sending ? "gerando…" : "pronto"}
+              <Badge variant={thinking ? "yellow" : "blue"}>
+                {thinking ? "pensando…" : "pronto"}
               </Badge>
+              {latestTurn && !thinking ? (
+                <span className="text-[11.5px] text-zinc-500">
+                  última execução: {latestTurn.status}
+                  {latestTurn.run_id ? (
+                    <Link
+                      to={links.run(latestTurn.run_id)}
+                      className="ml-1 underline decoration-zinc-600 underline-offset-2 hover:text-zinc-300"
+                    >
+                      ver
+                    </Link>
+                  ) : null}
+                </span>
+              ) : null}
             </div>
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-0">
@@ -540,10 +637,29 @@ export function ChatPage() {
                   </div>
                 ))
               )}
-              {sending ? (
-                <div className="flex items-center gap-2 text-[11.5px] text-zinc-500">
+              {thinking ? (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-sky-500/20 bg-sky-500/[0.05] px-3 py-2 text-[11.5px] text-sky-200/90">
                   <Loader2 size={12} className="animate-spin" />
-                  aguardando resposta do OpenCode…
+                  O agente está pensando
+                  {elapsed > 0 ? ` · ${elapsed}s` : ""}…
+                  {latestTurn?.run_id ? (
+                    <Link
+                      to={links.run(latestTurn.run_id)}
+                      className="underline decoration-sky-400/40 underline-offset-2 hover:text-sky-100"
+                    >
+                      ver execução
+                    </Link>
+                  ) : null}
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    className="ml-auto border-red-500/30 text-red-200"
+                    onClick={() => void stopExecution()}
+                    disabled={stopping}
+                  >
+                    <Square size={10} />
+                    {stopping ? "parando…" : "Parar"}
+                  </Button>
                 </div>
               ) : null}
             </div>

@@ -701,6 +701,106 @@ fn extract_events(buffer: &mut String) -> Vec<Value> {
     events
 }
 
+/// Signals for a single chat turn: whether any tool was used and which
+/// write/edit/patch operations happened. Chat turns with tools or diffs become
+/// first-class executions; text-only turns stay in the chat history.
+pub(crate) fn chat_turn_signals(value: &Value, since_ms: i64) -> (bool, Vec<FileWrite>) {
+    let mut has_tool = false;
+    let mut writes = Vec::new();
+    let Some(messages) = value.get("data").and_then(Value::as_array) else {
+        return (has_tool, writes);
+    };
+    for message in messages {
+        if message.get("type").and_then(Value::as_str) != Some("assistant") {
+            continue;
+        }
+        let created = message
+            .pointer("/time/created")
+            .and_then(Value::as_i64)
+            .or_else(|| message.get("created").and_then(Value::as_i64))
+            .unwrap_or(0);
+        if created < since_ms {
+            continue;
+        }
+        let Some(content) = message.get("content").and_then(Value::as_array) else {
+            continue;
+        };
+        for part in content {
+            if part.get("type").and_then(Value::as_str) != Some("tool") {
+                continue;
+            }
+            has_tool = true;
+            let name = part.get("name").and_then(Value::as_str).unwrap_or("");
+            if name.contains("chat_send_file") {
+                let Some(path) = part.pointer("/state/input/path").and_then(Value::as_str) else {
+                    continue;
+                };
+                writes.push(FileWrite {
+                    path: path.to_string(),
+                    action: "CREATED".into(),
+                    diff_patch: None,
+                });
+                continue;
+            }
+            if !matches!(name, "write" | "edit" | "patch") {
+                continue;
+            }
+            let state = part.get("state");
+            let status = state
+                .and_then(|state| state.get("status"))
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            if status != "completed" {
+                continue;
+            }
+            let input = state.and_then(|state| state.get("input"));
+            let Some(path) = input
+                .and_then(|input| {
+                    input
+                        .get("path")
+                        .or_else(|| input.get("filePath"))
+                        .or_else(|| input.get("file_path"))
+                })
+                .and_then(Value::as_str)
+            else {
+                continue;
+            };
+            let (action, patch) = if name == "write" {
+                let content = input
+                    .and_then(|input| input.get("content"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                let diff = format!(
+                    "--- /dev/null\n+++ b/{path}\n@@ -0,0 +1 @@\n+{}\n",
+                    content.lines().collect::<Vec<_>>().join("\n+")
+                );
+                ("CREATED".to_string(), Some(diff))
+            } else {
+                let old = input
+                    .and_then(|input| input.get("oldString"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                let new = input
+                    .and_then(|input| input.get("newString"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                let diff = format!(
+                    "--- a/{path}\n+++ b/{path}\n-{}\n+{}\n",
+                    old.lines().collect::<Vec<_>>().join("\n-"),
+                    new.lines().collect::<Vec<_>>().join("\n+")
+                );
+                ("MODIFIED".to_string(), Some(diff))
+            };
+            writes.push(FileWrite {
+                path: path.to_string(),
+                action,
+                diff_patch: patch,
+            });
+        }
+    }
+    (has_tool, writes)
+}
+
 fn parse_messages(value: &Value) -> (RunUsage, Option<String>, Vec<FileWrite>) {
     let mut usage = RunUsage::default();
     let mut summary = None;
@@ -927,5 +1027,45 @@ mod tests {
         let result = client.event_response().await;
         assert!(result.is_err());
         assert!(started.elapsed() < std::time::Duration::from_secs(10));
+    }
+
+    #[test]
+    fn chat_turn_signals_detects_tools_and_created_files() {
+        let value = serde_json::json!({
+            "data": [
+                {
+                    "type": "assistant",
+                    "time": { "created": 2000 },
+                    "content": [
+                        {
+                            "type": "tool",
+                            "name": "write",
+                            "state": {
+                                "status": "completed",
+                                "input": { "path": "output/a.txt", "content": "oi" }
+                            }
+                        },
+                        {
+                            "type": "tool",
+                            "name": "chat_send_file",
+                            "state": {
+                                "status": "completed",
+                                "input": { "path": "output/b.pdf" }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "assistant",
+                    "time": { "created": 500 },
+                    "content": [{ "type": "tool", "name": "read", "state": { "status": "completed" } }]
+                }
+            ]
+        });
+        let (used_tools, writes) = chat_turn_signals(&value, 1000);
+        assert!(used_tools);
+        assert_eq!(writes.len(), 2);
+        assert!(writes.iter().any(|write| write.path == "output/a.txt"));
+        assert!(writes.iter().any(|write| write.path == "output/b.pdf"));
     }
 }

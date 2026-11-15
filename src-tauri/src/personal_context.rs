@@ -32,7 +32,10 @@ pub struct PersonalContextInput {
     pub scope: String,
     #[serde(default)]
     pub workspace_id: Option<String>,
-    pub name: String,
+    /// Optional: the UI treats instructions as the rule and derives a short
+    /// internal label when no name is supplied.
+    #[serde(default)]
+    pub name: Option<String>,
     pub instructions: String,
     #[serde(default = "default_true")]
     pub is_enabled: bool,
@@ -104,7 +107,7 @@ pub async fn create(
     pool: &SqlitePool,
     input: PersonalContextInput,
 ) -> AppResult<PersonalContextGroup> {
-    let (scope, workspace_id, name, instructions) = validate(&input, pool).await?;
+    let (scope, workspace_id, name, instructions) = validate(&input, pool, None).await?;
     let id = Uuid::now_v7().to_string();
     let position = match input.position {
         Some(position) => position,
@@ -144,7 +147,7 @@ pub async fn update(
     input: PersonalContextInput,
 ) -> AppResult<PersonalContextGroup> {
     let current = get(pool, id).await?;
-    let (scope, workspace_id, name, instructions) = validate(&input, pool).await?;
+    let (scope, workspace_id, name, instructions) = validate(&input, pool, None).await?;
     sqlx::query(
         "UPDATE personal_context_groups SET
             workspace_id = ?, scope = ?, name = ?, instructions = ?,
@@ -186,23 +189,13 @@ pub async fn get(pool: &SqlitePool, id: &str) -> AppResult<PersonalContextGroup>
 async fn validate(
     input: &PersonalContextInput,
     pool: &SqlitePool,
+    fallback_name: Option<&str>,
 ) -> AppResult<(String, Option<String>, String, String)> {
     let scope = input.scope.trim().to_lowercase();
     if !matches!(scope.as_str(), "workspace" | "global") {
         return Err(AppError::BadRequest(
             "scope deve ser 'workspace' ou 'global'".into(),
         ));
-    }
-    let name = input.name.trim();
-    if name.is_empty() {
-        return Err(AppError::BadRequest(
-            "nome do contexto é obrigatório".into(),
-        ));
-    }
-    if name.chars().count() > MAX_NAME {
-        return Err(AppError::BadRequest(format!(
-            "nome do contexto excede {MAX_NAME} caracteres"
-        )));
     }
     let instructions = input.instructions.trim();
     if instructions.is_empty() {
@@ -213,6 +206,22 @@ async fn validate(
     if instructions.chars().count() > MAX_INSTRUCTIONS {
         return Err(AppError::BadRequest(format!(
             "instruções do contexto excedem {MAX_INSTRUCTIONS} caracteres"
+        )));
+    }
+    let name = match input
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(name) => name.to_string(),
+        None => fallback_name
+            .map(str::to_string)
+            .unwrap_or_else(|| derive_name(instructions)),
+    };
+    if name.chars().count() > MAX_NAME {
+        return Err(AppError::BadRequest(format!(
+            "nome do contexto excede {MAX_NAME} caracteres"
         )));
     }
     let workspace_id = if scope == "global" {
@@ -229,12 +238,18 @@ async fn validate(
         workspaces::get(pool, id).await?;
         Some(id.to_string())
     };
-    Ok((
-        scope,
-        workspace_id,
-        name.to_string(),
-        instructions.to_string(),
-    ))
+    Ok((scope, workspace_id, name, instructions.to_string()))
+}
+
+fn derive_name(instructions: &str) -> String {
+    let line = instructions
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or("Regra");
+    let name = line.trim_start_matches(['#', '-', '*', ' ']).trim();
+    let name = if name.is_empty() { "Regra" } else { name };
+    name.chars().take(MAX_NAME).collect()
 }
 
 #[cfg(test)]
@@ -249,7 +264,7 @@ mod tests {
             PersonalContextInput {
                 scope: "workspace".into(),
                 workspace_id: Some(ctx.workspace_id.clone()),
-                name: "Tom".into(),
+                name: Some("Tom".into()),
                 instructions: "Responda de forma direta.".into(),
                 is_enabled: true,
                 position: None,
@@ -262,7 +277,7 @@ mod tests {
             PersonalContextInput {
                 scope: "global".into(),
                 workspace_id: None,
-                name: "Global".into(),
+                name: Some("Global".into()),
                 instructions: "Prefira português.".into(),
                 is_enabled: true,
                 position: Some(10),
@@ -275,7 +290,7 @@ mod tests {
             PersonalContextInput {
                 scope: "global".into(),
                 workspace_id: None,
-                name: "Desligado".into(),
+                name: Some("Desligado".into()),
                 instructions: "Não deve aparecer.".into(),
                 is_enabled: false,
                 position: Some(20),

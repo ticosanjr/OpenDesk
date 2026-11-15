@@ -28,6 +28,7 @@ pub mod missed_runs;
 pub mod permissions;
 pub mod personal_context;
 pub mod prompt_preview;
+pub mod prompt_templates;
 pub mod proposals;
 pub mod queue;
 pub mod recipes;
@@ -308,6 +309,11 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             get(prompt_preview::preview),
         )
         .route(
+            "/api/prompt/templates",
+            get(prompt_templates::get).put(prompt_templates::put),
+        )
+        .route("/api/prompt/templates/reset", post(prompt_templates::reset))
+        .route(
             "/api/tasks/{id}/watchers",
             get(task_watchers::list).put(task_watchers::replace),
         )
@@ -338,6 +344,14 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             post(chat::send_message).layer(DefaultBodyLimit::max(attachments::MAX_BODY_BYTES)),
         )
         .route("/api/chat/threads/{id}/files", post(chat::send_file))
+        .route(
+            "/api/chat/threads/{id}/interrupt",
+            post(chat::interrupt_thread),
+        )
+        .route(
+            "/api/chat/threads/{id}/turns/latest",
+            get(chat::latest_turn),
+        )
         .route("/api/queue", get(queue::list_queue))
         .route("/api/queue/status", get(queue::queue_status))
         .route("/api/queue/pause", post(queue::pause_queue))

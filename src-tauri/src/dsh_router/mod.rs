@@ -1,6 +1,7 @@
 pub mod classifier;
 pub mod context_packer;
 pub mod meta_builder;
+pub mod prompt_templates;
 
 pub use classifier::{
     RouterDecision, RouterInput, classify, model_available, output_directory, slugify,

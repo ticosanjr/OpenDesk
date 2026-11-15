@@ -7,12 +7,13 @@ vi.mock("@/lib/file-preferences", () => ({
     downloadAsk: true,
     htmlAllowScripts: false,
   })),
+  saveFilePreferences: vi.fn(async () => undefined),
 }));
 
 import { FileViewer } from "./FileViewer";
 
 describe("FileViewer HTML", () => {
-  it("blocks scripts by default and allows them for one view", async () => {
+  it("blocks scripts by default and reloads when allowed", async () => {
     render(
       <FileViewer
         name="relatorio.html"
@@ -27,7 +28,13 @@ describe("FileViewer HTML", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: /scripts bloqueados/ }),
     );
-    expect(frame).toHaveAttribute("sandbox", "allow-scripts");
+    // The iframe is remounted on purpose so the browser re-runs the document.
+    const reloaded = screen.getByTitle("relatorio.html");
+    expect(reloaded).not.toBe(frame);
+    expect(reloaded).toHaveAttribute("sandbox", "allow-scripts");
     expect(screen.getByText("scripts liberados")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /recarregar/i }),
+    ).toBeInTheDocument();
   });
 });

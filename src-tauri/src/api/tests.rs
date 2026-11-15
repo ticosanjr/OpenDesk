@@ -76,6 +76,7 @@ mod phase1;
 mod phase2;
 mod phase3;
 mod phase4;
+mod prompt_templates;
 mod resources;
 mod schedules;
 mod seed;

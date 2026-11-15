@@ -623,22 +623,31 @@ pub async fn post_task_message(
     )
     .await?;
     let personal_context = crate::personal_context::render(&state.db, &task.workspace_id).await?;
-    let packed = dsh_router::pack(&PackContext {
-        workspace_root: std::path::Path::new(&workspace.root_path),
-        output_directory: &decision.output_directory,
-        task_title: &task.title,
-        task_description: &task.description,
-        tags: &tags,
-        priority: task.priority,
-        phase: "follow_up",
-        plan: task.plan_markdown.as_deref(),
-        agent: &decision.selected_agent,
-        needs_browser,
-        personal_context: &personal_context,
-    });
+    let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
+        &state.db,
+        Some(&task.workspace_id),
+    )
+    .await?;
+    let packed = dsh_router::pack(
+        &PackContext {
+            workspace_root: std::path::Path::new(&workspace.root_path),
+            output_directory: &decision.output_directory,
+            task_id: &task.id,
+            task_title: &task.title,
+            task_description: &task.description,
+            tags: &tags,
+            priority: task.priority,
+            phase: "follow_up",
+            plan: task.plan_markdown.as_deref(),
+            agent: &decision.selected_agent,
+            care_level: &task.care_level,
+            needs_browser,
+            personal_context: &personal_context,
+        },
+        &templates,
+    );
     let prompt = format!(
-        "{packed}\n\n## Conversa com o usuário\n\n{conversation}\n\nContinue a execução considerando a mensagem acima. Task ID: `{}`. Se precisar de uma decisão, use a ferramenta MCP `ask_user` com este task_id antes de assumir.",
-        task.id
+        "{packed}\n\n## Conversa com o usuário\n\n{conversation}\n\nContinue a execução considerando a mensagem acima."
     );
 
     let session_id = runs::latest_session_for_task(&state.db, &task.id).await?;

@@ -8,6 +8,7 @@ import {
   Image as ImageIcon,
   Loader2,
   Music,
+  RefreshCw,
   ShieldCheck,
   Video,
 } from "lucide-react";
@@ -18,7 +19,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/format";
 import { downloadUrl } from "@/lib/download";
-import { loadFilePreferences } from "@/lib/file-preferences";
+import {
+  loadFilePreferences,
+  saveFilePreferences,
+  type FilePreferences,
+} from "@/lib/file-preferences";
+import { formatJsonContent } from "@/lib/json-format";
 import { toast } from "@/store/toast-store";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +38,7 @@ export interface ArchiveEntry {
 type Kind =
   | "markdown"
   | "html"
+  | "json"
   | "image"
   | "pdf"
   | "video"
@@ -53,11 +60,10 @@ function kindFor(name: string, mime?: string): Kind {
     return "audio";
   if (ext === "md" || ext === "markdown" || ext === "mdx") return "markdown";
   if (ext === "html" || ext === "htm") return "html";
+  if (mime === "application/json" || ["json", "jsonc", "jsonl"].includes(ext))
+    return "json";
   if (
     [
-      "json",
-      "jsonc",
-      "jsonl",
       "yaml",
       "yml",
       "toml",
@@ -157,20 +163,46 @@ export function FileViewer({
   const [zoom, setZoom] = useState(100);
   const [downloading, setDownloading] = useState(false);
   const [allowScripts, setAllowScripts] = useState(false);
-  const textSource = kind === "text" || kind === "markdown" || kind === "html";
+  const [reloadKey, setReloadKey] = useState(0);
+  const [preferences, setPreferences] = useState<FilePreferences | null>(null);
+  const textSource =
+    kind === "text" || kind === "markdown" || kind === "html" || kind === "json";
   const isArchive =
     kind === "binary" &&
     (/\.zip$/i.test(name) || mime === "application/zip" || mime === "application/x-zip-compressed");
 
   useEffect(() => {
     let cancelled = false;
-    void loadFilePreferences().then((preferences) => {
-      if (!cancelled) setAllowScripts(preferences.htmlAllowScripts);
+    void loadFilePreferences().then((loaded) => {
+      if (!cancelled) {
+        setPreferences(loaded);
+        setAllowScripts(loaded.htmlAllowScripts);
+      }
     });
     return () => {
       cancelled = true;
     };
   }, [path]);
+
+  const jsonPreview = useMemo(
+    () => (kind === "json" ? formatJsonContent(content) : null),
+    [content, kind],
+  );
+
+  async function toggleScripts() {
+    const next = !allowScripts;
+    setAllowScripts(next);
+    setReloadKey((current) => current + 1);
+    if (preferences) {
+      const updated = { ...preferences, htmlAllowScripts: next };
+      setPreferences(updated);
+      try {
+        await saveFilePreferences(updated);
+      } catch {
+        // The preference is best-effort; the preview already unblocked.
+      }
+    }
+  }
 
   async function saveFile() {
     if (onDownload) {
@@ -218,19 +250,30 @@ export function FileViewer({
         )}
         {truncated ? <Badge variant="yellow">truncado</Badge> : null}
         {kind === "html" ? (
-          <button
-            type="button"
-            onClick={() => setAllowScripts((current) => !current)}
-            className="inline-flex items-center gap-1 rounded-md border border-zinc-800 px-1.5 py-0.5 text-[11.5px] text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
-            title={
-              allowScripts
-                ? "Bloquear scripts nesta visualização"
-                : "Permitir scripts nesta visualização"
-            }
-          >
-            <ShieldCheck size={10} />
-            {allowScripts ? "scripts liberados" : "scripts bloqueados"}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => void toggleScripts()}
+              className="inline-flex items-center gap-1 rounded-md border border-zinc-800 px-1.5 py-0.5 text-[11.5px] text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
+              title={
+                allowScripts
+                  ? "Bloquear scripts nesta visualização"
+                  : "Permitir scripts nesta visualização"
+              }
+            >
+              <ShieldCheck size={10} />
+              {allowScripts ? "scripts liberados" : "scripts bloqueados"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setReloadKey((current) => current + 1)}
+              className="inline-flex items-center gap-1 rounded-md border border-zinc-800 px-1.5 py-0.5 text-[11.5px] text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
+              title="Recarregar a prévia HTML"
+            >
+              <RefreshCw size={10} />
+              recarregar
+            </button>
+          </>
         ) : null}
         {textSource ? (
           <span className={cn("flex items-center gap-1 rounded-md border border-zinc-800 p-0.5", embedded && "ml-auto")}>
@@ -325,11 +368,23 @@ export function FileViewer({
           </div>
         ) : kind === "html" ? (
           <iframe
+            key={`${allowScripts ? "scripts" : "blocked"}-${reloadKey}`}
             title={name}
             sandbox={allowScripts ? "allow-scripts" : ""}
             srcDoc={content}
             className="h-full min-h-[420px] w-full rounded-lg border border-zinc-800 bg-white"
           />
+        ) : kind === "json" ? (
+          <div className="space-y-2">
+            {jsonPreview && !jsonPreview.formatted ? (
+              <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
+                JSON inválido ou com comentários; exibindo o texto original.
+              </p>
+            ) : null}
+            <pre className="whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-zinc-300">
+              {jsonPreview?.text ?? content}
+            </pre>
+          </div>
         ) : kind === "image" ? (
           <div className="flex min-h-[320px] items-center justify-center">
             {blobUrl ? (

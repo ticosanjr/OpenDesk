@@ -11,7 +11,7 @@ import { toast } from "@/store/toast-store";
 import { cn } from "@/lib/utils";
 import { smallInputClass as inputClass } from "@/lib/ui-classes";
 
-type View = "sections" | "prompt" | "opencode";
+type View = "sections" | "prompt" | "composed" | "opencode";
 
 export function PromptPreviewCard() {
   const workspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -123,7 +123,7 @@ export function PromptPreviewCard() {
                 ))}
               </select>
               <div className="flex rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5">
-                {(["sections", "prompt", "opencode"] as const).map((value) => (
+                {(["sections", "prompt", "composed", "opencode"] as const).map((value) => (
                   <button
                     key={value}
                     type="button"
@@ -136,10 +136,12 @@ export function PromptPreviewCard() {
                     )}
                   >
                     {value === "sections"
-                      ? "Seções"
+                      ? "Seções OpenDesk"
                       : value === "prompt"
-                        ? "Prompt final"
-                        : "OpenCode"}
+                        ? "Prompt OpenDesk"
+                        : value === "composed"
+                          ? "Final (reconstruído)"
+                          : "OpenCode"}
                   </button>
                 ))}
               </div>
@@ -195,6 +197,31 @@ export function PromptPreviewCard() {
                   </div>
                 ) : null}
 
+                {view === "composed" ? (
+                  <div className="space-y-2">
+                    <p className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-3 py-2 text-[11.5px] text-amber-200/80">
+                      Reconstrução do prompt: inclui o texto exato do OpenDesk e
+                      tudo o que o OpenCode lê dos arquivos nativos (agente,
+                      AGENTS.md, skills e comandos). O OpenCode ainda monta o
+                      system prompt interno e os schemas de ferramentas; eles
+                      não são expostos pela API.
+                    </p>
+                    <div className="flex justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void copy(preview.composed)}
+                      >
+                        <Clipboard size={12} />
+                        Copiar prompt reconstruído
+                      </Button>
+                    </div>
+                    <pre className="max-h-[560px] overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-800 bg-zinc-950/50 p-3 font-mono text-[11.5px] leading-relaxed text-zinc-400">
+                      {preview.composed}
+                    </pre>
+                  </div>
+                ) : null}
+
                 {view === "opencode" ? (
                   <div className="space-y-2">
                     <p className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-3 py-2 text-[11.5px] text-amber-200/80">
@@ -221,6 +248,22 @@ export function PromptPreviewCard() {
                         </p>
                       )}
                     </div>
+                    {preview.opencode.agents_md.map((file) => (
+                      <div
+                        key={`${file.scope}:${file.path}`}
+                        className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 p-3"
+                      >
+                        <p className="text-[12.5px] font-medium text-zinc-300">
+                          AGENTS.md · {file.scope}
+                        </p>
+                        <p className="mt-1 break-all font-mono text-[11.5px] text-zinc-500">
+                          {file.path}
+                        </p>
+                        <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap font-mono text-[11.5px] leading-relaxed text-zinc-400">
+                          {file.content}
+                        </pre>
+                      </div>
+                    ))}
                     <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 p-3">
                       <p className="text-[12.5px] font-medium text-zinc-300">
                         Skills disponíveis
@@ -237,6 +280,45 @@ export function PromptPreviewCard() {
                             </p>
                           ))}
                         </div>
+                      )}
+                    </div>
+                    <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 p-3">
+                      <p className="text-[12.5px] font-medium text-zinc-300">
+                        Comandos
+                      </p>
+                      {preview.opencode.commands.length === 0 ? (
+                        <p className="mt-1 text-[12px] text-zinc-500">Nenhum comando.</p>
+                      ) : (
+                        <div className="mt-1 space-y-1">
+                          {preview.opencode.commands.map((command) => (
+                            <p key={`${command.scope}:${command.id}`} className="text-[12px] text-zinc-400">
+                              <span className="font-mono text-zinc-500">{command.scope}</span>{" "}
+                              /{command.id}
+                              {command.description ? ` — ${command.description}` : ""}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 p-3">
+                      <p className="text-[12.5px] font-medium text-zinc-300">
+                        Servidores MCP
+                      </p>
+                      {preview.opencode.mcp_servers.length === 0 ? (
+                        <p className="mt-1 text-[12px] text-zinc-500">Nenhum servidor MCP.</p>
+                      ) : (
+                        <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap font-mono text-[11.5px] leading-relaxed text-zinc-400">
+                          {JSON.stringify(
+                            preview.opencode.mcp_servers.map((item) => ({
+                              scope: item.scope,
+                              ...(typeof item.server === "object" && item.server
+                                ? item.server
+                                : { server: item.server }),
+                            })),
+                            null,
+                            2,
+                          )}
+                        </pre>
                       )}
                     </div>
                   </div>

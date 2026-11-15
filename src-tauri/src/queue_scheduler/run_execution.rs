@@ -213,6 +213,67 @@ async fn scan_output_directory(
     }
 }
 
+/// Artifacts for a chat turn that used tools. The run is already persisted with
+/// source=chat and the channel in origin metadata, so the artifact list can
+/// derive the badge by joining task_runs.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn record_chat_artifacts(
+    pool: &SqlitePool,
+    events: &EventBus,
+    workspace_id: &str,
+    run_id: &str,
+    agent: &str,
+    reason: &str,
+    workspace_root: &Path,
+    diffs: &[crate::opencode_client::rest_client::FileDiff],
+    writes: &[crate::opencode_client::session_runner::FileWrite],
+) {
+    let mut seen = std::collections::HashSet::new();
+    for diff in diffs {
+        seen.insert(diff.file.clone());
+        let action = match diff.status.as_str() {
+            "added" => "CREATED",
+            "deleted" => "DELETED",
+            _ => "MODIFIED",
+        };
+        record_artifact(
+            pool,
+            events,
+            workspace_id,
+            None,
+            run_id,
+            agent,
+            reason,
+            workspace_root,
+            &diff.file,
+            action,
+            Some(&diff.patch),
+            None,
+        )
+        .await;
+    }
+    for write in writes {
+        if seen.contains(&write.path) {
+            continue;
+        }
+        record_artifact(
+            pool,
+            events,
+            workspace_id,
+            None,
+            run_id,
+            agent,
+            reason,
+            workspace_root,
+            &write.path,
+            &write.action,
+            write.diff_patch.as_deref(),
+            None,
+        )
+        .await;
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn record_artifact(
     pool: &SqlitePool,
@@ -570,5 +631,58 @@ mod tests {
         assert_eq!(artifact.run_id, "run-scan-2");
         assert_eq!(artifact.action_type, "MODIFIED");
         assert!(artifact.previous_sha256.is_some());
+    }
+
+    #[tokio::test]
+    async fn chat_artifacts_are_linked_to_a_chat_run() {
+        use crate::opencode_client::rest_client::FileDiff;
+
+        let context = crate::test_support::context().await;
+        std::fs::write(context.workspace_root.join("chat.md"), "oi").expect("file");
+        let run = crate::db::runs::create_chat(
+            &context.state.db,
+            crate::db::runs::CreateChatRunInput {
+                id: "run-chat-1".into(),
+                workspace_id: context.workspace_id.clone(),
+                session_id: Some("ses-chat".into()),
+                agent_name: "build".into(),
+                provider_id: Some("opencode-go".into()),
+                model_id: "deepseek".into(),
+                channel: "telegram".into(),
+                origin_ref: "thread-1".into(),
+                started_at: chrono::Utc::now().to_rfc3339(),
+            },
+        )
+        .await
+        .expect("chat run");
+        record_chat_artifacts(
+            &context.state.db,
+            &context.state.events,
+            &context.workspace_id,
+            &run.id,
+            "build",
+            "Chat · telegram",
+            &context.workspace_root,
+            &[FileDiff {
+                file: "chat.md".into(),
+                patch: "+oi".into(),
+                additions: 1,
+                deletions: 0,
+                status: "added".into(),
+            }],
+            &[],
+        )
+        .await;
+        let artifact = crate::db::artifacts::latest_for_path(
+            &context.state.db,
+            &context.workspace_id,
+            "chat.md",
+        )
+        .await
+        .expect("artifact")
+        .expect("artifact row");
+        assert_eq!(artifact.source, "chat");
+        assert_eq!(artifact.channel.as_deref(), Some("telegram"));
+        assert_eq!(artifact.origin_ref.as_deref(), Some("thread-1"));
     }
 }

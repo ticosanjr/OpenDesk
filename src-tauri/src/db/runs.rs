@@ -77,7 +77,44 @@ const COLUMNS: &str = "r.id, r.queue_job_id, r.workspace_id, r.task_id, r.schedu
     r.tokens_input, r.tokens_output, r.tokens_reasoning, r.tokens_cache_read, r.tokens_cache_write, \
     r.estimated_cost_usd, r.pricing_snapshot_json, r.duration_ms, r.log_path, r.raw_stdout_log, \
     r.summary_response, r.started_at, r.completed_at, r.error_code, r.error_message, \
-    r.error_hint, t.title AS task_title, t.origin AS task_origin";
+    r.error_hint, t.title AS task_title, t.origin AS task_origin, \
+    r.source, r.channel, r.origin_ref";
+
+#[derive(Debug, Clone)]
+pub struct CreateChatRunInput {
+    pub id: String,
+    pub workspace_id: String,
+    pub session_id: Option<String>,
+    pub agent_name: String,
+    pub provider_id: Option<String>,
+    pub model_id: String,
+    pub channel: String,
+    pub origin_ref: String,
+    pub started_at: String,
+}
+
+/// A chat turn that used tools or changed files. It shares the run table so
+/// artifacts, the Runs page and observability treat it like any execution.
+pub async fn create_chat(pool: &SqlitePool, input: CreateChatRunInput) -> AppResult<TaskRun> {
+    sqlx::query(
+        "INSERT INTO task_runs (
+            id, workspace_id, session_id, phase, agent_name, execution_mode,
+            provider_id, model_id, effort_level, status, source, channel, origin_ref, started_at
+         ) VALUES (?, ?, ?, 'chat', ?, 'CHAT', ?, ?, 'medium', 'RUNNING', 'chat', ?, ?, ?)",
+    )
+    .bind(&input.id)
+    .bind(&input.workspace_id)
+    .bind(input.session_id.as_deref())
+    .bind(&input.agent_name)
+    .bind(input.provider_id.as_deref())
+    .bind(&input.model_id)
+    .bind(&input.channel)
+    .bind(&input.origin_ref)
+    .bind(&input.started_at)
+    .execute(pool)
+    .await?;
+    get(pool, &input.id).await
+}
 
 pub async fn create(pool: &SqlitePool, input: CreateRunInput) -> AppResult<TaskRun> {
     let id = input.id;
@@ -116,6 +153,24 @@ pub async fn create(pool: &SqlitePool, input: CreateRunInput) -> AppResult<TaskR
     .bind(input.log_path.as_deref())
     .execute(pool)
     .await?;
+
+    // Keep the source dimension ready for metrics without touching every
+    // dispatch call site. Recipe/routine/automation come from the task origin;
+    // scheduled runs without a task are routines.
+    let _ = sqlx::query(
+        "UPDATE task_runs SET source = COALESCE(
+            (SELECT CASE
+                WHEN tasks.origin = 'RECIPE' THEN 'recipe'
+                WHEN tasks.origin = 'ROUTINE' THEN 'routine'
+                WHEN tasks.origin IN ('IO_BUS', 'DELEGATION') THEN 'automation'
+                ELSE 'task'
+             END FROM tasks WHERE tasks.id = task_runs.task_id),
+            CASE WHEN task_runs.schedule_id IS NOT NULL THEN 'routine' ELSE 'task' END
+         ) WHERE task_runs.id = ?",
+    )
+    .bind(&id)
+    .execute(pool)
+    .await;
 
     get(pool, &id).await
 }

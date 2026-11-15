@@ -261,6 +261,7 @@ pub fn needs_browser(title: &str, description: &str, tags: &[String]) -> bool {
     .any(|needle| text.contains(needle))
 }
 
+#[allow(dead_code)]
 pub fn instructions(tags: &[String]) -> String {
     let allowlist = allowlist_from_tags(tags);
     let allow_line = if allowlist.is_empty() {

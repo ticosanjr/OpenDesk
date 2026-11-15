@@ -377,6 +377,45 @@ async fn handle_incoming(
         return Ok(());
     }
 
+    if matches!(lower.as_str(), "/parar" | "parar" | "/stop" | "stop") {
+        let thread =
+            chat_db::find_external_any_workspace(&state.db, "telegram", &incoming.chat_id).await?;
+        let Some(thread) = thread else {
+            send_reply(
+                token,
+                &incoming.chat_id,
+                incoming.message_id,
+                "Nenhuma execução em andamento.",
+            )
+            .await?;
+            return Ok(());
+        };
+        if let Some((_turn_id, session_id)) = state.cancel_chat_turn(&thread.id) {
+            let session = session_id.or(thread.opencode_session_id);
+            if let Some(session) = session
+                && let Some(client) = state.daemon.client().await
+            {
+                let _ = client.interrupt(&session).await;
+            }
+            send_reply(
+                token,
+                &incoming.chat_id,
+                incoming.message_id,
+                "Interrompendo a execução…",
+            )
+            .await?;
+        } else {
+            send_reply(
+                token,
+                &incoming.chat_id,
+                incoming.message_id,
+                "Nenhuma execução em andamento.",
+            )
+            .await?;
+        }
+        return Ok(());
+    }
+
     let configured_workspace = config.workspace_id.clone();
     let workspace_id = match &configured_workspace {
         Some(id) => id.clone(),
@@ -440,26 +479,73 @@ async fn handle_incoming(
             }
         }
     }
-    let typing = TypingGuard::start(token.to_string(), incoming.chat_id.clone());
-    let result = chat::send_message_with_context(state, thread, &content, Some(&context)).await;
+    if state.active_chat_turn(&thread.id).is_some() {
+        send_reply(
+            token,
+            &incoming.chat_id,
+            incoming.message_id,
+            "Ainda estou trabalhando nesta conversa. Envie /parar para interromper.",
+        )
+        .await?;
+        return Ok(());
+    }
+
+    let background_state = state.clone();
+    let bot_token = token.to_string();
+    let chat_id = incoming.chat_id.clone();
+    let message_id = incoming.message_id;
+    tokio::spawn(async move {
+        run_chat_reply(
+            background_state,
+            bot_token,
+            chat_id,
+            message_id,
+            thread,
+            content,
+            context,
+        )
+        .await;
+    });
+    Ok(())
+}
+
+async fn run_chat_reply(
+    state: Arc<AppState>,
+    token: String,
+    chat_id: String,
+    message_id: i64,
+    thread: crate::db::chat::ChatThread,
+    content: String,
+    context: String,
+) {
+    let typing = TypingGuard::start(token.clone(), chat_id.clone());
+    let progress = tokio::spawn({
+        let token = token.clone();
+        let chat_id = chat_id.clone();
+        async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(120)).await;
+                let _ = send_text(&token, &chat_id, "Ainda estou trabalhando…").await;
+            }
+        }
+    });
+    let result = chat::send_message_with_context(&state, thread, &content, Some(&context)).await;
+    progress.abort();
     drop(typing);
     match result {
         Ok(reply) => {
-            send_reply(
-                token,
-                &incoming.chat_id,
-                incoming.message_id,
-                &reply.assistant.content,
-            )
-            .await?;
+            let _ = send_reply(&token, &chat_id, message_id, &reply.assistant.content).await;
         }
         Err(error) => {
-            let message = format!("Não consegui responder agora: {error}");
-            let _ = send_reply(token, &incoming.chat_id, incoming.message_id, &message).await;
-            return Err(error);
+            let _ = send_reply(
+                &token,
+                &chat_id,
+                message_id,
+                &format!("Não consegui responder agora: {error}"),
+            )
+            .await;
         }
     }
-    Ok(())
 }
 
 async fn save_incoming_file(

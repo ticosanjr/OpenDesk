@@ -184,6 +184,7 @@ fn opendesk_agent_available(workspace_root: &std::path::Path) -> bool {
     })
 }
 
+#[allow(dead_code)]
 pub(crate) fn care_instructions(care: &str) -> &'static str {
     match care {
         "quick" => {
@@ -241,23 +242,28 @@ pub(crate) async fn enqueue_decision_with_session(
     )
     .await?;
     let personal_context = crate::personal_context::render(&state.db, &task.workspace_id).await?;
-    let prompt = dsh_router::pack(&PackContext {
-        workspace_root: std::path::Path::new(&workspace.root_path),
-        output_directory: &decision.output_directory,
-        task_title: &task.title,
-        task_description: &task.description,
-        tags: &tags,
-        priority: task.priority,
-        phase: &decision.phase,
-        plan: approved_plan.or(task.plan_markdown.as_deref()),
-        agent: &selected_agent,
-        needs_browser,
-        personal_context: &personal_context,
-    });
-    let prompt = format!(
-        "{prompt}{}\n\n## Contexto OpenDesk\n\nTask ID: `{}`. Se faltar informação essencial para continuar, use a ferramenta MCP `ask_user` com este task_id antes de assumir.\n",
-        care_instructions(care),
-        task.id
+    let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
+        &state.db,
+        Some(&task.workspace_id),
+    )
+    .await?;
+    let prompt = dsh_router::pack(
+        &PackContext {
+            workspace_root: std::path::Path::new(&workspace.root_path),
+            output_directory: &decision.output_directory,
+            task_id: &task.id,
+            task_title: &task.title,
+            task_description: &task.description,
+            tags: &tags,
+            priority: task.priority,
+            phase: &decision.phase,
+            plan: approved_plan.or(task.plan_markdown.as_deref()),
+            agent: &selected_agent,
+            care_level: care,
+            needs_browser,
+            personal_context: &personal_context,
+        },
+        &templates,
     );
     let prompt = append_instruction(prompt, extra_instruction);
 

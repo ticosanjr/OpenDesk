@@ -137,6 +137,16 @@ pendências manuais continuam listadas abaixo.
 - Varredura do diretório de saída registra arquivos criados por shell.
 - ADR 0057; testes de turno com ferramenta, envio por caminho e varredura.
 
+## Pós-0.57.0 — chat como execução, prompts e prévias
+
+- Chat/Telegram: `chat_turns`, runs `source=chat` para turnos com ferramenta ou
+  arquivo, artefatos com canal, stop e ausência do corte de 5 minutos.
+- Observabilidade por origem; templates de prompt editáveis; preview
+  reconstruído com camada OpenCode.
+- Prévia HTML recarregável, JSON formatado, contexto pessoal sem título e
+  detecção ampliada de ferramentas externas.
+- Migração 0040; ADRs 0058–0060.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

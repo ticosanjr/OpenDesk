@@ -3,6 +3,7 @@ export const links = {
   taskRun: (taskId: string, runId: string) =>
     `/kanban?task=${encodeURIComponent(taskId)}&run=${encodeURIComponent(runId)}`,
   run: (id: string) => `/runs/${encodeURIComponent(id)}`,
+  chat: (id: string) => `/chat?thread=${encodeURIComponent(id)}`,
   runs: () => "/runs",
   calendar: (date?: string) =>
     date ? `/calendar?date=${encodeURIComponent(date)}` : "/calendar",

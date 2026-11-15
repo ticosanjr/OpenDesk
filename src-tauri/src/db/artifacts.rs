@@ -25,6 +25,12 @@ pub struct ArtifactProvenance {
     pub created_at: String,
     #[sqlx(default)]
     pub pinned: bool,
+    #[sqlx(default)]
+    pub source: String,
+    #[sqlx(default)]
+    pub channel: Option<String>,
+    #[sqlx(default)]
+    pub origin_ref: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -44,9 +50,11 @@ pub struct CreateArtifactInput {
     pub diff_patch: Option<String>,
 }
 
-const COLUMNS: &str = "id, workspace_id, task_id, run_id, file_path, absolute_path, file_type, \
-    file_size_bytes, content_sha256, previous_sha256, action_type, created_by_agent, \
-    creation_reason, diff_patch, google_doc_url, google_drive_url, emailed_to, created_at, pinned";
+const COLUMNS: &str = "a.id, a.workspace_id, a.task_id, a.run_id, a.file_path, a.absolute_path, \
+    a.file_type, a.file_size_bytes, a.content_sha256, a.previous_sha256, a.action_type, \
+    a.created_by_agent, a.creation_reason, a.diff_patch, a.google_doc_url, a.google_drive_url, \
+    a.emailed_to, a.created_at, a.pinned, COALESCE(r.source, 'task') AS source, r.channel, \
+    r.origin_ref";
 
 pub async fn create(
     pool: &SqlitePool,
@@ -91,7 +99,11 @@ pub async fn create(
 }
 
 pub async fn get(pool: &SqlitePool, id: &str) -> AppResult<ArtifactProvenance> {
-    let query = format!("SELECT {COLUMNS} FROM artifacts_provenance WHERE id = ?");
+    let query = format!(
+        "SELECT {COLUMNS} FROM artifacts_provenance a
+         LEFT JOIN task_runs r ON r.id = a.run_id
+         WHERE a.id = ?"
+    );
     sqlx::query_as::<_, ArtifactProvenance>(&query)
         .bind(id)
         .fetch_optional(pool)
@@ -108,12 +120,13 @@ pub async fn list(
     limit: i64,
 ) -> AppResult<Vec<ArtifactProvenance>> {
     let query = format!(
-        "SELECT {COLUMNS} FROM artifacts_provenance
-         WHERE workspace_id = ?
-           AND (? IS NULL OR created_by_agent = ?)
-           AND (? IS NULL OR task_id = ?)
-           AND (? IS NULL OR action_type = ?)
-         ORDER BY created_at DESC
+        "SELECT {COLUMNS} FROM artifacts_provenance a
+         LEFT JOIN task_runs r ON r.id = a.run_id
+         WHERE a.workspace_id = ?
+           AND (? IS NULL OR a.created_by_agent = ?)
+           AND (? IS NULL OR a.task_id = ?)
+           AND (? IS NULL OR a.action_type = ?)
+         ORDER BY a.created_at DESC
          LIMIT ?"
     );
     Ok(sqlx::query_as::<_, ArtifactProvenance>(&query)
@@ -135,8 +148,9 @@ pub async fn list_by_run(
     limit: i64,
 ) -> AppResult<Vec<ArtifactProvenance>> {
     let query = format!(
-        "SELECT {COLUMNS} FROM artifacts_provenance
-         WHERE run_id = ? ORDER BY created_at ASC LIMIT ?"
+        "SELECT {COLUMNS} FROM artifacts_provenance a
+         LEFT JOIN task_runs r ON r.id = a.run_id
+         WHERE a.run_id = ? ORDER BY a.created_at ASC LIMIT ?"
     );
     Ok(sqlx::query_as::<_, ArtifactProvenance>(&query)
         .bind(run_id)
@@ -151,9 +165,10 @@ pub async fn list_pinned(
     limit: i64,
 ) -> AppResult<Vec<ArtifactProvenance>> {
     let query = format!(
-        "SELECT {COLUMNS} FROM artifacts_provenance
-         WHERE workspace_id = ? AND pinned = 1
-         ORDER BY created_at DESC LIMIT ?"
+        "SELECT {COLUMNS} FROM artifacts_provenance a
+         LEFT JOIN task_runs r ON r.id = a.run_id
+         WHERE a.workspace_id = ? AND a.pinned = 1
+         ORDER BY a.created_at DESC LIMIT ?"
     );
     Ok(sqlx::query_as::<_, ArtifactProvenance>(&query)
         .bind(workspace_id)
@@ -194,9 +209,10 @@ pub async fn latest_for_path(
     file_path: &str,
 ) -> AppResult<Option<ArtifactProvenance>> {
     let query = format!(
-        "SELECT {COLUMNS} FROM artifacts_provenance
-         WHERE workspace_id = ? AND file_path = ?
-         ORDER BY created_at DESC LIMIT 1"
+        "SELECT {COLUMNS} FROM artifacts_provenance a
+         LEFT JOIN task_runs r ON r.id = a.run_id
+         WHERE a.workspace_id = ? AND a.file_path = ?
+         ORDER BY a.created_at DESC LIMIT 1"
     );
     Ok(sqlx::query_as::<_, ArtifactProvenance>(&query)
         .bind(workspace_id)

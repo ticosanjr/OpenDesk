@@ -9,6 +9,7 @@ pub mod artifacts;
 pub mod budget;
 pub mod calendar;
 pub mod chat;
+pub mod chat_turns;
 pub mod deliveries;
 pub mod integrations;
 pub mod interactions;
@@ -185,7 +186,7 @@ mod migration_tests {
                 .fetch_all(&pool)
                 .await
                 .unwrap();
-        assert_eq!(rows.last().unwrap().0, 39, "rows: {rows:?}");
+        assert_eq!(rows.last().unwrap().0, 40, "rows: {rows:?}");
         let calendar_table: Option<(String,)> = sqlx::query_as(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'calendar_events'",
         )

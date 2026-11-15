@@ -33,6 +33,23 @@ import { cn } from "@/lib/utils";
 
 const RANGES = [7, 30, 90] as const;
 
+function sourceLabel(source: string, channel?: string | null): string {
+  if (source === "task") return "Trabalho";
+  if (source === "routine") return "Rotinas";
+  if (source === "recipe") return "Receitas";
+  if (source === "automation") return "Automações";
+  if (source === "chat") {
+    const name =
+      channel === "telegram"
+        ? "Telegram"
+        : channel === "signal"
+          ? "Signal"
+          : "Desktop";
+    return `Chat · ${name}`;
+  }
+  return source;
+}
+
 export function ObservabilityPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const workspaces = useAppStore((state) => state.workspaces);
@@ -135,7 +152,7 @@ export function ObservabilityPage() {
 
       {loading && !metrics ? (
         <LoadingState rows={3} label="Calculando métricas…" />
-      ) : !metrics || metrics.runs_total === 0 ? (
+      ) : !metrics || (metrics.runs_total === 0 && metrics.chat_messages === 0) ? (
         <EmptyState
           icon={Activity}
           title="Sem execuções no período"
@@ -169,7 +186,7 @@ export function ObservabilityPage() {
               icon={<Coins size={13} />}
               label="Custo"
               value={formatUsd(metrics.cost_usd)}
-              hint={`${formatNumber(metrics.tokens)} tokens`}
+              hint={`${formatNumber(metrics.tokens)} tokens · ${metrics.chat_messages} mensagens de chat`}
             />
           </div>
 
@@ -249,6 +266,66 @@ export function ObservabilityPage() {
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader className="py-3">
+              <CardTitle className="flex items-center gap-2 text-[14px]">
+                <Activity size={14} className="text-zinc-400" />
+                Por origem
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-left text-[13px]">
+                  <thead className="border-y border-zinc-800/60 text-[11.5px] uppercase tracking-wide text-zinc-500">
+                    <tr>
+                      <th className="px-4 py-2">Origem</th>
+                      <th className="px-3 py-2 text-right">Execuções</th>
+                      <th className="px-3 py-2 text-right">Mensagens</th>
+                      <th className="px-3 py-2 text-right">Tokens</th>
+                      <th className="px-3 py-2 text-right">Sucesso</th>
+                      <th className="px-3 py-2 text-right">p95</th>
+                      <th className="px-4 py-2 text-right">Custo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {metrics.sources.map((source) => (
+                      <tr
+                        key={`${source.source}:${source.channel ?? ""}`}
+                        className="border-b border-zinc-800/50"
+                      >
+                        <td className="px-4 py-2 text-zinc-200">
+                          {sourceLabel(source.source, source.channel)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-zinc-300">
+                          {formatNumber(source.executions)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-zinc-500">
+                          {formatNumber(source.messages)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-zinc-300">
+                          {formatNumber(source.tokens)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-zinc-400">
+                          {source.executions > 0
+                            ? formatPercent(source.success_rate * 100)
+                            : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-zinc-500">
+                          {source.executions > 0
+                            ? formatMs(source.p95_duration_ms)
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono text-zinc-400">
+                          {formatUsd(source.cost_usd)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader className="py-3">

@@ -200,6 +200,9 @@ fn test_artifact(path: &Path, index: usize) -> artifacts::ArtifactProvenance {
         emailed_to: None,
         created_at: "2026-11-08T12:00:00Z".into(),
         pinned: false,
+        source: "task".into(),
+        channel: None,
+        origin_ref: None,
     }
 }
 

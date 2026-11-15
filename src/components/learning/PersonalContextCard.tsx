@@ -23,13 +23,11 @@ export function PersonalContextCard() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState({
-    name: "",
     instructions: "",
     scope: "workspace" as "workspace" | "global",
   });
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState({
-    name: "",
     instructions: "",
     scope: "workspace" as "workspace" | "global",
   });
@@ -62,8 +60,8 @@ export function PersonalContextCard() {
   }, [load]);
 
   async function create() {
-    if (!draft.name.trim() || !draft.instructions.trim()) {
-      setError("Informe um nome e as instruções.");
+    if (!draft.instructions.trim()) {
+      setError("Escreva a regra que deve entrar no prompt.");
       return;
     }
     setBusy("create");
@@ -71,11 +69,10 @@ export function PersonalContextCard() {
       await apiPost(`/api/personal-context${query}`, {
         scope: draft.scope,
         workspace_id: draft.scope === "workspace" ? workspaceId : null,
-        name: draft.name.trim(),
         instructions: draft.instructions.trim(),
         is_enabled: true,
       });
-      setDraft({ name: "", instructions: "", scope: "workspace" });
+      setDraft({ instructions: "", scope: "workspace" });
       setCreating(false);
       await load();
       toast({ tone: "success", title: "Contexto pessoal criado" });
@@ -89,15 +86,14 @@ export function PersonalContextCard() {
   function startEdit(group: PersonalContextGroup) {
     setEditing(group.id);
     setEditDraft({
-      name: group.name,
       instructions: group.instructions,
       scope: group.scope,
     });
   }
 
   async function saveEdit(group: PersonalContextGroup) {
-    if (!editDraft.name.trim() || !editDraft.instructions.trim()) {
-      setError("Informe um nome e as instruções.");
+    if (!editDraft.instructions.trim()) {
+      setError("Escreva a regra que deve entrar no prompt.");
       return;
     }
     setBusy(group.id);
@@ -108,7 +104,6 @@ export function PersonalContextCard() {
           editDraft.scope === "workspace"
             ? (group.workspace_id ?? workspaceId)
             : null,
-        name: editDraft.name.trim(),
         instructions: editDraft.instructions.trim(),
         is_enabled: group.is_enabled,
         position: group.position,
@@ -177,8 +172,8 @@ export function PersonalContextCard() {
             Contexto pessoal
           </CardTitle>
           <p className="mt-0.5 text-[12px] text-zinc-500">
-            Instruções curtas que entram automaticamente nos prompts. Grupos
-            globais valem para todos os workspaces.
+            Regras curtas que entram automaticamente nos prompts. Regras globais
+            valem para todos os workspaces.
           </p>
         </div>
         <Button
@@ -187,7 +182,7 @@ export function PersonalContextCard() {
           onClick={() => setCreating((value) => !value)}
         >
           <Plus size={12} />
-          Novo grupo
+          Nova regra
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -199,40 +194,24 @@ export function PersonalContextCard() {
 
         {creating ? (
           <div className="space-y-2 rounded-lg border border-violet-500/20 bg-violet-500/[0.03] p-3">
-            <div className="grid gap-2 sm:grid-cols-[1fr_150px]">
-              <label>
-                <span className={labelClass}>Nome do grupo</span>
-                <input
-                  value={draft.name}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      name: event.target.value,
-                    }))
-                  }
-                  placeholder="Ex.: tom de voz"
-                  className={inputClass}
-                />
-              </label>
-              <label>
-                <span className={labelClass}>Escopo</span>
-                <select
-                  value={draft.scope}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      scope: event.target.value as "workspace" | "global",
-                    }))
-                  }
-                  className={inputClass}
-                >
-                  <option value="workspace">workspace</option>
-                  <option value="global">global</option>
-                </select>
-              </label>
-            </div>
             <label>
-              <span className={labelClass}>Instruções</span>
+              <span className={labelClass}>Escopo</span>
+              <select
+                value={draft.scope}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    scope: event.target.value as "workspace" | "global",
+                  }))
+                }
+                className={inputClass}
+              >
+                <option value="workspace">workspace</option>
+                <option value="global">global</option>
+              </select>
+            </label>
+            <label>
+              <span className={labelClass}>Regra</span>
               <textarea
                 value={draft.instructions}
                 onChange={(event) =>
@@ -274,8 +253,8 @@ export function PersonalContextCard() {
           </p>
         ) : groups.length === 0 ? (
           <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-3 text-[12.5px] text-zinc-500">
-            Nenhum contexto pessoal ainda. Crie grupos para orientar todos os
-            prompts sem repetir as mesmas instruções.
+            Nenhuma regra pessoal ainda. Adicione uma regra para orientar todos
+            os prompts sem repetir as mesmas instruções.
           </p>
         ) : (
           <div className="space-y-2">
@@ -292,9 +271,6 @@ export function PersonalContextCard() {
                   <div className="flex flex-wrap items-start gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <p className="truncate text-[13.5px] font-medium text-zinc-200">
-                          {group.name}
-                        </p>
                         <Badge
                           variant={group.scope === "global" ? "purple" : "default"}
                         >
@@ -345,33 +321,20 @@ export function PersonalContextCard() {
                   </div>
                   {isEditing ? (
                     <div className="mt-2 space-y-2">
-                      <div className="grid gap-2 sm:grid-cols-[1fr_150px]">
-                        <input
-                          value={editDraft.name}
-                          onChange={(event) =>
-                            setEditDraft((current) => ({
-                              ...current,
-                              name: event.target.value,
-                            }))
-                          }
-                          className={inputClass}
-                          aria-label="Nome do grupo"
-                        />
-                        <select
-                          value={editDraft.scope}
-                          onChange={(event) =>
-                            setEditDraft((current) => ({
-                              ...current,
-                              scope: event.target.value as "workspace" | "global",
-                            }))
-                          }
-                          className={inputClass}
-                          aria-label="Escopo do grupo"
-                        >
-                          <option value="workspace">workspace</option>
-                          <option value="global">global</option>
-                        </select>
-                      </div>
+                      <select
+                        value={editDraft.scope}
+                        onChange={(event) =>
+                          setEditDraft((current) => ({
+                            ...current,
+                            scope: event.target.value as "workspace" | "global",
+                          }))
+                        }
+                        className={inputClass}
+                        aria-label="Escopo do grupo"
+                      >
+                        <option value="workspace">workspace</option>
+                        <option value="global">global</option>
+                      </select>
                       <textarea
                         value={editDraft.instructions}
                         onChange={(event) =>
