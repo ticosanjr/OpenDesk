@@ -3,6 +3,7 @@ pub mod artifacts;
 pub mod attachments;
 pub mod attention;
 pub mod audit;
+pub mod auth;
 pub mod backups;
 pub mod blueprints;
 pub mod browse;
@@ -100,6 +101,9 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
     let router = Router::new()
         .route("/healthz", get(healthz))
         .route("/api/health", get(health))
+        .route("/api/auth/session", post(auth::create_session))
+        .route("/api/auth/logout", post(auth::logout))
+        .route("/api/auth/sessions", get(auth::list_sessions))
         .route("/api/meta", get(meta))
         .route("/api/about", get(about::about))
         .route(

@@ -13,9 +13,10 @@
 2. **PWA servida pelo Axum**: quando `OPENDESK_WEB_DIR` aponta para o build Vite,
    o daemon serve a SPA com fallback para `index.html`, além de
    `manifest.webmanifest` e `sw.js`.
-3. **Login remoto por token**: em navegador (fora do Tauri), a UI pede o token
-   da API no primeiro acesso e o guarda em `localStorage`. O desktop continua
-   usando o bridge Tauri.
+3. **Login remoto por sessão**: em navegador (fora do Tauri), a UI pede o token
+   da API e o troca por um token de sessão (`/api/auth/session`). O token de
+   sessão tem TTL, é armazenado como hash e pode ser revogado; o token local
+   continua válido para o desktop.
 4. **Cliente API same-origin**: `api.ts` passa a usar `baseUrl` quando servido
    pelo daemon; WebSocket usa `ws/wss` do mesmo host.
 5. **CLI de chat**: `opendesk chat [mensagem]` cria/reutiliza uma conversa,
@@ -26,7 +27,7 @@
 ## Pendências da onda 1
 
 - Extração física de `opendesk-core` e cliente Tauri 100% remoto.
-- Passkey/WebAuthn e sessões persistentes.
+- Passkey/WebAuthn (sessões persistentes por token já implementadas).
 - Web Push/VAPID.
 - TUI completa e inspeção de diffs no terminal.
 

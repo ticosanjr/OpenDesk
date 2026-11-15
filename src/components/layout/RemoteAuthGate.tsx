@@ -26,14 +26,31 @@ export function RemoteAuthGate({ children }: { children: ReactNode }) {
   if (isTauri() || hasEnvToken()) return <>{children}</>;
   if (token) return <>{children}</>;
 
-  function signIn() {
+  async function signIn() {
     const value = token.trim();
     if (!value) {
       setError("Informe o token da API local.");
       return;
     }
+    let stored = value;
     try {
-      window.localStorage.setItem(TOKEN_KEY, value);
+      const response = await fetch("/api/auth/session", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${value}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ label: "pwa", ttl_days: 30 }),
+      });
+      if (response.ok) {
+        const data = (await response.json()) as { token?: string };
+        if (data.token) stored = data.token;
+      }
+    } catch {
+      // Older daemons may not expose /api/auth/session; keep the raw token.
+    }
+    try {
+      window.localStorage.setItem(TOKEN_KEY, stored);
       window.location.reload();
     } catch {
       setError("O navegador bloqueou o armazenamento local.");
@@ -68,7 +85,7 @@ export function RemoteAuthGate({ children }: { children: ReactNode }) {
                   setError(null);
                 }}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter") signIn();
+                  if (event.key === "Enter") void signIn();
                 }}
                 placeholder="cole o token de api.json"
                 className="h-10 min-w-0 flex-1 bg-transparent font-mono text-[12.5px] text-zinc-200 outline-none placeholder:text-zinc-600"
@@ -85,7 +102,7 @@ export function RemoteAuthGate({ children }: { children: ReactNode }) {
             <p className="text-[11.5px] text-zinc-500">
               O token fica somente neste navegador.
             </p>
-            <Button size="sm" onClick={signIn}>
+            <Button size="sm" onClick={() => void signIn()}>
               Entrar
             </Button>
           </div>

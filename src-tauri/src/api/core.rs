@@ -377,12 +377,21 @@ pub(crate) async fn auth_middleware(
         None
     };
 
-    let authorized = header_token
-        .map(|token| token == state.api_token)
-        .unwrap_or(false)
-        || query_token
-            .map(|token| token == state.api_token)
-            .unwrap_or(false);
+    let header_ok = match header_token {
+        Some(token) if token == state.api_token => true,
+        Some(token) => crate::db::auth_sessions::validate(&state.db, token)
+            .await
+            .unwrap_or(false),
+        None => false,
+    };
+    let query_ok = match query_token {
+        Some(token) if token == state.api_token => true,
+        Some(token) => crate::db::auth_sessions::validate(&state.db, &token)
+            .await
+            .unwrap_or(false),
+        None => false,
+    };
+    let authorized = header_ok || query_ok;
 
     if authorized {
         next.run(request).await

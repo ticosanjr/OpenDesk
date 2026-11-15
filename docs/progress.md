@@ -2754,7 +2754,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - `OPENDESK_API_HOST` configurável; `opendeskd` com bind explícito.
 - Axum serve a SPA/PWA quando `OPENDESK_WEB_DIR` aponta para `dist`.
-- Login remoto por token, API same-origin e WebSocket pelo host atual.
+- Login remoto por sessão (hash, TTL e revogação), API same-origin e WebSocket
+  pelo host atual.
 - Manifest/service worker e configuração mobile.
 - `opendesk chat` com mensagem única ou loop interativo.
 - Serviços de exemplo systemd/launchd/Windows e `docs/daemon.md`.

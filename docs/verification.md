@@ -165,7 +165,7 @@ pendências manuais continuam listadas abaixo.
 
 ## Pós-0.59.0 — v1.0 onda 1 (parte 1)
 
-- Daemon com host configurável, PWA estática e login por token.
+- Daemon com host configurável, PWA estática e login por sessão revogável.
 - CLI `opendesk chat` e serviços de exemplo.
 - ADR 0063.
 
