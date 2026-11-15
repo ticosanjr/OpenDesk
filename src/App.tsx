@@ -1,6 +1,7 @@
 import { lazy } from "react";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
+import { RemoteAuthGate } from "@/components/layout/RemoteAuthGate";
 
 const DashboardPage = lazy(() =>
   import("@/pages/DashboardPage").then((module) => ({ default: module.DashboardPage })),
@@ -73,7 +74,8 @@ const CapturePage = lazy(() =>
 
 export default function App() {
   return (
-    <HashRouter>
+    <RemoteAuthGate>
+      <HashRouter>
       <Routes>
         <Route path="capture" element={<CapturePage />} />
         <Route element={<AppShell />}>
@@ -100,6 +102,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
-    </HashRouter>
+      </HashRouter>
+    </RemoteAuthGate>
   );
 }

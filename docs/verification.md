@@ -163,6 +163,12 @@ pendências manuais continuam listadas abaixo.
   runtime events.
 - Registro de variáveis de prompt; ADR 0062.
 
+## Pós-0.59.0 — v1.0 onda 1 (parte 1)
+
+- Daemon com host configurável, PWA estática e login por token.
+- CLI `opendesk chat` e serviços de exemplo.
+- ADR 0063.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

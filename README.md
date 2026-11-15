@@ -328,6 +328,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0060 — Prévia HTML/JSON, contexto pessoal e ferramentas](docs/decisions/0060-file-viewer-personal-context-and-tools.md)
 - [ADR 0061 — Abas de prompt e memória via MCP](docs/decisions/0061-prompt-tabs-and-memory-destinations.md)
 - [ADR 0062 — Fundação do control plane v1.0](docs/decisions/0062-control-plane-foundation.md)
+- [ADR 0063 — Daemon, PWA e CLI chat](docs/decisions/0063-daemon-pwa-and-cli-chat.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

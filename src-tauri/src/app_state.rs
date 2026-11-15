@@ -50,6 +50,7 @@ pub struct AppState {
     pub telegram: Arc<TelegramBridge>,
     pub io_bus: Arc<crate::io_bus::runtime::IoBus>,
     pub rate_limiter: crate::audit::RateLimiter,
+    pub api_host: String,
     pub api_port: u16,
     pub api_token: String,
     pub listener: Mutex<Option<TcpListener>>,
@@ -60,6 +61,7 @@ pub struct AppState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiEndpoint {
+    pub host: String,
     pub port: u16,
     pub token: String,
 }
@@ -85,7 +87,12 @@ impl AppState {
             .ok()
             .and_then(|value| value.parse::<u16>().ok())
             .unwrap_or(0);
-        let listener = TcpListener::bind(("127.0.0.1", requested_port))
+        let api_host = std::env::var("OPENDESK_API_HOST")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "127.0.0.1".into());
+        let listener = TcpListener::bind((api_host.as_str(), requested_port))
             .context("could not reserve a local port for the OpenDesk API")?;
         listener
             .set_nonblocking(true)
@@ -143,6 +150,7 @@ impl AppState {
             telegram,
             io_bus,
             rate_limiter: crate::audit::RateLimiter::new(crate::audit::RateLimits::from_env()),
+            api_host,
             api_port,
             api_token,
             listener: Mutex::new(Some(listener)),
@@ -220,6 +228,7 @@ impl AppState {
 
     pub fn api_endpoint(&self) -> ApiEndpoint {
         ApiEndpoint {
+            host: self.api_host.clone(),
             port: self.api_port,
             token: self.api_token.clone(),
         }

@@ -2749,3 +2749,13 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   adapter_registry e runtime_events.
 - Registro de variáveis de prompt, incluindo memória, handoff, trust e harness.
 - ADR 0062. Próxima onda: daemon/PWA/auth/CLI.
+
+## 2026-11-16 — v1.0 onda 1 (parte 1): daemon, PWA e CLI chat
+
+- `OPENDESK_API_HOST` configurável; `opendeskd` com bind explícito.
+- Axum serve a SPA/PWA quando `OPENDESK_WEB_DIR` aponta para `dist`.
+- Login remoto por token, API same-origin e WebSocket pelo host atual.
+- Manifest/service worker e configuração mobile.
+- `opendesk chat` com mensagem única ou loop interativo.
+- Serviços de exemplo systemd/launchd/Windows e `docs/daemon.md`.
+- ADR 0063. Pendências: core extraction, passkey, Web Push e TUI completa.

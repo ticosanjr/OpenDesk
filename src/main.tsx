@@ -9,6 +9,15 @@ import "./styles.css";
 import App from "./App";
 import { ErrorBoundary } from "./components/ui/error-boundary";
 
+if (
+  !("__TAURI_INTERNALS__" in window) &&
+  "serviceWorker" in navigator
+) {
+  void navigator.serviceWorker.register("/sw.js").catch(() => {
+    // PWA caching is optional; the app still works without it.
+  });
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <ErrorBoundary>

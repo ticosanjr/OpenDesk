@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export interface ApiEndpoint {
+  host?: string;
   port: number;
   token: string;
+  baseUrl?: string;
 }
 
 let endpointPromise: Promise<ApiEndpoint> | null = null;
@@ -24,15 +26,29 @@ async function resolveEndpoint(): Promise<ApiEndpoint> {
 
   // Browser-only development fallback. Read the port/token from src-tauri's
   // api.json and export VITE_OPENDESK_PORT / VITE_OPENDESK_TOKEN.
-  const token = import.meta.env.VITE_OPENDESK_TOKEN as string | undefined;
-  const port = Number(import.meta.env.VITE_OPENDESK_PORT ?? 0);
-  if (token && port > 0) {
-    return { port, token };
+  const envToken = import.meta.env.VITE_OPENDESK_TOKEN as string | undefined;
+  const envPort = Number(import.meta.env.VITE_OPENDESK_PORT ?? 0);
+  if (envToken && envPort > 0) {
+    return { port: envPort, token: envToken };
+  }
+
+  // PWA served by opendeskd: same-origin API and a token stored after login.
+  const stored = window.localStorage.getItem("opendesk_api_token");
+  if (stored) {
+    return {
+      port: Number(window.location.port || 80),
+      token: stored,
+      baseUrl: window.location.origin,
+    };
   }
 
   throw new Error(
-    "OpenDesk API endpoint unavailable. Run the app through `npm run tauri dev` or set VITE_OPENDESK_PORT and VITE_OPENDESK_TOKEN.",
+    "OpenDesk API endpoint unavailable. Run the app through `npm run tauri dev`, set VITE_OPENDESK_PORT and VITE_OPENDESK_TOKEN, or sign in to the PWA.",
   );
+}
+
+function apiBase(endpoint: ApiEndpoint): string {
+  return endpoint.baseUrl ?? `http://127.0.0.1:${endpoint.port}`;
 }
 
 export class ApiError extends Error {
@@ -55,14 +71,14 @@ function retryAfterSeconds(response: Response): number | null {
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const { port, token } = await getEndpoint();
+  const endpoint = await getEndpoint();
   const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${token}`);
+  headers.set("Authorization", `Bearer ${endpoint.token}`);
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`http://127.0.0.1:${port}${path}`, {
+  const response = await fetch(`${apiBase(endpoint)}${path}`, {
     ...init,
     headers,
   });
@@ -122,14 +138,19 @@ export async function apiDelete<T>(path: string): Promise<T> {
 }
 
 export async function websocketUrl(): Promise<string> {
-  const { port, token } = await getEndpoint();
-  return `ws://127.0.0.1:${port}/ws?token=${encodeURIComponent(token)}`;
+  const endpoint = await getEndpoint();
+  const base = apiBase(endpoint);
+  const url = new URL(base);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.pathname = "/ws";
+  url.search = `?token=${encodeURIComponent(endpoint.token)}`;
+  return url.toString();
 }
 
 export async function apiBlob(path: string): Promise<Blob> {
-  const { port, token } = await getEndpoint();
-  const response = await fetch(`http://127.0.0.1:${port}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
+  const endpoint = await getEndpoint();
+  const response = await fetch(`${apiBase(endpoint)}${path}`, {
+    headers: { Authorization: `Bearer ${endpoint.token}` },
   });
   if (!response.ok) {
     let message = `Request failed (${response.status})`;
@@ -145,9 +166,9 @@ export async function apiBlob(path: string): Promise<Blob> {
 }
 
 export async function apiText(path: string): Promise<string> {
-  const { port, token } = await getEndpoint();
-  const response = await fetch(`http://127.0.0.1:${port}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
+  const endpoint = await getEndpoint();
+  const response = await fetch(`${apiBase(endpoint)}${path}`, {
+    headers: { Authorization: `Bearer ${endpoint.token}` },
   });
   if (!response.ok) {
     throw new Error(`Request failed (${response.status})`);

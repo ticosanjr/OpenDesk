@@ -59,6 +59,7 @@ use axum::{
 use std::sync::Arc;
 use tower_http::{
     cors::{AllowOrigin, Any, CorsLayer},
+    services::{ServeDir, ServeFile},
     trace::TraceLayer,
 };
 
@@ -96,7 +97,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
 
     use core::*;
 
-    Router::new()
+    let router = Router::new()
         .route("/healthz", get(healthz))
         .route("/api/health", get(health))
         .route("/api/meta", get(meta))
@@ -634,7 +635,15 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         ))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
-        .with_state(state)
+        .with_state(state);
+
+    let web_dir = std::env::var("OPENDESK_WEB_DIR").unwrap_or_else(|_| "dist".to_string());
+    let index = std::path::Path::new(&web_dir).join("index.html");
+    if index.is_file() {
+        router.fallback_service(ServeDir::new(&web_dir).fallback(ServeFile::new(index)))
+    } else {
+        router
+    }
 }
 
 #[cfg(test)]

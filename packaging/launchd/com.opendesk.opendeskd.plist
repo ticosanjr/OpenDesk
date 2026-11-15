@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.opendesk.opendeskd</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/opendeskd</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>OPENDESK_API_HOST</key>
+    <string>127.0.0.1</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/opendeskd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/opendeskd.err.log</string>
+</dict>
+</plist>

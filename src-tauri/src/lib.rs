@@ -392,8 +392,8 @@ pub fn run_headless() {
             .expect("OpenDesk API server");
 
         println!(
-            "OpenDesk headless API on http://127.0.0.1:{} (token in api.json)",
-            state.api_port
+            "OpenDesk headless API on http://{}:{} (token in api.json)",
+            state.api_host, state.api_port
         );
 
         wait_for_daemon_shutdown().await;

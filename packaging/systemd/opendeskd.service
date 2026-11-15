@@ -1,0 +1,16 @@
+[Unit]
+Description=OpenDesk control plane
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/opendeskd
+Environment=OPENDESK_API_HOST=127.0.0.1
+Environment=OPENDESK_WEB_DIR=%h/.local/share/opendesk/web
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target
