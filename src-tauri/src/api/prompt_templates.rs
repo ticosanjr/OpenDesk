@@ -29,6 +29,7 @@ pub struct TemplatesResponse {
     pub templates: PromptTemplates,
     pub defaults: PromptTemplates,
     pub fields: &'static [PromptTemplateField],
+    pub variables: &'static [prompt_templates::PromptVariable],
 }
 
 async fn resolve_workspace(state: &AppState, requested: Option<&str>) -> AppResult<Option<String>> {
@@ -50,6 +51,7 @@ async fn response(state: &AppState, workspace_id: Option<String>) -> AppResult<T
         templates,
         defaults: PromptTemplates::default(),
         fields: prompt_templates::FIELDS,
+        variables: prompt_templates::VARIABLES,
     })
 }
 

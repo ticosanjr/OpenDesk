@@ -186,7 +186,7 @@ mod migration_tests {
                 .fetch_all(&pool)
                 .await
                 .unwrap();
-        assert_eq!(rows.last().unwrap().0, 41, "rows: {rows:?}");
+        assert_eq!(rows.last().unwrap().0, 42, "rows: {rows:?}");
         let calendar_table: Option<(String,)> = sqlx::query_as(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'calendar_events'",
         )
@@ -201,6 +201,26 @@ mod migration_tests {
         .await
         .unwrap();
         assert!(learning_table.is_some(), "learning_lessons table");
+        for table in [
+            "handoffs",
+            "tickets",
+            "channel_routes",
+            "memory_notes",
+            "memory_entities",
+            "memory_namespaces",
+            "memory_acl",
+            "workers",
+            "adapter_registry",
+            "runtime_events",
+        ] {
+            let found: Option<(String,)> =
+                sqlx::query_as("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+                    .bind(table)
+                    .fetch_optional(&pool)
+                    .await
+                    .unwrap();
+            assert!(found.is_some(), "{table} table");
+        }
         let recipe_keys: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM pragma_table_info('recipes_index') WHERE pk > 0",
         )

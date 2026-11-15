@@ -155,6 +155,14 @@ pendências manuais continuam listadas abaixo.
 - `learning_save` e `personal_context_save` com citação explícita; migração
   0041; ADR 0061.
 
+## Pós-0.59.0 — v1.0 onda 0
+
+- Contrato de adapter, eventos normalizados e registry.
+- `opendeskd` headless e encerramento gracioso.
+- Migração 0042 com schemas de handoff, ticket, canal, memória, workers e
+  runtime events.
+- Registro de variáveis de prompt; ADR 0062.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

@@ -34,6 +34,8 @@ mod queue_scheduler;
 mod recipes;
 mod run_export;
 mod run_timeline;
+#[allow(dead_code)]
+mod runtime;
 mod secrets;
 mod starter_packs;
 #[cfg(test)]
@@ -333,6 +335,12 @@ pub fn run_cli(args: Vec<String>) {
     cli::run(args);
 }
 
+/// `opendeskd` entry point. Kept as a thin alias so future service packaging
+/// can add daemon-specific configuration without changing the desktop binary.
+pub fn run_daemon() {
+    run_headless();
+}
+
 pub fn run_headless() {
     init_logging();
 
@@ -388,12 +396,35 @@ pub fn run_headless() {
             state.api_port
         );
 
-        let _ = tokio::signal::ctrl_c().await;
+        wait_for_daemon_shutdown().await;
         state.cron.shutdown();
         state.io_bus.stop().await;
         state.queue.shutdown().await;
         state.daemon.shutdown().await;
     });
+}
+
+async fn wait_for_daemon_shutdown() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        let mut terminate = match signal(SignalKind::terminate()) {
+            Ok(signal) => signal,
+            Err(error) => {
+                tracing::warn!(error = %error, "could not install SIGTERM handler");
+                let _ = tokio::signal::ctrl_c().await;
+                return;
+            }
+        };
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {}
+            _ = terminate.recv() => {}
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
 }
 
 /// `opendesk doctor` — preflight for the engine and local state without a GUI.

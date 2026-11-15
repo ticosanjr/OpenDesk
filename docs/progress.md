@@ -2740,3 +2740,12 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - MCP: `learning_save` (aprendizado/MEMORY.md) e `personal_context_save` só com
   pedido explícito e citação do usuário.
 - Migração 0041 (`source`/`source_quote` do contexto pessoal); ADR 0061.
+
+## 2026-11-16 — v1.0 onda 0: fundação do control plane
+
+- Contrato `AgentRuntimeAdapter` + `RuntimeEvent` + capabilities + registry.
+- Binário `opendeskd` headless com SIGTERM/SIGINT e desligamento gracioso.
+- Migração 0042: handoffs, tickets, channel_routes, memória/ACL, workers,
+  adapter_registry e runtime_events.
+- Registro de variáveis de prompt, incluindo memória, handoff, trust e harness.
+- ADR 0062. Próxima onda: daemon/PWA/auth/CLI.
