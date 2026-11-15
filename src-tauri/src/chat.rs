@@ -109,9 +109,23 @@ pub async fn send_message_with_context(
             workspace_id: thread.workspace_id.clone(),
         });
 
-    let personal_context = crate::personal_context::render(&state.db, &thread.workspace_id)
+    let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
+        &state.db,
+        Some(&thread.workspace_id),
+    )
+    .await
+    .unwrap_or_default();
+    let personal_body = crate::personal_context::render_body(&state.db, &thread.workspace_id)
         .await
         .unwrap_or_default();
+    let personal_context = if personal_body.is_empty() {
+        String::new()
+    } else {
+        crate::dsh_router::prompt_templates::render(
+            &templates.personal_block,
+            &[("personal_context", &personal_body)],
+        )
+    };
     let prompt_text = match context.map(str::trim).filter(|value| !value.is_empty()) {
         Some(context) => format!("{personal_context}\n\n{context}\n\n{content}"),
         None if personal_context.is_empty() => content.to_string(),

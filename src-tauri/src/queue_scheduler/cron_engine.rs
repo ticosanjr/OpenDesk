@@ -630,9 +630,10 @@ impl CronEngine {
         } else {
             false
         };
-        let personal_context = crate::personal_context::render(&self.pool, &schedule.workspace_id)
-            .await
-            .unwrap_or_default();
+        let personal_context =
+            crate::personal_context::render_body(&self.pool, &schedule.workspace_id)
+                .await
+                .unwrap_or_default();
         let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
             &self.pool,
             Some(&schedule.workspace_id),

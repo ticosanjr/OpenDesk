@@ -209,9 +209,19 @@ pub(super) async fn enqueue_decision(
     enqueue_decision_with_session(state, task, workspace, decision, approved_plan, None, None).await
 }
 
-fn append_instruction(prompt: String, extra: Option<&str>) -> String {
+fn append_instruction(
+    prompt: String,
+    extra: Option<&str>,
+    templates: &crate::dsh_router::prompt_templates::PromptTemplates,
+) -> String {
     match extra.map(str::trim).filter(|value| !value.is_empty()) {
-        Some(extra) => format!("{prompt}\n## Instruções desta execução\n\n{extra}\n"),
+        Some(extra) => {
+            let block = crate::dsh_router::prompt_templates::render(
+                &templates.execution_instruction,
+                &[("instruction", extra)],
+            );
+            format!("{prompt}\n{block}\n")
+        }
         None => prompt,
     }
 }
@@ -241,7 +251,8 @@ pub(crate) async fn enqueue_decision_with_session(
         &tags,
     )
     .await?;
-    let personal_context = crate::personal_context::render(&state.db, &task.workspace_id).await?;
+    let personal_context =
+        crate::personal_context::render_body(&state.db, &task.workspace_id).await?;
     let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
         &state.db,
         Some(&task.workspace_id),
@@ -265,7 +276,7 @@ pub(crate) async fn enqueue_decision_with_session(
         },
         &templates,
     );
-    let prompt = append_instruction(prompt, extra_instruction);
+    let prompt = append_instruction(prompt, extra_instruction, &templates);
 
     tasks::move_to(&state.db, &task.id, "TODO", None).await?;
     tasks::set_phase(&state.db, &task.id, Some(&decision.phase)).await?;
@@ -307,12 +318,30 @@ mod tests {
 
     #[test]
     fn appends_one_off_execution_instructions() {
-        let prompt = append_instruction("base".into(), Some("  /resumir foco  "));
+        let prompt = append_instruction(
+            "base".into(),
+            Some("  /resumir foco  "),
+            &crate::dsh_router::prompt_templates::PromptTemplates::default(),
+        );
         assert!(prompt.starts_with("base"));
         assert!(prompt.contains("## Instruções desta execução"));
         assert!(prompt.contains("/resumir foco"));
-        assert_eq!(append_instruction("base".into(), Some("   ")), "base");
-        assert_eq!(append_instruction("base".into(), None), "base");
+        assert_eq!(
+            append_instruction(
+                "base".into(),
+                Some("   "),
+                &crate::dsh_router::prompt_templates::PromptTemplates::default()
+            ),
+            "base"
+        );
+        assert_eq!(
+            append_instruction(
+                "base".into(),
+                None,
+                &crate::dsh_router::prompt_templates::PromptTemplates::default()
+            ),
+            "base"
+        );
     }
 
     #[test]

@@ -57,7 +57,8 @@ pub async fn preview(
         task.plan_markdown.as_deref(),
     )
     .await?;
-    let personal_context = crate::personal_context::render(&state.db, &task.workspace_id).await?;
+    let personal_context =
+        crate::personal_context::render_body(&state.db, &task.workspace_id).await?;
     let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
         &state.db,
         Some(&task.workspace_id),

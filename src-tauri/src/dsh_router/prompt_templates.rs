@@ -28,6 +28,7 @@ pub struct PromptTemplates {
     pub opendesk_context: String,
     pub chat_channel: String,
     pub follow_up: String,
+    pub execution_instruction: String,
 }
 
 impl Default for PromptTemplates {
@@ -35,7 +36,7 @@ impl Default for PromptTemplates {
         Self {
             permanent: "# OpenDesk — instruções permanentes\n\nVocê executa tarefas governadas pelo OpenDesk. Salve todos os arquivos finais, relatórios e entregáveis no diretório de saída informado abaixo. Nunca espalhe arquivos finais na raiz do projeto. Arquivos de configuração nativos do OpenCode (opencode.jsonc, .opencode/) não contam como entregáveis.".into(),
             completion: "## Critérios de conclusão\n\n- O resultado está salvo no diretório de saída.\n- O resumo final cita os caminhos reais dos arquivos.\n- Nenhum arquivo final foi deixado na raiz do projeto.".into(),
-            personal_block: "{{personal_context}}".into(),
+            personal_block: "## Contexto pessoal do usuário\n\n{{personal_context}}".into(),
             memory_block: "## Memória do workspace (regras aprendidas)\n\n{{memory}}".into(),
             task_meta: "# Tarefa OpenDesk\n\n**Título:** {{task_title}}\n**Prioridade:** {{priority}}\n{{tags}}**Fase:** {{phase}}\n**Agente:** @{{agent}}\n**Workspace:** {{workspace}}".into(),
             description: "## Descrição\n\n{{task_description}}".into(),
@@ -50,6 +51,7 @@ impl Default for PromptTemplates {
             care_careful: "\n\n## Nível de cuidado: cuidadoso\n\nRevise premissas, valide o resultado e registre riscos ou pendências. Prefira precisão a velocidade.".into(),
             opendesk_context: "## Contexto OpenDesk\n\nTask ID: `{{task_id}}`. Se faltar informação essencial para continuar, use a ferramenta MCP `ask_user` com este task_id antes de assumir.".into(),
             follow_up: "## Conversa com o usuário\n\n{{conversation}}\n\nContinue a execução considerando a mensagem acima.".into(),
+            execution_instruction: "## Instruções desta execução\n\n{{instruction}}".into(),
             chat_channel: "Contexto do canal {{source}} (não repita ao usuário):\nVocê está operando o OpenDesk no workspace `{{workspace_id}}` e nesta conversa `{{thread_id}}`.\nUse as ferramentas MCP `opendesk-control` quando o pedido envolver o OpenDesk: tarefas, execuções, rotinas, receitas, fila, artefatos e decisão humana (`ask_user`).\n{{file_hint}}Nunca ative rotina/receita nem aprove HITL/permissão sem pedido explícito.\nResponda em português, de forma curta, citando IDs e caminhos relevantes.".into(),
         }
     }
@@ -278,6 +280,7 @@ mod tests {
                 "opendesk_context" => &templates.opendesk_context,
                 "chat_channel" => &templates.chat_channel,
                 "follow_up" => &templates.follow_up,
+                "execution_instruction" => &templates.execution_instruction,
                 _ => panic!("uncovered field {}", field.id),
             };
             assert!(!value.trim().is_empty(), "field {}", field.id);

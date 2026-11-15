@@ -76,12 +76,12 @@ pub async fn enabled(
         .collect())
 }
 
-pub async fn render(pool: &SqlitePool, workspace_id: &str) -> AppResult<String> {
+pub async fn render_body(pool: &SqlitePool, workspace_id: &str) -> AppResult<String> {
     let groups = enabled(pool, workspace_id).await?;
     if groups.is_empty() {
         return Ok(String::new());
     }
-    let mut text = String::from("## Contexto pessoal do usuário\n\n");
+    let mut text = String::new();
     for group in groups {
         if text.chars().count() >= MAX_PROMPT_CHARS {
             break;
@@ -101,6 +101,15 @@ pub async fn render(pool: &SqlitePool, workspace_id: &str) -> AppResult<String> 
         text.push_str(&block.chars().take(remaining).collect::<String>());
     }
     Ok(text.trim_end().to_string())
+}
+
+#[allow(dead_code)]
+pub async fn render(pool: &SqlitePool, workspace_id: &str) -> AppResult<String> {
+    let body = render_body(pool, workspace_id).await?;
+    if body.is_empty() {
+        return Ok(String::new());
+    }
+    Ok(format!("## Contexto pessoal do usuário\n\n{body}"))
 }
 
 pub async fn create(

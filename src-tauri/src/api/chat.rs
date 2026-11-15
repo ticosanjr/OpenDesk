@@ -156,7 +156,16 @@ pub async fn prompt_preview(
     let thread = chat_db::get_thread(&state.db, &id).await?;
     let workspace = workspaces::get(&state.db, &thread.workspace_id).await?;
     let templates = PromptTemplates::load(&state.db, Some(&thread.workspace_id)).await?;
-    let personal = crate::personal_context::render(&state.db, &thread.workspace_id).await?;
+    let personal_body =
+        crate::personal_context::render_body(&state.db, &thread.workspace_id).await?;
+    let personal = if personal_body.is_empty() {
+        String::new()
+    } else {
+        crate::dsh_router::prompt_templates::render(
+            &templates.personal_block,
+            &[("personal_context", &personal_body)],
+        )
+    };
     let channel = chat::channel_context_with(
         &templates,
         &cap_first(&thread.source),
