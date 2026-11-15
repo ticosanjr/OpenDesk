@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Archive,
   Download,
@@ -553,9 +553,19 @@ export function ArtifactsPage() {
                   {artifactActionLabel(selected.action_type)}
                 </Badge>
                 {selected.source === "chat" ? (
-                  <Badge variant="blue">
-                    chat · {selected.channel ?? "desktop"}
-                  </Badge>
+                  <>
+                    <Badge variant="blue">
+                      chat · {selected.channel ?? "desktop"}
+                    </Badge>
+                    {selected.origin_ref ? (
+                      <Link
+                        to={links.chat(selected.origin_ref)}
+                        className="text-[11.5px] text-zinc-400 underline decoration-zinc-700 underline-offset-2 hover:text-zinc-200"
+                      >
+                        abrir conversa
+                      </Link>
+                    ) : null}
+                  </>
                 ) : null}
                 <Badge variant="default">{relativeTime(selected.created_at)}</Badge>
               </div>

@@ -1,16 +1,37 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Download, Loader2 } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageBody, PageBodyFill, PageHeader } from "@/components/layout/PageHeader";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RunLogView } from "@/components/runs/RunLogView";
+import { apiGet } from "@/lib/api";
 import { downloadRun, type ExportFormat } from "@/lib/download";
+import { links } from "@/lib/links";
+import type { TaskRun } from "@/lib/types";
 import { toast } from "@/store/toast-store";
 
 export function RunDetailPage() {
   const { runId } = useParams<{ runId: string }>();
   const navigate = useNavigate();
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const [run, setRun] = useState<TaskRun | null>(null);
+
+  useEffect(() => {
+    if (!runId) {
+      setRun(null);
+      return;
+    }
+    let cancelled = false;
+    void apiGet<TaskRun>(`/api/runs/${encodeURIComponent(runId)}`)
+      .then((value) => {
+        if (!cancelled) setRun(value);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [runId]);
 
   async function exportRun(format: ExportFormat) {
     if (!runId) return;
@@ -71,6 +92,19 @@ export function RunDetailPage() {
             </>
           }
         />
+        {run?.source === "chat" ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-zinc-500">
+            <Badge variant="blue">chat · {run.channel ?? "desktop"}</Badge>
+            {run.origin_ref ? (
+              <Link
+                to={links.chat(run.origin_ref)}
+                className="underline decoration-zinc-700 underline-offset-2 hover:text-zinc-300"
+              >
+                abrir conversa
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-zinc-800/80 bg-zinc-900/25">
         <RunLogView runId={runId} />
