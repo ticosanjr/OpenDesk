@@ -19,8 +19,10 @@
    continua válido para o desktop.
 4. **Cliente API same-origin**: `api.ts` passa a usar `baseUrl` quando servido
    pelo daemon; WebSocket usa `ws/wss` do mesmo host.
-5. **CLI de chat**: `opendesk chat [mensagem]` cria/reutiliza uma conversa,
-   envia a mensagem e imprime a resposta; sem mensagem, abre um loop de linhas.
+5. **CLI de chat e operação**: `opendesk chat [mensagem]` cria/reutiliza uma
+   conversa, envia a mensagem e imprime a resposta; sem mensagem, abre um loop
+   de linhas. `opendesk approvals list/resolve` trata HITL de tarefas e
+   `opendesk diff <run>` imprime os artefatos e diffs no terminal.
 6. **Empacotamento**: serviços de exemplo systemd/launchd e instruções Windows,
    com bind local e acesso remoto via Tailscale/WireGuard/reverse proxy.
 

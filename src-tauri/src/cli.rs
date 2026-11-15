@@ -19,6 +19,9 @@ Uso:
         [--tags a,b] [--workspace <id>] [--json]
   opendesk tasks run <task-id> [--json]
   opendesk chat [mensagem] [--workspace <id>] [--thread <id>] [--agent <id>] [--json]
+  opendesk approvals list [--workspace <id>] [--json]
+  opendesk approvals resolve <id> approve|deny [texto] [--json]
+  opendesk diff <run-id> [--json]
   opendesk runs list [--workspace <id>] [--limit <n>] [--json]
   opendesk runs show <run-id> [--json]
   opendesk queue list [--workspace <id>] [--json]
@@ -150,6 +153,105 @@ async fn execute(args: Args) -> Result<()> {
                         workspace.get("name").and_then(Value::as_str).unwrap_or("?"),
                         workspace
                             .get("root_path")
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                    );
+                }
+            }
+        }
+        ("approvals", Some("list")) => {
+            let interactions = call(
+                &client,
+                &endpoint,
+                Method::GET,
+                &format!("/api/interactions/pending{}", workspace_query(&args)),
+                None,
+            )
+            .await?;
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&interactions)?);
+            } else if let Some(list) = interactions.as_array() {
+                if list.is_empty() {
+                    println!("Nenhuma aprovação pendente.");
+                }
+                for item in list {
+                    println!(
+                        "{}  {:<10}  {}",
+                        item.get("id").and_then(Value::as_str).unwrap_or("?"),
+                        item.get("kind").and_then(Value::as_str).unwrap_or("TEXT"),
+                        item.get("question").and_then(Value::as_str).unwrap_or("")
+                    );
+                }
+            }
+        }
+        ("approvals", Some("resolve")) => {
+            let id = args
+                .positionals
+                .get(2)
+                .context("informe o id da aprovação")?;
+            let decision = args
+                .positionals
+                .get(3)
+                .map(|value| value.to_lowercase())
+                .unwrap_or_else(|| "approve".into());
+            let decision = match decision.as_str() {
+                "approve" | "aprovar" | "yes" | "sim" => "approve",
+                "deny" | "negar" | "no" | "não" | "nao" => "deny",
+                other => return Err(anyhow!("decisão inválida: {other}; use approve ou deny")),
+            };
+            let text = args
+                .positionals
+                .iter()
+                .skip(4)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(" ");
+            let result = call(
+                &client,
+                &endpoint,
+                Method::POST,
+                &format!("/api/interactions/{id}/resolve"),
+                Some(json!({
+                    "decision": decision,
+                    "text": (!text.is_empty()).then_some(text),
+                })),
+            )
+            .await?;
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&result)?);
+            } else {
+                println!("Aprovação {} registrada.", id);
+            }
+        }
+        ("diff", _) => {
+            let run_id = args.positionals.get(1).context("informe o id do run")?;
+            let artifacts = call(
+                &client,
+                &endpoint,
+                Method::GET,
+                &format!("/api/artifacts?run_id={}", urlencoding::encode(run_id)),
+                None,
+            )
+            .await?;
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&artifacts)?);
+            } else if let Some(list) = artifacts.as_array() {
+                if list.is_empty() {
+                    println!("Nenhum artefato registrado para o run.");
+                }
+                for artifact in list {
+                    println!(
+                        "{}  {:<8}  {}",
+                        artifact
+                            .get("action_type")
+                            .and_then(Value::as_str)
+                            .unwrap_or("?"),
+                        artifact
+                            .get("file_path")
+                            .and_then(Value::as_str)
+                            .unwrap_or("?"),
+                        artifact
+                            .get("diff_patch")
                             .and_then(Value::as_str)
                             .unwrap_or("")
                     );

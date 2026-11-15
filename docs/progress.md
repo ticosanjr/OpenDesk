@@ -2757,6 +2757,7 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Login remoto por sessão (hash, TTL e revogação), API same-origin e WebSocket
   pelo host atual.
 - Manifest/service worker e configuração mobile.
-- `opendesk chat` com mensagem única ou loop interativo.
+- `opendesk chat` com mensagem única ou loop interativo, além de
+  `approvals list/resolve` e `diff <run>`.
 - Serviços de exemplo systemd/launchd/Windows e `docs/daemon.md`.
 - ADR 0063. Pendências: core extraction, passkey, Web Push e TUI completa.
