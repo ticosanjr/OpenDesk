@@ -392,7 +392,14 @@ async fn handle_incoming(
             }
         };
 
-    let context = chat::channel_context("Signal", &thread.workspace_id, &thread.id);
+    let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
+        &state.db,
+        Some(&thread.workspace_id),
+    )
+    .await
+    .unwrap_or_default();
+    let context =
+        chat::channel_context_with(&templates, "Signal", &thread.workspace_id, &thread.id);
     let reply =
         chat::send_message_with_context(state, thread, &incoming.text, Some(&context)).await?;
     send_text(

@@ -15,7 +15,8 @@
 2. **Templates editáveis.** Os blocos permanentes, critérios de conclusão,
    contexto pessoal, memória, metadados/descrição da tarefa, diretório de saída,
    arquivos de entrada, fases PLAN/BUILD/AUDIT, navegação web, níveis de cuidado
-   e contexto OpenDesk/HITL vivem em `PromptTemplates`.
+   contexto OpenDesk/HITL, o contexto do canal de chat e a continuação de
+   tarefa vivem em `PromptTemplates`.
    - Placeholders (`{{task_title}}`, `{{output_directory}}`, `{{plan_block}}`,
      etc.) são substituídos na renderização; placeholders desconhecidos ficam
      visíveis no preview.
@@ -25,6 +26,8 @@
 3. **Camada OpenCode.** O preview lê e mostra prompt do agente, `AGENTS.md`
    global/workspace, skills (incluindo corpo), comandos e servidores MCP. A aba
    “Final (reconstruído)” concatena o prompt exato do OpenDesk com essa camada.
+   O mesmo snapshot é usado no preview de chat, que mostra contexto pessoal,
+   contexto do canal, a próxima mensagem e o prompt reconstruído.
 4. **Limite explícito.** O OpenCode monta o system prompt interno e os schemas
    de ferramentas no payload do provedor; isso não é exposto pela API. A visão
    final é uma reconstrução de tudo o que o OpenDesk envia e o OpenCode lê dos

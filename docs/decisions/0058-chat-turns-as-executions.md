@@ -20,10 +20,11 @@
    `artifacts_provenance` com o `run_id`; a lista e o modal derivam
    `source/channel/origin_ref` do run e exibem “chat · Telegram/Signal/Desktop”.
    Arquivos enviados por `chat_send_file` também são registrados.
-4. **Sem timeout de cinco minutos.** O limite passou a 2 horas apenas como
-   proteção; o usuário pode parar a qualquer momento. `POST
+4. **Sem corte de tempo.** O turno continua até o OpenCode ficar ocioso, o
+   daemon falhar ou o usuário parar. `POST
    /api/chat/threads/{id}/interrupt` cancela o token do turno e interrompe a
-   sessão no OpenCode.
+   sessão no OpenCode; o desktop mostra o tempo decorrido e o Telegram envia um
+   aviso a cada dois minutos.
 5. **Telegram concorrente.** O chat roda em background, então o long polling
    continua recebendo `/parar` e novas mensagens. Durante um turno, novas
    mensagens recebem “Ainda estou trabalhando”; a cada 2 minutos o bot envia um

@@ -142,7 +142,7 @@ pendências manuais continuam listadas abaixo.
 - Chat/Telegram: `chat_turns`, runs `source=chat` para turnos com ferramenta ou
   arquivo, artefatos com canal, stop e ausência do corte de 5 minutos.
 - Observabilidade por origem; templates de prompt editáveis; preview
-  reconstruído com camada OpenCode.
+  reconstruído com camada OpenCode e preview do chat por canal.
 - Prévia HTML recarregável, JSON formatado, contexto pessoal sem título e
   detecção ampliada de ferramentas externas.
 - Migração 0040; ADRs 0058–0060.

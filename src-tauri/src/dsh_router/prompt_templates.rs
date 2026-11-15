@@ -26,6 +26,8 @@ pub struct PromptTemplates {
     pub care_standard: String,
     pub care_careful: String,
     pub opendesk_context: String,
+    pub chat_channel: String,
+    pub follow_up: String,
 }
 
 impl Default for PromptTemplates {
@@ -47,6 +49,8 @@ impl Default for PromptTemplates {
             care_standard: "\n\n## Nível de cuidado: padrão\n\nUse um checklist curto, execute o necessário e faça uma validação. Não transforme tarefas simples em um plano longo.".into(),
             care_careful: "\n\n## Nível de cuidado: cuidadoso\n\nRevise premissas, valide o resultado e registre riscos ou pendências. Prefira precisão a velocidade.".into(),
             opendesk_context: "## Contexto OpenDesk\n\nTask ID: `{{task_id}}`. Se faltar informação essencial para continuar, use a ferramenta MCP `ask_user` com este task_id antes de assumir.".into(),
+            follow_up: "## Conversa com o usuário\n\n{{conversation}}\n\nContinue a execução considerando a mensagem acima.".into(),
+            chat_channel: "Contexto do canal {{source}} (não repita ao usuário):\nVocê está operando o OpenDesk no workspace `{{workspace_id}}` e nesta conversa `{{thread_id}}`.\nUse as ferramentas MCP `opendesk-control` quando o pedido envolver o OpenDesk: tarefas, execuções, rotinas, receitas, fila, artefatos e decisão humana (`ask_user`).\n{{file_hint}}Nunca ative rotina/receita nem aprove HITL/permissão sem pedido explícito.\nResponda em português, de forma curta, citando IDs e caminhos relevantes.".into(),
         }
     }
 }
@@ -272,6 +276,8 @@ mod tests {
                 "care_standard" => &templates.care_standard,
                 "care_careful" => &templates.care_careful,
                 "opendesk_context" => &templates.opendesk_context,
+                "chat_channel" => &templates.chat_channel,
+                "follow_up" => &templates.follow_up,
                 _ => panic!("uncovered field {}", field.id),
             };
             assert!(!value.trim().is_empty(), "field {}", field.id);

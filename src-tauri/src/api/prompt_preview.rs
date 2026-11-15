@@ -1,6 +1,6 @@
+use super::prompt_layer;
 use crate::{
     app_state::AppState,
-    config_sync::{agents, commands, jsonc_editor, paths::StudioPaths, skills},
     db::{tasks, workspaces},
     dsh_router::{self, PackContext},
     error::AppResult,
@@ -10,36 +10,7 @@ use axum::{
     extract::{Path, State},
 };
 use serde::Serialize;
-use serde_json::Value;
 use std::sync::Arc;
-
-#[derive(Debug, Serialize)]
-pub struct OpenCodeAgent {
-    pub id: String,
-    pub scope: String,
-    pub path: String,
-    pub system: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct OpenCodeSkill {
-    pub id: String,
-    pub scope: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub path: String,
-    pub body: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct OpenCodeCommand {
-    pub id: String,
-    pub scope: String,
-    pub description: Option<String>,
-    pub agent: Option<String>,
-    pub template: String,
-    pub path: String,
-}
 
 #[derive(Debug, Serialize)]
 pub struct PromptPreview {
@@ -51,7 +22,7 @@ pub struct PromptPreview {
     pub output_directory: String,
     pub prompt: String,
     pub sections: Vec<crate::dsh_router::context_packer::PromptSection>,
-    pub opencode: Value,
+    pub opencode: prompt_layer::OpenCodeLayer,
     /// OpenDesk prompt plus everything read from the OpenCode native files. It
     /// is a reconstruction, not the provider wire payload.
     pub composed: String,
@@ -113,115 +84,11 @@ pub async fn preview(
         .map(|section| section.content.as_str())
         .collect::<Vec<_>>()
         .join("\n\n");
-    let paths = StudioPaths::new(Some(std::path::PathBuf::from(&workspace.root_path)));
-    let mut open_agent = None;
-    let mut open_skills = Vec::new();
-    let mut open_commands = Vec::new();
-    let mut open_mcp = Vec::new();
-    for scope in ["workspace", "global"] {
-        if open_agent.is_none()
-            && let Ok(items) = agents::list(&paths, scope)
-            && let Some(agent) = items
-                .into_iter()
-                .find(|agent| agent.id == decision.selected_agent)
-        {
-            open_agent = Some(OpenCodeAgent {
-                id: agent.id,
-                scope: agent.scope,
-                path: agent.path,
-                system: agent.system,
-            });
-        }
-        if let Ok(items) = skills::list(&paths, scope) {
-            open_skills.extend(
-                items
-                    .into_iter()
-                    .filter(|skill| !skill.disabled)
-                    .map(|skill| OpenCodeSkill {
-                        id: skill.id,
-                        scope: skill.scope,
-                        name: skill.name,
-                        description: skill.description,
-                        path: skill.path,
-                        body: skill.body,
-                    }),
-            );
-        }
-        if let Ok(items) = commands::list(&paths, scope) {
-            open_commands.extend(items.into_iter().filter(|command| !command.disabled).map(
-                |command| OpenCodeCommand {
-                    id: command.id,
-                    scope: command.scope,
-                    description: command.description,
-                    agent: command.agent,
-                    template: command.template,
-                    path: command.path,
-                },
-            ));
-        }
-        if let Ok(document) = jsonc_editor::read_for_scope(&paths, scope) {
-            for server in jsonc_editor::list_mcp_servers(&document) {
-                open_mcp.push(serde_json::json!({
-                    "scope": scope,
-                    "server": server,
-                }));
-            }
-        }
-    }
-
-    let mut agents_md = Vec::new();
-    for (scope, path) in [
-        (
-            "workspace",
-            std::path::Path::new(&workspace.root_path).join("AGENTS.md"),
-        ),
-        ("global", paths.global_dir.join("AGENTS.md")),
-    ] {
-        if let Ok(content) = std::fs::read_to_string(&path) {
-            agents_md.push(serde_json::json!({
-                "scope": scope,
-                "path": path.to_string_lossy(),
-                "content": content,
-            }));
-        }
-    }
-
-    let mut composed = prompt.clone();
-    if let Some(agent) = &open_agent
-        && !agent.system.trim().is_empty()
-    {
-        composed.push_str(&format!(
-            "\n\n## OpenCode — prompt do agente @{}\n\n{}",
-            agent.id,
-            agent.system.trim()
-        ));
-    }
-    for file in &agents_md {
-        let scope = file.get("scope").and_then(Value::as_str).unwrap_or("");
-        let content = file.get("content").and_then(Value::as_str).unwrap_or("");
-        if !content.trim().is_empty() {
-            composed.push_str(&format!(
-                "\n\n## OpenCode — AGENTS.md ({scope})\n\n{}",
-                content.trim()
-            ));
-        }
-    }
-    for skill in &open_skills {
-        let body = skill.body.trim();
-        let body = body.chars().take(8_000).collect::<String>();
-        composed.push_str(&format!(
-            "\n\n## OpenCode — skill {} ({})\n\n{}",
-            skill.name, skill.scope, body
-        ));
-    }
-    for command in &open_commands {
-        composed.push_str(&format!(
-            "\n\n## OpenCode — comando /{} ({})\n\n{}",
-            command.id,
-            command.scope,
-            command.template.trim()
-        ));
-    }
+    let layer = prompt_layer::snapshot(
+        std::path::Path::new(&workspace.root_path),
+        &decision.selected_agent,
+    );
+    let composed = prompt_layer::compose(&prompt, &layer);
 
     Ok(Json(PromptPreview {
         task_id: task.id,
@@ -232,14 +99,7 @@ pub async fn preview(
         output_directory: decision.output_directory,
         prompt,
         sections,
-        opencode: serde_json::json!({
-            "agent": open_agent,
-            "agents_md": agents_md,
-            "skills": open_skills,
-            "commands": open_commands,
-            "mcp_servers": open_mcp,
-            "note": "O OpenCode monta o payload do provedor internamente. Esta visão reúne o prompt exato do OpenDesk e tudo o que o OpenCode lê da configuração nativa; o system prompt interno e os schemas de ferramentas não são expostos pela API."
-        }),
+        opencode: layer,
         composed,
     }))
 }

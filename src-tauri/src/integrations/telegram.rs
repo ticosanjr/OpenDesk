@@ -459,7 +459,14 @@ async fn handle_incoming(
         }
     };
 
-    let context = telegram_context(&thread.workspace_id, &thread.id);
+    let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
+        &state.db,
+        Some(&thread.workspace_id),
+    )
+    .await
+    .unwrap_or_default();
+    let context =
+        chat::channel_context_with(&templates, "Telegram", &thread.workspace_id, &thread.id);
     let mut content = trimmed.to_string();
     if let Some(file) = &incoming.file {
         match save_incoming_file(state, &thread.workspace_id, &incoming, file, token).await {
@@ -696,10 +703,6 @@ pub async fn send_document(
         .await
         .map_err(|_| AppError::Daemon("Telegram: falha de rede ao enviar documento".into()))?;
     parse_response("sendDocument", response).await.map(|_| ())
-}
-
-fn telegram_context(workspace_id: &str, thread_id: &str) -> String {
-    chat::channel_context("Telegram", workspace_id, thread_id)
 }
 
 /// Parses `#abcdef12 2` into (short code, answer). The code is at least four

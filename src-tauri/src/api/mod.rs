@@ -27,6 +27,7 @@ pub mod metrics;
 pub mod missed_runs;
 pub mod permissions;
 pub mod personal_context;
+pub mod prompt_layer;
 pub mod prompt_preview;
 pub mod prompt_templates;
 pub mod proposals;
@@ -351,6 +352,10 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/chat/threads/{id}/turns/latest",
             get(chat::latest_turn),
+        )
+        .route(
+            "/api/chat/threads/{id}/prompt-preview",
+            get(chat::prompt_preview),
         )
         .route("/api/queue", get(queue::list_queue))
         .route("/api/queue/status", get(queue::queue_status))

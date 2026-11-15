@@ -646,9 +646,11 @@ pub async fn post_task_message(
         },
         &templates,
     );
-    let prompt = format!(
-        "{packed}\n\n## Conversa com o usuário\n\n{conversation}\n\nContinue a execução considerando a mensagem acima."
+    let follow_up = crate::dsh_router::prompt_templates::render(
+        &templates.follow_up,
+        &[("conversation", &conversation)],
     );
+    let prompt = format!("{packed}\n\n{follow_up}");
 
     let session_id = runs::latest_session_for_task(&state.db, &task.id).await?;
     let job = state

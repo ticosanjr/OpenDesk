@@ -17,7 +17,6 @@ use std::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-const CHAT_TIMEOUT: Duration = Duration::from_secs(2 * 60 * 60);
 const CANCEL_MESSAGE: &str = "chat turn cancelled";
 
 #[derive(Debug, Clone, Serialize)]
@@ -121,7 +120,7 @@ pub async fn send_message_with_context(
 
     let since_ms = now_ms();
     let mut prompt_message = Value::Null;
-    let prompt_result = tokio::time::timeout(CHAT_TIMEOUT, async {
+    let prompt_result = async {
         match client.prompt(&session_id, &prompt_text).await {
             Ok(value) => prompt_message = value,
             Err(error) => {
@@ -154,11 +153,11 @@ pub async fn send_message_with_context(
             Some(cancel) => wait_for_turn(&client, &session_id, since_ms, cancel).await,
             None => wait_for_turn(&client, &session_id, since_ms, &CancellationToken::new()).await,
         }
-    })
+    }
     .await;
 
     let (answer, usage, error, status, turn_value) = match prompt_result {
-        Ok(Ok(value)) => {
+        Ok(value) => {
             let (text, usage) = parse_assistant_since(&value, since_ms);
             match text {
                 Some(text) => (text, usage, None, "SUCCESS", Some(value)),
@@ -174,24 +173,17 @@ pub async fn send_message_with_context(
                 }
             }
         }
-        Ok(Err(message)) if message == CANCEL_MESSAGE => (
+        Err(message) if message == CANCEL_MESSAGE => (
             "Execução interrompida.".to_string(),
             ChatUsage::default(),
             Some("cancelled".to_string()),
             "CANCELLED",
             None,
         ),
-        Ok(Err(message)) => (
+        Err(message) => (
             format!("⚠️ {message}"),
             ChatUsage::default(),
             Some(message),
-            "FAILED",
-            None,
-        ),
-        Err(_) => (
-            "⚠️ A execução excedeu o limite de 2 horas. Use Parar para encerrar antes.".to_string(),
-            ChatUsage::default(),
-            Some("chat timeout after 2 hours".to_string()),
             "FAILED",
             None,
         ),
@@ -378,7 +370,12 @@ fn turn_model(value: &Value, since_ms: i64) -> Option<(Option<String>, String)> 
 /// Operational context prepended to every channel prompt. Telegram, Signal and
 /// the desktop chat share one vocabulary so the agent always knows where it is
 /// and how to send a workspace file back to the user.
-pub fn channel_context(source: &str, workspace_id: &str, thread_id: &str) -> String {
+pub fn channel_context_with(
+    templates: &crate::dsh_router::prompt_templates::PromptTemplates,
+    source: &str,
+    workspace_id: &str,
+    thread_id: &str,
+) -> String {
     let external = matches!(source.to_ascii_lowercase().as_str(), "telegram" | "signal");
     let file_hint = if external {
         format!(
@@ -387,8 +384,14 @@ pub fn channel_context(source: &str, workspace_id: &str, thread_id: &str) -> Str
     } else {
         String::new()
     };
-    format!(
-        "Contexto do canal {source} (não repita ao usuário):\nVocê está operando o OpenDesk no workspace `{workspace_id}` e nesta conversa `{thread_id}`.\nUse as ferramentas MCP `opendesk-control` quando o pedido envolver o OpenDesk: tarefas, execuções, rotinas, receitas, fila, artefatos e decisão humana (`ask_user`).\n{file_hint}Nunca ative rotina/receita nem aprove HITL/permissão sem pedido explícito.\nResponda em português, de forma curta, citando IDs e caminhos relevantes."
+    crate::dsh_router::prompt_templates::render(
+        &templates.chat_channel,
+        &[
+            ("source", source),
+            ("workspace_id", workspace_id),
+            ("thread_id", thread_id),
+            ("file_hint", &file_hint),
+        ],
     )
 }
 

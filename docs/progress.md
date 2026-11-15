@@ -2724,8 +2724,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Observabilidade ganhou a tabela “Por origem” (trabalho, rotina, receita,
   automação, chat desktop/Telegram/Signal).
 - Prompt: seções estruturadas, templates editáveis com placeholders, camada
-  OpenCode (agente, AGENTS.md, skills, comandos e MCP) e visão final
-  reconstruída.
+  OpenCode (agente, AGENTS.md, skills, comandos e MCP), visão final
+  reconstruída e preview específico do chat com contexto do canal e próxima
+  mensagem.
 - Arquivos: prévia HTML com recarga automática/botão, JSON formatado nativo,
   contexto pessoal sem título e ferramentas externas detectadas no Dashboard.
 - Migração 0040; ADRs 0058, 0059 e 0060.

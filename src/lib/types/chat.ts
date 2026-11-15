@@ -38,6 +38,45 @@ export interface ChatReply {
   turn_id?: string | null;
 }
 
+export interface ChatPromptPreview {
+  thread: ChatThread;
+  prompt: string;
+  sections: Array<{
+    id: string;
+    label: string;
+    source: string;
+    content: string;
+  }>;
+  opencode: {
+    agent?: {
+      id: string;
+      scope: string;
+      path: string;
+      system: string;
+    } | null;
+    agents_md: Array<{ scope: string; path: string; content: string }>;
+    skills: Array<{
+      id: string;
+      scope: string;
+      name: string;
+      description?: string | null;
+      path: string;
+      body: string;
+    }>;
+    commands: Array<{
+      id: string;
+      scope: string;
+      description?: string | null;
+      agent?: string | null;
+      template: string;
+      path: string;
+    }>;
+    mcp_servers: Array<{ scope: string; server: unknown }>;
+    note?: string;
+  };
+  composed: string;
+}
+
 export interface ChatTurn {
   id: string;
   workspace_id: string;
