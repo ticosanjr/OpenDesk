@@ -476,6 +476,10 @@ pendências manuais continuam listadas abaixo.
 - Markdown/HTML/JSON e timeline testados no core.
 - API passa pool explicitamente.
 
+## Sprint 2 — metrics no core
+
+- Métricas de runs/fila/falhas testadas no core.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

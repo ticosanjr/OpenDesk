@@ -17,6 +17,7 @@ pub mod error;
 pub mod events;
 pub mod hitl;
 pub mod media;
+pub mod metrics;
 pub mod nodes;
 pub mod notifier;
 pub mod opencode_client;

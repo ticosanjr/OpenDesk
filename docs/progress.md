@@ -3188,3 +3188,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Export/timeline sem AppState; recebe pool.
 - Core 205 testes; shell 378.
 - ADR 0120.
+
+## 2026-11-16 — metrics no core (REF-01)
+
+- `metrics` movido; core 207 testes, shell 376.
+- ADR 0121.

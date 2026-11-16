@@ -19,7 +19,6 @@ mod mcp_config;
 mod mcp_control;
 mod mcp_hub;
 mod mcp_server;
-mod metrics;
 mod open_paths;
 mod proposals;
 mod push;
@@ -40,9 +39,9 @@ mod voice;
 
 pub use opendesk_core::{
     adapters, browse, browse_tags, config_sync, db, dedupe, dsh_router, error, events, hitl, media,
-    nodes, notifier, opencode_client, passkey, paths, personal_context, recurrence, run_export,
-    run_timeline, runtime, sandbox, secrets, server_lock, skill_eval, text, token_estimate,
-    virtual_display, workspace_sync, worktree,
+    metrics, nodes, notifier, opencode_client, passkey, paths, personal_context, recurrence,
+    run_export, run_timeline, runtime, sandbox, secrets, server_lock, skill_eval, text,
+    token_estimate, virtual_display, workspace_sync, worktree,
 };
 
 use app_state::AppState;

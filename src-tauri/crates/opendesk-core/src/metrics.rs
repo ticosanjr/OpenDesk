@@ -363,7 +363,7 @@ mod tests {
         .bind(&ctx.workspace_id)
         .bind(&ctx.workspace_id)
         .bind(&ctx.workspace_id)
-        .execute(&ctx.state.db)
+        .execute(&ctx.db)
         .await
         .expect("runs");
         sqlx::query(
@@ -376,12 +376,12 @@ mod tests {
               strftime('%Y-%m-%dT%H:%M:%fZ','now','-59 minutes'))",
         )
         .bind(&ctx.workspace_id)
-        .execute(&ctx.state.db)
+        .execute(&ctx.db)
         .await
         .expect("queue");
 
         let thread = crate::db::chat::create_thread(
-            &ctx.state.db,
+            &ctx.db,
             crate::db::chat::CreateThreadInput {
                 workspace_id: ctx.workspace_id.clone(),
                 title: Some("Telegram".into()),
@@ -407,11 +407,11 @@ mod tests {
         .bind(&thread.id)
         .bind(&ctx.workspace_id)
         .bind(&thread.id)
-        .execute(&ctx.state.db)
+        .execute(&ctx.db)
         .await
         .expect("chat turns");
 
-        let metrics = collect(&ctx.state.db, &ctx.workspace_id, 30)
+        let metrics = collect(&ctx.db, &ctx.workspace_id, 30)
             .await
             .expect("metrics");
         assert_eq!(metrics.runs_total, 4);
