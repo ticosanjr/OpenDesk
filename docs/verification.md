@@ -283,6 +283,13 @@ pendências manuais continuam listadas abaixo.
 - Estimativa de tokens/custo para harnesses sem usage nativo.
 - Testes de tokenização, preços e modelos locais/desconhecidos.
 
+## Sprint 1 — auto-attach Desktop↔daemon
+
+- Probe de `api.json` + `/healthz` com timeout de 1s e apenas hosts locais.
+- `api.json` corrompido degrada para modo embarcado.
+- `server.pid` rejeita segundo processo e substitui PID obsoleto.
+- Modo remoto usa o token do daemon e valida workspace antes de abrir caminho.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

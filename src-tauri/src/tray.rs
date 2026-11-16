@@ -1,15 +1,19 @@
 use crate::{
     app_state::AppState,
     events::{OpenDeskWsEvent, WsEnvelope},
+    opencode_client::daemon_manager::DaemonStatus,
+    queue_scheduler::QueueStatus,
+    shell_state::ShellState,
 };
-use std::sync::Arc;
+use reqwest::Method;
+use std::{sync::Arc, time::Duration};
 use tauri::{
     AppHandle, Manager,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
 };
 
-pub fn setup(app: &AppHandle, state: Arc<AppState>) -> tauri::Result<()> {
+pub fn setup(app: &AppHandle, shell: Arc<ShellState>) -> tauri::Result<()> {
     let version = app.package_info().version.to_string();
     let version_item = MenuItem::with_id(
         app,
@@ -21,7 +25,7 @@ pub fn setup(app: &AppHandle, state: Arc<AppState>) -> tauri::Result<()> {
     let status_item = MenuItem::with_id(
         app,
         "daemon_status",
-        "OpenCode Engine: iniciando…",
+        initial_status(&shell),
         false,
         None::<&str>,
     )?;
@@ -94,18 +98,40 @@ pub fn setup(app: &AppHandle, state: Arc<AppState>) -> tauri::Result<()> {
             "quit" => app.exit(0),
             "open_dashboard" => focus_main(app),
             "restart_daemon" => {
-                let state = app.state::<Arc<AppState>>().inner().clone();
+                let shell = app.state::<Arc<ShellState>>().inner().clone();
                 tauri::async_runtime::spawn(async move {
-                    state.daemon.restart().await;
+                    match shell.as_ref() {
+                        ShellState::Embedded(state) => state.daemon.restart().await,
+                        ShellState::Remote(remote) => {
+                            let _ = remote.call(Method::POST, "/api/daemon/restart", None).await;
+                        }
+                    }
                 });
             }
             "pause_queue" => {
-                let state = app.state::<Arc<AppState>>().inner().clone();
+                let shell = app.state::<Arc<ShellState>>().inner().clone();
                 tauri::async_runtime::spawn(async move {
-                    if state.queue.is_paused() {
-                        let _ = state.queue.resume().await;
-                    } else {
-                        state.queue.pause("paused from tray").await;
+                    match shell.as_ref() {
+                        ShellState::Embedded(state) => {
+                            if state.queue.is_paused() {
+                                let _ = state.queue.resume().await;
+                            } else {
+                                state.queue.pause("paused from tray").await;
+                            }
+                        }
+                        ShellState::Remote(remote) => {
+                            let paused = remote
+                                .get_json::<QueueStatus>("/api/queue/status")
+                                .await
+                                .map(|status| status.paused)
+                                .unwrap_or(false);
+                            let path = if paused {
+                                "/api/queue/resume"
+                            } else {
+                                "/api/queue/pause?reason=paused%20from%20tray"
+                            };
+                            let _ = remote.call(Method::POST, path, None).await;
+                        }
                     }
                 });
             }
@@ -115,7 +141,7 @@ pub fn setup(app: &AppHandle, state: Arc<AppState>) -> tauri::Result<()> {
 
     spawn_menu_updater(
         app.clone(),
-        state,
+        shell,
         status_item,
         queue_item,
         pause_item,
@@ -124,13 +150,83 @@ pub fn setup(app: &AppHandle, state: Arc<AppState>) -> tauri::Result<()> {
     Ok(())
 }
 
+fn initial_status(shell: &ShellState) -> String {
+    match shell {
+        ShellState::Embedded(_) => "OpenCode Engine: iniciando…".into(),
+        ShellState::Remote(remote) => {
+            format!("OpenDesk daemon externo (:{})", remote.endpoint.port)
+        }
+    }
+}
+
 fn spawn_menu_updater(
+    app: AppHandle,
+    shell: Arc<ShellState>,
+    status_item: MenuItem<tauri::Wry>,
+    queue_item: MenuItem<tauri::Wry>,
+    pause_item: MenuItem<tauri::Wry>,
+    _spend_item: MenuItem<tauri::Wry>,
+) {
+    match shell.as_ref() {
+        ShellState::Embedded(state) => {
+            spawn_embedded_updater(app, state.clone(), status_item, queue_item, pause_item);
+        }
+        ShellState::Remote(remote) => {
+            let remote = remote.clone();
+            let _ = app;
+            tauri::async_runtime::spawn(async move {
+                let mut interval = tokio::time::interval(Duration::from_secs(5));
+                loop {
+                    interval.tick().await;
+
+                    if !remote.health().await {
+                        let _ = status_item.set_text("OpenDesk daemon externo indisponível");
+                        let _ = queue_item.set_text("Fila: daemon externo indisponível");
+                        continue;
+                    }
+
+                    match remote.get_json::<QueueStatus>("/api/queue/status").await {
+                        Ok(status) => {
+                            let _ = queue_item.set_text(format!(
+                                "Fila: {} rodando | {} aguardando",
+                                status.running, status.waiting
+                            ));
+                            let _ = pause_item.set_text(if status.paused {
+                                "Retomar fila"
+                            } else {
+                                "Pausar fila"
+                            });
+                        }
+                        Err(_) => {
+                            let _ = queue_item.set_text("Fila: daemon externo indisponível");
+                        }
+                    }
+
+                    match remote.get_json::<DaemonStatus>("/api/daemon/status").await {
+                        Ok(status) => {
+                            let label = if status.online {
+                                format!("OpenCode Engine (:{}) [Online]", status.port)
+                            } else {
+                                format!("OpenCode Engine [{}]", status.state)
+                            };
+                            let _ = status_item.set_text(label);
+                        }
+                        Err(_) => {
+                            let _ = status_item.set_text("OpenDesk daemon externo indisponível");
+                        }
+                    }
+                }
+            });
+        }
+    }
+}
+
+fn spawn_embedded_updater(
     app: AppHandle,
     state: Arc<AppState>,
     status_item: MenuItem<tauri::Wry>,
     queue_item: MenuItem<tauri::Wry>,
     pause_item: MenuItem<tauri::Wry>,
-    _spend_item: MenuItem<tauri::Wry>,
 ) {
     tauri::async_runtime::spawn(async move {
         let mut receiver = state.events.subscribe();

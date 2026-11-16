@@ -2,7 +2,7 @@
 //! embedded one. The probe is intentionally conservative: only localhost and a
 //! token from `api.json` are accepted.
 
-use crate::{app_state::ApiEndpoint, error::AppResult, paths::AppPaths};
+use crate::{app_state::ApiEndpoint, error::AppResult, paths::AppPaths, shell_state::base_url};
 use std::time::Duration;
 
 pub fn endpoint_from_lock(paths: &AppPaths) -> AppResult<Option<ApiEndpoint>> {
@@ -22,19 +22,43 @@ pub fn endpoint_from_lock(paths: &AppPaths) -> AppResult<Option<ApiEndpoint>> {
     Ok(Some(endpoint))
 }
 
-/// Returns the external endpoint only when `/healthz` answers within 1s.
-pub async fn probe(paths: &AppPaths) -> AppResult<Option<ApiEndpoint>> {
-    let Some(endpoint) = endpoint_from_lock(paths)? else {
-        return Ok(None);
+/// Result of the startup probe. A corrupt or unreadable `api.json` must never
+/// prevent the desktop from starting, so those cases degrade to `Embedded`.
+#[derive(Debug, Clone)]
+pub enum ProbeOutcome {
+    Embedded,
+    Remote(ApiEndpoint),
+}
+
+pub async fn probe_outcome(paths: &AppPaths) -> ProbeOutcome {
+    let endpoint = match endpoint_from_lock(paths) {
+        Ok(Some(endpoint)) => endpoint,
+        Ok(None) => return ProbeOutcome::Embedded,
+        Err(error) => {
+            tracing::warn!(error = %error, "api.json inválido; iniciando backend embarcado");
+            return ProbeOutcome::Embedded;
+        }
     };
-    let client = reqwest::Client::builder()
+    if healthz(&endpoint).await {
+        ProbeOutcome::Remote(endpoint)
+    } else {
+        ProbeOutcome::Embedded
+    }
+}
+
+/// Returns the external endpoint only when `/healthz` answers within 1s.
+async fn healthz(endpoint: &ApiEndpoint) -> bool {
+    let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(1))
         .build()
-        .map_err(|error| crate::error::AppError::Internal(error.to_string()))?;
-    let url = format!("http://{}:{}/healthz", endpoint.host, endpoint.port);
+    {
+        Ok(client) => client,
+        Err(_) => return false,
+    };
+    let url = format!("{}/healthz", base_url(&endpoint.host, endpoint.port));
     match client.get(url).send().await {
-        Ok(response) if response.status().is_success() => Ok(Some(endpoint)),
-        _ => Ok(None),
+        Ok(response) => response.status().is_success(),
+        Err(_) => false,
     }
 }
 
@@ -61,5 +85,45 @@ mod tests {
         )
         .expect("lock");
         assert!(endpoint_from_lock(&paths).expect("remote").is_none());
+    }
+
+    #[tokio::test]
+    async fn corrupt_lock_degrades_to_embedded() {
+        let dir = tempfile::tempdir().expect("temp");
+        let paths = crate::test_support::paths_in(dir.path());
+        std::fs::write(&paths.api_lock_path, "not json").expect("lock");
+        assert!(matches!(
+            probe_outcome(&paths).await,
+            ProbeOutcome::Embedded
+        ));
+    }
+
+    #[tokio::test]
+    async fn healthy_daemon_is_attached() {
+        let app = axum::Router::new().route(
+            "/healthz",
+            axum::routing::get(|| async { axum::http::StatusCode::OK }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+
+        let dir = tempfile::tempdir().expect("temp");
+        let paths = crate::test_support::paths_in(dir.path());
+        std::fs::write(
+            &paths.api_lock_path,
+            format!(r#"{{"host":"127.0.0.1","port":{port},"token":"tok"}}"#),
+        )
+        .expect("lock");
+        let outcome = probe_outcome(&paths).await;
+        match outcome {
+            ProbeOutcome::Remote(endpoint) => assert_eq!(endpoint.port, port),
+            ProbeOutcome::Embedded => panic!("expected remote"),
+        }
+        server.abort();
     }
 }

@@ -12,7 +12,7 @@ use crate::{
     queue_scheduler::{run_execution, settlement},
     secrets::SecretStore,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::{
     collections::{HashMap, HashSet},
@@ -26,7 +26,7 @@ use std::{
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueueStatus {
     pub paused: bool,
     pub pause_reason: Option<String>,

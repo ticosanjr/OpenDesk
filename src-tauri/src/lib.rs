@@ -46,6 +46,8 @@ mod run_timeline;
 mod runtime;
 mod sandbox;
 mod secrets;
+mod server_lock;
+mod shell_state;
 mod skill_eval;
 mod starter_packs;
 #[cfg(test)]
@@ -58,7 +60,10 @@ mod updates;
 mod voice;
 
 use app_state::AppState;
+use daemon_probe::ProbeOutcome;
 use paths::AppPaths;
+use server_lock::ServerLock;
+use shell_state::{RemoteShell, ShellState};
 use std::sync::{Arc, OnceLock};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::ShortcutState;
@@ -215,11 +220,49 @@ pub fn run() {
             if let Err(error) = desktop_integration::ensure(&paths, env!("CARGO_PKG_VERSION")) {
                 tracing::warn!(error = %error, "desktop shortcut integration failed");
             }
-            let state = tauri::async_runtime::block_on(AppState::initialize(paths))?;
-            let state = Arc::new(state);
 
-            app.manage(state.clone());
-            state.cron.attach_state(&state);
+            // Attach to a healthy daemon before creating any local state. This
+            // keeps `api.json`, the database and the API port owned by exactly
+            // one process even when the desktop starts after `opendeskd`.
+            let shell = Arc::new(
+                match tauri::async_runtime::block_on(daemon_probe::probe_outcome(&paths)) {
+                    ProbeOutcome::Remote(endpoint) => {
+                        tracing::info!(
+                            host = %endpoint.host,
+                            port = endpoint.port,
+                            "attaching to an external OpenDesk daemon"
+                        );
+                        ShellState::Remote(Arc::new(RemoteShell::new(endpoint, paths)))
+                    }
+                    ProbeOutcome::Embedded => {
+                        let Some(lock) = ServerLock::acquire(&paths)? else {
+                            let pid = ServerLock::pid(&paths)
+                                .map(|pid| pid.to_string())
+                                .unwrap_or_else(|| "desconhecido".into());
+                            return Err(anyhow::anyhow!(
+                                "outro processo OpenDesk (pid {pid}) já controla a API local ({})",
+                                paths.api_lock_path.display()
+                            )
+                            .into());
+                        };
+                        app.manage(lock);
+
+                        let state =
+                            Arc::new(tauri::async_runtime::block_on(AppState::initialize(paths))?);
+                        state.cron.attach_state(&state);
+                        tauri::async_runtime::block_on(control_plane::start(
+                            state.clone(),
+                            control_plane::StartOptions::default(),
+                        ))?;
+                        tauri::async_runtime::block_on(api::spawn_server(state.clone()))?;
+                        install_shutdown_handlers(app.handle().clone(), state.clone());
+                        ShellState::Embedded(state)
+                    }
+                },
+            );
+
+            app.manage(shell.clone());
+            tracing::info!(mode = shell.mode(), "desktop shell ready");
             use tauri_plugin_global_shortcut::GlobalShortcutExt;
             if let Err(error) = app
                 .global_shortcut()
@@ -227,17 +270,10 @@ pub fn run() {
             {
                 tracing::warn!(error = %error, "Quick Capture global shortcut unavailable");
             }
-            tauri::async_runtime::block_on(control_plane::start(
-                state.clone(),
-                control_plane::StartOptions::default(),
-            ))?;
-            tray::setup(app.handle(), state.clone())?;
+            tray::setup(app.handle(), shell)?;
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.maximize();
             }
-            tauri::async_runtime::block_on(api::spawn_server(state.clone()))?;
-
-            install_shutdown_handlers(app.handle().clone(), state.clone());
 
             Ok(())
         })
@@ -255,16 +291,19 @@ pub fn run() {
                 }
                 let app = window.app_handle();
                 let close_to_tray = app
-                    .try_state::<Arc<AppState>>()
-                    .map(|state| {
-                        tauri::async_runtime::block_on(async {
+                    .try_state::<Arc<ShellState>>()
+                    .map(|shell| match shell.inner().as_ref() {
+                        ShellState::Embedded(state) => tauri::async_runtime::block_on(async {
                             crate::db::settings::get(&state.db, "close_to_tray")
                                 .await
                                 .ok()
                                 .flatten()
                                 .and_then(|value| value.as_bool())
                                 .unwrap_or(true)
-                        })
+                        }),
+                        // Remote mode owns no local state; closing to the tray
+                        // keeps the daemon and its runs alive independently.
+                        ShellState::Remote(_) => true,
                     })
                     .unwrap_or(true);
                 if close_to_tray {
@@ -285,9 +324,9 @@ pub fn run() {
 
     app.run(|app_handle, event| {
         if let tauri::RunEvent::Exit = event
-            && let Some(state) = app_handle.try_state::<Arc<AppState>>()
+            && let Some(shell) = app_handle.try_state::<Arc<ShellState>>()
+            && let Some(state) = shell.inner().embedded().cloned()
         {
-            let state = state.inner().clone();
             tauri::async_runtime::block_on(async {
                 state.cron.shutdown();
                 state.queue.shutdown().await;
@@ -316,6 +355,21 @@ pub fn run_headless() {
     let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
     runtime.block_on(async {
         let paths = AppPaths::discover().expect("application paths");
+
+        // Never start a second backend on the same data directory. A healthy
+        // peer wins; an unhealthy peer leaves a stale lock that gets replaced.
+        if let ProbeOutcome::Remote(endpoint) = daemon_probe::probe_outcome(&paths).await {
+            println!(
+                "OpenDesk already running on http://{}:{}; not starting another daemon",
+                endpoint.host, endpoint.port
+            );
+            return;
+        }
+        let Some(_lock) = ServerLock::acquire(&paths).expect("OpenDesk server lock") else {
+            eprintln!("OpenDesk: another process holds the local server lock; exiting");
+            std::process::exit(1);
+        };
+
         let state = Arc::new(
             AppState::initialize(paths)
                 .await

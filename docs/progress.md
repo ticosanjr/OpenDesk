@@ -2962,3 +2962,11 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - `daemon_probe` lê api.json, aceita apenas localhost e confirma /healthz em 1s.
 - Base para o auto-attach Desktop↔daemon (REF-02).
+
+## 2026-11-16 — auto-attach Desktop↔daemon (REF-02)
+
+- Desktop sonda `/healthz` via `api.json` antes de criar estado local.
+- `ShellState::Remote/Embedded`; modo remoto não abre SQLite, não reserva porta e não escreve `api.json`.
+- `server.pid` impede duplicação acidental; `opendeskd` usa o mesmo lock.
+- Bandeja e `get_daemon_status` falam com o daemon remoto; abrir caminhos valida via `/api/workspaces`.
+- ADR 0087.
