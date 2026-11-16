@@ -4985,13 +4985,16 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "sqlx",
+ "tar",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
  "uuid",
  "walkdir",
+ "zstd 0.13.5",
 ]
 
 [[package]]

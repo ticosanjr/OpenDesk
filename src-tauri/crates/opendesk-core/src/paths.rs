@@ -104,3 +104,31 @@ pub fn default_workspaces_root() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
         .join("OpenDesk Workareas")
 }
+
+#[cfg(test)]
+pub fn test_paths(root: &std::path::Path) -> AppPaths {
+    let paths = AppPaths {
+        data_dir: root.join("data"),
+        config_dir: root.join("config"),
+        cache_dir: root.join("cache"),
+        log_dir: root.join("logs"),
+        db_path: root.join("data").join("opendesk.db"),
+        backups_dir: root.join("backups"),
+        artifacts_dir: root.join("artifacts"),
+        run_logs_dir: root.join("runs"),
+        daemon_lock_path: root.join("daemon.json"),
+        api_lock_path: root.join("api.json"),
+    };
+    for dir in [
+        &paths.data_dir,
+        &paths.config_dir,
+        &paths.cache_dir,
+        &paths.log_dir,
+        &paths.backups_dir,
+        &paths.artifacts_dir,
+        &paths.run_logs_dir,
+    ] {
+        std::fs::create_dir_all(dir).expect("test dir");
+    }
+    paths
+}

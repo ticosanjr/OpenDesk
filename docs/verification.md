@@ -403,6 +403,11 @@ pendências manuais continuam listadas abaixo.
 - tools/list inclui task_list e respeita headers de fase.
 - tools/call reutiliza o dispatch do MCP stdio.
 
+## Sprint 1 — core, terceira fatia
+
+- `cargo test -p opendesk-core` cobre sync delta, bundle/apply e lock.
+- Shell reexporta sem mudar rotas ou comandos.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

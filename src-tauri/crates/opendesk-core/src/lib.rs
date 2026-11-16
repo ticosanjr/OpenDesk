@@ -9,7 +9,9 @@
 pub mod error;
 pub mod events;
 pub mod paths;
+pub mod server_lock;
 pub mod text;
 pub mod token_estimate;
 pub mod virtual_display;
+pub mod workspace_sync;
 pub mod worktree;

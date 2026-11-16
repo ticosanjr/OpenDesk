@@ -3097,3 +3097,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Auth/rate limit/audit do middleware; filtro por fase e agente padrão por header.
 - Faltam SSE/proxy de servidores externos e RBAC por agente.
 - ADR 0106.
+
+## 2026-11-16 — terceira fatia do core (REF-01)
+
+- `workspace_sync` e `server_lock` movidos para `opendesk-core`.
+- Helper `paths::test_paths` para testes sem AppState.
+- ADR 0107.

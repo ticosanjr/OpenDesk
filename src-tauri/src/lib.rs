@@ -43,7 +43,6 @@ mod run_timeline;
 mod runtime;
 mod sandbox;
 mod secrets;
-mod server_lock;
 mod session_context;
 mod shell_state;
 mod skill_eval;
@@ -55,9 +54,11 @@ mod tray;
 mod update_signing;
 mod updates;
 mod voice;
-mod workspace_sync;
 
-pub use opendesk_core::{error, events, paths, text, token_estimate, virtual_display, worktree};
+pub use opendesk_core::{
+    error, events, paths, server_lock, text, token_estimate, virtual_display, workspace_sync,
+    worktree,
+};
 
 use app_state::AppState;
 use daemon_probe::ProbeOutcome;

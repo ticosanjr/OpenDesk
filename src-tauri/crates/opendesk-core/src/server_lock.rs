@@ -77,12 +77,12 @@ fn process_alive(pid: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::paths_in;
+    use crate::paths::test_paths;
 
     #[test]
     fn second_acquire_is_rejected_while_the_first_holds_the_lock() {
         let dir = tempfile::tempdir().expect("temp");
-        let paths = paths_in(dir.path());
+        let paths = test_paths(dir.path());
         let first = ServerLock::acquire(&paths).expect("acquire").expect("lock");
         assert_eq!(ServerLock::pid(&paths), Some(std::process::id()));
         assert!(ServerLock::acquire(&paths).expect("second").is_none());
@@ -94,7 +94,7 @@ mod tests {
     #[test]
     fn stale_pid_is_replaced() {
         let dir = tempfile::tempdir().expect("temp");
-        let paths = paths_in(dir.path());
+        let paths = test_paths(dir.path());
         std::fs::write(paths.data_dir.join(LOCK_FILE), "999999999\n").expect("stale");
         let lock = ServerLock::acquire(&paths).expect("acquire").expect("lock");
         assert_eq!(ServerLock::pid(&paths), Some(std::process::id()));
