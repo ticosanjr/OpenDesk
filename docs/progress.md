@@ -2810,3 +2810,14 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - MCP `handoff_create/list/respond/finish`.
 - Seção “Handoffs de tarefa” na governança e push para handoffs pendentes.
 - ADR 0067.
+
+## 2026-11-16 — v1.0 onda 5: memória, ACL e avaliação de skills
+
+- Notas estruturadas com namespace, tipo, tags, confiança, trust e validade.
+- ACL por agente (leitura/escrita) com namespace aberto por padrão.
+- Busca e injeção de até 8 notas no prompt (`{{structured_memory}}`), filtradas
+  pela ACL; MEMORY.md permanece separado.
+- Limpeza de notas expiradas na manutenção.
+- MCP `memory_save`/`memory_search`.
+- `/api/skills/eval` e cards de memória/avaliação na página de aprendizado.
+- ADR 0068.

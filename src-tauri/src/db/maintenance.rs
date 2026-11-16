@@ -58,6 +58,7 @@ pub async fn maintenance_once(pool: &SqlitePool, paths: &AppPaths) -> AppResult<
     )
     .execute(pool)
     .await;
+    let _ = crate::db::memory::delete_expired(pool).await;
 
     std::fs::create_dir_all(&paths.backups_dir)?;
     let backup = paths.backups_dir.join(format!(

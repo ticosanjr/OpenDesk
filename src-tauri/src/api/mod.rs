@@ -26,6 +26,7 @@ pub mod integrations;
 pub mod interactions;
 pub mod io_bus;
 pub mod learning;
+pub mod memory;
 pub mod meta;
 pub mod metrics;
 pub mod missed_runs;
@@ -44,6 +45,7 @@ pub mod schedules;
 pub mod search;
 pub mod seed;
 pub mod signal;
+pub mod skills;
 pub mod starter_packs;
 pub mod studio;
 pub mod studio_ops;
@@ -145,6 +147,29 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/handoffs/{id}/reject", post(handoffs::reject))
         .route("/api/handoffs/{id}/cancel", post(handoffs::cancel))
         .route("/api/handoffs/{id}/finish", post(handoffs::finish))
+        .route(
+            "/api/memory/namespaces",
+            get(memory::list_namespaces).post(memory::create_namespace),
+        )
+        .route(
+            "/api/memory/namespaces/{id}/acl",
+            get(memory::list_acl).put(memory::put_acl),
+        )
+        .route(
+            "/api/memory/namespaces/{id}/acl/{agent}",
+            delete(memory::delete_acl),
+        )
+        .route(
+            "/api/memory/notes",
+            get(memory::list_notes).post(memory::create_note),
+        )
+        .route(
+            "/api/memory/notes/{id}",
+            patch(memory::update_note).delete(memory::delete_note),
+        )
+        .route("/api/memory/search", get(memory::search))
+        .route("/api/memory/context", get(memory::context))
+        .route("/api/skills/eval", get(skills::evaluate))
         .route("/api/meta", get(meta))
         .route("/api/about", get(about::about))
         .route(

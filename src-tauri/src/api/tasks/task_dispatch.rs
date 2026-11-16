@@ -256,6 +256,15 @@ pub(crate) async fn enqueue_decision_with_session(
     .await?;
     let personal_context =
         crate::personal_context::render_body(&state.db, &task.workspace_id).await?;
+    let memory_context = crate::db::memory::render_context(
+        &state.db,
+        &task.workspace_id,
+        &selected_agent,
+        &format!("{} {}", task.title, task.description),
+        8,
+    )
+    .await
+    .unwrap_or_default();
     let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
         &state.db,
         Some(&task.workspace_id),
@@ -276,6 +285,7 @@ pub(crate) async fn enqueue_decision_with_session(
             care_level: care,
             needs_browser,
             personal_context: &personal_context,
+            structured_memory: &memory_context,
         },
         &templates,
     );

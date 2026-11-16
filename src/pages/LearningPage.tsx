@@ -48,6 +48,8 @@ import type {
 } from "@/lib/types";
 import { smallInputClass, smallLabelClass } from "@/lib/ui-classes";
 import { PersonalContextCard } from "@/components/learning/PersonalContextCard";
+import { SkillEvalCard } from "@/components/learning/SkillEvalCard";
+import { StructuredMemoryCard } from "@/components/learning/StructuredMemoryCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { toast } from "@/store/toast-store";
@@ -371,6 +373,13 @@ export function LearningPage() {
       ) : null}
 
       <PersonalContextCard />
+
+      {activeWorkspaceId ? (
+        <div className="space-y-4">
+          <StructuredMemoryCard workspaceId={activeWorkspaceId} />
+          <SkillEvalCard workspaceId={activeWorkspaceId} />
+        </div>
+      ) : null}
 
       {settings ? (
         <Card>

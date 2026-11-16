@@ -39,6 +39,7 @@ mod run_timeline;
 #[allow(dead_code)]
 mod runtime;
 mod secrets;
+mod skill_eval;
 mod starter_packs;
 #[cfg(test)]
 mod test_support;

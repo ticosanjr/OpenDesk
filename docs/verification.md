@@ -191,6 +191,12 @@ pendências manuais continuam listadas abaixo.
   MCP e UI.
 - Testes de transições, criação de tarefa, recusa e orçamento.
 
+## Pós-0.59.0 — v1.0 onda 5
+
+- Memória estruturada, namespaces/ACL, busca, validade e injeção no prompt.
+- MCP de memória e avaliação de skills com UI.
+- Testes de ACL, busca, expiração e API.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

@@ -17,6 +17,9 @@ pub struct PackContext<'a> {
     pub care_level: &'a str,
     pub needs_browser: bool,
     pub personal_context: &'a str,
+    /// Rendered notes from the structured memory store, already filtered by the
+    /// agent's ACL.
+    pub structured_memory: &'a str,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -88,6 +91,18 @@ pub fn pack_sections(context: &PackContext<'_>, templates: &PromptTemplates) -> 
                 render(&templates.memory_block, &[("memory", &memory)]),
             );
         }
+    }
+
+    if !context.structured_memory.trim().is_empty() {
+        push(
+            "structured_memory",
+            "Memória estruturada",
+            "Memória/ACL",
+            render(
+                &templates.structured_memory_block,
+                &[("structured_memory", context.structured_memory.trim())],
+            ),
+        );
     }
 
     let tags_line = if context.tags.is_empty() {
@@ -266,6 +281,7 @@ mod tests {
                 agent: "build",
                 needs_browser: false,
                 personal_context: "",
+                structured_memory: "",
             },
             &PromptTemplates::default(),
         );
@@ -291,6 +307,7 @@ mod tests {
                 agent: "build",
                 needs_browser: true,
                 personal_context: "",
+                structured_memory: "",
             },
             &PromptTemplates::default(),
         );

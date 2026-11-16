@@ -18,6 +18,7 @@ pub mod integrations;
 pub mod interactions;
 pub mod io_bus;
 pub mod maintenance;
+pub mod memory;
 pub mod missed_runs;
 pub mod model_health;
 pub mod models;

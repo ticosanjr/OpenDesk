@@ -30,11 +30,13 @@ use util::{bool_arg, integer_arg, optional, optional_str, required, ws_path};
 pub async fn run_stdio() -> Result<()> {
     let workspace_id = std::env::var("OPENDESK_WORKSPACE_ID")
         .context("OPENDESK_WORKSPACE_ID é obrigatório para o MCP de controle")?;
+    let default_agent = std::env::var("OPENDESK_AGENT").unwrap_or_else(|_| "build".to_string());
 
     mcp_server::serve_stdio("opendesk-control", tools(), |name, arguments| {
         let workspace_id = &workspace_id;
+        let default_agent = &default_agent;
         async move {
-            dispatch(workspace_id, &name, arguments)
+            dispatch(workspace_id, default_agent, &name, arguments)
                 .await
                 .map(|value| value.to_string())
         }
@@ -42,7 +44,12 @@ pub async fn run_stdio() -> Result<()> {
     .await
 }
 
-async fn dispatch(workspace_id: &str, tool: &str, args: Value) -> Result<Value> {
+async fn dispatch(
+    workspace_id: &str,
+    default_agent: &str,
+    tool: &str,
+    args: Value,
+) -> Result<Value> {
     let endpoint = endpoint()?;
     let client = client();
     match tool {
@@ -87,6 +94,40 @@ async fn dispatch(workspace_id: &str, tool: &str, args: Value) -> Result<Value> 
             .await
         }
         "ask_user" => ask_user(&client, &endpoint, &args).await,
+        "memory_save" => {
+            let agent = optional(&args, "agent").unwrap_or_else(|| default_agent.to_string());
+            let mut path = ws_path("/api/memory/notes", workspace_id);
+            path.push_str(&format!("&agent={}", urlencoding::encode(&agent)));
+            let body = json!({
+                "namespace": optional(&args, "namespace").unwrap_or_else(|| "core".into()),
+                "kind": optional(&args, "kind").unwrap_or_else(|| "semantic".into()),
+                "title": required(&args, "title")?,
+                "body": required(&args, "body")?,
+                "tags": util::string_array(&args, "tags"),
+                "confidence": args.get("confidence").and_then(Value::as_f64).unwrap_or(0.6),
+                "trust_level": optional(&args, "trust_level").unwrap_or_else(|| "observed".into()),
+                "expires_at": optional(&args, "expires_at"),
+                "source": optional(&args, "source"),
+            });
+            call(&client, &endpoint, Method::POST, &path, Some(body)).await
+        }
+        "memory_search" => {
+            let agent = optional(&args, "agent").unwrap_or_else(|| default_agent.to_string());
+            let query = required(&args, "query")?;
+            let mut path = ws_path("/api/memory/search", workspace_id);
+            path.push_str(&format!(
+                "&q={}&agent={}",
+                urlencoding::encode(query),
+                urlencoding::encode(&agent)
+            ));
+            if let Some(namespace) = optional(&args, "namespace") {
+                path.push_str(&format!("&namespace={}", urlencoding::encode(&namespace)));
+            }
+            if let Some(limit) = integer_arg(&args, "limit") {
+                path.push_str(&format!("&limit={limit}"));
+            }
+            call(&client, &endpoint, Method::GET, &path, None).await
+        }
         "handoff_create" => {
             let body = json!({
                 "source_agent": required(&args, "source_agent")?,

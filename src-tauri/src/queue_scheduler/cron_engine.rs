@@ -637,6 +637,15 @@ impl CronEngine {
             crate::personal_context::render_body(&self.pool, &schedule.workspace_id)
                 .await
                 .unwrap_or_default();
+        let memory_context = crate::db::memory::render_context(
+            &self.pool,
+            &schedule.workspace_id,
+            &decision.selected_agent,
+            &format!("{} {}", schedule.name, prompt),
+            8,
+        )
+        .await
+        .unwrap_or_default();
         let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
             &self.pool,
             Some(&schedule.workspace_id),
@@ -658,6 +667,7 @@ impl CronEngine {
                 care_level: "standard",
                 needs_browser,
                 personal_context: &personal_context,
+                structured_memory: &memory_context,
             },
             &templates,
         );

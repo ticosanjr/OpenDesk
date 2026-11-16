@@ -59,6 +59,15 @@ pub async fn preview(
     .await?;
     let personal_context =
         crate::personal_context::render_body(&state.db, &task.workspace_id).await?;
+    let memory_context = crate::db::memory::render_context(
+        &state.db,
+        &task.workspace_id,
+        &decision.selected_agent,
+        &format!("{} {}", task.title, task.description),
+        8,
+    )
+    .await
+    .unwrap_or_default();
     let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
         &state.db,
         Some(&task.workspace_id),
@@ -78,6 +87,7 @@ pub async fn preview(
         care_level: &task.care_level,
         needs_browser: crate::browse::needs_browser(&task.title, &task.description, &tags),
         personal_context: &personal_context,
+        structured_memory: &memory_context,
     };
     let sections = dsh_router::context_packer::pack_sections(&context, &templates);
     let prompt = sections
