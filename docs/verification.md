@@ -488,6 +488,10 @@ pendências manuais continuam listadas abaixo.
 
 - Criação, listagem, restore e corrupção de backup testados no core.
 
+## Sprint 1 — signing/MCP no core
+
+- Assinatura de update e loop JSON-RPC testados no core.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

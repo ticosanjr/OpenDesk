@@ -4987,6 +4987,7 @@ dependencies = [
  "chrono-tz",
  "croner",
  "directories",
+ "ed25519-dalek",
  "futures-util",
  "html-escape",
  "iana-time-zone",

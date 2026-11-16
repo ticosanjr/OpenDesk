@@ -18,6 +18,7 @@ pub mod dsh_router;
 pub mod error;
 pub mod events;
 pub mod hitl;
+pub mod mcp_server;
 pub mod media;
 pub mod metrics;
 pub mod nodes;
@@ -37,6 +38,7 @@ pub mod server_lock;
 pub mod skill_eval;
 pub mod text;
 pub mod token_estimate;
+pub mod update_signing;
 pub mod virtual_display;
 pub mod workspace_sync;
 

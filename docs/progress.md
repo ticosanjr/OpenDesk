@@ -3203,3 +3203,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - `backup` sem AppState; core 212 testes, shell 371.
 - ADR 0123.
+
+## 2026-11-16 — update_signing/mcp_server no core (REF-01)
+
+- Módulos movidos; core 216 testes, shell 367.
+- ADR 0124.
