@@ -364,6 +364,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0093 — Shell mobile-first](docs/decisions/0093-mobile-shell.md)
 - [ADR 0094 — Onboarding guiado](docs/decisions/0094-guided-onboarding.md)
 - [ADR 0095 — Doctor live completo](docs/decisions/0095-live-doctor-probes.md)
+- [ADR 0096 — Sub-receitas](docs/decisions/0096-sub-recipes.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

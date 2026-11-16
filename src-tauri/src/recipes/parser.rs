@@ -161,6 +161,20 @@ pub struct MapFlow {
     pub flow: Vec<FlowItem>,
 }
 
+/// Calls another recipe in the same workspace with isolated outputs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecipeCall {
+    pub id: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    /// Recipe id (slug) inside the same workspace.
+    pub recipe: String,
+    #[serde(default, rename = "with")]
+    pub inputs: serde_json::Value,
+    #[serde(default)]
+    pub when: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum FlowItem {
@@ -170,6 +184,7 @@ pub enum FlowItem {
     Branch(BranchFlow),
     Parallel(ParallelFlow),
     Map(MapFlow),
+    Recipe(RecipeCall),
 }
 
 impl From<RecipeSink> for FlowSink {
@@ -185,7 +200,10 @@ impl From<RecipeSink> for FlowSink {
 
 impl FlowItem {
     pub fn is_dag(&self) -> bool {
-        matches!(self, Self::Branch(_) | Self::Parallel(_) | Self::Map(_))
+        matches!(
+            self,
+            Self::Branch(_) | Self::Parallel(_) | Self::Map(_) | Self::Recipe(_)
+        )
     }
 
     pub fn collect_steps<'a>(&'a self, steps: &mut Vec<&'a Step>) {
@@ -209,6 +227,7 @@ impl FlowItem {
                     item.collect_steps(steps);
                 }
             }
+            Self::Recipe(_) => {}
         }
     }
 }
@@ -520,6 +539,27 @@ impl Validator {
                         self.collect(branch, depth + 1, Some(&parallel.id))?;
                     }
                 }
+                FlowItem::Recipe(call) => {
+                    if group.is_some() {
+                        return Err(AppError::BadRequest(
+                            "sub-receita não é permitida dentro de parallel/map; chame-a no nível principal"
+                                .into(),
+                        ));
+                    }
+                    self.group_id(&call.id, "recipe")?;
+                    if call.recipe.trim().is_empty() {
+                        return Err(AppError::BadRequest(format!(
+                            "recipe call {} precisa de recipe",
+                            call.id
+                        )));
+                    }
+                    if !call.inputs.is_null() && !call.inputs.is_object() {
+                        return Err(AppError::BadRequest(format!(
+                            "with da sub-receita {} precisa ser um objeto",
+                            call.id
+                        )));
+                    }
+                }
                 FlowItem::Map(map) => {
                     self.group_id(&map.id, "map")?;
                     if map.items.trim().is_empty() {
@@ -590,7 +630,7 @@ impl Validator {
                     }
                 }
                 FlowItem::Map(map) => self.check_references(&map.flow)?,
-                FlowItem::Step(_) | FlowItem::Sink(_) => {}
+                FlowItem::Recipe(_) | FlowItem::Step(_) | FlowItem::Sink(_) => {}
             }
         }
         Ok(())
@@ -615,6 +655,7 @@ pub fn node_descriptor(item: &FlowItem, index: usize) -> (String, &'static str) 
         FlowItem::Branch(branch) => (branch.id.clone(), "branch"),
         FlowItem::Parallel(parallel) => (parallel.id.clone(), "parallel"),
         FlowItem::Map(map) => (map.id.clone(), "map"),
+        FlowItem::Recipe(call) => (call.id.clone(), "recipe"),
     }
 }
 
@@ -875,6 +916,29 @@ flow:
         prompt: x
 "#;
         assert!(parse(invalid).is_err(), "concurrency must be bounded");
+    }
+
+    #[test]
+    fn parses_recipe_calls() {
+        let yaml = r#"
+id: caller
+name: Caller
+flow:
+  - type: recipe
+    id: chamar
+    recipe: child
+    with:
+      topic: "{{trigger.topic}}"
+  - type: step
+    id: s
+    name: S
+    prompt: x
+"#;
+        let recipe = parse(yaml).expect("parse");
+        assert!(recipe.has_dag());
+        let yaml = serde_yaml::to_string(&recipe).expect("serialize");
+        let parsed = parse(&yaml).expect("round trip");
+        assert!(matches!(parsed.flow[0], FlowItem::Recipe(_)));
     }
 
     #[test]

@@ -554,7 +554,10 @@ async fn execute(
                 store::mark_node_done(&state.db, &run.id, index, Some(&outputs), None).await?;
                 index += 1;
             }
-            FlowItem::Branch(_) | FlowItem::Parallel(_) | FlowItem::Map(_) => {
+            FlowItem::Branch(_)
+            | FlowItem::Parallel(_)
+            | FlowItem::Map(_)
+            | FlowItem::Recipe(_) => {
                 unreachable!("DAG flows are routed to recipes::dag")
             }
         }

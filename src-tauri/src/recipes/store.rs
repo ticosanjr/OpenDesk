@@ -625,7 +625,7 @@ fn collect_node_seeds(
                     collect_node_seeds(branch, Some(&branch_path), seeds);
                 }
             }
-            FlowItem::Map(_) => {
+            FlowItem::Map(_) | FlowItem::Recipe(_) => {
                 seeds.push(NodeSeed {
                     path,
                     parent: parent.map(str::to_string),
@@ -634,7 +634,7 @@ fn collect_node_seeds(
                     item_key: None,
                     join_policy: None,
                 });
-                // Map children are materialized per item at runtime.
+                // Map items and sub-recipe children are materialized at runtime.
             }
         }
     }

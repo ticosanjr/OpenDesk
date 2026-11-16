@@ -3026,3 +3026,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Google valida refresh token; Telegram chama getMe; Signal valida CLI; WhatsApp consulta Graph.
 - Estados error/disabled/not-configured distintos e timeouts curtos.
 - ADR 0095.
+
+## 2026-11-16 — sub-receitas (REQ-04)
+
+- Item `type: recipe` com `with`, `when`, outputs isolados e caminho durável `call/...`.
+- Detecção de ciclo e limite de profundidade; resume preserva passos da sub-receita.
+- ADR 0096.

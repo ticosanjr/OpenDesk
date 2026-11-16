@@ -27,6 +27,7 @@ use futures_util::{
 use serde_json::{Value, json};
 use std::{collections::HashMap, sync::Arc};
 
+#[derive(Clone, Copy)]
 struct Ctx<'a> {
     state: &'a Arc<AppState>,
     recipe: &'a Recipe,
@@ -43,6 +44,7 @@ struct ScopeState {
     session_id: Option<String>,
     feedback: HashMap<String, String>,
     review_rounds: usize,
+    recipe_stack: Vec<String>,
 }
 
 enum ScopeOutcome {
@@ -89,6 +91,7 @@ pub async fn execute(
     store::sync_run_nodes(&state.db, &run.id, &recipe.flow).await?;
     let mut scope = ScopeState {
         outputs: serde_json::from_str(&run.step_outputs_json).unwrap_or_else(|_| json!({})),
+        recipe_stack: vec![recipe.id.clone()],
         ..Default::default()
     };
     match run_scope(&ctx, &recipe.flow, None, &mut scope).await? {
@@ -356,6 +359,13 @@ fn run_scope<'a>(
                     }
                     index += 1;
                 }
+                FlowItem::Recipe(call) => {
+                    match run_recipe_call(ctx, call, parent, scope).await? {
+                        ScopeOutcome::Continue => {}
+                        ScopeOutcome::Cancelled => return Ok(ScopeOutcome::Cancelled),
+                    }
+                    index += 1;
+                }
             }
         }
         Ok(ScopeOutcome::Continue)
@@ -400,6 +410,7 @@ async fn run_parallel(
         let branch_path = child_path(Some(&path), &format!("b{branch_index}"));
         let mut local = ScopeState {
             outputs: scope.outputs.clone(),
+            recipe_stack: scope.recipe_stack.clone(),
             ..Default::default()
         };
         futures.push(async move {
@@ -520,6 +531,7 @@ async fn run_map(
         })?
     };
     let base_outputs = scope.outputs.clone();
+    let recipe_stack = scope.recipe_stack.clone();
     let max_concurrency = map.max_concurrency.clamp(1, 8);
     let group_path = path.clone();
     let jobs = items.into_iter().enumerate().map(move |(index, item)| {
@@ -528,6 +540,7 @@ async fn run_map(
         let parent_path = group_path.clone();
         let mut local = ScopeState {
             outputs: base_outputs.clone(),
+            recipe_stack: recipe_stack.clone(),
             ..Default::default()
         };
         local.outputs[&map.item_var] = item.clone();
@@ -637,6 +650,133 @@ async fn run_map(
     )
     .await?;
     Ok(ScopeOutcome::Continue)
+}
+
+async fn run_recipe_call(
+    ctx: &Ctx<'_>,
+    call: &parser::RecipeCall,
+    parent: Option<&str>,
+    scope: &mut ScopeState,
+) -> AppResult<ScopeOutcome> {
+    let path = child_path(parent, &call.id);
+    let node = ensure_node(ctx, &path, parent, &call.id, "recipe", None, None).await?;
+    if finished(&node) {
+        restore_finished(ctx, &path, &node, scope).await?;
+        return Ok(ScopeOutcome::Continue);
+    }
+    let should_run = call
+        .when
+        .as_deref()
+        .map(|condition| {
+            parser::evaluate_when(condition, ctx.trigger, ctx.run_vars, &scope.outputs)
+        })
+        .transpose()?
+        .unwrap_or(true);
+    if !should_run {
+        store::mark_node_path(
+            &ctx.state.db,
+            &ctx.run.id,
+            &path,
+            "SKIPPED",
+            None,
+            None,
+            None,
+        )
+        .await?;
+        return Ok(ScopeOutcome::Continue);
+    }
+    if scope.recipe_stack.len() >= 8 {
+        return Err(AppError::BadRequest(
+            "profundidade máxima de sub-receitas excedida".into(),
+        ));
+    }
+    let yaml = store::yaml_for(&ctx.state.db, &ctx.run.workspace_id, &call.recipe).await?;
+    let sub = parser::parse(&yaml)?;
+    if scope.recipe_stack.iter().any(|id| id == &sub.id) {
+        return Err(AppError::BadRequest(format!(
+            "ciclo de sub-receitas detectado: {} -> {}",
+            scope.recipe_stack.join(" -> "),
+            sub.id
+        )));
+    }
+    let inputs = render_inputs(&call.inputs, ctx.trigger, ctx.run_vars, &scope.outputs)?;
+    store::mark_node_path(
+        &ctx.state.db,
+        &ctx.run.id,
+        &path,
+        "RUNNING",
+        None,
+        None,
+        None,
+    )
+    .await?;
+    liveness(ctx, &call.id, &scope.outputs).await?;
+
+    let sub_ctx = Ctx {
+        recipe: &sub,
+        trigger: &inputs,
+        ..*ctx
+    };
+    let mut local = ScopeState {
+        outputs: scope.outputs.clone(),
+        recipe_stack: {
+            let mut stack = scope.recipe_stack.clone();
+            stack.push(sub.id.clone());
+            stack
+        },
+        ..Default::default()
+    };
+    match run_scope(&sub_ctx, &sub.flow, Some(&path), &mut local).await? {
+        ScopeOutcome::Continue => {}
+        ScopeOutcome::Cancelled => return Ok(ScopeOutcome::Cancelled),
+    }
+    let output = json!({
+        "recipe": sub.id,
+        "outputs": local.outputs,
+    });
+    scope.outputs[&call.id] = output.clone();
+    store::mark_node_path(
+        &ctx.state.db,
+        &ctx.run.id,
+        &path,
+        "DONE",
+        Some(&output),
+        local.session_id.as_deref(),
+        None,
+    )
+    .await?;
+    Ok(ScopeOutcome::Continue)
+}
+
+fn render_inputs(
+    inputs: &Value,
+    trigger: &Value,
+    run_vars: &Value,
+    outputs: &Value,
+) -> AppResult<Value> {
+    match inputs {
+        Value::String(template) => Ok(Value::String(parser::render(
+            template, trigger, run_vars, outputs,
+        )?)),
+        Value::Array(items) => Ok(Value::Array(
+            items
+                .iter()
+                .map(|item| render_inputs(item, trigger, run_vars, outputs))
+                .collect::<AppResult<Vec<_>>>()?,
+        )),
+        Value::Object(object) => {
+            let mut rendered = serde_json::Map::new();
+            for (key, value) in object {
+                rendered.insert(
+                    key.clone(),
+                    render_inputs(value, trigger, run_vars, outputs)?,
+                );
+            }
+            Ok(Value::Object(rendered))
+        }
+        Value::Null => Ok(json!({})),
+        other => Ok(other.clone()),
+    }
 }
 
 async fn handle_hitl(
@@ -840,7 +980,7 @@ async fn restore_finished(
     if let Some(output) = parse_output(node) {
         scope.outputs[&node.node_id] = output;
     }
-    if node.kind == "map" {
+    if node.kind == "map" || node.kind == "recipe" {
         return Ok(());
     }
     let children = store::list_nodes_under(&ctx.state.db, &ctx.run.id, path).await?;
@@ -945,6 +1085,7 @@ fn next_item_name(items: &[FlowItem], index: usize) -> Option<&str> {
         FlowItem::Branch(branch) => Some(branch.name.as_deref().unwrap_or(&branch.id)),
         FlowItem::Parallel(parallel) => Some(parallel.name.as_deref().unwrap_or(&parallel.id)),
         FlowItem::Map(map) => Some(map.name.as_deref().unwrap_or(&map.id)),
+        FlowItem::Recipe(call) => Some(call.name.as_deref().unwrap_or(&call.id)),
     })
 }
 
@@ -1182,6 +1323,175 @@ flow:
                 "missing node {path}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn calls_a_sub_recipe_with_isolated_outputs() {
+        let child = r#"
+id: dag-child
+name: Child
+flow:
+  - type: step
+    id: child-step
+    name: Child step
+    prompt: "{{trigger.topic}}"
+    when: "false"
+"#;
+        let parent = r#"
+id: dag-parent
+name: Parent
+flow:
+  - type: recipe
+    id: chamar
+    recipe: dag-child
+    with:
+      topic: "assunto"
+  - type: step
+    id: after
+    name: After
+    prompt: x
+    when: "false"
+"#;
+        let ctx = crate::test_support::context().await;
+        store::save_yaml(&ctx.state.db, &ctx.workspace_id, "dag-child", child)
+            .await
+            .expect("child");
+        let (ctx, recipe, run) = {
+            let saved = store::save_yaml(&ctx.state.db, &ctx.workspace_id, "dag-parent", parent)
+                .await
+                .expect("parent");
+            let recipe = parser::parse(parent).expect("recipe");
+            let task = tasks::create(
+                &ctx.state.db,
+                &ctx.workspace_id,
+                tasks::CreateTaskInput {
+                    title: "parent".into(),
+                    description: "parent".into(),
+                    execution_mode: Some("BUILD_DIRECT".into()),
+                    priority: Some(2),
+                    assigned_agent: None,
+                    preferred_model: None,
+                    preferred_harness: None,
+                    effort_level: None,
+                    care_level: Some("standard".into()),
+                    notify_email: None,
+                    export_to_gdocs: false,
+                    tags: vec![],
+                    origin: Some("RECIPE".into()),
+                    parent_task_id: None,
+                    dedupe: None,
+                },
+            )
+            .await
+            .expect("task");
+            let run = store::create_run(
+                &ctx.state.db,
+                &recipe,
+                &ctx.workspace_id,
+                Some(&task.id),
+                &json!({}),
+                "/tmp/dag-parent",
+                false,
+            )
+            .await
+            .expect("run");
+            let _ = saved;
+            (ctx, recipe, run)
+        };
+        execute(&ctx.state, &recipe, &run, &json!({}))
+            .await
+            .expect("execute");
+
+        let completed = store::get_run(&ctx.state.db, &run.id).await.expect("run");
+        let outputs: Value = serde_json::from_str(&completed.step_outputs_json).expect("outputs");
+        assert_eq!(outputs["chamar"]["recipe"], "dag-child");
+        assert_eq!(outputs["chamar"]["outputs"]["child-step"]["skipped"], true);
+        let nodes = store::list_run_nodes(&ctx.state.db, &run.id)
+            .await
+            .expect("nodes");
+        assert!(
+            nodes.iter().any(
+                |node| node.node_path.as_deref() == Some("chamar/child-step")
+                    && node.status == "SKIPPED"
+            ),
+            "{nodes:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_sub_recipe_cycles() {
+        let a = r#"
+id: cycle-a
+name: A
+flow:
+  - type: recipe
+    id: call-b
+    recipe: cycle-b
+  - type: step
+    id: a-step
+    name: A step
+    prompt: x
+    when: "false"
+"#;
+        let b = r#"
+id: cycle-b
+name: B
+flow:
+  - type: recipe
+    id: call-a
+    recipe: cycle-a
+  - type: step
+    id: b-step
+    name: B step
+    prompt: x
+    when: "false"
+"#;
+        let ctx = crate::test_support::context().await;
+        store::save_yaml(&ctx.state.db, &ctx.workspace_id, "cycle-b", b)
+            .await
+            .expect("b");
+        let recipe = parser::parse(a).expect("a");
+        store::save_yaml(&ctx.state.db, &ctx.workspace_id, "cycle-a", a)
+            .await
+            .expect("a index");
+        let task = tasks::create(
+            &ctx.state.db,
+            &ctx.workspace_id,
+            tasks::CreateTaskInput {
+                title: "cycle".into(),
+                description: "cycle".into(),
+                execution_mode: Some("BUILD_DIRECT".into()),
+                priority: Some(2),
+                assigned_agent: None,
+                preferred_model: None,
+                preferred_harness: None,
+                effort_level: None,
+                care_level: Some("standard".into()),
+                notify_email: None,
+                export_to_gdocs: false,
+                tags: vec![],
+                origin: Some("RECIPE".into()),
+                parent_task_id: None,
+                dedupe: None,
+            },
+        )
+        .await
+        .expect("task");
+        let run = store::create_run(
+            &ctx.state.db,
+            &recipe,
+            &ctx.workspace_id,
+            Some(&task.id),
+            &json!({}),
+            "/tmp/cycle",
+            false,
+        )
+        .await
+        .expect("run");
+        let error = execute(&ctx.state, &recipe, &run, &json!({}))
+            .await
+            .expect_err("cycle");
+        assert!(format!("{error:#}").contains("ciclo"), "{error:#}");
     }
 
     #[tokio::test]

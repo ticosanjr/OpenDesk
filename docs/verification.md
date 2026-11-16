@@ -338,6 +338,12 @@ pendências manuais continuam listadas abaixo.
 - Probes reais de Google (refresh), Telegram (getMe), Signal (CLI) e WhatsApp (Graph).
 - Sem configuração o status é not-configured; sem rede/token inválido é error.
 
+## Sprint 2 — sub-receitas
+
+- Chamada com `with` renderiza o trigger da sub-receita.
+- Outputs ficam em `steps.<call>.outputs` sem colidir com o pai.
+- Ciclo entre duas receitas é rejeitado antes da execução.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:
