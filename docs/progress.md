@@ -3182,3 +3182,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `next_occurrence` em `opendesk-core::recurrence`; `recipes::cron` movido.
 - Core 201 testes; shell 382.
 - ADR 0119.
+
+## 2026-11-16 — run_export no core (REF-01)
+
+- Export/timeline sem AppState; recebe pool.
+- Core 205 testes; shell 378.
+- ADR 0120.

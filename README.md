@@ -388,6 +388,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0117 — Browse no core](docs/decisions/0117-browse-core.md)
 - [ADR 0118 — Parser/store de receitas no core](docs/decisions/0118-recipe-parser-store-core.md)
 - [ADR 0119 — Recurrence no core](docs/decisions/0119-recurrence-core.md)
+- [ADR 0120 — Run export no core](docs/decisions/0120-run-export-core.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

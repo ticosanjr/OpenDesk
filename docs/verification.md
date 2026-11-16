@@ -471,6 +471,11 @@ pendências manuais continuam listadas abaixo.
 - next_occurrence compartilhado por receitas/rotinas/calendário.
 - recipes::cron testado no core.
 
+## Sprint 2 — run export no core
+
+- Markdown/HTML/JSON e timeline testados no core.
+- API passa pool explicitamente.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

@@ -1,7 +1,6 @@
 //! Portable session export: Markdown, HTML and JSON derived from a run timeline.
 
 use crate::{
-    app_state::AppState,
     db::{
         artifacts, queue,
         runs::{self, TaskRun},
@@ -10,11 +9,12 @@ use crate::{
     error::{AppError, AppResult},
     run_timeline::{RunAttempt, RunTimeline, TimelineArtifact, timeline_from_events},
 };
+use sqlx::SqlitePool;
 use std::io::BufRead;
 
-pub async fn load_timeline(state: &AppState, id: &str) -> AppResult<RunTimeline> {
-    let run = runs::get(&state.db, id).await?;
-    let mut timeline = build_timeline(state, run.clone()).await?;
+pub async fn load_timeline(pool: &SqlitePool, id: &str) -> AppResult<RunTimeline> {
+    let run = runs::get(pool, id).await?;
+    let mut timeline = build_timeline(pool, run.clone()).await?;
     timeline.root_run_id = Some(run.id.clone());
     timeline.attempts = vec![attempt_from_run(&run)];
     Ok(timeline)
@@ -23,10 +23,10 @@ pub async fn load_timeline(state: &AppState, id: &str) -> AppResult<RunTimeline>
 /// One logical execution can contain several attempts (follow-ups, retries).
 /// Merge all attempts of the task into a single chronological timeline while
 /// keeping per-attempt summaries for the header.
-pub async fn load_thread_timeline(state: &AppState, id: &str) -> AppResult<RunTimeline> {
-    let requested = runs::get(&state.db, id).await?;
+pub async fn load_thread_timeline(pool: &SqlitePool, id: &str) -> AppResult<RunTimeline> {
+    let requested = runs::get(pool, id).await?;
     let mut attempts = match requested.task_id.as_deref() {
-        Some(task_id) => runs::list(&state.db, &requested.workspace_id, Some(task_id))
+        Some(task_id) => runs::list(pool, &requested.workspace_id, Some(task_id))
             .await
             .unwrap_or_else(|_| vec![requested.clone()]),
         None => vec![requested.clone()],
@@ -52,7 +52,7 @@ pub async fn load_thread_timeline(state: &AppState, id: &str) -> AppResult<RunTi
     let mut log_missing = false;
 
     for run in &attempts {
-        let mut part = build_timeline(state, run.clone()).await?;
+        let mut part = build_timeline(pool, run.clone()).await?;
         for event in &mut part.events {
             event.run_id = Some(run.id.clone());
             event.attempt_number = Some(run.attempt_number);
@@ -137,7 +137,7 @@ fn attempt_from_run(run: &TaskRun) -> RunAttempt {
 }
 
 async fn load_run_inputs(
-    state: &AppState,
+    pool: &SqlitePool,
     run: &TaskRun,
     workspace: Option<&crate::db::workspaces::Workspace>,
 ) -> Vec<crate::run_timeline::TimelineInput> {
@@ -177,7 +177,7 @@ async fn load_run_inputs(
             "SELECT trigger_context_json FROM recipe_runs WHERE task_id = ? ORDER BY started_at DESC LIMIT 1",
         )
         .bind(task_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(pool)
         .await
         && let Ok(context) = serde_json::from_str::<serde_json::Value>(&raw)
     {
@@ -226,7 +226,7 @@ async fn load_run_inputs(
 
     if inputs.is_empty()
         && let Some(task_id) = run.task_id.as_deref()
-        && let Ok(task) = crate::db::tasks::get(&state.db, task_id).await
+        && let Ok(task) = crate::db::tasks::get(pool, task_id).await
         && let Some(marker) = task.description.rfind("## Arquivos de entrada")
     {
         for line in task.description[marker..].lines().skip(1) {
@@ -273,7 +273,7 @@ async fn load_run_inputs(
     inputs
 }
 
-async fn build_timeline(state: &AppState, run: TaskRun) -> AppResult<RunTimeline> {
+async fn build_timeline(pool: &SqlitePool, run: TaskRun) -> AppResult<RunTimeline> {
     let path = run.log_path.clone();
     let events = path
         .as_deref()
@@ -289,13 +289,13 @@ async fn build_timeline(state: &AppState, run: TaskRun) -> AppResult<RunTimeline
     let mut timeline =
         timeline_from_events(Some(run.clone()), events.unwrap_or_default(), log_missing);
 
-    let workspace = workspaces::get(&state.db, &run.workspace_id).await.ok();
-    timeline.inputs = load_run_inputs(state, &run, workspace.as_ref()).await;
+    let workspace = workspaces::get(pool, &run.workspace_id).await.ok();
+    timeline.inputs = load_run_inputs(pool, &run, workspace.as_ref()).await;
     if let Some(workspace) = &workspace {
         timeline.workspace_root = Some(workspace.root_path.clone());
     }
     let mut output_directory = match run.task_id.as_deref() {
-        Some(task_id) => tasks::get(&state.db, task_id)
+        Some(task_id) => tasks::get(pool, task_id)
             .await
             .ok()
             .and_then(|task| task.output_dir_path),
@@ -304,7 +304,7 @@ async fn build_timeline(state: &AppState, run: TaskRun) -> AppResult<RunTimeline
     if output_directory.is_none()
         && let Some(job_id) = run.queue_job_id.as_deref()
     {
-        output_directory = queue::get(&state.db, job_id)
+        output_directory = queue::get(pool, job_id)
             .await
             .ok()
             .and_then(|job| job.output_dir);
@@ -317,7 +317,7 @@ async fn build_timeline(state: &AppState, run: TaskRun) -> AppResult<RunTimeline
                 .map(str::to_string);
         }
     }
-    timeline.artifacts = artifacts::list_by_run(&state.db, &run.id, 200)
+    timeline.artifacts = artifacts::list_by_run(pool, &run.id, 200)
         .await
         .unwrap_or_default()
         .into_iter()
@@ -592,11 +592,11 @@ mod tests {
              VALUES ('inputs-recipe', ?, 'Inputs', '/tmp/inputs.yaml', 'MANUAL')",
         )
         .bind(&ctx.workspace_id)
-        .execute(&ctx.state.db)
+        .execute(&ctx.db)
         .await
         .expect("index");
         let task = crate::db::tasks::create(
-            &ctx.state.db,
+            &ctx.db,
             &ctx.workspace_id,
             crate::db::tasks::CreateTaskInput {
                 title: "Entrada".into(),
@@ -619,7 +619,7 @@ mod tests {
         .await
         .expect("task");
         crate::recipes::store::create_run(
-            &ctx.state.db,
+            &ctx.db,
             &recipe,
             &ctx.workspace_id,
             Some(&task.id),
@@ -637,7 +637,7 @@ mod tests {
         .await
         .expect("recipe run");
         let run = crate::db::runs::create(
-            &ctx.state.db,
+            &ctx.db,
             CreateRunInput {
                 id: "run-inputs".into(),
                 queue_job_id: None,
@@ -657,10 +657,10 @@ mod tests {
         )
         .await
         .expect("run");
-        let workspace = crate::db::workspaces::get(&ctx.state.db, &ctx.workspace_id)
+        let workspace = crate::db::workspaces::get(&ctx.db, &ctx.workspace_id)
             .await
             .expect("workspace");
-        let inputs = load_run_inputs(&ctx.state, &run, Some(&workspace)).await;
+        let inputs = load_run_inputs(&ctx.db, &run, Some(&workspace)).await;
         assert_eq!(inputs.len(), 2);
         let report = inputs
             .iter()
@@ -680,7 +680,7 @@ mod tests {
     async fn reads_task_description_inputs_when_no_recipe_context_exists() {
         let ctx = test_support::context().await;
         let task = crate::db::tasks::create(
-            &ctx.state.db,
+            &ctx.db,
             &ctx.workspace_id,
             crate::db::tasks::CreateTaskInput {
                 title: "Entrada manual".into(),
@@ -705,7 +705,7 @@ mod tests {
         .await
         .expect("task");
         let run = crate::db::runs::create(
-            &ctx.state.db,
+            &ctx.db,
             CreateRunInput {
                 id: "run-task-inputs".into(),
                 queue_job_id: None,
@@ -725,10 +725,10 @@ mod tests {
         )
         .await
         .expect("run");
-        let workspace = crate::db::workspaces::get(&ctx.state.db, &ctx.workspace_id)
+        let workspace = crate::db::workspaces::get(&ctx.db, &ctx.workspace_id)
             .await
             .expect("workspace");
-        let inputs = load_run_inputs(&ctx.state, &run, Some(&workspace)).await;
+        let inputs = load_run_inputs(&ctx.db, &run, Some(&workspace)).await;
         assert_eq!(inputs.len(), 1);
         assert_eq!(inputs[0].name, "manual.pdf");
         assert_eq!(inputs[0].source.as_deref(), Some("task"));
@@ -738,7 +738,7 @@ mod tests {
     async fn renders_all_formats_from_a_run() {
         let ctx = test_support::context().await;
         crate::db::runs::create(
-            &ctx.state.db,
+            &ctx.db,
             CreateRunInput {
                 id: "run-export".into(),
                 queue_job_id: None,
@@ -759,7 +759,7 @@ mod tests {
         .await
         .expect("run");
         crate::db::runs::finish(
-            &ctx.state.db,
+            &ctx.db,
             "run-export",
             "SUCCESS",
             &RunUsage::default(),
@@ -770,7 +770,7 @@ mod tests {
         .await
         .expect("finish");
 
-        let timeline = load_timeline(&ctx.state, "run-export")
+        let timeline = load_timeline(&ctx.db, "run-export")
             .await
             .expect("timeline");
         let md = render_markdown(&timeline);

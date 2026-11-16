@@ -65,7 +65,9 @@ pub async fn run_timeline(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> AppResult<Json<RunTimeline>> {
-    Ok(Json(crate::run_export::load_timeline(&state, &id).await?))
+    Ok(Json(
+        crate::run_export::load_timeline(&state.db, &id).await?,
+    ))
 }
 
 pub async fn run_thread_timeline(
@@ -73,7 +75,7 @@ pub async fn run_thread_timeline(
     Path(id): Path<String>,
 ) -> AppResult<Json<RunTimeline>> {
     Ok(Json(
-        crate::run_export::load_thread_timeline(&state, &id).await?,
+        crate::run_export::load_thread_timeline(&state.db, &id).await?,
     ))
 }
 
@@ -87,7 +89,7 @@ pub async fn export_run(
     Path(id): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> AppResult<impl IntoResponse> {
-    let timeline = crate::run_export::load_timeline(&state, &id).await?;
+    let timeline = crate::run_export::load_timeline(&state.db, &id).await?;
     let format = query.format.as_deref().unwrap_or("md");
     let (body, mime, extension) = crate::run_export::render(&timeline, format)?;
     let disposition = format!("attachment; filename=\"run-{id}.{extension}\"");

@@ -4988,6 +4988,7 @@ dependencies = [
  "croner",
  "directories",
  "futures-util",
+ "html-escape",
  "iana-time-zone",
  "jsonc-parser",
  "jsonschema",
