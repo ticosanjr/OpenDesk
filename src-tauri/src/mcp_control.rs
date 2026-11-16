@@ -24,7 +24,6 @@ mod tools;
 mod util;
 
 use payload::{routine_body, routine_update_body, task_create_body, task_update_body};
-use tools::tools;
 use util::{bool_arg, integer_arg, optional, optional_str, required, ws_path};
 
 pub async fn run_stdio() -> Result<()> {
@@ -32,15 +31,21 @@ pub async fn run_stdio() -> Result<()> {
         .context("OPENDESK_WORKSPACE_ID é obrigatório para o MCP de controle")?;
     let default_agent = std::env::var("OPENDESK_AGENT").unwrap_or_else(|_| "build".to_string());
 
-    mcp_server::serve_stdio("opendesk-control", tools(), |name, arguments| {
-        let workspace_id = &workspace_id;
-        let default_agent = &default_agent;
-        async move {
-            dispatch(workspace_id, default_agent, &name, arguments)
-                .await
-                .map(|value| value.to_string())
-        }
-    })
+    let phase = std::env::var("OPENDESK_MCP_PHASE").unwrap_or_else(|_| "ALL".into());
+    let role = std::env::var("OPENDESK_MCP_ROLE").ok();
+    mcp_server::serve_stdio(
+        "opendesk-control",
+        tools::filtered_tools(&phase, role.as_deref()),
+        |name, arguments| {
+            let workspace_id = &workspace_id;
+            let default_agent = &default_agent;
+            async move {
+                dispatch(workspace_id, default_agent, &name, arguments)
+                    .await
+                    .map(|value| value.to_string())
+            }
+        },
+    )
     .await
 }
 
@@ -127,6 +132,49 @@ async fn dispatch(
                 path.push_str(&format!("&limit={limit}"));
             }
             call(&client, &endpoint, Method::GET, &path, None).await
+        }
+        "mcp_discover_tools" => {
+            let query = optional(&args, "query").unwrap_or_default();
+            let phase = optional(&args, "phase");
+            Ok(json!({
+                "tools": tools::discover(&query, phase.as_deref()),
+            }))
+        }
+        "recipe_resume" => {
+            let id = required(&args, "id")?;
+            call(
+                &client,
+                &endpoint,
+                Method::POST,
+                &format!("/api/recipes/runs/{id}/retry"),
+                None,
+            )
+            .await
+        }
+        "recipe_cancel" => {
+            let id = required(&args, "id")?;
+            call(
+                &client,
+                &endpoint,
+                Method::POST,
+                &format!("/api/recipes/runs/{id}/cancel"),
+                None,
+            )
+            .await
+        }
+        "voice_speak" => {
+            let body = json!({
+                "text": required(&args, "text")?,
+                "workspace_id": workspace_id,
+            });
+            call(
+                &client,
+                &endpoint,
+                Method::POST,
+                "/api/voice/speak",
+                Some(body),
+            )
+            .await
         }
         "handoff_create" => {
             let body = json!({

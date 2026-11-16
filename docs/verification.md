@@ -253,6 +253,11 @@ pendências manuais continuam listadas abaixo.
 - Contratos JSON Schema com extração e retry.
 - Testes de store, parser, API e UI.
 
+## Fase 2 — MCP dinâmico
+
+- Filtragem por fase, descoberta sob demanda e três novas tools.
+- Testes de visibilidade e busca.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

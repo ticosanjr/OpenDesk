@@ -2912,3 +2912,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `input_schema`/`output_schema` por passo com validação e retry de formatação.
 - Editor visual de schemas e timeline na execução.
 - ADRs 0080 e 0081.
+
+## 2026-11-16 — MCP dinâmico e tools de governança
+
+- `OPENDESK_MCP_PHASE`/`ROLE` filtram tools por fase; `ALL` mantém tudo.
+- `mcp_discover_tools` retorna schemas sob demanda.
+- `recipe_resume`, `recipe_cancel` e `voice_speak` no catálogo (38 tools).
+- ADR 0082.

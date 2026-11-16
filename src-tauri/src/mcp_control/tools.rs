@@ -525,6 +525,44 @@ pub(super) fn tools() -> Vec<Value> {
             }),
         ),
         tool(
+            "mcp_discover_tools",
+            "Descobre ferramentas do opendesk-control sob demanda. Use quando a fase atual expõe poucas tools; retorna nome, descrição e schema das ferramentas que correspondem à busca (ou todas da fase).",
+            json!({
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string" },
+                    "phase": { "type": "string", "enum": ["PLAN", "BUILD", "AUDIT", "CHAT", "OPS", "ALL"] }
+                }
+            }),
+        ),
+        tool(
+            "recipe_resume",
+            "Repete um run de receita que falhou/rejeitou, preservando os nós já concluídos.",
+            json!({
+                "type": "object",
+                "required": ["id"],
+                "properties": { "id": { "type": "string" } }
+            }),
+        ),
+        tool(
+            "recipe_cancel",
+            "Solicita o cancelamento de um run de receita ativo.",
+            json!({
+                "type": "object",
+                "required": ["id"],
+                "properties": { "id": { "type": "string" } }
+            }),
+        ),
+        tool(
+            "voice_speak",
+            "Gera áudio TTS a partir de texto usando o motor de voz configurado e devolve o caminho do arquivo.",
+            json!({
+                "type": "object",
+                "required": ["text"],
+                "properties": { "text": { "type": "string" } }
+            }),
+        ),
+        tool(
             "artifact_rollback",
             "Reverte a alteração registrada para o artefato. Use apenas com pedido explícito e após conferir o run.",
             json!({
@@ -534,6 +572,96 @@ pub(super) fn tools() -> Vec<Value> {
             }),
         ),
     ]
+}
+
+/// Phase-aware visibility. `ALL` keeps the historical behavior (everything).
+pub(super) fn filtered_tools(phase: &str, _role: Option<&str>) -> Vec<Value> {
+    let phase = phase.trim().to_uppercase();
+    tools()
+        .into_iter()
+        .filter(|tool| {
+            let name = tool.get("name").and_then(Value::as_str).unwrap_or("");
+            visible_in(name, &phase)
+        })
+        .collect()
+}
+
+fn visible_in(name: &str, phase: &str) -> bool {
+    if matches!(phase, "" | "ALL") {
+        return true;
+    }
+    if matches!(
+        name,
+        "opendesk_status" | "task_list" | "ask_user" | "memory_search" | "mcp_discover_tools"
+    ) {
+        return true;
+    }
+    let category = if matches!(
+        name,
+        "queue_control"
+            | "routine_list"
+            | "routine_create"
+            | "routine_update"
+            | "routine_set_active"
+            | "routine_run"
+            | "recipe_list"
+            | "recipe_save"
+            | "recipe_set_enabled"
+            | "recipe_run"
+            | "recipe_resume"
+            | "recipe_cancel"
+            | "attention_list"
+    ) {
+        "OPS"
+    } else if matches!(
+        name,
+        "task_create"
+            | "task_update"
+            | "task_move"
+            | "task_dispatch"
+            | "learning_save"
+            | "personal_context_save"
+            | "memory_save"
+            | "chat_send_file"
+            | "task_message_post"
+            | "voice_speak"
+            | "handoff_create"
+            | "handoff_respond"
+            | "handoff_finish"
+    ) {
+        "BUILD"
+    } else if matches!(name, "artifact_pin" | "artifact_rollback") {
+        "AUDIT"
+    } else {
+        "READ"
+    };
+    match phase {
+        "PLAN" => matches!(category, "READ" | "BUILD"),
+        "BUILD" => matches!(category, "READ" | "BUILD"),
+        "AUDIT" => matches!(category, "READ"),
+        "CHAT" => matches!(category, "READ" | "BUILD"),
+        "OPS" => true,
+        _ => true,
+    }
+}
+
+pub(super) fn discover(query: &str, phase: Option<&str>) -> Vec<Value> {
+    let query = query.trim().to_lowercase();
+    let phase = phase.unwrap_or("ALL");
+    tools()
+        .into_iter()
+        .filter(|tool| {
+            let name = tool.get("name").and_then(Value::as_str).unwrap_or("");
+            let description = tool
+                .get("description")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            let matches_query = query.is_empty()
+                || name.to_lowercase().contains(&query)
+                || description.to_lowercase().contains(&query);
+            matches_query && visible_in(name, &phase.to_uppercase())
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -575,6 +703,10 @@ mod tests {
             "artifact_read",
             "artifact_pin",
             "artifact_rollback",
+            "mcp_discover_tools",
+            "recipe_resume",
+            "recipe_cancel",
+            "voice_speak",
             "handoff_create",
             "handoff_list",
             "memory_save",
@@ -584,6 +716,35 @@ mod tests {
         ] {
             assert!(names.iter().any(|name| name == expected), "{expected}");
         }
-        assert_eq!(names.len(), 34);
+        assert_eq!(names.len(), 38);
+    }
+
+    #[test]
+    fn filters_tools_by_phase_and_discovers() {
+        let plan = filtered_tools("PLAN", None);
+        let names = plan
+            .iter()
+            .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+            .collect::<Vec<_>>();
+        assert!(names.contains(&"task_create"));
+        assert!(names.contains(&"memory_save"));
+        assert!(!names.contains(&"queue_control"));
+        assert!(names.contains(&"mcp_discover_tools"));
+
+        let audit = filtered_tools("AUDIT", None);
+        let names = audit
+            .iter()
+            .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+            .collect::<Vec<_>>();
+        assert!(!names.contains(&"task_create"));
+        assert!(names.contains(&"artifact_read"));
+
+        let found = discover("recipe", Some("OPS"));
+        assert!(found.iter().any(|tool| tool["name"] == "recipe_run"));
+        assert!(
+            !discover("recipe", Some("PLAN"))
+                .iter()
+                .any(|tool| tool["name"] == "recipe_run")
+        );
     }
 }
