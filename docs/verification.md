@@ -185,6 +185,12 @@ pendências manuais continuam listadas abaixo.
 - Testes de rota, token, confiança, deduplicação e criação de tarefa.
 - UI Integrações → Canais e tickets.
 
+## Pós-0.59.0 — v1.0 onda 4
+
+- Handoffs com estados, aceite/rejeição, guard de orçamento, conclusão por run,
+  MCP e UI.
+- Testes de transições, criação de tarefa, recusa e orçamento.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

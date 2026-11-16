@@ -21,6 +21,7 @@ pub mod engine;
 pub mod files;
 pub mod google;
 pub mod governance;
+pub mod handoffs;
 pub mod integrations;
 pub mod interactions;
 pub mod io_bus;
@@ -138,6 +139,12 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             get(tickets::get).patch(tickets::update),
         )
         .route("/api/webhooks/channels/{channel}", post(channels::inbound))
+        .route("/api/handoffs", get(handoffs::list).post(handoffs::create))
+        .route("/api/handoffs/{id}", get(handoffs::get))
+        .route("/api/handoffs/{id}/accept", post(handoffs::accept))
+        .route("/api/handoffs/{id}/reject", post(handoffs::reject))
+        .route("/api/handoffs/{id}/cancel", post(handoffs::cancel))
+        .route("/api/handoffs/{id}/finish", post(handoffs::finish))
         .route("/api/meta", get(meta))
         .route("/api/about", get(about::about))
         .route(

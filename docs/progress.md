@@ -2799,3 +2799,14 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Aba Integrações → Canais e tickets com rotas, tokens, WhatsApp e inbox.
 - Evento `TicketUpdated` e push para novos tickets.
 - ADR 0066.
+
+## 2026-11-16 — v1.0 onda 4: handoffs de tarefa
+
+- Contrato de handoff (objetivo, artefatos, schema, aceite, sub-orçamento) e
+  máquina de estados com transições explícitas.
+- Aceite humano cria tarefa `DELEGATION` para o agente destino; rejeição
+  preserva o motivo; conclusão do run fecha o handoff.
+- Guard de orçamento com confirmação forçada.
+- MCP `handoff_create/list/respond/finish`.
+- Seção “Handoffs de tarefa” na governança e push para handoffs pendentes.
+- ADR 0067.

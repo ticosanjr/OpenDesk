@@ -123,6 +123,12 @@ pub enum OpenDeskWsEvent {
         token: String,
         status: String,
     },
+    HandoffUpdated {
+        handoff_id: String,
+        workspace_id: String,
+        status: String,
+        target_agent: String,
+    },
     TicketUpdated {
         ticket_id: String,
         workspace_id: String,

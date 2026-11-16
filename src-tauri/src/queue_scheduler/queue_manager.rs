@@ -588,6 +588,22 @@ impl QueueManager {
         )
         .await;
 
+        if let Some(task_id) = job.task_id.as_deref()
+            && let Ok(Some(handoff)) = crate::db::handoffs::complete_for_task(
+                &self.pool,
+                task_id,
+                outcome.status == RunStatus::Success,
+            )
+            .await
+        {
+            self.events.publish(OpenDeskWsEvent::HandoffUpdated {
+                handoff_id: handoff.id,
+                workspace_id: handoff.workspace_id,
+                status: handoff.status,
+                target_agent: handoff.target_agent,
+            });
+        }
+
         let mut fallback_enqueued = false;
         if outcome.status == RunStatus::Success {
             let _ = model_health::record_success(&self.pool, &job.resolved_model).await;

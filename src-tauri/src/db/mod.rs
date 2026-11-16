@@ -13,6 +13,7 @@ pub mod channels;
 pub mod chat;
 pub mod chat_turns;
 pub mod deliveries;
+pub mod handoffs;
 pub mod integrations;
 pub mod interactions;
 pub mod io_bus;

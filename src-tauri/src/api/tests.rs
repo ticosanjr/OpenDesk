@@ -71,6 +71,7 @@ mod dedupe;
 mod export;
 mod files_save;
 mod governance;
+mod handoffs;
 mod io_bus;
 mod learning;
 mod metrics;

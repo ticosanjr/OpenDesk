@@ -220,6 +220,19 @@ fn payload_for(event: &OpenDeskWsEvent) -> Option<PushPayload> {
                 .with_tag(format!("run-{run_id}")),
             )
         }
+        OpenDeskWsEvent::HandoffUpdated {
+            handoff_id,
+            status,
+            target_agent,
+            ..
+        } if status == "PENDING" => Some(
+            PushPayload::new(
+                "Handoff aguardando aceite",
+                format!("{target_agent} recebeu uma delegação."),
+                format!("/#/governance?handoff={handoff_id}"),
+            )
+            .with_tag(format!("handoff-{handoff_id}")),
+        ),
         OpenDeskWsEvent::TicketUpdated {
             ticket_id,
             source,

@@ -16,6 +16,7 @@ import { LoadingState } from "@/components/ui/loading-state";
 import { DelegationsSection } from "@/components/governance/DelegationsSection";
 import { GoalModal } from "@/components/governance/GoalModal";
 import { GoalsSection } from "@/components/governance/GoalsSection";
+import { HandoffsSection } from "@/components/governance/HandoffsSection";
 import { OrgChart } from "@/components/governance/OrgChart";
 import { PerformanceSection } from "@/components/governance/PerformanceSection";
 import { ProfileModal } from "@/components/governance/ProfileModal";
@@ -385,6 +386,12 @@ export function GovernancePage() {
               void resolveDelegation(delegation, approved)
             }
           />
+          {activeWorkspaceId ? (
+            <HandoffsSection
+              workspaceId={activeWorkspaceId}
+              agents={agents}
+            />
+          ) : null}
           <PerformanceSection rows={performance} />
         </>
       )}

@@ -87,6 +87,83 @@ async fn dispatch(workspace_id: &str, tool: &str, args: Value) -> Result<Value> 
             .await
         }
         "ask_user" => ask_user(&client, &endpoint, &args).await,
+        "handoff_create" => {
+            let body = json!({
+                "source_agent": required(&args, "source_agent")?,
+                "target_agent": required(&args, "target_agent")?,
+                "objective": required(&args, "objective")?,
+                "task_id": optional(&args, "task_id"),
+                "parent_handoff_id": optional(&args, "parent_handoff_id"),
+                "input_artifacts": util::string_array(&args, "input_artifacts"),
+                "output_schema": args.get("output_schema").cloned().unwrap_or(Value::Null),
+                "acceptance": util::string_array(&args, "acceptance"),
+                "sub_budget_usd": args.get("sub_budget_usd").and_then(Value::as_f64),
+            });
+            call(
+                &client,
+                &endpoint,
+                Method::POST,
+                &ws_path("/api/handoffs", workspace_id),
+                Some(body),
+            )
+            .await
+        }
+        "handoff_list" => {
+            let mut path = ws_path("/api/handoffs", workspace_id);
+            if let Some(status) = optional(&args, "status") {
+                path.push_str(&format!("&status={}", urlencoding::encode(&status)));
+            }
+            if let Some(limit) = integer_arg(&args, "limit") {
+                path.push_str(&format!("&limit={limit}"));
+            }
+            call(&client, &endpoint, Method::GET, &path, None).await
+        }
+        "handoff_respond" => {
+            let id = required(&args, "id")?;
+            match required(&args, "decision")?.to_lowercase().as_str() {
+                "accept" => {
+                    let body = json!({
+                        "note": optional(&args, "note"),
+                        "force": bool_arg(&args, "force").unwrap_or(false),
+                    });
+                    call(
+                        &client,
+                        &endpoint,
+                        Method::POST,
+                        &format!("/api/handoffs/{id}/accept"),
+                        Some(body),
+                    )
+                    .await
+                }
+                "reject" => {
+                    let body = json!({ "reason": optional(&args, "reason") });
+                    call(
+                        &client,
+                        &endpoint,
+                        Method::POST,
+                        &format!("/api/handoffs/{id}/reject"),
+                        Some(body),
+                    )
+                    .await
+                }
+                other => Err(anyhow!("decisão inválida: {other}; use accept ou reject")),
+            }
+        }
+        "handoff_finish" => {
+            let id = required(&args, "id")?;
+            let body = json!({
+                "status": required(&args, "status")?,
+                "result": args.get("result").cloned().unwrap_or(Value::Null),
+            });
+            call(
+                &client,
+                &endpoint,
+                Method::POST,
+                &format!("/api/handoffs/{id}/finish"),
+                Some(body),
+            )
+            .await
+        }
         "learning_save" => {
             let body = json!({
                 "title": required(&args, "title")?,
