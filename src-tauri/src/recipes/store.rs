@@ -614,6 +614,23 @@ pub async fn mark_node_done(
     Ok(())
 }
 
+pub async fn mark_node_skipped(
+    pool: &SqlitePool,
+    run_id: &str,
+    node_index: usize,
+) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE recipe_run_nodes
+         SET status = 'SKIPPED', finished_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE run_id = ? AND node_index = ?",
+    )
+    .bind(run_id)
+    .bind(node_index as i64)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn reset_node(pool: &SqlitePool, run_id: &str, node_index: usize) -> AppResult<()> {
     sqlx::query(
         "UPDATE recipe_run_nodes

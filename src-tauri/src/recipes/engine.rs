@@ -259,7 +259,7 @@ async fn execute(
     let nodes = store::list_run_nodes(&state.db, &run.id).await?;
     let mut index = nodes
         .iter()
-        .find(|node| node.status != "DONE")
+        .find(|node| !matches!(node.status.as_str(), "DONE" | "SKIPPED"))
         .map(|node| node.node_index as usize)
         .unwrap_or(flow.len());
 
@@ -278,6 +278,32 @@ async fn execute(
         store::mark_node_running(&state.db, &run.id, index).await?;
         match &flow[index] {
             FlowItem::Step(step) => {
+                let should_run = step
+                    .when
+                    .as_deref()
+                    .map(|condition| parser::evaluate_when(condition, trigger, &run_vars, &outputs))
+                    .transpose()?
+                    .unwrap_or(true);
+                if !should_run {
+                    if let Some(previous) = flow[..index].iter().rev().find_map(|item| match item {
+                        FlowItem::Step(step) => Some(step.id.clone()),
+                        _ => None,
+                    }) {
+                        outputs[&step.id] = serde_json::json!({
+                            "skipped": true,
+                            "reason": step.when,
+                            "after": previous,
+                        });
+                    } else {
+                        outputs[&step.id] = serde_json::json!({
+                            "skipped": true,
+                            "reason": step.when,
+                        });
+                    }
+                    store::mark_node_skipped(&state.db, &run.id, index).await?;
+                    index += 1;
+                    continue;
+                }
                 let feedback = feedback_by_step.remove(&step.id);
                 if let Err(error) = execute_step(
                     state,
@@ -839,6 +865,7 @@ mod tests {
                 effort: None,
                 description: None,
                 prompt: "x".into(),
+                when: None,
                 input_schema: None,
                 output_schema: None,
             }),

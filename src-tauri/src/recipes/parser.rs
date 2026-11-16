@@ -56,6 +56,9 @@ pub struct Step {
     #[serde(default)]
     pub description: Option<String>,
     pub prompt: String,
+    /// Optional condition. Empty/true always runs; false skips the step.
+    #[serde(default)]
+    pub when: Option<String>,
     /// Optional JSON Schema for the step input context.
     #[serde(default)]
     pub input_schema: Option<serde_json::Value>,
@@ -423,6 +426,46 @@ pub fn render(
     Ok(output)
 }
 
+pub fn evaluate_when(
+    expression: &str,
+    trigger: &serde_json::Value,
+    run: &serde_json::Value,
+    steps: &serde_json::Value,
+) -> AppResult<bool> {
+    let expression = expression.trim();
+    if expression.is_empty() || expression.eq_ignore_ascii_case("true") {
+        return Ok(true);
+    }
+    if expression.eq_ignore_ascii_case("false") {
+        return Ok(false);
+    }
+    for operator in ["!=", "=="] {
+        if let Some((left, right)) = expression.split_once(operator) {
+            let left = resolve(left.trim(), trigger, run, steps).unwrap_or_default();
+            let right = right
+                .trim()
+                .trim_matches('"')
+                .trim_matches('\'')
+                .to_string();
+            let equal = left.eq_ignore_ascii_case(&right);
+            return Ok(if operator == "==" { equal } else { !equal });
+        }
+    }
+    if let Some(path) = expression.strip_prefix("not ") {
+        let value = resolve(path.trim(), trigger, run, steps).unwrap_or_default();
+        return Ok(!truthy(&value));
+    }
+    let value = resolve(expression, trigger, run, steps).unwrap_or_default();
+    Ok(truthy(&value))
+}
+
+fn truthy(value: &str) -> bool {
+    !matches!(
+        value.trim().to_lowercase().as_str(),
+        "" | "false" | "0" | "null" | "none"
+    )
+}
+
 fn resolve(
     expression: &str,
     trigger: &serde_json::Value,
@@ -466,6 +509,60 @@ sinks:
   - type: DOC_COMPILER
     config: { format: pdf }
 "#;
+
+    #[test]
+    fn evaluates_when_conditions() {
+        let trigger = serde_json::json!({ "approved": true, "name": "Ana" });
+        let steps = serde_json::json!({
+            "plan": { "structured": { "status": "ok", "count": 2 } }
+        });
+        assert!(evaluate_when("", &trigger, &serde_json::Value::Null, &steps).expect("empty"));
+        assert!(
+            evaluate_when(
+                "trigger.approved",
+                &trigger,
+                &serde_json::Value::Null,
+                &steps
+            )
+            .expect("path")
+        );
+        assert!(
+            !evaluate_when(
+                "trigger.missing",
+                &trigger,
+                &serde_json::Value::Null,
+                &steps
+            )
+            .expect("missing")
+        );
+        assert!(
+            evaluate_when(
+                "steps.plan.structured.status == \"ok\"",
+                &trigger,
+                &serde_json::Value::Null,
+                &steps
+            )
+            .expect("eq")
+        );
+        assert!(
+            !evaluate_when(
+                "steps.plan.structured.status != \"ok\"",
+                &trigger,
+                &serde_json::Value::Null,
+                &steps
+            )
+            .expect("neq")
+        );
+        assert!(
+            evaluate_when(
+                "not trigger.missing",
+                &trigger,
+                &serde_json::Value::Null,
+                &steps
+            )
+            .expect("not")
+        );
+    }
 
     #[test]
     fn extracts_and_validates_json_contracts() {

@@ -258,6 +258,11 @@ pendências manuais continuam listadas abaixo.
 - Filtragem por fase, descoberta sob demanda e três novas tools.
 - Testes de visibilidade e busca.
 
+## Fase 1 — condicionais de receita
+
+- `when` avaliado antes do passo; nós `SKIPPED` e retomada.
+- Testes de expressões e render.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

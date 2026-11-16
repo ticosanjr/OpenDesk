@@ -2919,3 +2919,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `mcp_discover_tools` retorna schemas sob demanda.
 - `recipe_resume`, `recipe_cancel` e `voice_speak` no catálogo (38 tools).
 - ADR 0082.
+
+## 2026-11-16 — passos condicionais em receitas
+
+- Campo `when` com caminho, `==`, `!=` e `not`; passo pulado vira nó `SKIPPED`.
+- Editor visual do passo e testes de avaliação.
+- ADR 0083.

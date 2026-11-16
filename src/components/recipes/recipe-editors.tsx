@@ -478,6 +478,17 @@ function StepEditor({
           </LabeledField>
         </div>
       </div>
+      <LabeledField
+        label="Executar quando (opcional)"
+        hint='Ex.: steps.plan.structured.status == "ok" ou trigger.approved'
+      >
+        <input
+          value={String(step.when ?? "")}
+          onChange={(event) => onChange({ when: event.target.value || null })}
+          placeholder="vazio = sempre executar"
+          className={`${inputClass} font-mono text-[12px]`}
+        />
+      </LabeledField>
       <SchemaField
         label="Schema de entrada (JSON, opcional)"
         value={step.input_schema}
