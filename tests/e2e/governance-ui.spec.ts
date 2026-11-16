@@ -83,16 +83,21 @@ test("governance edits profiles, creates goals and delegates with approval", asy
   await goal.getByRole("button", { name: "Criar meta" }).click();
   await expect(page.getByText("Publicar 4 relatórios").first()).toBeVisible();
 
-  await page
+  const delegations = page
+    .locator("section")
+    .filter({ hasText: "Delegações" })
+    .filter({ hasText: "agente → agente" })
+    .first();
+  await delegations
     .getByRole("combobox", { name: "De", exact: true })
     .selectOption("lead");
-  await page
+  await delegations
     .getByRole("combobox", { name: "Para", exact: true })
     .selectOption("build");
-  await page
+  await delegations
     .getByRole("textbox", { name: "Título", exact: true })
     .fill("Revisar entregáveis");
-  await page
+  await delegations
     .getByRole("textbox", { name: "Prompt", exact: true })
     .fill("Revise os entregáveis e proponha ajustes.");
   await page.getByRole("button", { name: "Solicitar delegação" }).click();

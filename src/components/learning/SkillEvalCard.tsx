@@ -63,6 +63,7 @@ export function SkillEvalCard({ workspaceId }: { workspaceId: string }) {
         </div>
         <div className="flex items-center gap-1.5">
           <select
+            aria-label="Período da avaliação de skills"
             value={days}
             onChange={(event) => setDays(Number(event.target.value))}
             className="h-7 rounded border border-zinc-700 bg-zinc-950 px-2 text-[12px] text-zinc-300"
@@ -75,6 +76,7 @@ export function SkillEvalCard({ workspaceId }: { workspaceId: string }) {
             variant="outline"
             size="sm"
             className="h-7"
+            aria-label="Atualizar avaliação de skills"
             onClick={() => void load()}
             disabled={loading}
           >

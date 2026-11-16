@@ -35,11 +35,11 @@ test("agent question blocks the task and resumes after an answer", async ({
   expect(asked.ok()).toBeTruthy();
 
   await page.goto(`/#/kanban?task=${task.id}`);
-  const dialog = page.getByRole("dialog");
+  const dialog = page.getByRole("dialog", { name: "Decisão necessária" });
   await expect(dialog.getByText("O agente precisa da sua resposta")).toBeVisible();
   await expect(dialog.getByText("Qual formato você quer?")).toBeVisible();
   await dialog.getByRole("button", { name: "Markdown" }).click();
-  await dialog.getByRole("button", { name: "Enviar resposta" }).click();
+  await dialog.getByRole("button", { name: "Enviar escolha" }).click();
 
   await expect
     .poll(async () => {

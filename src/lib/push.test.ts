@@ -12,13 +12,23 @@ const originalServiceWorker = Object.getOwnPropertyDescriptor(
   "serviceWorker",
 );
 
-function installPushEnvironment() {
+function installPushEnvironment(options: {
+  permission?: string;
+  existing?: unknown;
+  registration?: unknown;
+  subscribe?: unknown;
+  getRegistration?: unknown;
+} = {}) {
   Object.defineProperty(window, "PushManager", {
     value: function PushManager() {},
     configurable: true,
   });
   Object.defineProperty(window, "Notification", {
-    value: { requestPermission: vi.fn().mockResolvedValue("granted") },
+    value: {
+      requestPermission: vi
+        .fn()
+        .mockResolvedValue(options.permission ?? "granted"),
+    },
     configurable: true,
   });
   const subscription = {
@@ -31,13 +41,21 @@ function installPushEnvironment() {
   };
   const registration = {
     pushManager: {
-      getSubscription: vi.fn().mockResolvedValue(null),
-      subscribe: vi.fn().mockResolvedValue(subscription),
+      getSubscription: vi.fn().mockResolvedValue(options.existing ?? null),
+      subscribe: vi
+        .fn()
+        .mockResolvedValue(options.subscribe ?? subscription),
     },
   };
   Object.defineProperty(navigator, "serviceWorker", {
     value: {
-      getRegistration: vi.fn().mockResolvedValue(registration),
+      getRegistration: vi
+        .fn()
+        .mockResolvedValue(
+          options.getRegistration === undefined
+            ? registration
+            : options.getRegistration,
+        ),
       register: vi.fn().mockResolvedValue(registration),
     },
     configurable: true,
@@ -68,13 +86,17 @@ describe("web push client", () => {
     expect(Array.from(bytes)).toEqual([1, 2, 3]);
   });
 
-  it("is unavailable inside Tauri", async () => {
+  it("is unavailable inside Tauri or without PushManager", async () => {
     installPushEnvironment();
     Object.defineProperty(window, "__TAURI_INTERNALS__", {
       value: {},
       configurable: true,
     });
     const { pushSupported } = await import("./push");
+    expect(pushSupported()).toBe(false);
+
+    Reflect.deleteProperty(window, "__TAURI_INTERNALS__");
+    Reflect.deleteProperty(window, "PushManager");
     expect(pushSupported()).toBe(false);
   });
 
@@ -98,5 +120,88 @@ describe("web push client", () => {
       }),
     );
     expect(payload.endpoint).toBe("https://push.example/abc");
+  });
+
+  it("rejects denied permission and unsupported browsers", async () => {
+    const { subscribeToPush } = await import("./push");
+    await expect(subscribeToPush()).rejects.toThrow(/não suporta/);
+
+    installPushEnvironment({ permission: "denied" });
+    await expect(subscribeToPush()).rejects.toThrow(/negada/);
+  });
+
+  it("reuses an existing subscription when keys are complete", async () => {
+    const existing = {
+      endpoint: "https://push.example/old",
+      toJSON: () => ({
+        endpoint: "https://push.example/old",
+        keys: { p256dh: "k", auth: "a" },
+      }),
+      unsubscribe: vi.fn(),
+    };
+    const { registration } = installPushEnvironment({ existing });
+    vi.mocked(apiGet).mockResolvedValue({ public_key: "AQID" });
+    vi.mocked(apiPost).mockResolvedValue({});
+    const { subscribeToPush } = await import("./push");
+    const payload = await subscribeToPush();
+    expect(registration.pushManager.subscribe).not.toHaveBeenCalled();
+    expect(payload.endpoint).toBe("https://push.example/old");
+  });
+
+  it("rejects an incomplete browser subscription", async () => {
+    installPushEnvironment({
+      existing: {
+        endpoint: "https://push.example/broken",
+        toJSON: () => ({ endpoint: "https://push.example/broken" }),
+        unsubscribe: vi.fn(),
+      },
+    });
+    vi.mocked(apiGet).mockResolvedValue({ public_key: "AQID" });
+    const { subscribeToPush } = await import("./push");
+    await expect(subscribeToPush()).rejects.toThrow(/incompleta/);
+  });
+
+  it("registers the worker when no registration exists", async () => {
+    installPushEnvironment({ getRegistration: null });
+    vi.mocked(apiGet).mockResolvedValue({ public_key: "AQID" });
+    vi.mocked(apiPost).mockResolvedValue({});
+    const { subscribeToPush } = await import("./push");
+    await subscribeToPush();
+    expect(navigator.serviceWorker.register).toHaveBeenCalledWith("/sw.js");
+  });
+
+  it("unsubscribes locally even when the daemon call fails", async () => {
+    const existing = {
+      endpoint: "https://push.example/abc",
+      toJSON: () => ({
+        endpoint: "https://push.example/abc",
+        keys: { p256dh: "k", auth: "a" },
+      }),
+      unsubscribe: vi.fn().mockResolvedValue(true),
+    };
+    installPushEnvironment({ existing });
+    vi.mocked(apiPost).mockRejectedValueOnce(new Error("offline"));
+    const { unsubscribeFromPush } = await import("./push");
+    await unsubscribeFromPush();
+    expect(existing.unsubscribe).toHaveBeenCalled();
+    expect(apiPost).toHaveBeenCalledWith("/api/push/unsubscribe", {
+      endpoint: "https://push.example/abc",
+    });
+  });
+
+  it("does nothing when there is no current subscription", async () => {
+    installPushEnvironment({ existing: null });
+    const { unsubscribeFromPush, currentPushSubscription } = await import(
+      "./push"
+    );
+    expect(await currentPushSubscription()).toBeNull();
+    await unsubscribeFromPush();
+    expect(apiPost).not.toHaveBeenCalled();
+  });
+
+  it("sends a test notification and returns the delivered count", async () => {
+    vi.mocked(apiPost).mockResolvedValue({ delivered: 2 });
+    const { sendTestPush } = await import("./push");
+    expect(await sendTestPush()).toBe(2);
   });
 });

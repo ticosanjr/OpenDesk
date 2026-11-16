@@ -206,6 +206,7 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
             ))}
           </datalist>
           <select
+            aria-label="Tipo da memória"
             value={form.kind}
             onChange={(event) => setForm({ ...form, kind: event.target.value })}
             className={inputClass}
@@ -217,6 +218,7 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
             ))}
           </select>
           <select
+            aria-label="Nível de confiança"
             value={form.trust}
             onChange={(event) => setForm({ ...form, trust: event.target.value })}
             className={inputClass}
@@ -310,6 +312,7 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
                   variant="ghost"
                   size="sm"
                   className="h-6 px-2"
+                  aria-label={`Remover memória ${note.title}`}
                   disabled={busy === `note:${note.id}`}
                   onClick={() => void removeNote(note.id)}
                 >
@@ -327,6 +330,7 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
               ACL do namespace
             </span>
             <select
+              aria-label="Namespace da ACL"
               value={selectedNamespace}
               onChange={(event) => setSelectedNamespace(event.target.value)}
               className={`${inputClass} w-44`}
@@ -378,6 +382,7 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
                 <Button
                   size="sm"
                   className="h-7"
+                  aria-label="Aplicar ACL"
                   disabled={busy === "acl"}
                   onClick={() => void saveAcl()}
                 >

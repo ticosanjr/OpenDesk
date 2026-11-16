@@ -22,7 +22,9 @@ test("attention card explains HITL, permissions and proposals with clear actions
   await expect(page.getByText("Se aprovar").first()).toBeVisible();
   await expect(page.getByText("Se expirar").first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Aprovar e continuar" }).click();
+  const decision = page.getByRole("dialog", { name: "Decisão necessária" });
+  await expect(decision).toBeVisible();
+  await decision.getByRole("button", { name: "Aprovar e continuar" }).click();
   await expect
     .poll(async () => {
       const response = await request.get(
@@ -34,7 +36,11 @@ test("attention card explains HITL, permissions and proposals with clear actions
     })
     .toBe(0);
 
-  await page.getByRole("button", { name: "Permitir uma vez" }).click();
+  await page
+    .getByTestId("attention-card")
+    .getByRole("button", { name: "Permitir uma vez" })
+    .first()
+    .click();
   await expect
     .poll(async () => {
       const response = await request.get(
@@ -47,7 +53,11 @@ test("attention card explains HITL, permissions and proposals with clear actions
     .toBe(0);
 
   await page.getByText("Propostas de configuração").first().scrollIntoViewIfNeeded();
-  await page.getByRole("button", { name: "Aprovar", exact: true }).click();
+  await page
+    .getByTestId("attention-card")
+    .getByRole("button", { name: "Aprovar", exact: true })
+    .first()
+    .click();
   await expect
     .poll(async () => {
       const response = await request.get(

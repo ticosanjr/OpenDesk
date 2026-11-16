@@ -52,11 +52,10 @@ test("attention card shows the agent question and resolves it inline", async ({
   await expect(card).toContainText("Qual formato você quer para a entrega?");
   await expect(card.getByRole("button", { name: "Responder", exact: true })).toBeVisible();
 
-  await card.getByRole("button", { name: "Responder", exact: true }).click();
-  const dialog = page.getByRole("dialog");
+  const dialog = page.getByRole("dialog", { name: "Decisão necessária" });
   await expect(dialog).toContainText("Qual formato você quer para a entrega?");
   await dialog.getByRole("button", { name: "Markdown" }).click();
-  await dialog.getByRole("button", { name: "Enviar resposta" }).click();
+  await dialog.getByRole("button", { name: "Enviar escolha" }).click();
 
   await expect(dialog).not.toBeVisible();
   await expect(page.getByText("O agente perguntou")).toHaveCount(0);
@@ -188,9 +187,11 @@ test("approval and multiple interactions are visible on attention cards", async 
   const multiple = page
     .locator('[data-card="task"]')
     .filter({ hasText: "Múltiplas perguntas" });
-  await multiple.getByRole("button", { name: "Responder", exact: true }).click();
-  const dialog = page.getByRole("dialog");
+  await expect(multiple).toBeVisible();
+  const dialog = page.getByRole("dialog", { name: "Decisão necessária" });
   await expect(dialog).toContainText("Primeira pergunta?");
+  await dialog.getByRole("button", { name: "Sim" }).click();
+  await dialog.getByRole("button", { name: "Enviar escolha" }).click();
   await expect(dialog).toContainText("Segunda pergunta?");
 });
 
