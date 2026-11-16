@@ -8,8 +8,10 @@
 
 pub mod adapters;
 pub mod browse_tags;
+pub mod config_sync;
 pub mod db;
 pub mod dedupe;
+pub mod dsh_router;
 pub mod error;
 pub mod events;
 pub mod nodes;

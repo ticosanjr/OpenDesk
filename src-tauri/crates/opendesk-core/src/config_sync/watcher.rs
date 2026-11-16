@@ -97,6 +97,12 @@ pub struct ConfigWatcher {
     watched: Vec<PathBuf>,
 }
 
+impl Default for ConfigWatcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConfigWatcher {
     pub fn new() -> Self {
         Self {

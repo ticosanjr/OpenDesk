@@ -440,6 +440,11 @@ pendências manuais continuam listadas abaixo.
 - Parsing de allowlist, intenção e risco cobertos no core.
 - Ativação de browse/MCP/skill continua coberta no shell.
 
+## Sprint 1 — DSH/config no core
+
+- DSH classifier/prompt packing e config sync rodam no core.
+- Shell reexporta sem mudar chamadas.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

@@ -3145,3 +3145,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Shell browse reexporta; dsh_router pode deixar de depender de AppState.
 - Core com 122 testes; shell 460.
 - ADR 0113.
+
+## 2026-11-16 — dsh_router/config_sync no core (REF-01)
+
+- `dsh_router` e `config_sync` movidos para `opendesk-core`.
+- Core com 162 testes; shell 420.
+- ADR 0114.

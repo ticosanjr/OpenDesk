@@ -514,19 +514,15 @@ mod tests {
             output: "saída {{output_directory}}".into(),
             ..Default::default()
         };
-        save(&ctx.state.db, Some(&ctx.workspace_id), &templates)
+        save(&ctx.db, Some(&ctx.workspace_id), &templates)
             .await
             .expect("save");
-        let loaded = load(&ctx.state.db, Some(&ctx.workspace_id))
-            .await
-            .expect("load");
+        let loaded = load(&ctx.db, Some(&ctx.workspace_id)).await.expect("load");
         assert!(loaded.output.contains("saída"));
-        reset(&ctx.state.db, Some(&ctx.workspace_id))
+        reset(&ctx.db, Some(&ctx.workspace_id))
             .await
             .expect("reset");
-        let loaded = load(&ctx.state.db, Some(&ctx.workspace_id))
-            .await
-            .expect("load");
+        let loaded = load(&ctx.db, Some(&ctx.workspace_id)).await.expect("load");
         assert_eq!(loaded.output, PromptTemplates::default().output);
     }
 }

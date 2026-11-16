@@ -148,7 +148,7 @@ pub fn pack_sections(context: &PackContext<'_>, templates: &PromptTemplates) -> 
     );
 
     if context.needs_browser {
-        let allowlist = crate::browse::allowlist_from_tags(context.tags);
+        let allowlist = crate::browse_tags::allowlist_from_tags(context.tags);
         let allow_line = if allowlist.is_empty() {
             "- Nenhuma allowlist configurada; prefira sites públicos e pare em login, 2FA ou pagamento.\n".to_string()
         } else {

@@ -6,12 +6,10 @@ mod browse;
 mod chat;
 mod cli;
 mod computer;
-mod config_sync;
 mod control_plane;
 mod daemon_probe;
 mod desktop_integration;
 mod doctor;
-mod dsh_router;
 mod governance;
 mod hitl;
 mod integrations;
@@ -48,9 +46,9 @@ mod updates;
 mod voice;
 
 pub use opendesk_core::{
-    adapters, browse_tags, db, dedupe, error, events, nodes, notifier, opencode_client, passkey,
-    paths, runtime, sandbox, secrets, server_lock, text, token_estimate, virtual_display,
-    workspace_sync, worktree,
+    adapters, browse_tags, config_sync, db, dedupe, dsh_router, error, events, nodes, notifier,
+    opencode_client, passkey, paths, runtime, sandbox, secrets, server_lock, text, token_estimate,
+    virtual_display, workspace_sync, worktree,
 };
 
 use app_state::AppState;
