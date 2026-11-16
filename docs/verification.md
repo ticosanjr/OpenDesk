@@ -309,6 +309,12 @@ pendências manuais continuam listadas abaixo.
 - Map com itens dinâmicos cria caminhos `mapa/<item>/<step>` e ordena resultados.
 - Resume preserva passo DONE e restaura o output salvo.
 
+## Sprint 4 — tools MCP dinâmicas
+
+- Receitas habilitadas viram `recipe_<id>`; desabilitadas não aparecem.
+- Agentes habilitados viram `agent_<id>`; desabilitados não aparecem.
+- Nome sanitizado e busca em `mcp_discover_tools`.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

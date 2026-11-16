@@ -359,6 +359,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0088 — Write-buffer de heartbeats](docs/decisions/0088-heartbeat-write-buffer.md)
 - [ADR 0089 — Extração do opendesk-core](docs/decisions/0089-opendesk-core-extraction.md)
 - [ADR 0090 — Receitas DAG com caminhos duráveis](docs/decisions/0090-durable-dag-recipes.md)
+- [ADR 0091 — Tools MCP dinâmicas](docs/decisions/0091-dynamic-mcp-tools.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

@@ -24,7 +24,21 @@ mod tools;
 mod util;
 
 use payload::{routine_body, routine_update_body, task_create_body, task_update_body};
+use std::collections::HashMap;
 use util::{bool_arg, integer_arg, optional, optional_str, required, ws_path};
+
+#[derive(Debug, Clone, Copy)]
+enum DynamicKind {
+    Recipe,
+    Agent,
+}
+
+#[derive(Debug, Clone)]
+struct DynamicTarget {
+    kind: DynamicKind,
+    id: String,
+    tool: Value,
+}
 
 pub async fn run_stdio() -> Result<()> {
     let workspace_id = std::env::var("OPENDESK_WORKSPACE_ID")
@@ -33,20 +47,116 @@ pub async fn run_stdio() -> Result<()> {
 
     let phase = std::env::var("OPENDESK_MCP_PHASE").unwrap_or_else(|_| "ALL".into());
     let role = std::env::var("OPENDESK_MCP_ROLE").ok();
-    mcp_server::serve_stdio(
-        "opendesk-control",
-        tools::filtered_tools(&phase, role.as_deref()),
-        |name, arguments| {
-            let workspace_id = &workspace_id;
-            let default_agent = &default_agent;
-            async move {
-                dispatch(workspace_id, default_agent, &name, arguments)
-                    .await
-                    .map(|value| value.to_string())
-            }
-        },
+    let mut available = tools::filtered_tools(&phase, role.as_deref());
+    let (dynamic_tools, dynamic_targets) = load_dynamic_tools(&workspace_id, &phase).await;
+    available.extend(dynamic_tools);
+    mcp_server::serve_stdio("opendesk-control", available, |name, arguments| {
+        let workspace_id = &workspace_id;
+        let default_agent = &default_agent;
+        let dynamic_targets = dynamic_targets.clone();
+        async move {
+            dispatch(
+                workspace_id,
+                default_agent,
+                &name,
+                arguments,
+                &dynamic_targets,
+            )
+            .await
+            .map(|value| value.to_string())
+        }
+    })
+    .await
+}
+
+/// Loads enabled recipes/agents so each one becomes a first-class MCP tool.
+/// This is best-effort: if the local API is unavailable the static tools still
+/// work.
+async fn load_dynamic_tools(
+    workspace_id: &str,
+    phase: &str,
+) -> (Vec<Value>, HashMap<String, DynamicTarget>) {
+    let mut tools = Vec::new();
+    let mut targets = HashMap::new();
+    if phase.trim().eq_ignore_ascii_case("AUDIT") {
+        return (tools, targets);
+    }
+    let endpoint = match endpoint() {
+        Ok(endpoint) => endpoint,
+        Err(error) => {
+            eprintln!("OpenDesk control MCP: dynamic tools unavailable: {error:#}");
+            return (tools, targets);
+        }
+    };
+    let client = client();
+    let recipes = call(
+        &client,
+        &endpoint,
+        Method::GET,
+        &ws_path("/api/recipes", workspace_id),
+        None,
     )
     .await
+    .ok()
+    .and_then(|value| value.get("recipes").cloned())
+    .and_then(|value| value.as_array().cloned())
+    .unwrap_or_default();
+    let agents = call(
+        &client,
+        &endpoint,
+        Method::GET,
+        &ws_path("/api/studio/agents", workspace_id),
+        None,
+    )
+    .await
+    .ok()
+    .and_then(|value| value.as_array().cloned())
+    .unwrap_or_default();
+
+    tools.extend(tools::dynamic_tools(&recipes, &agents));
+    let mut raw = HashMap::new();
+    for recipe in &recipes {
+        if let Some(id) = recipe.get("id").and_then(Value::as_str)
+            && recipe
+                .get("is_enabled")
+                .and_then(Value::as_bool)
+                .unwrap_or(true)
+        {
+            raw.insert(
+                tools::tool_name("recipe", id),
+                (DynamicKind::Recipe, id.to_string()),
+            );
+        }
+    }
+    for agent in &agents {
+        if let Some(id) = agent.get("id").and_then(Value::as_str)
+            && !agent
+                .get("disabled")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        {
+            raw.insert(
+                tools::tool_name("agent", id),
+                (DynamicKind::Agent, id.to_string()),
+            );
+        }
+    }
+    for tool in &tools {
+        let Some(name) = tool.get("name").and_then(Value::as_str) else {
+            continue;
+        };
+        if let Some((kind, id)) = raw.remove(name) {
+            targets.insert(
+                name.to_string(),
+                DynamicTarget {
+                    kind,
+                    id,
+                    tool: tool.clone(),
+                },
+            );
+        }
+    }
+    (tools, targets)
 }
 
 async fn dispatch(
@@ -54,7 +164,20 @@ async fn dispatch(
     default_agent: &str,
     tool: &str,
     args: Value,
+    dynamic: &HashMap<String, DynamicTarget>,
 ) -> Result<Value> {
+    if let Some(target) = dynamic.get(tool) {
+        let endpoint = endpoint()?;
+        let client = client();
+        return match target.kind {
+            DynamicKind::Recipe => {
+                run_dynamic_recipe(&client, &endpoint, workspace_id, &target.id, &args).await
+            }
+            DynamicKind::Agent => {
+                run_dynamic_agent(&client, &endpoint, workspace_id, &target.id, &args).await
+            }
+        };
+    }
     let endpoint = endpoint()?;
     let client = client();
     match tool {
@@ -136,9 +259,27 @@ async fn dispatch(
         "mcp_discover_tools" => {
             let query = optional(&args, "query").unwrap_or_default();
             let phase = optional(&args, "phase");
-            Ok(json!({
-                "tools": tools::discover(&query, phase.as_deref()),
-            }))
+            let mut found = tools::discover(&query, phase.as_deref());
+            let query = query.trim().to_lowercase();
+            for target in dynamic.values() {
+                let name = target
+                    .tool
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                let description = target
+                    .tool
+                    .get("description")
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                let matches = query.is_empty()
+                    || name.to_lowercase().contains(&query)
+                    || description.to_lowercase().contains(&query);
+                if matches {
+                    found.push(target.tool.clone());
+                }
+            }
+            Ok(json!({ "tools": found }))
         }
         "recipe_resume" => {
             let id = required(&args, "id")?;
@@ -675,6 +816,77 @@ async fn run_list(
         })
         .unwrap_or_default();
     Ok(Value::Array(filtered))
+}
+
+async fn run_dynamic_recipe(
+    client: &Client,
+    endpoint: &ApiEndpoint,
+    workspace_id: &str,
+    id: &str,
+    args: &Value,
+) -> Result<Value> {
+    let trigger = args.get("trigger").cloned().unwrap_or_else(|| args.clone());
+    let dry_run = bool_arg(args, "dry_run").unwrap_or(false);
+    call(
+        client,
+        endpoint,
+        Method::POST,
+        &ws_path(
+            &format!("/api/recipes/{}/run", urlencoding::encode(id)),
+            workspace_id,
+        ),
+        Some(json!({
+            "trigger_context": trigger,
+            "dry_run": dry_run,
+        })),
+    )
+    .await
+}
+
+async fn run_dynamic_agent(
+    client: &Client,
+    endpoint: &ApiEndpoint,
+    workspace_id: &str,
+    id: &str,
+    args: &Value,
+) -> Result<Value> {
+    let prompt = required(args, "prompt")?;
+    let title = optional(args, "title").unwrap_or_else(|| prompt.chars().take(60).collect());
+    let created = call(
+        client,
+        endpoint,
+        Method::POST,
+        &ws_path("/api/tasks", workspace_id),
+        Some(json!({
+            "title": title,
+            "description": prompt,
+            "assigned_agent": id,
+            "preferred_model": optional(args, "model"),
+            "execution_mode": optional(args, "mode").unwrap_or_else(|| "AUTO_DSH".into()),
+            "origin": "MANUAL",
+        })),
+    )
+    .await?;
+    let task_id = created
+        .get("id")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let mut result = json!({ "agent": id, "task": created });
+    if let Some(task_id) = task_id {
+        match call(
+            client,
+            endpoint,
+            Method::POST,
+            &format!("/api/tasks/{task_id}/dispatch"),
+            Some(json!({ "manual_agent": id })),
+        )
+        .await
+        {
+            Ok(dispatch) => result["dispatch"] = dispatch,
+            Err(error) => result["dispatch_error"] = json!(format!("{error:#}")),
+        }
+    }
+    Ok(result)
 }
 
 async fn recipe_list(

@@ -586,6 +586,84 @@ pub(super) fn filtered_tools(phase: &str, _role: Option<&str>) -> Vec<Value> {
         .collect()
 }
 
+/// Workspace-specific tools: every enabled recipe and every enabled agent
+/// becomes callable by name. Discovery is best-effort; failures simply leave
+/// the static tool set untouched.
+pub(super) fn dynamic_tools(recipes: &[Value], agents: &[Value]) -> Vec<Value> {
+    let mut tools = Vec::new();
+    for recipe in recipes.iter().take(50) {
+        let Some(id) = recipe.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        if !recipe
+            .get("is_enabled")
+            .and_then(Value::as_bool)
+            .unwrap_or(true)
+        {
+            continue;
+        }
+        let name = tool_name("recipe", id);
+        let label = recipe.get("name").and_then(Value::as_str).unwrap_or(id);
+        tools.push(tool(
+            &name,
+            &format!("Executa a receita '{label}' ({id}) com contexto opcional. Retorna o run durável criado."),
+            json!({
+                "type": "object",
+                "properties": {
+                    "trigger": {
+                        "type": "object",
+                        "description": "Contexto de trigger; fica disponível como {{trigger.*}} na receita."
+                    },
+                    "dry_run": { "type": "boolean" }
+                }
+            }),
+        ));
+    }
+    for agent in agents.iter().take(50) {
+        let Some(id) = agent.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        if agent
+            .get("disabled")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        let name = tool_name("agent", id);
+        let label = agent.get("name").and_then(Value::as_str).unwrap_or(id);
+        tools.push(tool(
+            &name,
+            &format!("Cria uma tarefa para o agente '{label}' ({id}) e tenta iniciá-la. Retorna a tarefa criada."),
+            json!({
+                "type": "object",
+                "required": ["prompt"],
+                "properties": {
+                    "prompt": { "type": "string" },
+                    "title": { "type": "string" },
+                    "model": { "type": "string" },
+                    "mode": { "type": "string" }
+                }
+            }),
+        ));
+    }
+    tools
+}
+
+pub(super) fn tool_name(prefix: &str, id: &str) -> String {
+    let sanitized: String = id
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '-' | '_') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    format!("{prefix}_{sanitized}")
+}
+
 fn visible_in(name: &str, phase: &str) -> bool {
     if matches!(phase, "" | "ALL") {
         return true;
@@ -717,6 +795,28 @@ mod tests {
             assert!(names.iter().any(|name| name == expected), "{expected}");
         }
         assert_eq!(names.len(), 38);
+    }
+
+    #[test]
+    fn builds_dynamic_recipe_and_agent_tools() {
+        let recipes = vec![
+            json!({ "id": "daily-brief", "name": "Daily", "is_enabled": true }),
+            json!({ "id": "off", "name": "Off", "is_enabled": false }),
+        ];
+        let agents = vec![
+            json!({ "id": "build.agent", "name": "Build", "disabled": false }),
+            json!({ "id": "off", "name": "Off", "disabled": true }),
+        ];
+        let tools = dynamic_tools(&recipes, &agents);
+        let names = tools
+            .iter()
+            .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+            .collect::<Vec<_>>();
+        assert!(names.contains(&"recipe_daily-brief"));
+        assert!(!names.contains(&"recipe_off"));
+        assert!(names.contains(&"agent_build_agent"));
+        assert!(!names.contains(&"agent_off"));
+        assert_eq!(tool_name("recipe", "a/b c"), "recipe_a_b_c");
     }
 
     #[test]

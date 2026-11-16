@@ -2992,3 +2992,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Resume não repete nós DONE/SKIPPED; map materializa itens e ordena resultados.
 - Limites de profundidade/nós/branches/concorrência; HITL/sink fora de grupos concorrentes.
 - ADR 0090.
+
+## 2026-11-16 — receitas/agentes como tools MCP (MCP-04)
+
+- MCP de controle registra `recipe_<id>` e `agent_<id>` dinamicamente por workspace.
+- Receitas rodam com `trigger`/`dry_run`; agentes criam tarefa e tentam dispatch.
+- `mcp_discover_tools` inclui as tools dinâmicas; AUDIT fica sem elas.
+- ADR 0091.
