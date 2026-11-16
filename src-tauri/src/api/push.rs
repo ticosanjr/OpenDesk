@@ -70,7 +70,7 @@ pub async fn test(
         "Notificação de teste do control plane.",
         "/#/settings",
     );
-    let delivered = crate::push::send_to_all(&state, &payload).await?;
+    let delivered = crate::push::send_to_all(&state.db, &state.paths, &payload).await?;
     if delivered == 0 {
         return Err(AppError::BadRequest(
             "nenhum dispositivo com push ativo aceitou a notificação".into(),

@@ -54,7 +54,7 @@ pub async fn start(state: Arc<AppState>, options: StartOptions) -> anyhow::Resul
     state.refresh_watcher().await?;
     state.queue.spawn_worker();
     state.cron.spawn();
-    push::start(state.clone());
+    push::start(state.db.clone(), state.paths.clone(), state.events.clone());
     tokio::spawn(maintenance::run_loop(state.db.clone(), state.paths.clone()));
 
     state.io_bus.start(state.clone()).await?;

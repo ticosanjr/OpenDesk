@@ -504,6 +504,10 @@ pendências manuais continuam listadas abaixo.
 
 - Engine/DAG usam dispatcher recebido; dry run e DAG verdes.
 
+## Sprint 1 — push no core
+
+- VAPID, subscriptions e fan-out testados no core.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

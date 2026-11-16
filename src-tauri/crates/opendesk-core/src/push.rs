@@ -9,7 +9,6 @@
 //! mode 0600; raw subscriptions keys never leave the database.
 
 use crate::{
-    app_state::AppState,
     db::push,
     error::{AppError, AppResult},
     events::OpenDeskWsEvent,
@@ -19,7 +18,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use p256::{SecretKey, elliptic_curve::sec1::ToEncodedPoint};
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use sqlx::SqlitePool;
 use web_push::{
     ContentEncoding, HyperWebPushClient, SubscriptionInfo, Urgency, VapidSignatureBuilder,
     WebPushClient, WebPushMessageBuilder,
@@ -127,9 +126,13 @@ async fn deliver(
 }
 
 /// Fan-out used by the API test button. Returns how many devices accepted it.
-pub async fn send_to_all(state: &Arc<AppState>, payload: &PushPayload) -> AppResult<usize> {
-    let keys = load_or_create_keys(&state.paths)?;
-    send_with_keys(&state.db, &keys, payload).await
+pub async fn send_to_all(
+    pool: &SqlitePool,
+    paths: &AppPaths,
+    payload: &PushPayload,
+) -> AppResult<usize> {
+    let keys = load_or_create_keys(paths)?;
+    send_with_keys(pool, &keys, payload).await
 }
 
 async fn send_with_keys(
@@ -273,19 +276,19 @@ fn payload_for(event: &OpenDeskWsEvent) -> Option<PushPayload> {
 
 /// Background dispatcher. Lagged receivers only mean bursts faster than push;
 /// the UI still receives every event over WebSocket.
-pub fn start(state: Arc<AppState>) {
+pub fn start(pool: SqlitePool, paths: AppPaths, events: crate::events::EventBus) {
     tokio::spawn(async move {
-        let mut receiver = state.events.subscribe();
+        let mut receiver = events.subscribe();
         loop {
             match receiver.recv().await {
                 Ok(envelope) => {
                     let Some(payload) = payload_for(&envelope.event) else {
                         continue;
                     };
-                    let Ok(keys) = load_or_create_keys(&state.paths) else {
+                    let Ok(keys) = load_or_create_keys(&paths) else {
                         continue;
                     };
-                    if let Err(error) = send_with_keys(&state.db, &keys, &payload).await {
+                    if let Err(error) = send_with_keys(&pool, &keys, &payload).await {
                         tracing::warn!(error = %error, "web push fan-out failed");
                     }
                 }
@@ -345,7 +348,7 @@ mod tests {
     #[test]
     fn keys_are_persisted_with_restrictive_permissions() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let paths = crate::test_support::paths_in(dir.path());
+        let paths = crate::paths::test_paths(dir.path());
         let first = load_or_create_keys(&paths).expect("create");
         let second = load_or_create_keys(&paths).expect("load");
         assert_eq!(first.private_key, second.private_key);

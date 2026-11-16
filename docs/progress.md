@@ -3223,3 +3223,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - execute/DAG recebem RecipeStepDispatcher; testes usam Noop.
 - ADR 0127.
+
+## 2026-11-16 — push no core (REF-01)
+
+- Web Push sem AppState; core 222 testes, shell 361.
+- ADR 0128.

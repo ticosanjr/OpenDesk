@@ -37,7 +37,7 @@ similar = "2"
 sha2 = "0.11.1"
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
 thiserror = "2"
-tokio = { version = "1", features = ["sync", "rt", "time", "macros", "process", "io-util", "fs"] }
+tokio = { version = "1", features = ["sync", "rt", "time", "macros", "process", "io-util", "io-std", "fs"] }
 tokio-util = "0.7"
 tracing = "0.1"
 tar = "0.4"
@@ -45,6 +45,8 @@ unicode-normalization = "0.1"
 urlencoding = "2"
 uuid = { version = "1", features = ["v4", "v5", "v7"] }
 walkdir = "2"
+p256 = { version = "0.13", features = ["ecdsa"] }
+web-push = { version = "0.11", default-features = false, features = ["hyper-client"] }
 webauthn-rs = { version = "0.6", default-features = false, features = ["danger-allow-state-serialisation"] }
 zip = "9.4.1"
 zstd = "0.13"
