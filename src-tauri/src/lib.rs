@@ -53,11 +53,9 @@ mod test_support;
 mod tray;
 mod update_signing;
 mod updates;
-mod virtual_display;
 mod voice;
-mod worktree;
 
-pub use opendesk_core::{error, events, paths, text, token_estimate};
+pub use opendesk_core::{error, events, paths, text, token_estimate, virtual_display, worktree};
 
 use app_state::AppState;
 use daemon_probe::ProbeOutcome;

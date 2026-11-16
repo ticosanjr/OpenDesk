@@ -370,6 +370,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0099 — Versionamento de receitas](docs/decisions/0099-recipe-versioning.md)
 - [ADR 0100 — Orçamento por sub-receita](docs/decisions/0100-sub-recipe-budget.md)
 - [ADR 0101 — Display virtual isolado](docs/decisions/0101-virtual-display.md)
+- [ADR 0102 — Segunda fatia do core](docs/decisions/0102-core-second-slice.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

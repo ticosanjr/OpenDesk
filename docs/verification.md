@@ -374,6 +374,11 @@ pendências manuais continuam listadas abaixo.
 - Encerrar a sessão mata o Xvfb e mantém o desktop real intocado.
 - Sem Xvfb/xdotool/import a criação retorna conflito explícito.
 
+## Sprint 1 — core, segunda fatia
+
+- `cargo test -p opendesk-core` cobre worktree Git, overlay e Xvfb.
+- Shell reexporta os módulos sem alterar chamadas internas.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

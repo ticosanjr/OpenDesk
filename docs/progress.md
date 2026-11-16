@@ -3065,3 +3065,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Captura X11 usa `import -window root`; UI liga isolamento por padrão.
 - Teste E2E cria sessão isolada, captura e encerra; visual de Pacotes estabilizado.
 - ADR 0101.
+
+## 2026-11-16 — segunda fatia do core (REF-01)
+
+- `worktree` e `virtual_display` movidos para `opendesk-core`, sem Tauri.
+- Testes de git/overlay/Xvfb passam a rodar no crate do core.
+- ADR 0102.
