@@ -9,6 +9,7 @@ mod cli;
 mod computer;
 mod config_sync;
 mod control_plane;
+mod daemon_probe;
 mod db;
 mod dedupe;
 mod desktop_integration;

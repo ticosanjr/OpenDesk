@@ -2957,3 +2957,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 ## 2026-11-16 — Personal Life & Travel Ops
 
 - Terceira receita do pack assistente-pessoal: prazos pessoais, viagens e checklists com HITL.
+
+## 2026-11-16 — probe de daemon externo
+
+- `daemon_probe` lê api.json, aceita apenas localhost e confirma /healthz em 1s.
+- Base para o auto-attach Desktop↔daemon (REF-02).
