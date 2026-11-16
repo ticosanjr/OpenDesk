@@ -45,6 +45,7 @@ pub mod runtime;
 pub mod sandbox;
 pub mod secrets;
 pub mod server_lock;
+pub mod skill_cases;
 pub mod skill_eval;
 pub mod text;
 pub mod token_estimate;

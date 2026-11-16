@@ -536,6 +536,10 @@ pendências manuais continuam listadas abaixo.
 
 - Thread com external_id e SMTP envia com headers; sem SMTP falha acionável.
 
+## Fase G1 — casos de eval
+
+- CRUD de casos e validação de schema no core/API.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

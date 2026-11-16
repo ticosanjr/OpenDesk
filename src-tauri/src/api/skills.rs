@@ -96,3 +96,39 @@ pub async fn gate_decide(
         .await?,
     ))
 }
+
+pub async fn list_cases(
+    State(state): State<Arc<AppState>>,
+    Path(skill_id): Path<String>,
+    Query(query): Query<SkillQuery>,
+) -> AppResult<Json<Vec<crate::skill_cases::SkillEvalCase>>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    Ok(Json(
+        crate::skill_cases::list(&state.db, &workspace_id, &skill_id).await?,
+    ))
+}
+
+pub async fn create_case(
+    State(state): State<Arc<AppState>>,
+    Path(skill_id): Path<String>,
+    Query(query): Query<SkillQuery>,
+    Json(input): Json<crate::skill_cases::CreateSkillCase>,
+) -> AppResult<Json<crate::skill_cases::SkillEvalCase>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    Ok(Json(
+        crate::skill_cases::create(&state.db, &workspace_id, &skill_id, input).await?,
+    ))
+}
+
+pub async fn delete_case(
+    State(state): State<Arc<AppState>>,
+    Path((skill_id, case_id)): Path<(String, String)>,
+    Query(query): Query<SkillQuery>,
+) -> AppResult<Json<serde_json::Value>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    let deleted = crate::skill_cases::delete(&state.db, &workspace_id, &skill_id, &case_id).await?;
+    Ok(Json(serde_json::json!({ "deleted": deleted })))
+}

@@ -205,6 +205,14 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             get(skills::gate_latest).post(skills::gate_run),
         )
         .route(
+            "/api/skills/{id}/cases",
+            get(skills::list_cases).post(skills::create_case),
+        )
+        .route(
+            "/api/skills/{id}/cases/{case_id}",
+            axum::routing::delete(skills::delete_case),
+        )
+        .route(
             "/api/skills/{id}/gate/{gate_id}/decide",
             post(skills::gate_decide),
         )

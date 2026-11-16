@@ -34,8 +34,8 @@ pub use opendesk_core::{
     dedupe, desktop_integration, dsh_router, error, events, hitl, internal_api, mcp_config,
     mcp_rbac, mcp_server, media, metrics, mtls, nodes, notifier, opencode_client, passkey, paths,
     personal_context, push, recipe_context, recipe_dispatch, recurrence, run_export, run_timeline,
-    runtime, sandbox, secrets, server_lock, skill_eval, text, token_estimate, update_signing,
-    virtual_display, workspace_sync, worktree,
+    runtime, sandbox, secrets, server_lock, skill_cases, skill_eval, text, token_estimate,
+    update_signing, virtual_display, workspace_sync, worktree,
 };
 
 use app_state::AppState;

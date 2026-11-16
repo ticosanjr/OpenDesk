@@ -3266,3 +3266,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Endpoint de reply usando external_id como In-Reply-To/References.
 - Core 233 testes, shell 357 (590).
 - ADR 0135.
+
+## 2026-11-17 — G1 casos de eval de skill
+
+- skill_eval_cases + CRUD/API; core 234 testes, shell 357 (591).
+- ADR 0136.
