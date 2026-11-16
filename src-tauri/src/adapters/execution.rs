@@ -239,6 +239,30 @@ pub async fn execute(
         }
     }
 
+    if usage.tokens_input == 0 && usage.tokens_output == 0 && !request.prompt.trim().is_empty() {
+        let estimate = crate::token_estimate::estimate_usage(
+            request.model,
+            request.prompt,
+            summary.as_deref().unwrap_or_default(),
+        );
+        usage.tokens_input = estimate.input_tokens;
+        usage.tokens_output = estimate.output_tokens;
+        if usage.estimated_cost_usd == 0.0 {
+            usage.estimated_cost_usd = estimate.cost_usd;
+        }
+        append_log(
+            request.log_path,
+            &serde_json::json!({
+                "type": "opendesk.usage.estimated",
+                "model": request.model,
+                "priced": estimate.priced,
+                "input_tokens": estimate.input_tokens,
+                "output_tokens": estimate.output_tokens,
+                "cost_usd": estimate.cost_usd,
+            }),
+        );
+    }
+
     if diffs.is_empty() {
         let git = crate::adapters::cli::git_diffs(&request.workspace_root.to_string_lossy()).await;
         diffs = git

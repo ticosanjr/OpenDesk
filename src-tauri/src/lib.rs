@@ -50,6 +50,7 @@ mod starter_packs;
 #[cfg(test)]
 mod test_support;
 mod text;
+mod token_estimate;
 mod tray;
 mod update_signing;
 mod updates;

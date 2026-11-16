@@ -278,6 +278,11 @@ pendências manuais continuam listadas abaixo.
 - Sondas de daemon, harnesses, SMTP, Google, Telegram, Signal, WhatsApp e WebAuthn.
 - Relatório humano/JSON com status por integração.
 
+## Fase 1 — custo estimado CLI
+
+- Estimativa de tokens/custo para harnesses sem usage nativo.
+- Testes de tokenização, preços e modelos locais/desconhecidos.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

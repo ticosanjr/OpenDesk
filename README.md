@@ -354,6 +354,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0083 — Passos condicionais em receitas](docs/decisions/0083-conditional-recipe-steps.md)
 - [ADR 0084 — Ciclo de vida de memória](docs/decisions/0084-memory-lifecycle.md)
 - [ADR 0085 — Pack de assistente pessoal](docs/decisions/0085-personal-assistant-pack.md)
+- [ADR 0086 — Custo estimado para CLI](docs/decisions/0086-cli-cost-estimation.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)
