@@ -22,7 +22,7 @@ pub async fn list(
     Query(query): Query<BackupQuery>,
 ) -> AppResult<Json<Vec<backup::WorkspaceBackup>>> {
     let workspace_id = workspace_id(&state, &query).await?;
-    Ok(Json(backup::list(&state, &workspace_id)?))
+    Ok(Json(backup::list(&state.paths, &workspace_id)?))
 }
 
 pub async fn create(
@@ -30,7 +30,9 @@ pub async fn create(
     Query(query): Query<BackupQuery>,
 ) -> AppResult<Json<backup::WorkspaceBackup>> {
     let workspace_id = workspace_id(&state, &query).await?;
-    Ok(Json(backup::create(&state, &workspace_id).await?))
+    Ok(Json(
+        backup::create(&state.db, &state.paths, &workspace_id).await?,
+    ))
 }
 
 pub async fn download(
@@ -39,7 +41,7 @@ pub async fn download(
     Query(query): Query<BackupQuery>,
 ) -> AppResult<impl IntoResponse> {
     let workspace_id = workspace_id(&state, &query).await?;
-    let (path, backup) = backup::get(&state, &workspace_id, &id)?;
+    let (path, backup) = backup::get(&state.paths, &workspace_id, &id)?;
     let bytes = std::fs::read(&path)?;
     Ok((
         [
@@ -62,7 +64,7 @@ pub async fn restore(
 ) -> AppResult<Json<crate::db::workspaces::Workspace>> {
     let workspace_id = workspace_id(&state, &query).await?;
     Ok(Json(
-        backup::restore_as_new(&state, &workspace_id, &id, body).await?,
+        backup::restore_as_new(&state.db, &state.paths, &workspace_id, &id, body).await?,
     ))
 }
 
@@ -72,6 +74,6 @@ pub async fn delete(
     Query(query): Query<BackupQuery>,
 ) -> AppResult<Json<serde_json::Value>> {
     let workspace_id = workspace_id(&state, &query).await?;
-    backup::delete(&state, &workspace_id, &id)?;
+    backup::delete(&state.paths, &workspace_id, &id)?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }

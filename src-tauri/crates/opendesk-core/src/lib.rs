@@ -8,6 +8,7 @@
 
 pub mod adapters;
 pub mod audit;
+pub mod backup;
 pub mod browse;
 pub mod browse_tags;
 pub mod config_sync;

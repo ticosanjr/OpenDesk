@@ -5014,6 +5014,7 @@ dependencies = [
  "uuid",
  "walkdir",
  "webauthn-rs",
+ "zip",
  "zstd 0.13.5",
 ]
 

@@ -3198,3 +3198,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - `audit` movido; core 210 testes, shell 373.
 - ADR 0122.
+
+## 2026-11-16 — backup no core (REF-01)
+
+- `backup` sem AppState; core 212 testes, shell 371.
+- ADR 0123.

@@ -1,14 +1,15 @@
 //! Full workspace backup and restore. Archives include workspace files and
 //! native OpenCode configuration, with a manifest, SHA-256 and safe extraction.
 
+use crate::paths::AppPaths;
 use crate::{
-    app_state::AppState,
     db::{models::CreateWorkspaceInput, workspaces},
     error::{AppError, AppResult},
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use sqlx::SqlitePool;
 use std::{
     fs::File,
     io::{Read, Write},
@@ -48,11 +49,11 @@ struct Manifest {
     version: u32,
 }
 
-fn backup_root(state: &AppState) -> PathBuf {
-    state.paths.backups_dir.join("workspaces")
+fn backup_root(paths: &AppPaths) -> PathBuf {
+    paths.backups_dir.join("workspaces")
 }
 
-fn workspace_dir(state: &AppState, workspace_id: &str) -> AppResult<PathBuf> {
+fn workspace_dir(paths: &AppPaths, workspace_id: &str) -> AppResult<PathBuf> {
     if workspace_id.trim().is_empty()
         || workspace_id.contains('/')
         || workspace_id.contains('\\')
@@ -60,7 +61,7 @@ fn workspace_dir(state: &AppState, workspace_id: &str) -> AppResult<PathBuf> {
     {
         return Err(AppError::BadRequest("workspace id inválido".into()));
     }
-    Ok(backup_root(state).join(workspace_id))
+    Ok(backup_root(paths).join(workspace_id))
 }
 
 fn sidecar_path(zip_path: &Path) -> PathBuf {
@@ -142,8 +143,12 @@ fn collect_files(root: &Path) -> AppResult<Vec<(PathBuf, PathBuf)>> {
     Ok(files)
 }
 
-pub async fn create(state: &AppState, workspace_id: &str) -> AppResult<WorkspaceBackup> {
-    let workspace = workspaces::get(&state.db, workspace_id).await?;
+pub async fn create(
+    pool: &SqlitePool,
+    paths: &AppPaths,
+    workspace_id: &str,
+) -> AppResult<WorkspaceBackup> {
+    let workspace = workspaces::get(pool, workspace_id).await?;
     let root = PathBuf::from(&workspace.root_path);
     if !root.is_dir() {
         return Err(AppError::NotFound(format!(
@@ -158,7 +163,7 @@ pub async fn create(state: &AppState, workspace_id: &str) -> AppResult<Workspace
         .sum::<u64>();
     let id = Uuid::now_v7().to_string();
     let created_at = Utc::now().to_rfc3339();
-    let directory = workspace_dir(state, workspace_id)?;
+    let directory = workspace_dir(paths, workspace_id)?;
     std::fs::create_dir_all(&directory)?;
     let file_name = format!("{}-{id}.zip", Utc::now().format("%Y%m%dT%H%M%SZ"));
     let zip_path = directory.join(&file_name);
@@ -217,8 +222,8 @@ pub async fn create(state: &AppState, workspace_id: &str) -> AppResult<Workspace
     Ok(backup)
 }
 
-pub fn list(state: &AppState, workspace_id: &str) -> AppResult<Vec<WorkspaceBackup>> {
-    let directory = workspace_dir(state, workspace_id)?;
+pub fn list(paths: &AppPaths, workspace_id: &str) -> AppResult<Vec<WorkspaceBackup>> {
+    let directory = workspace_dir(paths, workspace_id)?;
     if !directory.is_dir() {
         return Ok(Vec::new());
     }
@@ -244,18 +249,18 @@ pub fn list(state: &AppState, workspace_id: &str) -> AppResult<Vec<WorkspaceBack
 }
 
 fn backup_path(
-    state: &AppState,
+    paths: &AppPaths,
     workspace_id: &str,
     id: &str,
 ) -> AppResult<(PathBuf, WorkspaceBackup)> {
     if id.trim().is_empty() || id.contains('/') || id.contains('\\') || id.contains("..") {
         return Err(AppError::BadRequest("backup id inválido".into()));
     }
-    let backup = list(state, workspace_id)?
+    let backup = list(paths, workspace_id)?
         .into_iter()
         .find(|backup| backup.id == id)
         .ok_or_else(|| AppError::NotFound(format!("backup {id}")))?;
-    let path = workspace_dir(state, workspace_id)?.join(&backup.file_name);
+    let path = workspace_dir(paths, workspace_id)?.join(&backup.file_name);
     if !path.is_file() {
         return Err(AppError::NotFound(format!("arquivo do backup {id}")));
     }
@@ -263,15 +268,15 @@ fn backup_path(
 }
 
 pub fn get(
-    state: &AppState,
+    paths: &AppPaths,
     workspace_id: &str,
     id: &str,
 ) -> AppResult<(PathBuf, WorkspaceBackup)> {
-    backup_path(state, workspace_id, id)
+    backup_path(paths, workspace_id, id)
 }
 
-pub fn delete(state: &AppState, workspace_id: &str, id: &str) -> AppResult<()> {
-    let (path, _) = backup_path(state, workspace_id, id)?;
+pub fn delete(paths: &AppPaths, workspace_id: &str, id: &str) -> AppResult<()> {
+    let (path, _) = backup_path(paths, workspace_id, id)?;
     std::fs::remove_file(&path)?;
     let _ = std::fs::remove_file(sidecar_path(&path));
     Ok(())
@@ -310,12 +315,13 @@ pub struct RestoreInput {
 }
 
 pub async fn restore_as_new(
-    state: &AppState,
+    pool: &SqlitePool,
+    paths: &AppPaths,
     workspace_id: &str,
     backup_id: &str,
     input: RestoreInput,
 ) -> AppResult<workspaces::Workspace> {
-    let (zip_path, backup) = backup_path(state, workspace_id, backup_id)?;
+    let (zip_path, backup) = backup_path(paths, workspace_id, backup_id)?;
     let hash = sha256_file(&zip_path)?;
     if hash != backup.sha256 {
         return Err(AppError::Conflict(
@@ -404,8 +410,8 @@ pub async fn restore_as_new(
         .map(str::to_string)
         .unwrap_or_else(|| format!("{} (restaurado)", backup.workspace_name));
     let created = workspaces::create(
-        &state.db,
-        &state.paths,
+        pool,
+        paths,
         CreateWorkspaceInput {
             name,
             root_path: target.to_string_lossy().to_string(),
@@ -446,14 +452,17 @@ mod tests {
         std::fs::create_dir_all(ctx.workspace_root.join("node_modules/pkg")).expect("nm");
         std::fs::write(ctx.workspace_root.join("node_modules/pkg/x.js"), "x").expect("nm file");
 
-        let backup = create(&ctx.state, &ctx.workspace_id).await.expect("backup");
+        let backup = create(&ctx.db, &ctx.paths, &ctx.workspace_id)
+            .await
+            .expect("backup");
         assert_eq!(backup.files, 2, "node_modules must be excluded");
         assert!(backup.size_bytes > 0);
-        assert_eq!(list(&ctx.state, &ctx.workspace_id).expect("list").len(), 1);
+        assert_eq!(list(&ctx.paths, &ctx.workspace_id).expect("list").len(), 1);
 
         let target = ctx.temp.path().join("restored-workspace");
         let restored = restore_as_new(
-            &ctx.state,
+            &ctx.db,
+            &ctx.paths,
             &ctx.workspace_id,
             &backup.id,
             RestoreInput {
@@ -468,9 +477,9 @@ mod tests {
         assert!(target.join(".opencode/agents/build.md").is_file());
         assert!(!target.join("node_modules").exists());
 
-        delete(&ctx.state, &ctx.workspace_id, &backup.id).expect("delete");
+        delete(&ctx.paths, &ctx.workspace_id, &backup.id).expect("delete");
         assert!(
-            list(&ctx.state, &ctx.workspace_id)
+            list(&ctx.paths, &ctx.workspace_id)
                 .expect("list")
                 .is_empty()
         );
@@ -481,13 +490,16 @@ mod tests {
         let ctx = test_support::context().await;
         std::fs::create_dir_all(ctx.workspace_root.join("input")).expect("input dir");
         std::fs::write(ctx.workspace_root.join("input/brief.md"), "brief").expect("input");
-        let backup = create(&ctx.state, &ctx.workspace_id).await.expect("backup");
+        let backup = create(&ctx.db, &ctx.paths, &ctx.workspace_id)
+            .await
+            .expect("backup");
         let target = ctx.temp.path().join("occupied");
         std::fs::create_dir_all(&target).expect("target");
         std::fs::write(target.join("keep.txt"), "keep").expect("keep");
         assert!(
             restore_as_new(
-                &ctx.state,
+                &ctx.db,
+                &ctx.paths,
                 &ctx.workspace_id,
                 &backup.id,
                 RestoreInput {
@@ -498,11 +510,12 @@ mod tests {
             .await
             .is_err()
         );
-        let (path, _) = get(&ctx.state, &ctx.workspace_id, &backup.id).expect("path");
+        let (path, _) = get(&ctx.paths, &ctx.workspace_id, &backup.id).expect("path");
         std::fs::write(&path, "not a zip").expect("corrupt");
         assert!(
             restore_as_new(
-                &ctx.state,
+                &ctx.db,
+                &ctx.paths,
                 &ctx.workspace_id,
                 &backup.id,
                 RestoreInput {

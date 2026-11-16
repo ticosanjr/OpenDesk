@@ -45,6 +45,7 @@ urlencoding = "2"
 uuid = { version = "1", features = ["v4", "v5", "v7"] }
 walkdir = "2"
 webauthn-rs = { version = "0.6", default-features = false, features = ["danger-allow-state-serialisation"] }
+zip = "9.4.1"
 zstd = "0.13"
 
 [dev-dependencies]

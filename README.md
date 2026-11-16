@@ -391,6 +391,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0120 — Run export no core](docs/decisions/0120-run-export-core.md)
 - [ADR 0121 — Métricas no core](docs/decisions/0121-metrics-core.md)
 - [ADR 0122 — Auditoria no core](docs/decisions/0122-audit-core.md)
+- [ADR 0123 — Backup no core](docs/decisions/0123-backup-core.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

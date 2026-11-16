@@ -484,6 +484,10 @@ pendências manuais continuam listadas abaixo.
 
 - Registro/classificação e rate limiter testados no core.
 
+## Sprint 1 — backup no core
+
+- Criação, listagem, restore e corrupção de backup testados no core.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:
