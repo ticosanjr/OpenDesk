@@ -57,8 +57,11 @@ opendesk node run --central https://desk.exemplo.com \
 
 - O token é criado em Configurações → Nós (ou `POST /api/nodes`).
 - O nó puxa jobs, envia heartbeat e conclui o run. `--once` executa um job.
-- Harnesses suportados: `claude-code`, `codex`, `pi`, `hermes`. Jobs `opencode`
-  precisam do daemon OpenCode local.
+- Harnesses suportados: `claude-code`, `codex`, `pi`, `hermes` e `opencode`.
+- Para `opencode`, informe o daemon local do nó:
+  `--opencode-url http://127.0.0.1:3100 --opencode-password ...` ou
+  `OPENDESK_OPENCODE_URL`/`OPENDESK_OPENCODE_PASSWORD`. Sem isso o job é
+  recusado com mensagem clara.
 - O `workspace_root` precisa estar montado no nó (NFS/SMB/rsync).
 - O release publica `opendeskd-<plataforma>` e `opendesk-<plataforma>`.
 

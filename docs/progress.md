@@ -2889,3 +2889,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Sandbox por workspace com fallback global.
 - AppImage passa a incluir `opendeskd`.
 - ADRs 0076 e 0077.
+
+## 2026-11-16 — worker remoto com OpenCode
+
+- `opendesk node run` aceita `--opencode-url`/`--opencode-password` (ou env) e
+  executa jobs `opencode` via REST/SSE local do nó.
+- Texto, falha, idle e diffs seguem o mesmo `complete` dos harnesses CLI.
+- ADR 0078.

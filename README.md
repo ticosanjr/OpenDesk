@@ -346,6 +346,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0075 — Worker remoto e distribuição do opendeskd](docs/decisions/0075-remote-worker.md)
 - [ADR 0076 — WhatsApp Cloud API](docs/decisions/0076-whatsapp-cloud-api.md)
 - [ADR 0077 — Hardening multi-node](docs/decisions/0077-multi-node-hardening.md)
+- [ADR 0078 — OpenCode em worker remoto](docs/decisions/0078-opencode-remote-worker.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

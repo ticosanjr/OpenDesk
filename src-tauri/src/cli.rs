@@ -2,7 +2,9 @@
 //! GUI or duplicates execution logic.
 
 use crate::internal_api::{call, endpoint};
+use crate::opencode_client::rest_client::{ModelRefDto, RestClient};
 use anyhow::{Context, Result, anyhow};
+use futures_util::StreamExt;
 use reqwest::{Client, Method};
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -30,6 +32,7 @@ Uso:
   opendesk nodes list [--json]
   opendesk tui [--workspace <id>]
   opendesk node run --central <url> --token <token> [--once] [--poll <segundos>]
+        [--opencode-url <url>] [--opencode-password <senha>]
   opendesk runs list [--workspace <id>] [--limit <n>] [--json]
   opendesk runs show <run-id> [--json]
   opendesk queue list [--workspace <id>] [--json]
@@ -167,7 +170,25 @@ async fn execute(args: Args) -> Result<()> {
                 .and_then(|value| value.parse::<u64>().ok())
                 .unwrap_or(10)
                 .max(2);
-            run_node(&central, &token, args.flags.contains_key("once"), poll).await?;
+            let opencode_url = args
+                .flags
+                .get("opencode-url")
+                .cloned()
+                .or_else(|| std::env::var("OPENDESK_OPENCODE_URL").ok());
+            let opencode_password = args
+                .flags
+                .get("opencode-password")
+                .cloned()
+                .or_else(|| std::env::var("OPENDESK_OPENCODE_PASSWORD").ok());
+            run_node(
+                &central,
+                &token,
+                args.flags.contains_key("once"),
+                poll,
+                opencode_url,
+                opencode_password,
+            )
+            .await?;
         }
         ("tui", _) => {
             let workspace_id =
@@ -1140,7 +1161,14 @@ fn node_harness_command(harness: &str, prompt: &str) -> Option<(String, Vec<Stri
     }
 }
 
-async fn run_node(central: &str, token: &str, once: bool, poll_secs: u64) -> Result<()> {
+async fn run_node(
+    central: &str,
+    token: &str,
+    once: bool,
+    poll_secs: u64,
+    opencode_url: Option<String>,
+    opencode_password: Option<String>,
+) -> Result<()> {
     let central = central.trim_end_matches('/').to_string();
     let client = Client::builder()
         .timeout(Duration::from_secs(60))
@@ -1205,6 +1233,21 @@ async fn run_node(central: &str, token: &str, once: bool, poll_secs: u64) -> Res
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
+        let agent = job
+            .get("resolved_agent")
+            .and_then(Value::as_str)
+            .unwrap_or("build")
+            .to_string();
+        let model = job
+            .get("resolved_model")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let title = job
+            .get("task_title")
+            .and_then(Value::as_str)
+            .unwrap_or("Remote node job")
+            .to_string();
         let run_id = claim
             .get("run_id")
             .and_then(Value::as_str)
@@ -1247,7 +1290,18 @@ async fn run_node(central: &str, token: &str, once: bool, poll_secs: u64) -> Res
         };
 
         let started = Instant::now();
-        let outcome = execute_node_job(&harness, &prompt, &workspace, &sandbox).await;
+        let outcome = match harness.as_str() {
+            "opencode" => match (opencode_url.as_deref(), opencode_password.as_deref()) {
+                (Some(url), Some(password)) => {
+                    execute_opencode_job(url, password, &workspace, &title, &agent, &model, &prompt)
+                        .await
+                }
+                _ => Err(anyhow!(
+                    "job opencode exige --opencode-url e --opencode-password (ou OPENDESK_OPENCODE_URL/PASSWORD)"
+                )),
+            },
+            _ => execute_node_job(&harness, &prompt, &workspace, &sandbox).await,
+        };
         stop.store(true, Ordering::Relaxed);
         heartbeat.abort();
 
@@ -1356,6 +1410,165 @@ async fn execute_node_job(
     Ok((output.status.success(), text, files))
 }
 
+fn extract_sse_events(buffer: &mut String) -> Vec<Value> {
+    let mut events = Vec::new();
+    while let Some(position) = buffer.find("\n\n") {
+        let block = buffer[..position].to_string();
+        buffer.drain(..position + 2);
+        let mut data = String::new();
+        for line in block.lines() {
+            if let Some(value) = line.strip_prefix("data:") {
+                if !data.is_empty() {
+                    data.push('\n');
+                }
+                data.push_str(value.trim_start());
+            }
+        }
+        if let Ok(value) = serde_json::from_str::<Value>(&data) {
+            events.push(value);
+        }
+    }
+    events
+}
+
+fn opencode_session_matches(event: &Value, session: &str) -> bool {
+    event
+        .pointer("/data/sessionID")
+        .and_then(Value::as_str)
+        .is_some_and(|value| value == session)
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn execute_opencode_job(
+    url: &str,
+    password: &str,
+    workspace: &str,
+    title: &str,
+    agent: &str,
+    model: &str,
+    prompt: &str,
+) -> Result<(bool, String, Vec<Value>)> {
+    if !std::path::Path::new(workspace).is_dir() {
+        return Err(anyhow!(
+            "workspace {workspace} não está acessível neste nó; monte a pasta compartilhada"
+        ));
+    }
+    let client = RestClient::new_with_url(url, password.to_string());
+    let session = client
+        .create_session(workspace, title, agent, ModelRefDto::parse(model))
+        .await
+        .context("não foi possível criar a sessão OpenCode")?;
+    let mut stream = client
+        .event_response()
+        .await
+        .context("eventos do OpenCode indisponíveis")?
+        .bytes_stream();
+    client
+        .prompt(&session, prompt)
+        .await
+        .context("não foi possível enviar o prompt ao OpenCode")?;
+
+    let started = Instant::now();
+    let mut last_activity = Instant::now();
+    let mut buffer = String::new();
+    let mut text = String::new();
+    let mut completed = false;
+    let mut failed = false;
+    let mut error: Option<String> = None;
+
+    while !completed && !failed {
+        if started.elapsed() > Duration::from_secs(30 * 60) {
+            let _ = client.interrupt(&session).await;
+            return Err(anyhow!("execução OpenCode excedeu 30 minutos"));
+        }
+        if last_activity.elapsed() > Duration::from_secs(20 * 60) {
+            let _ = client.interrupt(&session).await;
+            return Err(anyhow!("OpenCode ficou 20 minutos sem eventos"));
+        }
+        match tokio::time::timeout(Duration::from_secs(2), stream.next()).await {
+            Ok(Some(Ok(bytes))) => {
+                last_activity = Instant::now();
+                buffer.push_str(&String::from_utf8_lossy(&bytes));
+                buffer = buffer.replace("\r\n", "\n");
+                for event in extract_sse_events(&mut buffer) {
+                    if !opencode_session_matches(&event, &session) {
+                        continue;
+                    }
+                    match event.get("type").and_then(Value::as_str).unwrap_or("") {
+                        "session.text.delta" => {
+                            if let Some(delta) =
+                                event.pointer("/data/delta").and_then(Value::as_str)
+                            {
+                                text.push_str(delta);
+                            }
+                        }
+                        "session.execution.succeeded" | "session.idle" => {
+                            completed = true;
+                        }
+                        "session.execution.failed" => {
+                            failed = true;
+                            error = Some(
+                                event
+                                    .pointer("/data/error")
+                                    .map(Value::to_string)
+                                    .unwrap_or_else(|| "OpenCode execution failed".into()),
+                            );
+                        }
+                        _ => {}
+                    }
+                    if completed || failed {
+                        break;
+                    }
+                }
+            }
+            Ok(Some(Err(stream_error))) => {
+                // The session may still finish; wait_session below decides.
+                error = Some(format!("stream do OpenCode interrompido: {stream_error}"));
+                break;
+            }
+            Ok(None) => break,
+            Err(_) => {}
+        }
+    }
+
+    if !completed && !failed {
+        match tokio::time::timeout(Duration::from_secs(5 * 60), client.wait_session(&session)).await
+        {
+            Ok(Ok(())) => completed = true,
+            Ok(Err(wait_error)) => {
+                failed = true;
+                error = Some(format!("wait_session falhou: {wait_error:#}"));
+            }
+            Err(_) => {
+                let _ = client.interrupt(&session).await;
+                failed = true;
+                error = Some("timeout aguardando a sessão OpenCode".into());
+            }
+        }
+    }
+
+    let mut files = Vec::new();
+    if completed
+        && !failed
+        && let Ok(diffs) = client.diff(&session).await
+    {
+        files = diffs
+            .into_iter()
+            .map(|diff| {
+                json!({
+                    "path": diff.file,
+                    "status": diff.status,
+                    "patch": diff.patch,
+                })
+            })
+            .collect();
+    }
+    if let Some(error) = error {
+        text.push_str(&format!("\n{error}"));
+    }
+    Ok((completed && !failed, text, files))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1381,6 +1594,16 @@ mod tests {
             Some("Resumo")
         );
         assert!(parsed.json);
+    }
+
+    #[test]
+    fn parses_sse_and_matches_sessions() {
+        let mut buffer = "data: {\"type\":\"session.text.delta\",\"data\":{\"sessionID\":\"s1\",\"delta\":\"oi\"}}\n\n".to_string();
+        let events = extract_sse_events(&mut buffer);
+        assert_eq!(events.len(), 1);
+        assert!(opencode_session_matches(&events[0], "s1"));
+        assert!(!opencode_session_matches(&events[0], "s2"));
+        assert!(buffer.is_empty());
     }
 
     #[test]

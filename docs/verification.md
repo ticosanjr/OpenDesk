@@ -237,6 +237,11 @@ pendências manuais continuam listadas abaixo.
 - Sandbox por workspace e `opendeskd` no AppImage.
 - Testes de assinatura, extração Meta, rotas, artefatos e rotação.
 
+## Pós-1.2.0 — worker OpenCode
+
+- Worker remoto suporta OpenCode local via REST/SSE, com timeout e interrupt.
+- Testes de parsing SSE e mapeamento de sessão.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:
