@@ -220,6 +220,19 @@ fn payload_for(event: &OpenDeskWsEvent) -> Option<PushPayload> {
                 .with_tag(format!("run-{run_id}")),
             )
         }
+        OpenDeskWsEvent::TicketUpdated {
+            ticket_id,
+            source,
+            status,
+            ..
+        } if status == "OPEN" => Some(
+            PushPayload::new(
+                "Novo ticket",
+                format!("Mensagem recebida via {source}."),
+                format!("/#/integrations?section=channels&ticket={ticket_id}"),
+            )
+            .with_tag(format!("ticket-{ticket_id}")),
+        ),
         OpenDeskWsEvent::ProposalCreated {
             proposal_id,
             title,

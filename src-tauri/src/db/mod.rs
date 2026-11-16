@@ -9,6 +9,7 @@ pub mod artifacts;
 pub mod auth_sessions;
 pub mod budget;
 pub mod calendar;
+pub mod channels;
 pub mod chat;
 pub mod chat_turns;
 pub mod deliveries;
@@ -32,6 +33,7 @@ pub mod task_dedupe;
 pub mod task_messages;
 pub mod task_watchers;
 pub mod tasks;
+pub mod tickets;
 pub mod workspaces;
 
 pub async fn init(db_path: &Path) -> Result<SqlitePool> {

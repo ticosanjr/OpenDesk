@@ -64,6 +64,7 @@ mod auth;
 mod backups;
 mod browse;
 mod calendar;
+mod channels;
 mod chat_files;
 mod core;
 mod dedupe;

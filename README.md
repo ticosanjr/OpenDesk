@@ -331,6 +331,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0063 — Daemon, PWA e CLI chat](docs/decisions/0063-daemon-pwa-and-cli-chat.md)
 - [ADR 0064 — Web Push/VAPID](docs/decisions/0064-web-push.md)
 - [ADR 0065 — Harnesses plugáveis](docs/decisions/0065-pluggable-harnesses.md)
+- [ADR 0066 — Canais, tickets e confiança](docs/decisions/0066-channels-tickets-trust.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

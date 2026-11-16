@@ -2787,3 +2787,15 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - DSH escolhe harness (tarefa → padrão do workspace → OpenCode) e o exibe no
   teste de roteamento; o formulário de tarefa permite a escolha.
 - ADR 0065.
+
+## 2026-11-16 — v1.0 onda 3: canais, tickets e confiança
+
+- `channel_routes` com identidade, agente, perfil e trust; rota exata + wildcard.
+- Tickets idempotentes por mensagem, com triagem e vínculo opcional a tarefa.
+- Webhook universal `/api/webhooks/channels/{channel}` autenticado por token
+  (SecretStore) e política de confiança: untrusted só ticket; internal retido;
+  trusted cria tarefa.
+- Configuração estrutural de WhatsApp (provider/número/notas) sem conector.
+- Aba Integrações → Canais e tickets com rotas, tokens, WhatsApp e inbox.
+- Evento `TicketUpdated` e push para novos tickets.
+- ADR 0066.

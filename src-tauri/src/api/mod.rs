@@ -11,6 +11,7 @@ pub mod browse;
 pub mod budget;
 pub mod calendar;
 pub mod capture;
+pub mod channels;
 pub mod chat;
 pub mod commands;
 pub mod core;
@@ -48,6 +49,7 @@ pub mod studio_ops;
 pub mod task_watchers;
 pub mod tasks;
 pub mod telegram;
+pub mod tickets;
 pub mod updates;
 pub mod ws;
 
@@ -57,7 +59,7 @@ use axum::{
     extract::DefaultBodyLimit,
     http::HeaderValue,
     middleware,
-    routing::{get, patch, post, put},
+    routing::{delete, get, patch, post, put},
 };
 use std::sync::Arc;
 use tower_http::{
@@ -116,6 +118,26 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/adapters/default", post(adapters::set_default))
         .route("/api/adapters/{id}", patch(adapters::update))
         .route("/api/adapters/{id}/health", post(adapters::health))
+        .route(
+            "/api/channels/routes",
+            get(channels::list_routes).post(channels::upsert_route),
+        )
+        .route("/api/channels/routes/{id}", delete(channels::delete_route))
+        .route("/api/channels/status", get(channels::status))
+        .route(
+            "/api/channels/whatsapp",
+            get(channels::get_whatsapp).put(channels::put_whatsapp),
+        )
+        .route(
+            "/api/channels/{channel}/webhook-token",
+            post(channels::rotate_webhook_token),
+        )
+        .route("/api/tickets", get(tickets::list))
+        .route(
+            "/api/tickets/{id}",
+            get(tickets::get).patch(tickets::update),
+        )
+        .route("/api/webhooks/channels/{channel}", post(channels::inbound))
         .route("/api/meta", get(meta))
         .route("/api/about", get(about::about))
         .route(

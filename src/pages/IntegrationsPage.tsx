@@ -12,6 +12,7 @@ import {
   Loader2,
   Mail,
   Plug,
+  Radio,
   RefreshCw,
   Save,
   Send,
@@ -32,6 +33,8 @@ import { SectionNav } from "@/components/ui/section-nav";
 import { InboundSourcesCard } from "@/components/integrations/InboundSourcesCard";
 import { OutboundSinksCard } from "@/components/integrations/OutboundSinksCard";
 import { BrowserCard } from "@/components/integrations/BrowserCard";
+import { ChannelsCard } from "@/components/integrations/ChannelsCard";
+import { TicketInboxCard } from "@/components/integrations/TicketInboxCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -102,6 +105,7 @@ export function IntegrationsPage() {
     { id: "google", label: "Google", icon: Cloud, group: "Mensageria" },
     { id: "signal", label: "Signal", icon: Plug, group: "Mensageria" },
     { id: "telegram", label: "Telegram", icon: Send, group: "Mensageria" },
+    { id: "channels", label: "Canais e tickets", icon: Radio, group: "Mensageria" },
     { id: "browser", label: "Browser", icon: Globe, group: "I/O" },
     { id: "inbound", label: "Entradas", icon: Inbox, group: "I/O" },
     { id: "sinks", label: "Saídas", icon: Package, group: "I/O" },
@@ -536,6 +540,12 @@ export function IntegrationsPage() {
         </div>
       ) : null}
 
+      {activeTab === "channels" && activeWorkspaceId ? (
+        <div className="space-y-4">
+          <ChannelsCard workspaceId={activeWorkspaceId} />
+          <TicketInboxCard workspaceId={activeWorkspaceId} />
+        </div>
+      ) : null}
       {activeTab === "browser" ? <BrowserCard /> : null}
 
       {activeTab === "inbound" ? (

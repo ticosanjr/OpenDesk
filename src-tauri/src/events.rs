@@ -123,6 +123,12 @@ pub enum OpenDeskWsEvent {
         token: String,
         status: String,
     },
+    TicketUpdated {
+        ticket_id: String,
+        workspace_id: String,
+        source: String,
+        status: String,
+    },
     ProposalCreated {
         proposal_id: String,
         workspace_id: String,

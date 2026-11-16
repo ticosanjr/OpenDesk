@@ -178,6 +178,13 @@ pendências manuais continuam listadas abaixo.
 - Migração 0045, API `/api/adapters`, UI de harnesses e seleção no DSH.
 - Testes de normalização, spawn real de CLI e endpoints.
 
+## Pós-0.59.0 — v1.0 onda 3
+
+- Rotas de canal/trust, tickets idempotentes, webhook autenticado e WhatsApp
+  estrutural.
+- Testes de rota, token, confiança, deduplicação e criação de tarefa.
+- UI Integrações → Canais e tickets.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:
