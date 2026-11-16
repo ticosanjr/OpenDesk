@@ -10,6 +10,7 @@ name = "opendesk_core"
 path = "src/lib.rs"
 
 [dependencies]
+aes-gcm = "0.10"
 anyhow = "1"
 axum = "0.8"
 base64 = "0.22"

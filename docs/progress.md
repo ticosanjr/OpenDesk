@@ -3124,3 +3124,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Header `x-opendesk-mcp-role` restringe fases; phase explícito vence.
 - Teste HTTP garante que read não vê tools de build.
 - ADR 0110.
+
+## 2026-11-16 — secrets no core (REF-01)
+
+- `secrets` movido para `opendesk-core`; shell reexporta.
+- Próximo bloqueio: notificações Telegram/Signal no `session_runner`.
+- Core com 84 testes, shell com 496.
+- ADR 0111.

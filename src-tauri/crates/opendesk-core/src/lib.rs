@@ -13,6 +13,7 @@ pub mod events;
 pub mod nodes;
 pub mod passkey;
 pub mod paths;
+pub mod secrets;
 pub mod server_lock;
 pub mod text;
 pub mod token_estimate;

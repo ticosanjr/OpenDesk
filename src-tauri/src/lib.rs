@@ -38,7 +38,6 @@ mod run_timeline;
 #[allow(dead_code)]
 mod runtime;
 mod sandbox;
-mod secrets;
 mod session_context;
 mod shell_state;
 mod skill_eval;
@@ -52,7 +51,7 @@ mod updates;
 mod voice;
 
 pub use opendesk_core::{
-    db, dedupe, error, events, nodes, passkey, paths, server_lock, text, token_estimate,
+    db, dedupe, error, events, nodes, passkey, paths, secrets, server_lock, text, token_estimate,
     virtual_display, workspace_sync, worktree,
 };
 

@@ -425,6 +425,11 @@ pendências manuais continuam listadas abaixo.
 - role=read esconde tools de build e mantém leitura.
 - phase explícito continua prevalecendo.
 
+## Sprint 1 — secrets no core
+
+- `cargo test -p opendesk-core` cobre roundtrip/remoção de segredo.
+- Shell reexporta sem mudar chamadas.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:
