@@ -35,6 +35,8 @@ pub struct QueueJob {
     #[sqlx(default)]
     pub last_heartbeat_at: Option<String>,
     #[sqlx(default)]
+    pub assigned_node_id: Option<String>,
+    #[sqlx(default)]
     pub task_title: Option<String>,
     #[sqlx(default)]
     pub task_origin: Option<String>,
@@ -86,7 +88,7 @@ fn default_max_retries() -> i64 {
 const COLUMNS: &str = "q.id, q.workspace_id, q.task_id, q.schedule_id, q.session_id, q.concurrency_group, q.prompt_payload, \
     q.resolved_mode, q.resolved_agent, q.resolved_model, q.resolved_effort, q.resolved_harness, q.job_kind, \
     q.scheduled_for, q.output_dir, q.priority, q.status, q.retry_count, q.max_retries, q.error_message, \
-    q.enqueued_at, q.started_at, q.finished_at, t.title AS task_title, t.origin AS task_origin";
+    q.enqueued_at, q.started_at, q.finished_at, q.assigned_node_id, t.title AS task_title, t.origin AS task_origin";
 
 fn enqueue_dedupe_key(input: &EnqueueInput) -> String {
     // Prefer stable identity fields over the rendered prompt: the prompt
@@ -264,6 +266,43 @@ pub async fn claim(pool: &SqlitePool, id: &str) -> AppResult<bool> {
     .execute(pool)
     .await?;
     Ok(result.rows_affected() == 1)
+}
+
+/// Work stealing for remote nodes. Claims the oldest queued job atomically and
+/// leases it to the worker; the central queue worker may still win the race, in
+/// which case the node just gets the next one.
+pub async fn claim_for_node(
+    pool: &SqlitePool,
+    node_id: &str,
+    lease_seconds: i64,
+) -> AppResult<Option<QueueJob>> {
+    loop {
+        let candidate: Option<String> = sqlx::query_scalar(
+            "SELECT id FROM execution_queue WHERE status = 'QUEUED'
+             ORDER BY priority DESC, enqueued_at ASC LIMIT 1",
+        )
+        .fetch_optional(pool)
+        .await?;
+        let Some(id) = candidate else {
+            return Ok(None);
+        };
+        let claimed = sqlx::query(
+            "UPDATE execution_queue
+             SET status = 'RUNNING',
+                 assigned_node_id = ?,
+                 started_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+                 lease_expires_at = datetime('now', ?)
+             WHERE id = ? AND status = 'QUEUED'",
+        )
+        .bind(node_id)
+        .bind(format!("+{} seconds", lease_seconds.clamp(30, 3600)))
+        .bind(&id)
+        .execute(pool)
+        .await?;
+        if claimed.rows_affected() == 1 {
+            return Ok(Some(get(pool, &id).await?));
+        }
+    }
 }
 
 pub async fn heartbeat(pool: &SqlitePool, id: &str) -> AppResult<()> {

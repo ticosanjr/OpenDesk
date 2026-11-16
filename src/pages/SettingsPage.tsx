@@ -14,6 +14,8 @@ import {
   Info,
   ListChecks,
   Loader2,
+  Network,
+  Volume2,
   Save,
   Settings,
   ShieldCheck,
@@ -29,6 +31,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { EngineCard } from "@/components/settings/EngineCard";
 import { HarnessCard } from "@/components/settings/HarnessCard";
 import { SandboxComputerCard } from "@/components/settings/SandboxComputerCard";
+import { VoiceCard } from "@/components/settings/VoiceCard";
+import { NodesCard } from "@/components/settings/NodesCard";
 import { UpdatesCard } from "@/components/settings/UpdatesCard";
 import { AboutCard } from "@/components/settings/AboutCard";
 import { NotificationCard } from "@/components/settings/NotificationCard";
@@ -82,6 +86,8 @@ export function SettingsPage() {
     { id: "engine", label: "Engine", icon: Cpu, group: "Motor" },
     { id: "harness", label: "Harnesses", icon: Workflow, group: "Motor" },
     { id: "sandbox", label: "Sandbox", icon: ShieldCheck, group: "Motor" },
+    { id: "voice", label: "Voz", icon: Volume2, group: "Operação" },
+    { id: "nodes", label: "Nós", icon: Network, group: "Operação" },
     { id: "updates", label: "Atualizações", icon: Download, group: "Motor" },
     { id: "prompt", label: "Prompt", icon: FileCode2, group: "Motor" },
     { id: "notifications", label: "Notificações", icon: Bell, group: "Operação" },
@@ -187,6 +193,8 @@ export function SettingsPage() {
       {activeTab === "sandbox" && activeWorkspaceId ? (
         <SandboxComputerCard workspaceId={activeWorkspaceId} />
       ) : null}
+      {activeTab === "voice" ? <VoiceCard /> : null}
+      {activeTab === "nodes" ? <NodesCard /> : null}
       {activeTab === "notifications" ? <NotificationCard /> : null}
       {activeTab === "queue" ? <QueueSettingsCard /> : null}
       {activeTab === "backups" ? <BackupsCard /> : null}

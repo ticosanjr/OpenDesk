@@ -371,6 +371,23 @@ pub(crate) async fn auth_middleware(
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "));
 
+    // Remote workers authenticate with their own token on the node protocol
+    // endpoints. Browsers and the local CLI keep using the API token/session.
+    let node_endpoint = path == "/api/nodes/heartbeat"
+        || path == "/api/nodes/next-job"
+        || (path.starts_with("/api/nodes/jobs/")
+            && (path.ends_with("/heartbeat") || path.ends_with("/complete")));
+    if node_endpoint
+        && let Some(token) = header_token
+        && crate::nodes::authenticate(&state.db, token)
+            .await
+            .ok()
+            .flatten()
+            .is_some()
+    {
+        return next.run(request).await;
+    }
+
     let query_token = if path == "/ws" {
         query_token(request.uri())
     } else {

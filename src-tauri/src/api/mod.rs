@@ -31,6 +31,7 @@ pub mod memory;
 pub mod meta;
 pub mod metrics;
 pub mod missed_runs;
+pub mod nodes;
 pub mod permissions;
 pub mod personal_context;
 pub mod prompt_layer;
@@ -56,6 +57,7 @@ pub mod tasks;
 pub mod telegram;
 pub mod tickets;
 pub mod updates;
+pub mod voice;
 pub mod ws;
 
 use crate::app_state::AppState;
@@ -200,6 +202,19 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             post(sandbox::screenshot),
         )
         .route("/api/computer/sessions/{id}/action", post(sandbox::action))
+        .route("/api/voice/status", get(voice::status))
+        .route("/api/voice/settings", put(voice::put_settings))
+        .route("/api/voice/transcribe", post(voice::transcribe))
+        .route("/api/voice/speak", post(voice::speak))
+        .route("/api/nodes", get(nodes::list).post(nodes::create))
+        .route(
+            "/api/nodes/{id}",
+            patch(nodes::update).delete(nodes::delete),
+        )
+        .route("/api/nodes/heartbeat", post(nodes::heartbeat))
+        .route("/api/nodes/next-job", get(nodes::next_job))
+        .route("/api/nodes/jobs/{id}/heartbeat", post(nodes::job_heartbeat))
+        .route("/api/nodes/jobs/{id}/complete", post(nodes::complete_job))
         .route("/api/meta", get(meta))
         .route("/api/about", get(about::about))
         .route(

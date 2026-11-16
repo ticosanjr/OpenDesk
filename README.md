@@ -336,6 +336,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0068 — Memória estruturada e skill eval](docs/decisions/0068-structured-memory-and-skill-eval.md)
 - [ADR 0069 — MCP Hub](docs/decisions/0069-mcp-hub.md)
 - [ADR 0070 — Sandbox e computer-use](docs/decisions/0070-sandbox-and-computer-use.md)
+- [ADR 0071 — Voz e multi-node](docs/decisions/0071-voice-and-multi-node.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

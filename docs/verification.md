@@ -207,6 +207,11 @@ pendências manuais continuam listadas abaixo.
 - Sandbox de CLI, status do bwrap e computer-use com aprovação.
 - Testes de política, allowlist, sessões e transições.
 
+## Pós-0.59.0 — v1.0 onda 8
+
+- Voz (STT/TTS) e protocolo multi-node com claim/heartbeat/complete.
+- Testes de settings/capacidades, registro de nó, token, claim e conclusão.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

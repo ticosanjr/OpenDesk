@@ -28,6 +28,7 @@ mod mcp_hub;
 mod mcp_server;
 mod media;
 mod metrics;
+mod nodes;
 mod open_paths;
 mod opencode_client;
 mod paths;
@@ -50,6 +51,7 @@ mod text;
 mod tray;
 mod update_signing;
 mod updates;
+mod voice;
 
 use app_state::AppState;
 use paths::AppPaths;

@@ -391,6 +391,7 @@ mod tests {
             resolved_model: "provider/model".into(),
             resolved_effort: "low".into(),
             resolved_harness: "opencode".into(),
+            assigned_node_id: None,
             job_kind: "prompt".into(),
             scheduled_for: None,
             output_dir: None,

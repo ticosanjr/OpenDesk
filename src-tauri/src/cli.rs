@@ -22,6 +22,7 @@ Uso:
   opendesk approvals list [--workspace <id>] [--json]
   opendesk approvals resolve <id> approve|deny [texto] [--json]
   opendesk diff <run-id> [--json]
+  opendesk nodes list [--json]
   opendesk runs list [--workspace <id>] [--limit <n>] [--json]
   opendesk runs show <run-id> [--json]
   opendesk queue list [--workspace <id>] [--json]
@@ -139,6 +140,28 @@ async fn execute(args: Args) -> Result<()> {
                         .map(|_| " · PAUSADA")
                         .unwrap_or("")
                 );
+            }
+        }
+        ("nodes", Some("list")) => {
+            let nodes = call(&client, &endpoint, Method::GET, "/api/nodes", None).await?;
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&nodes)?);
+            } else if let Some(list) = nodes.as_array() {
+                if list.is_empty() {
+                    println!("Nenhum nó remoto registrado.");
+                }
+                for node in list {
+                    println!(
+                        "{}  {:<18}  {:<8}  {}",
+                        node.get("online")
+                            .and_then(Value::as_bool)
+                            .map(|online| if online { "online " } else { "offline" })
+                            .unwrap_or("?"),
+                        node.get("name").and_then(Value::as_str).unwrap_or("?"),
+                        node.get("status").and_then(Value::as_str).unwrap_or("?"),
+                        node.get("endpoint").and_then(Value::as_str).unwrap_or("")
+                    );
+                }
             }
         }
         ("workspaces", Some("list")) => {

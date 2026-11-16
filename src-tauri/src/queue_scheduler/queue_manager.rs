@@ -847,7 +847,7 @@ fn split_model(model: &str) -> (Option<String>, String) {
     }
 }
 
-fn job_dto(job: queue::QueueJob) -> QueueJobDto {
+pub(crate) fn job_dto(job: queue::QueueJob) -> QueueJobDto {
     QueueJobDto {
         id: job.id,
         task_id: job.task_id,
@@ -910,6 +910,7 @@ mod tests {
             resolved_model: "opencode-go/glm-5.3".into(),
             resolved_effort: "high".into(),
             resolved_harness: "opencode".into(),
+            assigned_node_id: None,
             job_kind: "task".into(),
             scheduled_for: None,
             output_dir: Some("/tmp/out".into()),
