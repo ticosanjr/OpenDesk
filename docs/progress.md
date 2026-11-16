@@ -2949,3 +2949,7 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Tokenizador aproximado (chars/4) e tabela de preços por família de modelo.
 - Runs CLI sem telemetria preenchem tokens/custo estimados e registram no log.
 - ADR 0086.
+
+## 2026-11-16 — Inbox Triage & Drafts
+
+- Segunda receita do pack assistente-pessoal: triagem, rascunhos, HITL e lista final sem envio automático.

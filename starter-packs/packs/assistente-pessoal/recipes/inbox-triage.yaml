@@ -1,0 +1,45 @@
+id: inbox-triage-drafts
+name: Inbox Triage & Drafts
+description: Classifica e-mails, ignora ruído e prepara rascunhos aguardando aprovação.
+enabled: false
+triggers: []
+flow:
+  - type: step
+    id: triar
+    name: Triar caixa
+    mode: audit
+    agent: briefing-pessoal
+    prompt: |
+      Leia as mensagens recentes em email/entrada/ (ou a caixa conectada).
+      Classifique em: responder hoje, agendar, arquivar e ruído.
+      Salve a triagem em {{run.output_dir}}/triagem.md. Não envie nada.
+  - type: step
+    id: rascunhar
+    name: Preparar rascunhos
+    mode: build
+    agent: briefing-pessoal
+    prompt: |
+      Para cada item "responder hoje", prepare um rascunho curto e específico
+      em {{run.output_dir}}/rascunhos/. Cite o motivo e o próximo passo.
+      Não envie; não altere a caixa.
+  - type: hitl
+    id: aprovar
+    interaction_type: APPROVAL_WITH_FEEDBACK
+    channels: [DESKTOP_UI, TELEGRAM]
+    timeout_minutes: 240
+    on_timeout: PAUSE_AND_ALERT
+    prompt_template: |
+      Revise a triagem e os rascunhos. Aprovar libera a lista final de envios
+      manuais; rejeitar mantém tudo como rascunho.
+      {{steps.triar.summary}}
+    attach_files:
+      - "{{run.output_dir}}/triagem.md"
+  - type: step
+    id: finalizar
+    name: Lista final
+    mode: build
+    agent: briefing-pessoal
+    prompt: |
+      Gere {{run.output_dir}}/plano-de-inbox.md com: o que será respondido,
+      rascunho associado, o que foi arquivado e o que é ruído.
+      Nenhum e-mail deve ser enviado automaticamente.

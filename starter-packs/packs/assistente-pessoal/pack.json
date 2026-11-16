@@ -10,15 +10,31 @@
   "recommended": false,
   "requires": {
     "tools": [],
-    "integrations": ["Google Calendar", "Gmail", "SMTP", "Telegram"]
+    "integrations": [
+      "Google Calendar",
+      "Gmail",
+      "SMTP",
+      "Telegram"
+    ]
   },
   "contents": {
-    "agents": ["briefing-pessoal.md"],
-    "skills": ["briefing-pessoal"],
-    "commands": ["briefing-agora.md"],
-    "recipes": ["morning-briefing.yaml"],
+    "agents": [
+      "briefing-pessoal.md"
+    ],
+    "skills": [
+      "briefing-pessoal"
+    ],
+    "commands": [
+      "briefing-agora.md"
+    ],
+    "recipes": [
+      "morning-briefing.yaml",
+      "inbox-triage.yaml"
+    ],
     "routines": [],
-    "folders": ["briefing"]
+    "folders": [
+      "briefing"
+    ]
   },
   "examples": [
     {
@@ -28,6 +44,10 @@
     {
       "title": "Briefing agora",
       "command": "briefing-agora"
+    },
+    {
+      "title": "Triagem de inbox",
+      "recipe": "inbox-triage-drafts"
     }
   ]
 }
