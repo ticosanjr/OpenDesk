@@ -572,6 +572,40 @@ pub(super) fn tools() -> Vec<Value> {
             }),
         ),
         tool(
+            "recipe_versions",
+            "Lista as versões salvas de uma receita, da mais recente para a mais antiga.",
+            json!({
+                "type": "object",
+                "required": ["id"],
+                "properties": { "id": { "type": "string" } }
+            }),
+        ),
+        tool(
+            "recipe_diff",
+            "Mostra o diff unificado de uma versão da receita contra o arquivo atual ou outra versão.",
+            json!({
+                "type": "object",
+                "required": ["id", "version_id"],
+                "properties": {
+                    "id": { "type": "string" },
+                    "version_id": { "type": "string" },
+                    "against": { "type": "string" }
+                }
+            }),
+        ),
+        tool(
+            "recipe_rollback",
+            "Reescreve a receita com o conteúdo de uma versão anterior, revalidando o YAML e registrando uma nova versão.",
+            json!({
+                "type": "object",
+                "required": ["id", "version_id"],
+                "properties": {
+                    "id": { "type": "string" },
+                    "version_id": { "type": "string" }
+                }
+            }),
+        ),
+        tool(
             "worktree_list",
             "Lista os worktrees/overlays isolados do workspace.",
             empty(),
@@ -733,6 +767,9 @@ fn visible_in(name: &str, phase: &str) -> bool {
             | "recipe_run"
             | "recipe_resume"
             | "recipe_cancel"
+            | "recipe_versions"
+            | "recipe_diff"
+            | "recipe_rollback"
             | "attention_list"
             | "worktree_cleanup"
     ) {
@@ -845,6 +882,9 @@ mod tests {
             assert!(names.iter().any(|name| name == expected), "{expected}");
         }
         for expected in [
+            "recipe_versions",
+            "recipe_diff",
+            "recipe_rollback",
             "worktree_list",
             "worktree_prepare",
             "worktree_diff",
@@ -853,7 +893,7 @@ mod tests {
         ] {
             assert!(names.iter().any(|name| name == expected), "{expected}");
         }
-        assert_eq!(names.len(), 43);
+        assert_eq!(names.len(), 46);
     }
 
     #[test]

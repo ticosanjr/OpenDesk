@@ -21,7 +21,9 @@
 5. Rollback reescreve o conteúdo pela mesma `save_yaml`, portanto revalida o
    parser, atualiza o índice, o watcher e o trigger source, e registra uma nova
    versão em vez de apagar histórico.
-6. Versões vivem no SQLite (estado operacional), enquanto o YAML atual continua
+6. O MCP de controle expõe `recipe_versions`, `recipe_diff` e
+   `recipe_rollback`, com a mesma validação da API.
+7. Versões vivem no SQLite (estado operacional), enquanto o YAML atual continua
    sendo a SSOT no workspace.
 
 ## Consequências

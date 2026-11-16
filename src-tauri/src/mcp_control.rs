@@ -656,6 +656,41 @@ async fn dispatch(
             )
             .await
         }
+        "recipe_versions" => {
+            let id = required(&args, "id")?;
+            call(
+                &client,
+                &endpoint,
+                Method::GET,
+                &ws_path(&format!("/api/recipes/{id}/versions"), workspace_id),
+                None,
+            )
+            .await
+        }
+        "recipe_diff" => {
+            let id = required(&args, "id")?;
+            let version = required(&args, "version_id")?;
+            let mut path = ws_path(
+                &format!("/api/recipes/{id}/versions/{version}/diff"),
+                workspace_id,
+            );
+            if let Some(against) = optional(&args, "against") {
+                path.push_str(&format!("&against={}", urlencoding::encode(&against)));
+            }
+            call(&client, &endpoint, Method::GET, &path, None).await
+        }
+        "recipe_rollback" => {
+            let id = required(&args, "id")?;
+            let version_id = required(&args, "version_id")?;
+            call(
+                &client,
+                &endpoint,
+                Method::POST,
+                &ws_path(&format!("/api/recipes/{id}/rollback"), workspace_id),
+                Some(json!({ "version_id": version_id })),
+            )
+            .await
+        }
         "worktree_list" => {
             call(
                 &client,
