@@ -399,6 +399,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0128 — Web Push no core](docs/decisions/0128-push-core.md)
 - [ADR 0129 — MCP config no core](docs/decisions/0129-mcp-config-core.md)
 - [ADR 0130 — Endpoint/probe no core](docs/decisions/0130-endpoint-probe-core.md)
+- [ADR 0131 — RecipeContext](docs/decisions/0131-recipe-context.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

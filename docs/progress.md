@@ -3238,3 +3238,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - ApiEndpoint/internal_api/daemon_probe movidos; core 228 testes, shell 355.
 - ADR 0130.
+
+## 2026-11-16 — A1 RecipeContext (REF-01)
+
+- Contexto core com pool/paths/secrets; core 229 testes.
+- ADR 0131.

@@ -516,6 +516,10 @@ pendências manuais continuam listadas abaixo.
 
 - base_url, probe e cliente local testados no core.
 
+## Fase A1 — RecipeContext
+
+- Contexto construído e pool validado no core.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

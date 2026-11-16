@@ -33,6 +33,7 @@ pub mod passkey;
 pub mod paths;
 pub mod personal_context;
 pub mod push;
+pub mod recipe_context;
 pub mod recipe_dispatch;
 pub mod recipes;
 pub mod recurrence;
