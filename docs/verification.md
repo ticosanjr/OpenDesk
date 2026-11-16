@@ -528,6 +528,10 @@ pendências manuais continuam listadas abaixo.
 
 - CA/cert/chave/SAN/expiração testados; doctor --live reporta mtls.
 
+## Fase E3 — RBAC por agente
+
+- allow/deny por agente filtra tools/list e bloqueia tools/call.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

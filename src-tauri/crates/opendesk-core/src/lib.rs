@@ -23,6 +23,7 @@ pub mod events;
 pub mod hitl;
 pub mod internal_api;
 pub mod mcp_config;
+pub mod mcp_rbac;
 pub mod mcp_server;
 pub mod media;
 pub mod metrics;

@@ -74,3 +74,42 @@ async fn role_read_hides_build_tools() {
     assert!(tools.iter().any(|tool| tool["name"] == "task_list"));
     assert!(!tools.iter().any(|tool| tool["name"] == "task_create"));
 }
+
+#[tokio::test]
+async fn agent_policy_limits_tools_and_calls() {
+    let ctx = test_support::context().await;
+    crate::db::settings::set(
+        &ctx.state.db,
+        "mcp_agent_tools",
+        &json!({ "build": { "allow": ["task_list"], "deny": ["task_delete"] } }),
+    )
+    .await
+    .expect("setting");
+    let request = axum::http::Request::builder()
+        .method(Method::POST)
+        .uri(format!("/api/mcp?workspace_id={}", ctx.workspace_id))
+        .header(AUTHORIZATION, format!("Bearer {}", ctx.state.api_token))
+        .header("content-type", "application/json")
+        .header("x-opendesk-mcp-agent", "build")
+        .body(axum::body::Body::from(
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/list",
+                "params": {}
+            })
+            .to_string(),
+        ))
+        .expect("request");
+    let response = router(ctx.state.clone())
+        .oneshot(request)
+        .await
+        .expect("response");
+    let bytes = axum::body::to_bytes(response.into_body(), 4 * 1024 * 1024)
+        .await
+        .expect("body");
+    let body: Value = serde_json::from_slice(&bytes).expect("json");
+    let tools = body["result"]["tools"].as_array().expect("tools");
+    assert_eq!(tools.len(), 1, "{body}");
+    assert_eq!(tools[0]["name"], "task_list");
+}

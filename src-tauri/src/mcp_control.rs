@@ -166,6 +166,7 @@ pub async fn handle_http(
     default_agent: &str,
     phase: &str,
     role: &str,
+    policy: Option<&crate::mcp_rbac::ToolPolicy>,
     request: Value,
 ) -> Value {
     // A role narrows an "ALL" session to the phase it represents. Explicit
@@ -197,6 +198,13 @@ pub async fn handle_http(
             let mut available = tools::filtered_tools(phase, None);
             let (dynamic, _) = load_dynamic_tools(workspace_id, phase).await;
             available.extend(dynamic);
+            if let Some(policy) = policy {
+                available.retain(|tool| {
+                    tool.get("name")
+                        .and_then(Value::as_str)
+                        .is_some_and(|name| policy.allows(name))
+                });
+            }
             Ok(json!({ "tools": available }))
         }
         "tools/call" => {
@@ -209,6 +217,9 @@ pub async fn handle_http(
                 .cloned()
                 .unwrap_or_else(|| json!({}));
             match name {
+                Some(name) if policy.is_some_and(|policy| !policy.allows(&name)) => {
+                    Err(anyhow!("agente sem permissão para a tool {name}"))
+                }
                 Some(name) => {
                     let (_, targets) = load_dynamic_tools(workspace_id, phase).await;
                     dispatch(workspace_id, default_agent, &name, arguments, &targets)

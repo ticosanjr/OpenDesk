@@ -3254,3 +3254,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - CA/cert/key/SAN/expiração validados; probe no doctor.
 - Core 231 testes, shell 355 (586).
 - ADR 0133.
+
+## 2026-11-17 — E3 RBAC por agente (MCP)
+
+- `mcp_agent_tools` com allow/deny; list/call filtrados por agente.
+- Core 233 testes, shell 356 (589).
+- ADR 0134.

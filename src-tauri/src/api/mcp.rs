@@ -36,7 +36,20 @@ pub async fn rpc(
         .get("x-opendesk-mcp-role")
         .and_then(|value| value.to_str().ok())
         .unwrap_or("");
+    let policy = crate::db::settings::get(&state.db, "mcp_agent_tools")
+        .await
+        .ok()
+        .flatten()
+        .and_then(|config| crate::mcp_rbac::policy_for_agent(&config, agent));
     Ok(Json(
-        crate::mcp_control::handle_http(&workspace_id, agent, phase, role, request).await,
+        crate::mcp_control::handle_http(
+            &workspace_id,
+            agent,
+            phase,
+            role,
+            policy.as_ref(),
+            request,
+        )
+        .await,
     ))
 }
