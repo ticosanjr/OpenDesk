@@ -80,6 +80,7 @@ mod memory;
 mod metrics;
 mod missed_runs;
 mod nodes;
+mod onboarding;
 mod passkeys;
 mod phase1;
 mod phase2;

@@ -327,6 +327,12 @@ pendências manuais continuam listadas abaixo.
 - Rotas principais sem overflow horizontal no viewport de celular.
 - 1440 px preserva sidebar e esconde a barra inferior.
 
+## Sprint 6 — onboarding
+
+- Checklist reflete workspace, motor, MCP, pacote base e integrações.
+- Diálogo abre pela Topbar, verifica de novo e navega para a tela do item.
+- E2E com workspace real valida root e botão Verificar.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

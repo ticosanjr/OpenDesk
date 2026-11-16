@@ -3013,3 +3013,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Safe area, viewport-fit=cover e main com padding para a barra.
 - Topbar compacta e testes Playwright de 390×844 sem overflow.
 - ADR 0093.
+
+## 2026-11-16 — onboarding guiado (REQ-19)
+
+- `GET /api/onboarding` valida workspace, motor, MCP, pacote base e integrações reais.
+- Diálogo "Primeiros passos" com essenciais/opcionais, progresso e links diretos.
+- Teste E2E com workspace real; goldens de Kanban/Pacotes atualizados.
+- ADR 0094.

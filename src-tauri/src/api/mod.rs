@@ -32,6 +32,7 @@ pub mod meta;
 pub mod metrics;
 pub mod missed_runs;
 pub mod nodes;
+pub mod onboarding;
 pub mod passkey;
 pub mod permissions;
 pub mod personal_context;
@@ -246,6 +247,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/nodes/next-job", get(nodes::next_job))
         .route("/api/nodes/jobs/{id}/heartbeat", post(nodes::job_heartbeat))
         .route("/api/nodes/jobs/{id}/complete", post(nodes::complete_job))
+        .route("/api/onboarding", get(onboarding::status))
         .route("/api/meta", get(meta))
         .route("/api/about", get(about::about))
         .route(

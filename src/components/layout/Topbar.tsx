@@ -1,4 +1,4 @@
-import { Check, ChevronsUpDown, Plus, RefreshCw, Search } from "lucide-react";
+import { Check, ChevronsUpDown, ListChecks, Plus, RefreshCw, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "@/store/app-store";
@@ -7,6 +7,7 @@ import { confirmAction } from "@/store/confirm-store";
 import { Button } from "@/components/ui/button";
 import { StatusDot, statusTone } from "@/components/ui/status-dot";
 import { cn } from "@/lib/utils";
+import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
 import { formatUsd } from "@/lib/format";
 
 const FALLBACK_DAILY_LIMIT = 5;
@@ -28,6 +29,7 @@ export function Topbar() {
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [workspaceQuery, setWorkspaceQuery] = useState("");
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
 
   const activeWorkspace = workspaces.find(
@@ -78,6 +80,7 @@ export function Topbar() {
   }
 
   return (
+    <>
     <header className="flex h-14 shrink-0 items-center gap-1.5 border-b workspace-divider bg-[#0b0b0d]/90 px-2 backdrop-blur sm:gap-3 sm:px-4">
       <div ref={workspaceRef} className="relative min-w-0 shrink-0">
         <button
@@ -245,6 +248,18 @@ export function Topbar() {
           variant="outline"
           size="sm"
           className="h-9 gap-2 px-2.5 text-zinc-400"
+          onClick={() => setOnboardingOpen(true)}
+          title="Primeiros passos e verificação das integrações"
+        >
+          <ListChecks size={14} />
+          <span className="hidden text-[12.5px] sm:inline">Primeiros passos</span>
+          <span className="sr-only">Primeiros passos</span>
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 gap-2 px-2.5 text-zinc-400"
           onClick={() => setCommandOpen(true)}
           title="Buscar e executar comandos (Ctrl/Cmd+K)"
         >
@@ -267,5 +282,7 @@ export function Topbar() {
         </Button>
       </div>
     </header>
+    <OnboardingDialog open={onboardingOpen} onClose={() => setOnboardingOpen(false)} />
+    </>
   );
 }
