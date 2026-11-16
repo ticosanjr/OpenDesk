@@ -29,7 +29,8 @@
     ],
     "recipes": [
       "morning-briefing.yaml",
-      "inbox-triage.yaml"
+      "inbox-triage.yaml",
+      "personal-life-travel.yaml"
     ],
     "routines": [],
     "folders": [
@@ -48,6 +49,10 @@
     {
       "title": "Triagem de inbox",
       "recipe": "inbox-triage-drafts"
+    },
+    {
+      "title": "Vida e viagem",
+      "recipe": "personal-life-travel"
     }
   ]
 }

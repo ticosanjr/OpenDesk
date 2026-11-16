@@ -2953,3 +2953,7 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 ## 2026-11-16 — Inbox Triage & Drafts
 
 - Segunda receita do pack assistente-pessoal: triagem, rascunhos, HITL e lista final sem envio automático.
+
+## 2026-11-16 — Personal Life & Travel Ops
+
+- Terceira receita do pack assistente-pessoal: prazos pessoais, viagens e checklists com HITL.

@@ -1,0 +1,44 @@
+id: personal-life-travel
+name: Personal Life & Travel Ops
+description: Acompanha compromissos pessoais, prazos e prepara checklists de viagem.
+enabled: false
+triggers: []
+flow:
+  - type: step
+    id: levantar
+    name: Levantar compromissos e prazos
+    mode: audit
+    agent: briefing-pessoal
+    prompt: |
+      Leia a agenda e as pendências pessoais dos próximos 14 dias.
+      Liste compromissos familiares, faturas/prazos e viagens planejadas.
+      Salve em {{run.output_dir}}/pendencias.md. Não crie eventos nem pague nada.
+  - type: step
+    id: preparar
+    name: Preparar checklists
+    mode: build
+    agent: briefing-pessoal
+    prompt: |
+      Para cada viagem ou compromisso que exige preparação, gere um checklist
+      objetivo em {{run.output_dir}}/checklists/. Inclua documentos, reservas,
+      horários e o que depende de confirmação humana.
+  - type: hitl
+    id: aprovar
+    interaction_type: APPROVAL_WITH_FEEDBACK
+    channels: [DESKTOP_UI, TELEGRAM]
+    timeout_minutes: 240
+    on_timeout: PAUSE_AND_ALERT
+    prompt_template: |
+      Revise prazos e checklists. Aprovar gera o resumo final; nada externo é
+      alterado sem sua confirmação.
+      {{steps.levantar.summary}}
+    attach_files:
+      - "{{run.output_dir}}/pendencias.md"
+  - type: step
+    id: resumo
+    name: Resumo final
+    mode: build
+    agent: briefing-pessoal
+    prompt: |
+      Gere {{run.output_dir}}/vida-e-viagem.md com: próximos 14 dias, prazos
+      críticos, viagens com checklist e decisões que precisam de você.
