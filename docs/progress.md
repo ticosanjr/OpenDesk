@@ -2970,3 +2970,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `server.pid` impede duplicação acidental; `opendeskd` usa o mesmo lock.
 - Bandeja e `get_daemon_status` falam com o daemon remoto; abrir caminhos valida via `/api/workspaces`.
 - ADR 0087.
+
+## 2026-11-16 — write-buffer de heartbeats (REF-03)
+
+- Heartbeats de jobs e presença de nós passam por um writer único com lote de 250 ms e `BEGIN IMMEDIATE`.
+- Coalescing por job/nó, backpressure por canal limitado e métricas em `/api/about`.
+- Transições de estado continuam síncronas; carga de 4 runs + 8 nós sem falha de lock no teste.
+- ADR 0088.

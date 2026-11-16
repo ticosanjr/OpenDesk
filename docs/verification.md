@@ -290,6 +290,12 @@ pendências manuais continuam listadas abaixo.
 - `server.pid` rejeita segundo processo e substitui PID obsoleto.
 - Modo remoto usa o token do daemon e valida workspace antes de abrir caminho.
 
+## Sprint 1 — write-buffer de heartbeats
+
+- 50 heartbeats do mesmo job coalescidos em um único lote.
+- 4 runs + 8 nós com 1.200 atualizações concorrentes, sem falha de lock.
+- Presença de nós e lease de jobs atualizados após o flush.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

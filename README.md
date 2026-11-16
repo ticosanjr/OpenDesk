@@ -356,6 +356,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0085 — Pack de assistente pessoal](docs/decisions/0085-personal-assistant-pack.md)
 - [ADR 0086 — Custo estimado para CLI](docs/decisions/0086-cli-cost-estimation.md)
 - [ADR 0087 — Auto-attach Desktop↔daemon](docs/decisions/0087-desktop-daemon-auto-attach.md)
+- [ADR 0088 — Write-buffer de heartbeats](docs/decisions/0088-heartbeat-write-buffer.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

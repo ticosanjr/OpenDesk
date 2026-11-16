@@ -168,8 +168,14 @@ pub struct HeartbeatInput {
     pub status: Option<String>,
 }
 
+pub(crate) const NODE_SEEN_SQL: &str =
+    "UPDATE workers SET last_seen_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+     WHERE id = ?";
+
 pub async fn heartbeat(
     pool: &SqlitePool,
+    buffer: &crate::db::write_buffer::WriteBuffer,
     token: &str,
     input: HeartbeatInput,
 ) -> AppResult<NodeView> {
@@ -185,6 +191,19 @@ pub async fn heartbeat(
     let capabilities = input
         .capabilities
         .map(|list| serde_json::to_string(&list).unwrap_or_else(|_| "[]".into()));
+
+    // Presence-only beats are idempotent and go through the write buffer;
+    // transitions (ONLINE/BUSY/OFFLINE/capabilities) stay synchronous so the
+    // caller and the node list observe them immediately.
+    let unchanged = worker.status == status
+        && capabilities
+            .as_deref()
+            .is_none_or(|value| value == worker.capabilities_json);
+    if unchanged {
+        let _ = buffer.node_seen(&worker.id).await;
+        return Ok(get(pool, &worker.id).await?.view());
+    }
+
     sqlx::query(
         "UPDATE workers SET status = ?, last_seen_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
                 capabilities_json = COALESCE(?, capabilities_json),
@@ -285,6 +304,7 @@ mod tests {
 
         let beat = heartbeat(
             &ctx.state.db,
+            &ctx.state.write_buffer,
             &token,
             HeartbeatInput {
                 capabilities: Some(vec!["opencode".into(), "codex".into()]),

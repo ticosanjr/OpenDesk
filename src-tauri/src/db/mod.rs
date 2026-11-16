@@ -37,6 +37,7 @@ pub mod task_watchers;
 pub mod tasks;
 pub mod tickets;
 pub mod workspaces;
+pub mod write_buffer;
 
 pub async fn init(db_path: &Path) -> Result<SqlitePool> {
     if let Some(parent) = db_path.parent() {

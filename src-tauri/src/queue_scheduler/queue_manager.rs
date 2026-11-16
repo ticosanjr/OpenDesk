@@ -40,6 +40,7 @@ pub struct QueueManager {
     pool: SqlitePool,
     paths: AppPaths,
     events: EventBus,
+    write_buffer: Arc<crate::db::write_buffer::WriteBuffer>,
     daemon: Arc<DaemonManager>,
     adapters: Arc<AdapterService>,
     google: Arc<GoogleOAuth>,
@@ -65,20 +66,34 @@ impl Drop for HeartbeatGuard {
     }
 }
 
+pub struct QueueConfig {
+    pub pool: SqlitePool,
+    pub paths: AppPaths,
+    pub events: EventBus,
+    pub write_buffer: Arc<crate::db::write_buffer::WriteBuffer>,
+    pub daemon: Arc<DaemonManager>,
+    pub google: Arc<GoogleOAuth>,
+    pub concurrency: usize,
+    pub adapters: Arc<AdapterService>,
+}
+
 impl QueueManager {
-    pub fn new(
-        pool: SqlitePool,
-        paths: AppPaths,
-        events: EventBus,
-        daemon: Arc<DaemonManager>,
-        google: Arc<GoogleOAuth>,
-        concurrency: usize,
-        adapters: Arc<AdapterService>,
-    ) -> Arc<Self> {
+    pub fn new(config: QueueConfig) -> Arc<Self> {
+        let QueueConfig {
+            pool,
+            paths,
+            events,
+            write_buffer,
+            daemon,
+            google,
+            concurrency,
+            adapters,
+        } = config;
         Arc::new(Self {
             pool,
             paths,
             events,
+            write_buffer,
             daemon,
             adapters,
             google,
@@ -349,7 +364,7 @@ impl QueueManager {
 
         let heartbeat_stop = CancellationToken::new();
         let heartbeat = {
-            let pool = self.pool.clone();
+            let write_buffer = self.write_buffer.clone();
             let job_id = job.id.clone();
             let stop = heartbeat_stop.clone();
             tauri::async_runtime::spawn(async move {
@@ -357,7 +372,7 @@ impl QueueManager {
                     tokio::select! {
                         _ = stop.cancelled() => break,
                         _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {
-                            let _ = queue::heartbeat(&pool, &job_id).await;
+                            let _ = write_buffer.job_heartbeat(&job_id).await;
                         }
                     }
                 }

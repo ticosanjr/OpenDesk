@@ -102,6 +102,7 @@ fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
 
             state.cron.shutdown();
             state.io_bus.stop().await;
+            state.write_buffer.shutdown().await;
             state.queue.shutdown().await;
             state.signal.stop().await;
             state.telegram.stop().await;
@@ -117,6 +118,7 @@ fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
             tracing::info!("shutdown signal received");
             state.cron.shutdown();
             state.io_bus.stop().await;
+            state.write_buffer.shutdown().await;
             state.queue.shutdown().await;
             state.signal.stop().await;
             state.telegram.stop().await;
@@ -329,6 +331,7 @@ pub fn run() {
         {
             tauri::async_runtime::block_on(async {
                 state.cron.shutdown();
+                state.write_buffer.shutdown().await;
                 state.queue.shutdown().await;
                 state.daemon.shutdown().await;
             });
@@ -397,6 +400,7 @@ pub fn run_headless() {
         wait_for_daemon_shutdown().await;
         state.cron.shutdown();
         state.io_bus.stop().await;
+        state.write_buffer.shutdown().await;
         state.queue.shutdown().await;
         state.daemon.shutdown().await;
     });

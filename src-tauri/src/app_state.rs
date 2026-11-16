@@ -6,7 +6,7 @@ use crate::{
     integrations::{google_oauth::GoogleOAuth, signal::SignalBridge, telegram::TelegramBridge},
     opencode_client::{binary::OpenCodeLocator, daemon_manager::DaemonManager},
     paths::AppPaths,
-    queue_scheduler::{CronEngine, QueueManager},
+    queue_scheduler::{CronEngine, QueueConfig, QueueManager},
     secrets::SecretStore,
 };
 use anyhow::{Context, Result};
@@ -40,6 +40,7 @@ pub struct AppState {
     pub paths: AppPaths,
     pub db: SqlitePool,
     pub events: EventBus,
+    pub write_buffer: Arc<crate::db::write_buffer::WriteBuffer>,
     pub daemon: Arc<DaemonManager>,
     pub locator: Arc<OpenCodeLocator>,
     pub queue: Arc<QueueManager>,
@@ -107,6 +108,11 @@ impl AppState {
         let api_token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
 
         let events = EventBus::new(2048);
+        let write_buffer = crate::db::write_buffer::WriteBuffer::start(
+            db.clone(),
+            std::time::Duration::from_millis(250),
+            1024,
+        );
         let push_keys = crate::push::load_or_create_keys(&paths)?;
         let configured_binary = settings::get(&db, OPENCODE_BIN_SETTING)
             .await?
@@ -124,15 +130,16 @@ impl AppState {
             .await?
             .and_then(|value| value.as_u64())
             .unwrap_or(1) as usize;
-        let queue = QueueManager::new(
-            db.clone(),
-            paths.clone(),
-            events.clone(),
-            daemon.clone(),
-            google.clone(),
+        let queue = QueueManager::new(QueueConfig {
+            pool: db.clone(),
+            paths: paths.clone(),
+            events: events.clone(),
+            write_buffer: write_buffer.clone(),
+            daemon: daemon.clone(),
+            google: google.clone(),
             concurrency,
-            adapters.clone(),
-        );
+            adapters: adapters.clone(),
+        });
         let cron = CronEngine::new(
             db.clone(),
             paths.clone(),
@@ -145,6 +152,7 @@ impl AppState {
             paths,
             db,
             events,
+            write_buffer,
             daemon,
             locator,
             queue,

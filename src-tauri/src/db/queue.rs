@@ -305,15 +305,14 @@ pub async fn claim_for_node(
     }
 }
 
+pub(crate) const HEARTBEAT_SQL: &str =
+    "UPDATE execution_queue SET last_heartbeat_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+        lease_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+60 seconds')
+     WHERE id = ? AND status = 'RUNNING'";
+
+#[cfg(test)]
 pub async fn heartbeat(pool: &SqlitePool, id: &str) -> AppResult<()> {
-    sqlx::query(
-        "UPDATE execution_queue SET last_heartbeat_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
-            lease_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+60 seconds')
-         WHERE id = ? AND status = 'RUNNING'",
-    )
-    .bind(id)
-    .execute(pool)
-    .await?;
+    sqlx::query(HEARTBEAT_SQL).bind(id).execute(pool).await?;
     Ok(())
 }
 

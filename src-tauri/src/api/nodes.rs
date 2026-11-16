@@ -83,7 +83,9 @@ pub async fn heartbeat(
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "))
         .unwrap_or("");
-    Ok(Json(nodes::heartbeat(&state.db, token, input).await?))
+    Ok(Json(
+        nodes::heartbeat(&state.db, &state.write_buffer, token, input).await?,
+    ))
 }
 
 pub async fn next_job(
@@ -152,7 +154,7 @@ pub async fn job_heartbeat(
     if job.assigned_node_id.as_deref() != Some(worker.id.as_str()) {
         return Err(AppError::Conflict("job pertence a outro nó".into()));
     }
-    queue::heartbeat(&state.db, &id).await?;
+    state.write_buffer.job_heartbeat(&id).await;
     Ok(Json(json!({ "ok": true })))
 }
 

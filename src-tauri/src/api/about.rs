@@ -64,6 +64,7 @@ pub async fn about(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>>
         },
         "desktop": crate::desktop_integration::status(&state.paths),
         "logs": log_files(&state.paths.log_dir),
+        "write_buffer": state.write_buffer.metrics(),
         "started_at": state.started_at,
         "api_port": state.api_port,
     })))
