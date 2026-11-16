@@ -36,7 +36,13 @@ pub async fn status(
     let workspace_id =
         crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
     Ok(Json(
-        browse::status(&state, &workspace_id, &scope(query.scope.as_deref())).await?,
+        browse::status(
+            &state.db,
+            &state.paths,
+            &workspace_id,
+            &scope(query.scope.as_deref()),
+        )
+        .await?,
     ))
 }
 
@@ -47,7 +53,13 @@ pub async fn enable(
     let workspace_id =
         crate::api::tasks::resolve_workspace_id(&state, body.workspace_id.as_deref()).await?;
     Ok(Json(
-        browse::enable(&state, &workspace_id, &scope(body.scope.as_deref())).await?,
+        browse::enable(
+            &state.db,
+            &state.paths,
+            &workspace_id,
+            &scope(body.scope.as_deref()),
+        )
+        .await?,
     ))
 }
 
@@ -58,6 +70,12 @@ pub async fn disable(
     let workspace_id =
         crate::api::tasks::resolve_workspace_id(&state, body.workspace_id.as_deref()).await?;
     Ok(Json(
-        browse::disable(&state, &workspace_id, &scope(body.scope.as_deref())).await?,
+        browse::disable(
+            &state.db,
+            &state.paths,
+            &workspace_id,
+            &scope(body.scope.as_deref()),
+        )
+        .await?,
     ))
 }

@@ -2,7 +2,6 @@ mod api;
 mod app_state;
 mod audit;
 mod backup;
-mod browse;
 mod chat;
 mod cli;
 mod computer;
@@ -42,10 +41,10 @@ mod updates;
 mod voice;
 
 pub use opendesk_core::{
-    adapters, browse_tags, config_sync, db, dedupe, dsh_router, error, events, media, nodes,
-    notifier, opencode_client, passkey, paths, personal_context, run_timeline, runtime, sandbox,
-    secrets, server_lock, skill_eval, text, token_estimate, virtual_display, workspace_sync,
-    worktree,
+    adapters, browse, browse_tags, config_sync, db, dedupe, dsh_router, error, events, media,
+    nodes, notifier, opencode_client, passkey, paths, personal_context, run_timeline, runtime,
+    sandbox, secrets, server_lock, skill_eval, text, token_estimate, virtual_display,
+    workspace_sync, worktree,
 };
 
 use app_state::AppState;

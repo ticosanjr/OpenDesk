@@ -247,7 +247,8 @@ pub(crate) async fn enqueue_decision_with_session(
     let care = task.care_level.as_str();
     let selected_agent = decision.selected_agent.clone();
     let needs_browser = crate::browse::ensure_for_task(
-        state,
+        &state.db,
+        &state.paths,
         &task.workspace_id,
         &task.title,
         &task.description,

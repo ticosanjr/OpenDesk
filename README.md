@@ -385,6 +385,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0114 — DSH/config no core](docs/decisions/0114-dsh-config-core.md)
 - [ADR 0115 — Threads de e-mail](docs/decisions/0115-email-thread-headers.md)
 - [ADR 0116 — Módulos folha no core](docs/decisions/0116-core-leaf-modules.md)
+- [ADR 0117 — Browse no core](docs/decisions/0117-browse-core.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

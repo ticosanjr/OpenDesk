@@ -456,6 +456,11 @@ pendências manuais continuam listadas abaixo.
 - skill_eval/personal_context/run_timeline/media testados no core.
 - Shell reexporta sem mudar chamadas.
 
+## Sprint 1 — browse no core
+
+- Status/enable/disable e provisioning de browse testados no core.
+- API/dispatch/cron passam pool/paths explicitamente.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

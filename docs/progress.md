@@ -3163,3 +3163,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `media`, `skill_eval`, `personal_context` e `run_timeline` movidos.
 - Core 168 testes; shell 415.
 - ADR 0116.
+
+## 2026-11-16 — browse no core (REF-01)
+
+- Browse sem AppState; recebe pool/paths e roda no core.
+- Core 174 testes; shell 409.
+- ADR 0117.

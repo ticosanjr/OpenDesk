@@ -3,13 +3,14 @@
 //! native skill, without OpenDesk reimplementing browser execution.
 
 use crate::{
-    app_state::AppState,
     config_sync::{jsonc_editor, paths::StudioPaths, skills, skills::SkillWriteInput},
     db::workspaces,
     error::{AppError, AppResult},
+    paths::AppPaths,
 };
 use serde::Serialize;
 use serde_json::json;
+use sqlx::SqlitePool;
 use std::path::{Path, PathBuf};
 
 pub const BROWSE_SKILL: &str = "browse-web";
@@ -120,8 +121,13 @@ O OpenCode expõe o servidor MCP `browse` (OpenCode Browse). Ele controla o nave
     .to_string()
 }
 
-pub async fn status(state: &AppState, workspace_id: &str, scope: &str) -> AppResult<BrowseStatus> {
-    let workspace = workspaces::get(&state.db, workspace_id).await?;
+pub async fn status(
+    pool: &SqlitePool,
+    _app_paths: &AppPaths,
+    workspace_id: &str,
+    scope: &str,
+) -> AppResult<BrowseStatus> {
+    let workspace = workspaces::get(pool, workspace_id).await?;
     let paths = StudioPaths::new(Some(PathBuf::from(&workspace.root_path)));
     let binary = find_binary("browse");
     let document = jsonc_editor::read_for_scope(&paths, scope)?;
@@ -146,8 +152,13 @@ pub async fn status(state: &AppState, workspace_id: &str, scope: &str) -> AppRes
     })
 }
 
-pub async fn enable(state: &AppState, workspace_id: &str, scope: &str) -> AppResult<BrowseStatus> {
-    let workspace = workspaces::get(&state.db, workspace_id).await?;
+pub async fn enable(
+    pool: &SqlitePool,
+    app_paths: &AppPaths,
+    workspace_id: &str,
+    scope: &str,
+) -> AppResult<BrowseStatus> {
+    let workspace = workspaces::get(pool, workspace_id).await?;
     let paths = StudioPaths::new(Some(PathBuf::from(&workspace.root_path)));
     paths.ensure_scope_layout(scope)?;
     let binary = find_binary("browse");
@@ -157,7 +168,7 @@ pub async fn enable(state: &AppState, workspace_id: &str, scope: &str) -> AppRes
         "browse",
         &server_entry(binary.as_deref()),
         None,
-        &state.paths.backups_dir,
+        &app_paths.backups_dir,
     )?;
     if !skill_exists(&paths, scope) {
         skills::write(
@@ -174,26 +185,32 @@ pub async fn enable(state: &AppState, workspace_id: &str, scope: &str) -> AppRes
                 files: Vec::new(),
                 expected_sha256: None,
             },
-            &state.paths.backups_dir,
+            &app_paths.backups_dir,
         )?;
     }
-    status(state, workspace_id, scope).await
+    status(pool, app_paths, workspace_id, scope).await
 }
 
-pub async fn disable(state: &AppState, workspace_id: &str, scope: &str) -> AppResult<BrowseStatus> {
-    let workspace = workspaces::get(&state.db, workspace_id).await?;
+pub async fn disable(
+    pool: &SqlitePool,
+    app_paths: &AppPaths,
+    workspace_id: &str,
+    scope: &str,
+) -> AppResult<BrowseStatus> {
+    let workspace = workspaces::get(pool, workspace_id).await?;
     let paths = StudioPaths::new(Some(PathBuf::from(&workspace.root_path)));
     let config_path = paths.config_path(scope)?;
     if config_path.exists() {
-        jsonc_editor::delete_mcp_server(&config_path, "browse", None, &state.paths.backups_dir)?;
+        jsonc_editor::delete_mcp_server(&config_path, "browse", None, &app_paths.backups_dir)?;
     }
-    status(state, workspace_id, scope).await
+    status(pool, app_paths, workspace_id, scope).await
 }
 
 /// Best-effort provisioning used by dispatch. It never blocks a task when the
 /// browse binary/config cannot be prepared.
 pub async fn ensure_for_task(
-    state: &AppState,
+    pool: &SqlitePool,
+    app_paths: &AppPaths,
     workspace_id: &str,
     title: &str,
     description: &str,
@@ -209,9 +226,9 @@ pub async fn ensure_for_task(
                 .into(),
         ));
     }
-    let current = status(state, workspace_id, "workspace").await?;
+    let current = status(pool, app_paths, workspace_id, "workspace").await?;
     if (!current.configured || !current.skill)
-        && let Err(error) = enable(state, workspace_id, "workspace").await
+        && let Err(error) = enable(pool, app_paths, workspace_id, "workspace").await
     {
         tracing::warn!(
             workspace_id,
@@ -272,7 +289,8 @@ mod tests {
         let ctx = test_support::context().await;
         assert!(
             !ensure_for_task(
-                &ctx.state,
+                &ctx.db,
+                &ctx.paths,
                 &ctx.workspace_id,
                 "Corrigir parser",
                 "Ajuste o Rust",
@@ -283,7 +301,8 @@ mod tests {
         );
         assert!(
             ensure_for_task(
-                &ctx.state,
+                &ctx.db,
+                &ctx.paths,
                 &ctx.workspace_id,
                 "Pesquisar",
                 "Abra https://example.com",
@@ -330,7 +349,8 @@ mod tests {
     async fn high_risk_browse_task_requires_allowlist() {
         let ctx = test_support::context().await;
         let error = ensure_for_task(
-            &ctx.state,
+            &ctx.db,
+            &ctx.paths,
             &ctx.workspace_id,
             "Pagar boleto",
             "Entre no banco e pague",
@@ -342,7 +362,8 @@ mod tests {
 
         assert!(
             ensure_for_task(
-                &ctx.state,
+                &ctx.db,
+                &ctx.paths,
                 &ctx.workspace_id,
                 "Pagar boleto",
                 "Entre no banco e pague",
@@ -360,7 +381,7 @@ mod tests {
     #[tokio::test]
     async fn enable_writes_mcp_entry_and_skill() {
         let ctx = test_support::context().await;
-        let status = enable(&ctx.state, &ctx.workspace_id, "workspace")
+        let status = enable(&ctx.db, &ctx.paths, &ctx.workspace_id, "workspace")
             .await
             .expect("enable");
         assert!(status.configured);
@@ -374,7 +395,7 @@ mod tests {
             .join(format!(".opencode/skills/{BROWSE_SKILL}/SKILL.md"));
         assert!(skill.is_file());
 
-        let disabled = disable(&ctx.state, &ctx.workspace_id, "workspace")
+        let disabled = disable(&ctx.db, &ctx.paths, &ctx.workspace_id, "workspace")
             .await
             .expect("disable");
         assert!(!disabled.configured);

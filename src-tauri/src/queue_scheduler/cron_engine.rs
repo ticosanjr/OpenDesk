@@ -620,7 +620,8 @@ impl CronEngine {
         let needs_browser = if crate::browse::needs_browser(&schedule.name, &prompt, &[]) {
             match self.app.get().and_then(Weak::upgrade) {
                 Some(app) => crate::browse::ensure_for_task(
-                    &app,
+                    &app.db,
+                    &app.paths,
                     &schedule.workspace_id,
                     &schedule.name,
                     &prompt,

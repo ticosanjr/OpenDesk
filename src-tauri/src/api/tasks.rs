@@ -628,7 +628,8 @@ pub async fn post_task_message(
         );
     let tags = task.tags();
     let needs_browser = crate::browse::ensure_for_task(
-        &state,
+        &state.db,
+        &state.paths,
         &task.workspace_id,
         &task.title,
         &task.description,
