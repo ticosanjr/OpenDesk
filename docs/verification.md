@@ -362,6 +362,12 @@ pendências manuais continuam listadas abaixo.
 - Diff da versão antiga para a atual mostra a mudança.
 - Rollback restaura o conteúdo e registra uma nova versão.
 
+## Sprint 2 — orçamento de sub-receita
+
+- Budget inválido é rejeitado no parser.
+- Estouro de limite falha após o step, com gasto e teto.
+- Grupos propagam e somam o gasto no escopo pai.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

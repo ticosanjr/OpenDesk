@@ -173,6 +173,9 @@ pub struct RecipeCall {
     pub inputs: serde_json::Value,
     #[serde(default)]
     pub when: Option<String>,
+    /// Optional USD cap for the sub-recipe's own steps.
+    #[serde(default)]
+    pub budget_usd: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -559,6 +562,14 @@ impl Validator {
                             call.id
                         )));
                     }
+                    if let Some(budget) = call.budget_usd
+                        && (!budget.is_finite() || budget <= 0.0)
+                    {
+                        return Err(AppError::BadRequest(format!(
+                            "budget_usd da sub-receita {} precisa ser positivo",
+                            call.id
+                        )));
+                    }
                 }
                 FlowItem::Map(map) => {
                     self.group_id(&map.id, "map")?;
@@ -916,6 +927,24 @@ flow:
         prompt: x
 "#;
         assert!(parse(invalid).is_err(), "concurrency must be bounded");
+    }
+
+    #[test]
+    fn rejects_invalid_sub_recipe_budget() {
+        let yaml = r#"
+id: budget
+name: Budget
+flow:
+  - type: recipe
+    id: chamar
+    recipe: child
+    budget_usd: 0
+  - type: step
+    id: s
+    name: S
+    prompt: x
+"#;
+        assert!(parse(yaml).is_err());
     }
 
     #[test]

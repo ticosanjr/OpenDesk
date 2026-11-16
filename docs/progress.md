@@ -3052,3 +3052,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `recipe_versions` com conteúdo, SHA e timestamp; edições idênticas não duplicam.
 - API de listagem, leitura, diff unificado e rollback revalidado; tools MCP `recipe_versions/diff/rollback`.
 - ADR 0099.
+
+## 2026-11-16 — orçamento por sub-receita (REQ-04)
+
+- `budget_usd` em chamadas de sub-receita; gasto acumulado por escopo e grupos.
+- Estouro falha com gasto/limite; resume preserva `spent_usd` de grupos concluídos.
+- ADR 0100.
