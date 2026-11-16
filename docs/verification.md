@@ -263,6 +263,11 @@ pendências manuais continuam listadas abaixo.
 - `when` avaliado antes do passo; nós `SKIPPED` e retomada.
 - Testes de expressões e render.
 
+## Fase 4 — memória
+
+- Arquivo de expiradas, decaimento e deduplicação exata.
+- Testes de consolidação/arquivo.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

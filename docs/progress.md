@@ -2925,3 +2925,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Campo `when` com caminho, `==`, `!=` e `not`; passo pulado vira nó `SKIPPED`.
 - Editor visual do passo e testes de avaliação.
 - ADR 0083.
+
+## 2026-11-16 — ciclo de vida de memória
+
+- Notas expiradas/duplicadas vão para arquivo, não são apagadas.
+- Decaimento de confiança para notas não verificadas e consolidação na manutenção.
+- Migração 0050 e ADR 0084.

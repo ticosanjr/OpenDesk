@@ -37,6 +37,12 @@ pub struct MemoryNote {
     pub source: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    #[sqlx(default)]
+    pub access_count: i64,
+    #[sqlx(default)]
+    pub last_accessed_at: Option<String>,
+    #[sqlx(default)]
+    pub archived_at: Option<String>,
 }
 
 impl MemoryNote {
@@ -91,7 +97,8 @@ fn default_trust() -> String {
 }
 
 const NOTE_COLUMNS: &str = "n.id, n.workspace_id, n.namespace, n.kind, n.title, n.body, n.tags_json, \
-    n.confidence, n.trust_level, n.expires_at, n.source, n.created_at, n.updated_at";
+    n.confidence, n.trust_level, n.expires_at, n.source, n.created_at, n.updated_at, \
+    n.access_count, n.last_accessed_at, n.archived_at";
 const NS_COLUMNS: &str = "id, workspace_id, name, description, created_at, updated_at";
 
 pub async fn list_namespaces(
@@ -366,6 +373,7 @@ pub async fn list_notes(
          JOIN memory_namespaces ns ON ns.workspace_id = n.workspace_id AND ns.name = n.namespace
          WHERE n.workspace_id = ?
            AND (? IS NULL OR n.namespace = ?)
+           AND n.archived_at IS NULL
            AND (n.expires_at IS NULL OR n.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
     );
     if agent.is_some() {
@@ -464,12 +472,71 @@ pub async fn render_context(
 
 pub async fn delete_expired(pool: &SqlitePool) -> AppResult<u64> {
     let result = sqlx::query(
-        "DELETE FROM memory_notes WHERE expires_at IS NOT NULL
+        "UPDATE memory_notes SET archived_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE archived_at IS NULL AND expires_at IS NOT NULL
            AND expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now')",
     )
     .execute(pool)
     .await?;
     Ok(result.rows_affected())
+}
+
+/// Archives expired notes, decays unconfirmed confidence and collapses exact
+/// duplicates (same workspace/namespace/title/body), keeping the strongest.
+pub async fn consolidate(pool: &SqlitePool) -> AppResult<u64> {
+    let mut changed = delete_expired(pool).await?;
+    let decayed = sqlx::query(
+        "UPDATE memory_notes
+         SET confidence = MAX(0.0, confidence - 0.05),
+             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE archived_at IS NULL AND trust_level != 'verified'
+           AND updated_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-30 days')",
+    )
+    .execute(pool)
+    .await?;
+    changed += decayed.rows_affected();
+    let archived_low = sqlx::query(
+        "UPDATE memory_notes SET archived_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE archived_at IS NULL AND trust_level != 'verified' AND confidence < 0.1",
+    )
+    .execute(pool)
+    .await?;
+    changed += archived_low.rows_affected();
+
+    let duplicates = sqlx::query_as::<_, (String, String, String, String)>(
+        "SELECT workspace_id, namespace, lower(trim(title)), lower(trim(body))
+         FROM memory_notes WHERE archived_at IS NULL
+         GROUP BY workspace_id, namespace, lower(trim(title)), lower(trim(body))
+         HAVING COUNT(*) > 1",
+    )
+    .fetch_all(pool)
+    .await?;
+    for (workspace_id, namespace, title, body) in duplicates {
+        let rows = sqlx::query_as::<_, MemoryNote>(&format!(
+            "SELECT {NOTE_COLUMNS} FROM memory_notes n
+             WHERE n.workspace_id = ? AND n.namespace = ?
+               AND lower(trim(n.title)) = ? AND lower(trim(n.body)) = ?
+               AND n.archived_at IS NULL
+             ORDER BY n.confidence DESC, n.updated_at DESC"
+        ))
+        .bind(&workspace_id)
+        .bind(&namespace)
+        .bind(&title)
+        .bind(&body)
+        .fetch_all(pool)
+        .await?;
+        for duplicate in rows.into_iter().skip(1) {
+            sqlx::query(
+                "UPDATE memory_notes SET archived_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+                 WHERE id = ?",
+            )
+            .bind(&duplicate.id)
+            .execute(pool)
+            .await?;
+            changed += 1;
+        }
+    }
+    Ok(changed)
 }
 
 #[cfg(test)]
@@ -530,6 +597,52 @@ mod tests {
             1
         );
         assert_eq!(created.namespace, "private");
+    }
+
+    #[tokio::test]
+    async fn consolidates_duplicates_and_archives_expired() {
+        let ctx = crate::test_support::context().await;
+        note(&ctx, "core").await;
+        note(&ctx, "core").await;
+        let changed = consolidate(&ctx.state.db).await.expect("consolidate");
+        assert!(changed >= 1);
+        assert_eq!(
+            list_notes(&ctx.state.db, &ctx.workspace_id, None, None, 10)
+                .await
+                .expect("list")
+                .len(),
+            1
+        );
+
+        let old = create_note(
+            &ctx.state.db,
+            &ctx.workspace_id,
+            CreateNoteInput {
+                namespace: "core".into(),
+                kind: "semantic".into(),
+                title: "Antiga".into(),
+                body: "sem confirmação".into(),
+                tags: vec![],
+                confidence: 0.2,
+                trust_level: "observed".into(),
+                expires_at: None,
+                source: None,
+            },
+        )
+        .await
+        .expect("old");
+        sqlx::query(
+            "UPDATE memory_notes SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now','-60 days')
+             WHERE id = ?",
+        )
+        .bind(&old.id)
+        .execute(&ctx.state.db)
+        .await
+        .expect("age");
+        consolidate(&ctx.state.db).await.expect("decay");
+        let decayed = get_note(&ctx.state.db, &old.id).await.expect("get");
+        assert!(decayed.confidence < 0.2);
+        assert!(decayed.archived_at.is_none());
     }
 
     #[tokio::test]
