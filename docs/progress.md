@@ -3243,3 +3243,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - Contexto core com pool/paths/secrets; core 229 testes.
 - ADR 0131.
+
+## 2026-11-17 — C3 sweeper de worktrees
+
+- Sweep no boot de registros/diretórios órfãos; core 230 testes, shell 355.
+- ADR 0132.

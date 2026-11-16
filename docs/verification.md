@@ -520,6 +520,10 @@ pendências manuais continuam listadas abaixo.
 
 - Contexto construído e pool validado no core.
 
+## Fase C3 — sweeper
+
+- Registro ACTIVE sem path vira REMOVED; diretório órfão é apagado.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

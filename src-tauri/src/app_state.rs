@@ -67,6 +67,9 @@ impl AppState {
     pub async fn initialize(paths: AppPaths) -> Result<Self> {
         let db = db::init(&paths.db_path).await?;
         db::maintenance::boot_check(&db).await?;
+        if let Err(error) = db::worktrees::sweep(&db, &paths.data_dir).await {
+            tracing::warn!(error = %error, "worktree sweep failed");
+        }
 
         if settings::get(&db, "workspaces_root").await?.is_none() {
             let root = crate::paths::default_workspaces_root();
