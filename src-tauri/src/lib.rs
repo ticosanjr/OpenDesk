@@ -47,6 +47,7 @@ mod server_lock;
 mod session_context;
 mod shell_state;
 mod skill_eval;
+mod skill_gate;
 mod starter_packs;
 #[cfg(test)]
 mod test_support;

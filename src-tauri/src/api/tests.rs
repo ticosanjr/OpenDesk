@@ -94,6 +94,7 @@ mod sandbox;
 mod schedules;
 mod seed;
 mod session_context;
+mod skill_gate;
 mod studio;
 mod tasks;
 mod telegram;

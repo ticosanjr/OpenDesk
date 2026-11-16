@@ -3077,3 +3077,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Allowlist persistida com janelas/processos, checagem antes de captura e ação, falha fechada.
 - API e UI de configuração; sessões isoladas mostram display.
 - ADR 0103.
+
+## 2026-11-16 — Eval Gate histórico de skills (REQ-16)
+
+- `skill_eval_gates` com PASS/BLOCKED/INSUFFICIENT e thresholds configuráveis.
+- API de execução, último gate e decisão humana; aprovar bloqueado é conflito.
+- ADR 0104.

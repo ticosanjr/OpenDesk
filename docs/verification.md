@@ -385,6 +385,12 @@ pendências manuais continuam listadas abaixo.
 - Alvo fora da lista ou leitura impossível falha fechado.
 - API roundtrip e UI de configuração.
 
+## Sprint 6 — Eval Gate histórico
+
+- Skill com 3 sucessos/2 falhas e threshold 0.8 é BLOCKED.
+- Aprovar bloqueado falha; rejeitar registra decisão.
+- Sem amostras o gate é INSUFFICIENT e não aprova.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

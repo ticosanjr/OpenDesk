@@ -198,6 +198,14 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/memory/search", get(memory::search))
         .route("/api/memory/context", get(memory::context))
         .route("/api/skills/eval", get(skills::evaluate))
+        .route(
+            "/api/skills/{id}/gate",
+            get(skills::gate_latest).post(skills::gate_run),
+        )
+        .route(
+            "/api/skills/{id}/gate/{gate_id}/decide",
+            post(skills::gate_decide),
+        )
         .route("/api/mcp-hub/servers", get(mcp_hub::servers))
         .route("/api/mcp-hub/catalog", get(mcp_hub::catalog))
         .route("/api/mcp-hub/install", post(mcp_hub::install))
