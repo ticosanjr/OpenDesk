@@ -87,6 +87,7 @@ mod phase3;
 mod phase4;
 mod prompt_templates;
 mod push;
+mod recipes_runtime;
 mod resources;
 mod sandbox;
 mod schedules;

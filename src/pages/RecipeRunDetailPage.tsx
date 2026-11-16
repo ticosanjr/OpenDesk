@@ -30,6 +30,20 @@ interface RecipeRunDetail {
   error_message?: string | null;
   started_at: string;
   completed_at?: string | null;
+  cancel_requested?: boolean;
+}
+
+interface RecipeRunNode {
+  id: string;
+  node_index: number;
+  node_id: string;
+  kind: string;
+  status: string;
+  attempts: number;
+  output_json?: string | null;
+  error_message?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
 }
 
 interface HitlRequest {
@@ -56,6 +70,7 @@ export function RecipeRunDetailPage() {
   const [data, setData] = useState<{
     run: RecipeRunDetail;
     hitl: HitlRequest[];
+    nodes: RecipeRunNode[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,10 +84,12 @@ export function RecipeRunDetailPage() {
       const value = await apiGet<{
         run: RecipeRunDetail;
         hitl: HitlRequest[];
+        nodes: RecipeRunNode[];
       }>(`/api/recipes/runs/${encodeURIComponent(runId)}`);
       setData({
         run: value.run,
         hitl: Array.isArray(value.hitl) ? value.hitl : [],
+        nodes: Array.isArray(value.nodes) ? value.nodes : [],
       });
       setError(null);
     } catch (cause) {
@@ -113,6 +130,50 @@ export function RecipeRunDetailPage() {
       toast({
         tone: "error",
         title: "Não foi possível responder",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function cancelRun() {
+    if (!runId) return;
+    setBusy("cancel");
+    try {
+      await apiPost(`/api/recipes/runs/${encodeURIComponent(runId)}/cancel`);
+      toast({
+        tone: "info",
+        title: "Cancelamento solicitado",
+        description: "A receita vai parar no próximo limite seguro.",
+      });
+      await load();
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível cancelar",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function retryRun() {
+    if (!runId) return;
+    setBusy("retry");
+    try {
+      await apiPost(`/api/recipes/runs/${encodeURIComponent(runId)}/retry`);
+      toast({
+        tone: "success",
+        title: "Receita reenfileirada",
+        description: "Os nós concluídos foram preservados.",
+      });
+      await load();
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível repetir",
         description: cause instanceof Error ? cause.message : String(cause),
       });
     } finally {
@@ -166,6 +227,26 @@ export function RecipeRunDetailPage() {
               <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
               Atualizar
             </Button>
+            {["RUNNING_STEP", "RUNNING_SINKS", "WAITING_HITL"].includes(run.status) ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy === "cancel" || run.cancel_requested}
+                onClick={() => void cancelRun()}
+              >
+                Cancelar
+              </Button>
+            ) : null}
+            {["FAILED", "REJECTED", "TIMED_OUT"].includes(run.status) ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy === "retry"}
+                onClick={() => void retryRun()}
+              >
+                Repetir
+              </Button>
+            ) : null}
             <Button
               variant="outline"
               size="sm"
@@ -219,6 +300,70 @@ export function RecipeRunDetailPage() {
               {JSON.stringify(parseJson(run.trigger_context_json), null, 2)}
             </pre>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-[13px]">Linha do tempo da receita</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1.5">
+          {(data?.nodes ?? []).length === 0 ? (
+            <p className="text-[12.5px] text-zinc-500">
+              Sem nós persistidos (run antigo ou dry-run).
+            </p>
+          ) : (
+            (data?.nodes ?? []).map((node) => (
+              <div
+                key={node.id}
+                className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge
+                      variant={
+                        node.status === "DONE"
+                          ? "green"
+                          : node.status === "FAILED"
+                            ? "red"
+                            : node.status === "WAITING_HITL"
+                              ? "yellow"
+                              : node.status === "RUNNING"
+                                ? "blue"
+                                : "default"
+                      }
+                    >
+                      {node.status}
+                    </Badge>
+                    <span className="font-mono text-[11px] text-zinc-500">
+                      #{node.node_index}
+                    </span>
+                    <span className="text-[13px] text-zinc-200">{node.node_id}</span>
+                    <Badge variant="default">{node.kind}</Badge>
+                    {node.attempts > 1 ? (
+                      <span className="text-[11px] text-zinc-500">
+                        {node.attempts} tentativas
+                      </span>
+                    ) : null}
+                  </div>
+                  {node.error_message ? (
+                    <p className="mt-1 whitespace-pre-wrap text-[11.5px] text-red-300">
+                      {node.error_message}
+                    </p>
+                  ) : null}
+                  {node.output_json ? (
+                    <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap font-mono text-[10.5px] text-zinc-500">
+                      {node.output_json}
+                    </pre>
+                  ) : null}
+                </div>
+                <span className="text-[11px] text-zinc-600">
+                  {node.started_at ? relativeTime(node.started_at) : "não iniciado"}
+                  {node.finished_at ? ` · fim ${relativeTime(node.finished_at)}` : ""}
+                </span>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
 

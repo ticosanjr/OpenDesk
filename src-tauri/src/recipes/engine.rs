@@ -136,19 +136,22 @@ pub async fn start(
         false,
     )
     .await?;
+    store::sync_run_nodes(&state.db, &run.id, &recipe.flow).await?;
     let state_clone = state.clone();
     let run_clone = run.clone();
     let recipe_clone = recipe.clone();
     tokio::spawn(async move {
         if let Err(error) = execute(&state_clone, &recipe_clone, &run_clone, &trigger).await {
             tracing::warn!(run = %run_clone.id, error = %error, "recipe run failed");
+            let message = format!("{error:#}");
+            let _ = store::fail_running_nodes(&state_clone.db, &run_clone.id, &message).await;
             let _ = store::update_run(
                 &state_clone.db,
                 &run_clone.id,
                 "FAILED",
                 None,
                 None,
-                Some(&format!("{error:#}")),
+                Some(&message),
                 true,
             )
             .await;
@@ -181,6 +184,52 @@ pub async fn start(
     Ok(run)
 }
 
+/// Restarts a durable run after boot/crash/retry. Existing DONE nodes are kept.
+pub async fn resume(state: Arc<AppState>, recipe: Recipe, run: store::RecipeRun) -> AppResult<()> {
+    let trigger: serde_json::Value =
+        serde_json::from_str(&run.trigger_context_json).unwrap_or_else(|_| json!({}));
+    store::sync_run_nodes(&state.db, &run.id, &recipe.flow).await?;
+    let _ = store::update_run(&state.db, &run.id, "RUNNING_STEP", None, None, None, false).await;
+    let state_clone = state.clone();
+    let run_clone = run.clone();
+    let recipe_clone = recipe.clone();
+    tokio::spawn(async move {
+        if let Err(error) = execute(&state_clone, &recipe_clone, &run_clone, &trigger).await {
+            let message = format!("{error:#}");
+            let _ = store::fail_running_nodes(&state_clone.db, &run_clone.id, &message).await;
+            let _ = store::update_run(
+                &state_clone.db,
+                &run_clone.id,
+                "FAILED",
+                None,
+                None,
+                Some(&message),
+                true,
+            )
+            .await;
+            if let Some(task_id) = &run_clone.task_id {
+                let _ = tasks::set_phase_status(
+                    &state_clone.db,
+                    task_id,
+                    Some("failed"),
+                    Some("BLOCKED"),
+                )
+                .await;
+                let _ = tasks::set_blocked_reason(&state_clone.db, task_id, Some(&message)).await;
+            }
+            state_clone
+                .events
+                .publish(OpenDeskWsEvent::RecipeRunUpdated {
+                    run_id: run_clone.id,
+                    recipe_id: recipe_clone.id,
+                    workspace_id: run_clone.workspace_id,
+                    status: "FAILED".into(),
+                });
+        }
+    });
+    Ok(())
+}
+
 async fn execute(
     state: &Arc<AppState>,
     recipe: &Recipe,
@@ -206,13 +255,31 @@ async fn execute(
     let mut feedback_by_step: std::collections::HashMap<String, String> = Default::default();
     let mut review_rounds = 0usize;
     let flow = recipe.flow.clone();
-    let mut index = 0usize;
+    store::sync_run_nodes(&state.db, &run.id, &flow).await?;
+    let nodes = store::list_run_nodes(&state.db, &run.id).await?;
+    let mut index = nodes
+        .iter()
+        .find(|node| node.status != "DONE")
+        .map(|node| node.node_index as usize)
+        .unwrap_or(flow.len());
 
     while index < flow.len() {
+        if store::is_cancel_requested(&state.db, &run.id).await? {
+            finish(
+                state,
+                run,
+                "REJECTED",
+                "cancelado pelo usuário",
+                routine_id.as_deref(),
+            )
+            .await?;
+            return Ok(());
+        }
+        store::mark_node_running(&state.db, &run.id, index).await?;
         match &flow[index] {
             FlowItem::Step(step) => {
                 let feedback = feedback_by_step.remove(&step.id);
-                execute_step(
+                if let Err(error) = execute_step(
                     state,
                     run,
                     &task_id,
@@ -224,10 +291,33 @@ async fn execute(
                     feedback,
                     routine_id.as_deref(),
                 )
+                .await
+                {
+                    if store::is_cancel_requested(&state.db, &run.id).await? {
+                        finish(
+                            state,
+                            run,
+                            "REJECTED",
+                            "cancelado pelo usuário",
+                            routine_id.as_deref(),
+                        )
+                        .await?;
+                        return Ok(());
+                    }
+                    return Err(error);
+                }
+                store::mark_node_done(
+                    &state.db,
+                    &run.id,
+                    index,
+                    outputs.get(&step.id),
+                    session_id.as_deref(),
+                )
                 .await?;
                 index += 1;
             }
             FlowItem::Hitl(checkpoint) => {
+                let hitl_index = index;
                 let mut checkpoint = checkpoint.clone();
                 checkpoint.id = parser::checkpoint_id(&checkpoint);
                 let current_step = flow[..index].iter().rev().find_map(|item| match item {
@@ -244,6 +334,7 @@ async fn execute(
                     false,
                 )
                 .await?;
+                store::mark_node_waiting(&state.db, &run.id, index).await?;
                 let _ = tasks::move_to(&state.db, &task_id, "IN_REVIEW", None).await;
                 let _ = tasks::set_phase_status(
                     &state.db,
@@ -264,16 +355,24 @@ async fn execute(
                     FlowItem::Hitl(next) => Some(next.id.as_str()),
                     FlowItem::Sink(sink) => sink.name.as_deref(),
                 });
-                let token = hitl::request(
-                    state,
-                    run,
-                    &checkpoint,
-                    &recipe.name,
-                    &message,
-                    next_step,
-                    &attachments,
-                )
-                .await?;
+                let token =
+                    match store::pending_hitl_for_checkpoint(&state.db, &run.id, &checkpoint.id)
+                        .await?
+                    {
+                        Some(existing) => existing.token,
+                        None => {
+                            hitl::request(
+                                state,
+                                run,
+                                &checkpoint,
+                                &recipe.name,
+                                &message,
+                                next_step,
+                                &attachments,
+                            )
+                            .await?
+                        }
+                    };
                 state.events.publish(OpenDeskWsEvent::HitlRequested {
                     token: token.clone(),
                     run_id: run.id.clone(),
@@ -389,6 +488,24 @@ async fn execute(
                             return Ok(());
                         }
                     }
+                    HitlOutcome::Cancelled => {
+                        finish(
+                            state,
+                            run,
+                            "REJECTED",
+                            "cancelado pelo usuário",
+                            routine_id.as_deref(),
+                        )
+                        .await?;
+                        return Ok(());
+                    }
+                }
+                if index == hitl_index + 1 {
+                    let _ = store::mark_node_done(&state.db, &run.id, hitl_index, None, None).await;
+                } else if index < hitl_index {
+                    // Feedback/choice re-runs the previous step and this HITL.
+                    let _ = store::reset_node(&state.db, &run.id, hitl_index).await;
+                    let _ = store::reset_node(&state.db, &run.id, index).await;
                 }
             }
             FlowItem::Sink(sink) => {
@@ -403,6 +520,7 @@ async fn execute(
                 )
                 .await?;
                 sinks::execute_one(state, sink, run, trigger, &outputs).await?;
+                store::mark_node_done(&state.db, &run.id, index, Some(&outputs), None).await?;
                 index += 1;
             }
         }
@@ -479,81 +597,122 @@ async fn execute_step(
         false,
     )
     .await?;
-    let prompt = parser::render(&step.prompt, trigger, run_vars, outputs)?;
+    if let Some(schema) = step.input_schema.as_ref() {
+        let input = serde_json::json!({
+            "trigger": trigger,
+            "run": run_vars,
+            "steps": outputs,
+        });
+        let validator = jsonschema::validator_for(schema)
+            .map_err(|error| AppError::BadRequest(format!("input_schema inválido: {error}")))?;
+        validator.validate(&input).map_err(|error| {
+            AppError::BadRequest(format!("input do step {} fora do schema: {error}", step.id))
+        })?;
+    }
+
     let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
         &state.db,
         Some(&run.workspace_id),
     )
     .await
     .unwrap_or_default();
-    let prompt = match feedback.as_deref() {
-        Some(feedback) => {
+    let base_prompt = parser::render(&step.prompt, trigger, run_vars, outputs)?;
+    let schema_block = step.output_schema.as_ref().map(|schema| {
+        format!(
+            "\n\n## Contrato de saída (JSON Schema)\nResponda APENAS com um objeto JSON válido para este schema, sem texto fora do JSON:\n```json\n{}\n```",
+            serde_json::to_string_pretty(schema).unwrap_or_default()
+        )
+    });
+    let mut attempt = 0usize;
+    let mut correction = feedback;
+    loop {
+        attempt += 1;
+        let mut prompt = base_prompt.clone();
+        if let Some(feedback) = correction.as_deref() {
             let block = crate::dsh_router::prompt_templates::render(
                 &templates.recipe_feedback,
                 &[("feedback", feedback)],
             );
-            format!("{prompt}\n\n{block}")
+            prompt.push_str("\n\n");
+            prompt.push_str(&block);
         }
-        None => prompt,
-    };
-    tasks::update(
-        &state.db,
-        task_id,
-        tasks::UpdateTaskInput {
-            description: Some(prompt.clone()),
-            ..Default::default()
-        },
-    )
-    .await?;
-    let started = Utc::now().to_rfc3339();
-    let body = crate::api::tasks::DispatchBody {
-        policy: None,
-        manual_agent: step
-            .agent
-            .clone()
-            .map(|value| value.trim_start_matches('@').to_string()),
-        manual_model: step.model.clone(),
-        manual_effort: step.effort.clone(),
-        execution_mode: Some(mode_for_step(step)),
-        prompt_append: None,
-    };
-    crate::api::tasks::dispatch_task_with_session(
-        state,
-        task_id,
-        body,
-        None,
-        session_id.as_deref(),
-    )
-    .await?;
-    let run_result = wait_for_run(state, &run.workspace_id, task_id, &started).await?;
-    if let Some(routine_id) = routine_id {
-        let _ = db::runs::set_schedule_id(&state.db, &run_result.id, routine_id).await;
+        if let Some(block) = schema_block.as_deref() {
+            prompt.push_str(block);
+        }
+        tasks::update(
+            &state.db,
+            task_id,
+            tasks::UpdateTaskInput {
+                description: Some(prompt.clone()),
+                ..Default::default()
+            },
+        )
+        .await?;
+        let started = Utc::now().to_rfc3339();
+        let body = crate::api::tasks::DispatchBody {
+            policy: None,
+            manual_agent: step
+                .agent
+                .clone()
+                .map(|value| value.trim_start_matches('@').to_string()),
+            manual_model: step.model.clone(),
+            manual_effort: step.effort.clone(),
+            execution_mode: Some(mode_for_step(step)),
+            prompt_append: None,
+        };
+        crate::api::tasks::dispatch_task_with_session(
+            state,
+            task_id,
+            body,
+            None,
+            session_id.as_deref(),
+        )
+        .await?;
+        let run_result = wait_for_run(state, &run.workspace_id, task_id, &started, &run.id).await?;
+        if let Some(routine_id) = routine_id {
+            let _ = db::runs::set_schedule_id(&state.db, &run_result.id, routine_id).await;
+        }
+        ensure_step_finished(&step.id, &run_result.status)?;
+        *session_id = run_result.session_id.clone();
+        let summary = run_result.summary_response.clone().unwrap_or_default();
+        let structured = match step.output_schema.as_ref() {
+            Some(schema) => match parser::validate_output(schema, &summary) {
+                Ok(value) => Some(value),
+                Err(error) if attempt < 2 => {
+                    correction = Some(format!(
+                        "A resposta anterior não validou o contrato: {error}. Responda novamente apenas com JSON válido."
+                    ));
+                    continue;
+                }
+                Err(error) => return Err(error),
+            },
+            None => None,
+        };
+        let artifacts = db::artifacts::list_by_run(&state.db, &run_result.id, 200)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|artifact| artifact.file_path)
+            .collect::<Vec<_>>();
+        outputs[&step.id] = serde_json::json!({
+            "run_id": run_result.id,
+            "summary": summary,
+            "artifacts": artifacts,
+            "structured": structured,
+            "attempts": attempt,
+        });
+        store::update_run(
+            &state.db,
+            &run.id,
+            "RUNNING_STEP",
+            Some(&step.id),
+            Some(outputs),
+            None,
+            false,
+        )
+        .await?;
+        return Ok(());
     }
-    ensure_step_finished(&step.id, &run_result.status)?;
-    *session_id = run_result.session_id.clone();
-    let summary = run_result.summary_response.clone().unwrap_or_default();
-    let artifacts = db::artifacts::list_by_run(&state.db, &run_result.id, 200)
-        .await
-        .unwrap_or_default()
-        .into_iter()
-        .map(|artifact| artifact.file_path)
-        .collect::<Vec<_>>();
-    outputs[&step.id] = json!({
-        "run_id": run_result.id,
-        "summary": summary,
-        "artifacts": artifacts,
-    });
-    store::update_run(
-        &state.db,
-        &run.id,
-        "RUNNING_STEP",
-        Some(&step.id),
-        Some(outputs),
-        None,
-        false,
-    )
-    .await?;
-    Ok(())
 }
 
 async fn wait_for_run(
@@ -561,9 +720,13 @@ async fn wait_for_run(
     workspace_id: &str,
     task_id: &str,
     started_after: &str,
+    recipe_run_id: &str,
 ) -> AppResult<db::runs::TaskRun> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(2 * 60 * 60);
     loop {
+        if store::is_cancel_requested(&state.db, recipe_run_id).await? {
+            return Err(AppError::BadRequest("cancelado pelo usuário".into()));
+        }
         if let Ok(runs) = db::runs::list_with_limit(&state.db, workspace_id, Some(task_id), 5).await
             && let Some(run) = runs
                 .into_iter()
@@ -600,6 +763,7 @@ async fn finish(
     message: &str,
     routine_id: Option<&str>,
 ) -> AppResult<()> {
+    let _ = store::fail_running_nodes(&state.db, &run.id, message).await;
     store::update_run(&state.db, &run.id, status, None, None, Some(message), true).await?;
     if let Some(task_id) = &run.task_id {
         let _ = tasks::set_phase_status(&state.db, task_id, Some("failed"), Some("BLOCKED")).await;
@@ -675,6 +839,8 @@ mod tests {
                 effort: None,
                 description: None,
                 prompt: "x".into(),
+                input_schema: None,
+                output_schema: None,
             }),
             "PLAN_ONLY"
         );

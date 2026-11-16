@@ -51,6 +51,7 @@ pub struct HitlRequestPayload {
 pub enum HitlOutcome {
     Resolved(HitlResolution),
     Expired,
+    Cancelled,
 }
 
 pub async fn request(
@@ -140,7 +141,8 @@ pub async fn wait(
                     .unwrap_or(HitlResolution::Approved);
                 return Ok(HitlOutcome::Resolved(resolution));
             }
-            "EXPIRED" | "CANCELLED" => return Ok(HitlOutcome::Expired),
+            "CANCELLED" => return Ok(HitlOutcome::Cancelled),
+            "EXPIRED" => return Ok(HitlOutcome::Expired),
             _ => {}
         }
         if Utc::now() >= deadline {

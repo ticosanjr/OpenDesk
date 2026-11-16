@@ -55,6 +55,8 @@ pub struct RecipeRun {
     pub step_outputs_json: String,
     pub output_dir_path: String,
     pub dry_run: bool,
+    #[sqlx(default)]
+    pub cancel_requested: bool,
     pub error_message: Option<String>,
     pub started_at: String,
     pub completed_at: Option<String>,
@@ -86,8 +88,8 @@ pub struct HitlRequest {
 const RECIPE_COLUMNS: &str = "id, workspace_id, name, file_path, content_sha256, trigger_type, \
     is_enabled, last_error, last_run_at, total_runs, updated_at";
 const RUN_COLUMNS: &str = "id, recipe_id, workspace_id, task_id, status, current_step_id, \
-    trigger_context_json, step_outputs_json, output_dir_path, dry_run, error_message, \
-    started_at, completed_at";
+    trigger_context_json, step_outputs_json, output_dir_path, dry_run, cancel_requested, \
+    error_message, started_at, completed_at";
 const HITL_COLUMNS: &str = "token, recipe_run_id, workspace_id, checkpoint_id, interaction_type, \
     title, question_markdown, context_json, options_json, status, on_timeout, \
     dispatched_channels_json, resolved_by_channel, resolved_by_sender, resolution_type, \
@@ -502,6 +504,220 @@ pub async fn pending_hitl_for_run(
         .await?)
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct RecipeRunNode {
+    pub id: String,
+    pub run_id: String,
+    pub node_index: i64,
+    pub node_id: String,
+    pub kind: String,
+    pub status: String,
+    pub attempts: i64,
+    pub session_id: Option<String>,
+    pub output_json: Option<String>,
+    pub error_message: Option<String>,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
+}
+
+const NODE_COLUMNS: &str = "id, run_id, node_index, node_id, kind, status, attempts, \
+    session_id, output_json, error_message, started_at, finished_at";
+
+pub async fn sync_run_nodes(
+    pool: &SqlitePool,
+    run_id: &str,
+    flow: &[crate::recipes::parser::FlowItem],
+) -> AppResult<()> {
+    for (index, item) in flow.iter().enumerate() {
+        let (node_id, kind) = crate::recipes::parser::node_descriptor(item, index);
+        let id = format!("{run_id}:{index}");
+        sqlx::query(
+            "INSERT INTO recipe_run_nodes (id, run_id, node_index, node_id, kind)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(run_id, node_index) DO NOTHING",
+        )
+        .bind(id)
+        .bind(run_id)
+        .bind(index as i64)
+        .bind(node_id)
+        .bind(kind)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
+}
+
+pub async fn list_run_nodes(pool: &SqlitePool, run_id: &str) -> AppResult<Vec<RecipeRunNode>> {
+    let query =
+        format!("SELECT {NODE_COLUMNS} FROM recipe_run_nodes WHERE run_id = ? ORDER BY node_index");
+    Ok(sqlx::query_as::<_, RecipeRunNode>(&query)
+        .bind(run_id)
+        .fetch_all(pool)
+        .await?)
+}
+
+pub async fn mark_node_running(
+    pool: &SqlitePool,
+    run_id: &str,
+    node_index: usize,
+) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE recipe_run_nodes
+         SET status = 'RUNNING', attempts = attempts + 1,
+             started_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+             finished_at = NULL, error_message = NULL
+         WHERE run_id = ? AND node_index = ?",
+    )
+    .bind(run_id)
+    .bind(node_index as i64)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn mark_node_waiting(
+    pool: &SqlitePool,
+    run_id: &str,
+    node_index: usize,
+) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE recipe_run_nodes SET status = 'WAITING_HITL'
+         WHERE run_id = ? AND node_index = ?",
+    )
+    .bind(run_id)
+    .bind(node_index as i64)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn mark_node_done(
+    pool: &SqlitePool,
+    run_id: &str,
+    node_index: usize,
+    output: Option<&serde_json::Value>,
+    session_id: Option<&str>,
+) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE recipe_run_nodes
+         SET status = 'DONE', output_json = COALESCE(?, output_json),
+             session_id = COALESCE(?, session_id),
+             finished_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE run_id = ? AND node_index = ?",
+    )
+    .bind(output.map(|value| value.to_string()))
+    .bind(session_id)
+    .bind(run_id)
+    .bind(node_index as i64)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn reset_node(pool: &SqlitePool, run_id: &str, node_index: usize) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE recipe_run_nodes
+         SET status = 'PENDING', error_message = NULL, finished_at = NULL
+         WHERE run_id = ? AND node_index = ?",
+    )
+    .bind(run_id)
+    .bind(node_index as i64)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn fail_running_nodes(pool: &SqlitePool, run_id: &str, error: &str) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE recipe_run_nodes
+         SET status = 'FAILED', error_message = ?,
+             finished_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE run_id = ? AND status IN ('RUNNING', 'WAITING_HITL')",
+    )
+    .bind(error)
+    .bind(run_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn resumable_runs(pool: &SqlitePool) -> AppResult<Vec<RecipeRun>> {
+    let query = format!(
+        "SELECT {RUN_COLUMNS} FROM recipe_runs
+         WHERE status IN ('RUNNING_STEP', 'RUNNING_SINKS', 'WAITING_HITL')
+           AND cancel_requested = 0 AND dry_run = 0
+         ORDER BY started_at"
+    );
+    Ok(sqlx::query_as::<_, RecipeRun>(&query)
+        .fetch_all(pool)
+        .await?)
+}
+
+pub async fn is_cancel_requested(pool: &SqlitePool, run_id: &str) -> AppResult<bool> {
+    Ok(
+        sqlx::query_scalar::<_, bool>("SELECT cancel_requested FROM recipe_runs WHERE id = ?")
+            .bind(run_id)
+            .fetch_optional(pool)
+            .await?
+            .unwrap_or(false),
+    )
+}
+
+pub async fn request_cancel(pool: &SqlitePool, run_id: &str) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE recipe_runs SET cancel_requested = 1
+         WHERE id = ? AND status IN ('RUNNING_STEP', 'RUNNING_SINKS', 'WAITING_HITL')",
+    )
+    .bind(run_id)
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "UPDATE hitl_requests SET status = 'CANCELLED'
+         WHERE recipe_run_id = ? AND status = 'PENDING'",
+    )
+    .bind(run_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn reset_for_retry(pool: &SqlitePool, run_id: &str) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE recipe_runs SET status = 'RUNNING_STEP', cancel_requested = 0,
+                error_message = NULL, completed_at = NULL, current_step_id = NULL
+         WHERE id = ?",
+    )
+    .bind(run_id)
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "UPDATE recipe_run_nodes
+         SET status = 'PENDING', error_message = NULL, finished_at = NULL
+         WHERE run_id = ? AND status IN ('FAILED', 'RUNNING', 'WAITING_HITL')",
+    )
+    .bind(run_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn pending_hitl_for_checkpoint(
+    pool: &SqlitePool,
+    run_id: &str,
+    checkpoint_id: &str,
+) -> AppResult<Option<HitlRequest>> {
+    let query = format!(
+        "SELECT {HITL_COLUMNS} FROM hitl_requests
+         WHERE recipe_run_id = ? AND checkpoint_id = ? AND status = 'PENDING'
+         ORDER BY created_at DESC LIMIT 1"
+    );
+    Ok(sqlx::query_as::<_, HitlRequest>(&query)
+        .bind(run_id)
+        .bind(checkpoint_id)
+        .fetch_optional(pool)
+        .await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -678,6 +894,82 @@ mod tests {
             .await
             .expect("edit");
         assert!(saved.is_enabled, "editing must preserve the enabled flag");
+    }
+
+    #[tokio::test]
+    async fn persists_nodes_and_cancel_flag() {
+        let ctx = crate::test_support::context().await;
+        let yaml = "id: durable\nname: Durable\ntrigger:\n  type: MANUAL\n  config: {}\nflow:\n  - type: step\n    id: s1\n    name: Passo 1\n    prompt: oi\n  - type: hitl\n    id: h1\n    interaction_type: BINARY_GATE\n    prompt_template: ok?\n  - type: sink\n    sink_type: DOC_COMPILER\n    config: {}\n";
+        let recipe = crate::recipes::parser::parse(yaml).expect("recipe");
+        save_yaml(&ctx.state.db, &ctx.workspace_id, "durable", yaml)
+            .await
+            .expect("index");
+        let run = create_run(
+            &ctx.state.db,
+            &recipe,
+            &ctx.workspace_id,
+            None,
+            &serde_json::json!({}),
+            "/tmp/out",
+            false,
+        )
+        .await
+        .expect("run");
+        sync_run_nodes(&ctx.state.db, &run.id, &recipe.flow)
+            .await
+            .expect("nodes");
+        let nodes = list_run_nodes(&ctx.state.db, &run.id).await.expect("list");
+        assert_eq!(nodes.len(), 3);
+        assert_eq!(nodes[0].kind, "step");
+        assert_eq!(nodes[1].kind, "hitl");
+        assert_eq!(nodes[2].kind, "sink");
+
+        mark_node_running(&ctx.state.db, &run.id, 0)
+            .await
+            .expect("running");
+        mark_node_done(
+            &ctx.state.db,
+            &run.id,
+            0,
+            Some(&serde_json::json!({"ok": true})),
+            Some("s"),
+        )
+        .await
+        .expect("done");
+        let nodes = list_run_nodes(&ctx.state.db, &run.id).await.expect("list");
+        assert_eq!(nodes[0].status, "DONE");
+        assert_eq!(nodes[0].attempts, 1);
+
+        assert_eq!(
+            resumable_runs(&ctx.state.db).await.expect("resume").len(),
+            1
+        );
+        request_cancel(&ctx.state.db, &run.id)
+            .await
+            .expect("cancel");
+        assert!(
+            is_cancel_requested(&ctx.state.db, &run.id)
+                .await
+                .expect("flag")
+        );
+        assert!(
+            resumable_runs(&ctx.state.db)
+                .await
+                .expect("resume")
+                .is_empty()
+        );
+
+        reset_for_retry(&ctx.state.db, &run.id)
+            .await
+            .expect("retry");
+        assert!(
+            !is_cancel_requested(&ctx.state.db, &run.id)
+                .await
+                .expect("flag")
+        );
+        let nodes = list_run_nodes(&ctx.state.db, &run.id).await.expect("list");
+        assert_eq!(nodes[0].status, "DONE");
+        assert_eq!(nodes[1].status, "PENDING");
     }
 
     #[test]

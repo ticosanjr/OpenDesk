@@ -247,6 +247,12 @@ pendências manuais continuam listadas abaixo.
 - Extração de mídia Meta e extensões seguras cobertas por testes.
 - Injeção de `opendeskd`/systemd em `.deb` validada manualmente com `dpkg-deb`.
 
+## Fase 0/1 — receitas duráveis e schemas
+
+- Nós persistentes, resume/cancel/retry e timeline.
+- Contratos JSON Schema com extração e retry.
+- Testes de store, parser, API e UI.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

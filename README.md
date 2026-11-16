@@ -348,6 +348,8 @@ docs/                       plano, decisões e histórico
 - [ADR 0077 — Hardening multi-node](docs/decisions/0077-multi-node-hardening.md)
 - [ADR 0078 — OpenCode em worker remoto](docs/decisions/0078-opencode-remote-worker.md)
 - [ADR 0079 — Mídia do WhatsApp e daemon no .deb](docs/decisions/0079-whatsapp-media-and-deb-daemon.md)
+- [ADR 0080 — Receitas duráveis](docs/decisions/0080-durable-recipes.md)
+- [ADR 0081 — Contratos JSON Schema em receitas](docs/decisions/0081-recipe-json-schemas.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

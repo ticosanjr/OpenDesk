@@ -70,6 +70,24 @@ pub fn start(state: Arc<AppState>) -> Arc<RecipeRuntime> {
     runtime
 }
 
+/// Restarts durable runs that were interrupted by a crash/restart and are not
+/// waiting for a human cancellation.
+pub async fn resume_runs(state: &Arc<AppState>) -> AppResult<usize> {
+    let runs = store::resumable_runs(&state.db).await?;
+    let mut resumed = 0;
+    for run in runs {
+        let Ok(yaml) = store::yaml_for(&state.db, &run.workspace_id, &run.recipe_id).await else {
+            continue;
+        };
+        let Ok(recipe) = parser::parse(&yaml) else {
+            continue;
+        };
+        engine::resume(state.clone(), recipe, run).await?;
+        resumed += 1;
+    }
+    Ok(resumed)
+}
+
 pub async fn sync_all(state: &Arc<AppState>) -> AppResult<()> {
     for workspace in db::workspaces::list(&state.db).await? {
         sync_workspace(state, &workspace.id).await?;

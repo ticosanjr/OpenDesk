@@ -70,6 +70,7 @@ pdf-extract = "0.12.1"
 async-imap = { version = "0.12.0", default-features = false, features = ["runtime-tokio"] }
 mail-parser = "1.0.1"
 serde_json_path = "0.7.2"
+jsonschema = { version = "0.49", default-features = false }
 html2text = "0.17.4"
 rust-s3 = { version = "0.38.0", default-features = false, features = ["tokio-rustls-tls"] }
 hmac = "0.13.0"

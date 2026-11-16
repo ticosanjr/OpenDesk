@@ -2,6 +2,7 @@ use crate::{
     app_state::AppState,
     db::io_bus::{self, InboundInput},
     error::{AppError, AppResult},
+    events::OpenDeskWsEvent,
     recipes::{engine, parser, runtime, store},
 };
 use axum::{
@@ -155,7 +156,10 @@ pub async fn run_detail(
 ) -> AppResult<Json<serde_json::Value>> {
     let run = store::get_run(&state.db, &id).await?;
     let hitl = store::pending_hitl_for_run(&state.db, &id).await?;
-    Ok(Json(serde_json::json!({ "run": run, "hitl": hitl })))
+    let nodes = store::list_run_nodes(&state.db, &id).await?;
+    Ok(Json(
+        serde_json::json!({ "run": run, "hitl": hitl, "nodes": nodes }),
+    ))
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -374,6 +378,59 @@ pub(crate) async fn sync_recipe_trigger_sources(
 }
 
 /// Boot/manual sync: recreate sources for every recipe and remove orphans.
+pub async fn cancel_run(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<store::RecipeRun>> {
+    let run = store::get_run(&state.db, &id).await?;
+    if !matches!(
+        run.status.as_str(),
+        "RUNNING_STEP" | "RUNNING_SINKS" | "WAITING_HITL"
+    ) {
+        return Err(AppError::Conflict(format!(
+            "run já terminou como {}",
+            run.status
+        )));
+    }
+    store::request_cancel(&state.db, &id).await?;
+    if let Some(task_id) = run.task_id.as_deref()
+        && let Ok(jobs) = crate::db::queue::list(&state.db, Some(&run.workspace_id)).await
+    {
+        for job in jobs
+            .into_iter()
+            .filter(|job| job.task_id.as_deref() == Some(task_id))
+            .filter(|job| matches!(job.status.as_str(), "RUNNING" | "QUEUED" | "PAUSED"))
+        {
+            let _ = state.queue.cancel(&job.id).await;
+        }
+    }
+    state.events.publish(OpenDeskWsEvent::RecipeRunUpdated {
+        run_id: run.id.clone(),
+        recipe_id: run.recipe_id.clone(),
+        workspace_id: run.workspace_id.clone(),
+        status: "CANCELLING".into(),
+    });
+    Ok(Json(store::get_run(&state.db, &id).await?))
+}
+
+pub async fn retry_run(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<store::RecipeRun>> {
+    let run = store::get_run(&state.db, &id).await?;
+    if !matches!(run.status.as_str(), "FAILED" | "REJECTED" | "TIMED_OUT") {
+        return Err(AppError::Conflict(
+            "só é possível repetir runs com falha, rejeitados ou expirados".into(),
+        ));
+    }
+    let yaml = store::yaml_for(&state.db, &run.workspace_id, &run.recipe_id).await?;
+    let recipe = parser::parse(&yaml)?;
+    store::reset_for_retry(&state.db, &id).await?;
+    let refreshed = store::get_run(&state.db, &id).await?;
+    engine::resume(state.clone(), recipe, refreshed.clone()).await?;
+    Ok(Json(refreshed))
+}
+
 pub async fn sync_all_recipe_trigger_sources(state: &Arc<AppState>) -> AppResult<()> {
     let mut changed = false;
     let mut known = std::collections::HashSet::new();

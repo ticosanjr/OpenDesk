@@ -2903,3 +2903,12 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `.deb` passa a incluir `opendeskd` e unit systemd de usuário via pós-processo
   `dpkg-deb`; RPM segue sem reconstrução.
 - ADR 0079.
+
+## 2026-11-16 — receitas duráveis e contratos JSON
+
+- Migração 0049: `recipe_run_nodes` e `cancel_requested`.
+- Resume após restart, cancelamento cooperativo, retry do run e timeline por nó.
+- HITL idempotente em retomadas.
+- `input_schema`/`output_schema` por passo com validação e retry de formatação.
+- Editor visual de schemas e timeline na execução.
+- ADRs 0080 e 0081.

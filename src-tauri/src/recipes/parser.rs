@@ -56,6 +56,12 @@ pub struct Step {
     #[serde(default)]
     pub description: Option<String>,
     pub prompt: String,
+    /// Optional JSON Schema for the step input context.
+    #[serde(default)]
+    pub input_schema: Option<serde_json::Value>,
+    /// Optional JSON Schema the agent output must satisfy.
+    #[serde(default)]
+    pub output_schema: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -256,6 +262,19 @@ pub fn validate(recipe: &Recipe) -> AppResult<()> {
                         step.id
                     )));
                 }
+                for (field, schema) in [
+                    ("input_schema", step.input_schema.as_ref()),
+                    ("output_schema", step.output_schema.as_ref()),
+                ] {
+                    if let Some(schema) = schema
+                        && jsonschema::validator_for(schema).is_err()
+                    {
+                        return Err(AppError::BadRequest(format!(
+                            "{field} inválido no step {}",
+                            step.id
+                        )));
+                    }
+                }
             }
             FlowItem::Hitl(checkpoint) => {
                 let id = checkpoint_id(checkpoint);
@@ -318,12 +337,65 @@ pub fn validate(recipe: &Recipe) -> AppResult<()> {
 }
 
 /// Checkpoints use a generated stable id when the author leaves it empty.
+/// Stable id/kind for durable recipe nodes/timeline.
+pub fn node_descriptor(item: &FlowItem, index: usize) -> (String, &'static str) {
+    match item {
+        FlowItem::Step(step) => (step.id.clone(), "step"),
+        FlowItem::Hitl(checkpoint) => (checkpoint_id(checkpoint), "hitl"),
+        FlowItem::Sink(sink) => (
+            sink.name
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("sink-{index}")),
+            "sink",
+        ),
+    }
+}
+
 pub fn checkpoint_id(checkpoint: &HitlCheckpoint) -> String {
     if !checkpoint.id.trim().is_empty() {
         checkpoint.id.clone()
     } else {
         format!("hitl-{}", checkpoint.interaction_type.to_lowercase())
     }
+}
+
+/// Extracts the last fenced JSON block (or the first object) from an agent
+/// response and parses it.
+pub fn extract_json(summary: &str) -> Option<serde_json::Value> {
+    let mut fenced = None;
+    let mut rest = summary;
+    while let Some(start) = rest.find("```") {
+        let after = &rest[start + 3..];
+        let after = after.strip_prefix("json").unwrap_or(after);
+        let Some(end) = after.find("```") else {
+            break;
+        };
+        let candidate = after[..end].trim();
+        if let Ok(value) = serde_json::from_str(candidate) {
+            fenced = Some(value);
+        }
+        rest = &after[end + 3..];
+    }
+    if fenced.is_some() {
+        return fenced;
+    }
+    let start = summary.find('{')?;
+    let end = summary.rfind('}')?;
+    serde_json::from_str(summary[start..=end].trim()).ok()
+}
+
+pub fn validate_output(schema: &serde_json::Value, summary: &str) -> AppResult<serde_json::Value> {
+    let value = extract_json(summary)
+        .ok_or_else(|| AppError::BadRequest("a saída do step não contém um JSON válido".into()))?;
+    let validator = jsonschema::validator_for(schema)
+        .map_err(|error| AppError::BadRequest(format!("schema inválido: {error}")))?;
+    validator
+        .validate(&value)
+        .map_err(|error| AppError::BadRequest(format!("saída fora do schema: {error}")))?;
+    Ok(value)
 }
 
 /// Resolve {{...}} variables and fail closed on unknown names.
@@ -394,6 +466,29 @@ sinks:
   - type: DOC_COMPILER
     config: { format: pdf }
 "#;
+
+    #[test]
+    fn extracts_and_validates_json_contracts() {
+        let schema = serde_json::json!({
+            "type": "object",
+            "required": ["title", "count"],
+            "properties": {
+                "title": { "type": "string" },
+                "count": { "type": "integer", "minimum": 1 }
+            }
+        });
+        let summary = "Segue o resultado:\n```json\n{\"title\":\"x\",\"count\":2}\n```";
+        let value = validate_output(&schema, summary).expect("valid");
+        assert_eq!(value["count"], 2);
+        assert!(validate_output(&schema, "sem json").is_err());
+        assert!(validate_output(&schema, "{\"title\":\"x\",\"count\":0}").is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_step_schemas() {
+        let yaml = "id: schema\nname: Schema\ntrigger:\n  type: MANUAL\n  config: {}\nflow:\n  - type: step\n    id: s1\n    name: Um\n    prompt: oi\n    output_schema: { type: nope }\n";
+        assert!(parse(yaml).is_err());
+    }
 
     #[test]
     fn parses_and_validates_sample() {

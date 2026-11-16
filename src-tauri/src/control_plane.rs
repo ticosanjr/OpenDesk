@@ -59,6 +59,11 @@ pub async fn start(state: Arc<AppState>, options: StartOptions) -> anyhow::Resul
 
     state.io_bus.start(state.clone()).await?;
     recipes::runtime::start(state.clone());
+    match recipes::runtime::resume_runs(&state).await {
+        Ok(0) => {}
+        Ok(count) => tracing::info!(count, "resumed durable recipe runs"),
+        Err(error) => tracing::warn!(error = %error, "could not resume recipe runs"),
+    }
     governance::start_heartbeat(state.clone());
 
     if let Err(error) = crate::api::schedules::sync_all_trigger_sources(&state).await {
