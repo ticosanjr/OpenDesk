@@ -3208,3 +3208,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - Módulos movidos; core 216 testes, shell 367.
 - ADR 0124.
+
+## 2026-11-16 — dispatch de receita por trait (REF-01)
+
+- `RecipeStepDispatcher` no core; engine não importa mais api::tasks.
+- ADR 0125.

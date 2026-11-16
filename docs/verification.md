@@ -492,6 +492,10 @@ pendências manuais continuam listadas abaixo.
 
 - Assinatura de update e loop JSON-RPC testados no core.
 
+## Sprint 2 — dispatch de receita
+
+- Engine usa RecipeStepDispatcher; comportamento de fila inalterado.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

@@ -686,22 +686,22 @@ pub(super) async fn execute_step(
         )
         .await?;
         let started = Utc::now().to_rfc3339();
-        let body = crate::api::tasks::DispatchBody {
-            policy: None,
-            manual_agent: step
-                .agent
-                .clone()
-                .map(|value| value.trim_start_matches('@').to_string()),
-            manual_model: step.model.clone(),
-            manual_effort: step.effort.clone(),
-            execution_mode: Some(mode_for_step(step)),
-            prompt_append: None,
+        let dispatcher = crate::recipe_dispatcher::ShellRecipeDispatcher {
+            state: state.clone(),
         };
-        crate::api::tasks::dispatch_task_with_session(
-            state,
+        crate::recipe_dispatch::RecipeStepDispatcher::dispatch(
+            &dispatcher,
             task_id,
-            body,
-            None,
+            crate::recipe_dispatch::RecipeStepRequest {
+                agent: step
+                    .agent
+                    .clone()
+                    .map(|value| value.trim_start_matches('@').to_string()),
+                model: step.model.clone(),
+                effort: step.effort.clone(),
+                execution_mode: Some(mode_for_step(step)),
+                prompt_append: None,
+            },
             session_id.as_deref(),
         )
         .await?;

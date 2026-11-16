@@ -27,6 +27,7 @@ pub mod opencode_client;
 pub mod passkey;
 pub mod paths;
 pub mod personal_context;
+pub mod recipe_dispatch;
 pub mod recipes;
 pub mod recurrence;
 pub mod run_export;
