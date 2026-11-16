@@ -3248,3 +3248,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - Sweep no boot de registros/diretórios órfãos; core 230 testes, shell 355.
 - ADR 0132.
+
+## 2026-11-17 — D1 validação mTLS
+
+- CA/cert/key/SAN/expiração validados; probe no doctor.
+- Core 231 testes, shell 355 (586).
+- ADR 0133.

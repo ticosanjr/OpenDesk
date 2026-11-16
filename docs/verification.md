@@ -524,6 +524,10 @@ pendências manuais continuam listadas abaixo.
 
 - Registro ACTIVE sem path vira REMOVED; diretório órfão é apagado.
 
+## Fase D1 — validação mTLS
+
+- CA/cert/chave/SAN/expiração testados; doctor --live reporta mtls.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

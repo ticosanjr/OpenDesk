@@ -32,10 +32,10 @@ mod voice;
 pub use opendesk_core::{
     adapters, api_endpoint, audit, backup, browse, browse_tags, config_sync, daemon_probe, db,
     dedupe, desktop_integration, dsh_router, error, events, hitl, internal_api, mcp_config,
-    mcp_server, media, metrics, nodes, notifier, opencode_client, passkey, paths, personal_context,
-    push, recipe_context, recipe_dispatch, recurrence, run_export, run_timeline, runtime, sandbox,
-    secrets, server_lock, skill_eval, text, token_estimate, update_signing, virtual_display,
-    workspace_sync, worktree,
+    mcp_server, media, metrics, mtls, nodes, notifier, opencode_client, passkey, paths,
+    personal_context, push, recipe_context, recipe_dispatch, recurrence, run_export, run_timeline,
+    runtime, sandbox, secrets, server_lock, skill_eval, text, token_estimate, update_signing,
+    virtual_display, workspace_sync, worktree,
 };
 
 use app_state::AppState;

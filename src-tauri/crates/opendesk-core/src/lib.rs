@@ -26,6 +26,7 @@ pub mod mcp_config;
 pub mod mcp_server;
 pub mod media;
 pub mod metrics;
+pub mod mtls;
 pub mod nodes;
 pub mod notifier;
 pub mod opencode_client;

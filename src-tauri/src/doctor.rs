@@ -398,6 +398,18 @@ async fn probe_live(
         .flatten();
     probes.push(probe_whatsapp(whatsapp, whatsapp_token).await);
 
+    let mtls = crate::mtls::from_env();
+    probes.push(LiveProbe {
+        name: "mtls".into(),
+        status: if mtls.configured {
+            if mtls.valid { "ok" } else { "error" }
+        } else {
+            "not-configured"
+        }
+        .into(),
+        detail: mtls.detail,
+    });
+
     let origin = std::env::var("OPENDESK_WEBAUTHN_ORIGIN").ok();
     probes.push(LiveProbe {
         name: "webauthn".into(),
