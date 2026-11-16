@@ -18,7 +18,7 @@ pub const SANDBOX_SETTING: &str = "sandbox_policy";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SandboxPolicy {
-    /// `off`, `workspace` or `strict`.
+    /// `off`, `workspace`, `strict` or `container`.
     pub mode: String,
     /// Keep network access in `strict` mode.
     pub network: bool,
@@ -30,6 +30,8 @@ pub struct SandboxPolicy {
     pub max_runtime_minutes: u32,
     /// Remove common cloud credentials from the child environment.
     pub scrub_env: bool,
+    /// Single OpenDesk image used by `container` mode.
+    pub image: String,
 }
 
 impl Default for SandboxPolicy {
@@ -41,6 +43,7 @@ impl Default for SandboxPolicy {
             allowed_commands: Vec::new(),
             max_runtime_minutes: 0,
             scrub_env: true,
+            image: "opendesk/sandbox:latest".into(),
         }
     }
 }
@@ -48,11 +51,20 @@ impl Default for SandboxPolicy {
 impl SandboxPolicy {
     pub fn validate(mut self) -> AppResult<Self> {
         self.mode = self.mode.trim().to_lowercase();
-        if !matches!(self.mode.as_str(), "off" | "workspace" | "strict") {
+        if !matches!(
+            self.mode.as_str(),
+            "off" | "workspace" | "strict" | "container"
+        ) {
             return Err(AppError::BadRequest(format!(
-                "modo de sandbox inválido '{}'; use off, workspace ou strict",
+                "modo de sandbox inválido '{}'; use off, workspace, strict ou container",
                 self.mode
             )));
+        }
+        self.image = self.image.trim().to_string();
+        if self.mode == "container" && (self.image.is_empty() || self.image.starts_with('-')) {
+            return Err(AppError::BadRequest(
+                "sandbox container precisa de uma imagem válida".into(),
+            ));
         }
         self.allowed_paths = self
             .allowed_paths
@@ -118,6 +130,9 @@ pub fn wrap_strict(
     command: &str,
     args: &[String],
 ) -> AppResult<Vec<String>> {
+    if policy.mode == "container" {
+        return wrap_container(policy, workspace_root, command, args);
+    }
     if policy.mode != "strict" {
         let mut out = vec![command.to_string()];
         out.extend(args.iter().cloned());
@@ -166,6 +181,98 @@ pub fn wrap_strict(
     wrapped.push(command.to_string());
     wrapped.extend(args.iter().cloned());
     Ok(wrapped)
+}
+
+fn container_runtime() -> Option<String> {
+    ["podman", "docker"].into_iter().find_map(|runtime| {
+        std::env::var_os("PATH")
+            .map(|paths| std::env::split_paths(&paths).any(|dir| dir.join(runtime).is_file()))
+            .filter(|found| *found)
+            .map(|_| runtime.to_string())
+    })
+}
+
+fn wrap_container(
+    policy: &SandboxPolicy,
+    workspace_root: &str,
+    command: &str,
+    args: &[String],
+) -> AppResult<Vec<String>> {
+    let runtime = container_runtime().ok_or_else(|| {
+        AppError::Conflict("sandbox container exige Docker ou Podman instalado no PATH".into())
+    })?;
+    let image = if policy.image.trim().is_empty() {
+        "opendesk/sandbox:latest"
+    } else {
+        policy.image.trim()
+    };
+    // Inside the image the harness is expected on PATH. An absolute host path
+    // would point outside the mounted workspace.
+    let program = std::path::Path::new(command)
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| command.to_string());
+
+    let mut wrapped = vec![
+        runtime,
+        "run".into(),
+        "--rm".into(),
+        "--init".into(),
+        "--cap-drop".into(),
+        "ALL".into(),
+        "--security-opt".into(),
+        "no-new-privileges".into(),
+        "--pids-limit".into(),
+        "512".into(),
+        "--read-only".into(),
+        "--tmpfs".into(),
+        "/tmp:rw,noexec,nosuid,size=512m".into(),
+        "--mount".into(),
+        format!("type=bind,source={workspace_root},target=/workspace,rw"),
+        "--workdir".into(),
+        "/workspace".into(),
+        "--network".into(),
+        if policy.network { "bridge" } else { "none" }.into(),
+        "-e".into(),
+        "HOME=/tmp".into(),
+    ];
+    for key in [
+        "OPENDESK_HARNESS",
+        "OPENDESK_AGENT",
+        "OPENDESK_WORKSPACE",
+        "OPENDESK_PARENT_PID",
+    ] {
+        // Docker/Podman propagate the value from their own environment.
+        wrapped.push("-e".into());
+        wrapped.push(key.into());
+    }
+    if let Some((uid, gid)) = current_uid_gid() {
+        wrapped.push("--user".into());
+        wrapped.push(format!("{uid}:{gid}"));
+    }
+    wrapped.push(image.to_string());
+    wrapped.push(program);
+    wrapped.extend(args.iter().cloned());
+    Ok(wrapped)
+}
+
+fn current_uid_gid() -> Option<(String, String)> {
+    #[cfg(unix)]
+    {
+        let uid = std::process::Command::new("id").arg("-u").output().ok()?;
+        let gid = std::process::Command::new("id").arg("-g").output().ok()?;
+        if !uid.status.success() || !gid.status.success() {
+            return None;
+        }
+        Some((
+            String::from_utf8_lossy(&uid.stdout).trim().to_string(),
+            String::from_utf8_lossy(&gid.stdout).trim().to_string(),
+        ))
+    }
+    #[cfg(not(unix))]
+    {
+        None
+    }
 }
 
 fn bwrap_available() -> bool {
@@ -220,6 +327,7 @@ pub struct SandboxStatus {
     pub scope: String,
     pub workspace_id: Option<String>,
     pub bwrap_available: bool,
+    pub container_runtime: Option<String>,
     pub platform: String,
 }
 
@@ -236,6 +344,7 @@ pub async fn status(pool: &SqlitePool, workspace_id: Option<&str>) -> AppResult<
         scope: if has_override { "workspace" } else { "global" }.into(),
         workspace_id: workspace_id.map(str::to_string),
         bwrap_available: bwrap_available(),
+        container_runtime: container_runtime(),
         platform: std::env::consts::OS.to_string(),
     })
 }
@@ -265,6 +374,34 @@ mod tests {
             }
             .validate()
             .is_err()
+        );
+    }
+
+    #[test]
+    fn validates_container_image() {
+        if container_runtime().is_none() {
+            return;
+        }
+        let policy = SandboxPolicy {
+            mode: "container".into(),
+            image: " ".into(),
+            ..Default::default()
+        };
+        assert!(policy.validate().is_err());
+        let policy = SandboxPolicy {
+            mode: "container".into(),
+            image: "opendesk/sandbox:1.3".into(),
+            ..Default::default()
+        }
+        .validate()
+        .expect("valid");
+        assert_eq!(
+            wrap_container(&policy, "/tmp/ws", "/usr/bin/opencode", &["-p".into()])
+                .expect("runtime")
+                .iter()
+                .filter(|value| *value == "opendesk/sandbox:1.3")
+                .count(),
+            1
         );
     }
 

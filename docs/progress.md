@@ -3032,3 +3032,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Item `type: recipe` com `with`, `when`, outputs isolados e caminho durável `call/...`.
 - Detecção de ciclo e limite de profundidade; resume preserva passos da sub-receita.
 - ADR 0096.
+
+## 2026-11-16 — sandbox em container (REQ-09)
+
+- Modo `container` com Docker/Podman, imagem única, rootfs read-only, rede none/bridge e UID local.
+- `container_runtime` exposto na API/UI; Dockerfile base em `packaging/sandbox/`.
+- Sem runtime falha explicitamente; nunca degrada para execução sem sandbox.
+- ADR 0097.

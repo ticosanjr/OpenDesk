@@ -21,6 +21,7 @@ interface SandboxPolicy {
   allowed_commands: string[];
   max_runtime_minutes: number;
   scrub_env: boolean;
+  image: string;
 }
 
 interface SandboxStatus {
@@ -28,6 +29,7 @@ interface SandboxStatus {
   scope: string;
   workspace_id?: string | null;
   bwrap_available: boolean;
+  container_runtime?: string | null;
   platform: string;
 }
 
@@ -227,6 +229,9 @@ export function SandboxComputerCard({ workspaceId }: { workspaceId: string }) {
               <Badge variant={sandbox.bwrap_available ? "green" : "default"}>
                 bwrap {sandbox.bwrap_available ? "ok" : "ausente"}
               </Badge>
+              <Badge variant={sandbox.container_runtime ? "green" : "default"}>
+                {sandbox.container_runtime ?? "container ausente"}
+              </Badge>
             </div>
           ) : null}
         </CardHeader>
@@ -247,6 +252,7 @@ export function SandboxComputerCard({ workspaceId }: { workspaceId: string }) {
                   <option value="off">off</option>
                   <option value="workspace">workspace</option>
                   <option value="strict">strict (bwrap)</option>
+                  <option value="container">container (docker/podman)</option>
                 </select>
                 <input
                   value={sandbox.policy.max_runtime_minutes}
@@ -275,7 +281,7 @@ export function SandboxComputerCard({ workspaceId }: { workspaceId: string }) {
                     }
                     className="h-4 w-4 accent-blue-500"
                   />
-                  rede no strict
+                  rede no sandbox
                 </label>
                 <label className="flex items-center gap-2 text-[12.5px] text-zinc-300">
                   <input
@@ -292,6 +298,19 @@ export function SandboxComputerCard({ workspaceId }: { workspaceId: string }) {
                   limpar credenciais do env
                 </label>
               </div>
+              {sandbox.policy.mode === "container" ? (
+                <input
+                  value={sandbox.policy.image}
+                  onChange={(event) =>
+                    setSandbox({
+                      ...sandbox,
+                      policy: { ...sandbox.policy, image: event.target.value },
+                    })
+                  }
+                  placeholder="imagem única (ex.: opendesk/sandbox:latest)"
+                  className={inputClass}
+                />
+              ) : null}
               <input
                 value={commands}
                 onChange={(event) => setCommands(event.target.value)}
@@ -301,7 +320,7 @@ export function SandboxComputerCard({ workspaceId }: { workspaceId: string }) {
               <input
                 value={paths}
                 onChange={(event) => setPaths(event.target.value)}
-                placeholder="paths extras read-write no strict (vírgula)"
+                placeholder="paths extras read-write no strict/container (vírgula)"
                 className={inputClass}
               />
               <div className="flex justify-end">

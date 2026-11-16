@@ -285,7 +285,7 @@ mod tests {
     #[tokio::test]
     async fn coalesces_repeated_heartbeats_into_one_write() {
         let ctx = crate::test_support::context().await;
-        let buffer = WriteBuffer::start(ctx.state.db.clone(), Duration::from_millis(20), 64);
+        let buffer = WriteBuffer::start(ctx.state.db.clone(), Duration::from_secs(30), 64);
         let job_id = running_job(&ctx.state.db, &ctx.workspace_id, 0).await;
 
         for _ in 0..50 {

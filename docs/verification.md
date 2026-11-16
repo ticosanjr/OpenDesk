@@ -344,6 +344,12 @@ pendências manuais continuam listadas abaixo.
 - Outputs ficam em `steps.<call>.outputs` sem colidir com o pai.
 - Ciclo entre duas receitas é rejeitado antes da execução.
 
+## Sprint 3 — sandbox container
+
+- Modo container valida imagem e gera comando Docker/Podman sem shell.
+- UI mostra runtime disponível e permite editar a imagem.
+- Sem runtime, o run falha com conflito explícito.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:
