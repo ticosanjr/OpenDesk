@@ -532,6 +532,10 @@ pendências manuais continuam listadas abaixo.
 
 - allow/deny por agente filtra tools/list e bloqueia tools/call.
 
+## Fase F5 — reply de e-mail no Chat
+
+- Thread com external_id e SMTP envia com headers; sem SMTP falha acionável.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

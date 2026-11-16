@@ -403,6 +403,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0132 — Sweeper de worktrees](docs/decisions/0132-worktree-sweeper.md)
 - [ADR 0133 — Validação mTLS](docs/decisions/0133-mtls-validation.md)
 - [ADR 0134 — RBAC por agente no MCP](docs/decisions/0134-mcp-agent-rbac.md)
+- [ADR 0135 — Reply de e-mail no Chat](docs/decisions/0135-chat-email-reply.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

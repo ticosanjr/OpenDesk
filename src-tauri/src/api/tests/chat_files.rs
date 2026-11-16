@@ -59,3 +59,40 @@ async fn chat_can_send_a_workspace_file_by_path() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{error}");
 }
+
+#[tokio::test]
+async fn email_reply_requires_a_thread_id_and_smtp() {
+    let ctx = test_support::context().await;
+    let thread = crate::db::chat::create_thread(
+        &ctx.state.db,
+        crate::db::chat::CreateThreadInput {
+            workspace_id: ctx.workspace_id.clone(),
+            title: Some("Email thread".into()),
+            agent: "build".into(),
+            model: None,
+            source: Some("email".into()),
+            external_id: Some("<root@example.com>".into()),
+        },
+    )
+    .await
+    .expect("thread");
+    let (status, body) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/chat/threads/{}/email-reply", thread.id),
+        Some(json!({
+            "to": "user@example.com",
+            "subject": "Re: Email thread",
+            "body_html": "<p>ok</p>"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("SMTP"),
+        "{body}"
+    );
+}

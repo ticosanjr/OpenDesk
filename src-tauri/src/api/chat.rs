@@ -445,3 +445,66 @@ pub async fn update_thread(
 pub struct UpdateThreadBody {
     pub title: Option<String>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct EmailReplyBody {
+    pub to: String,
+    pub subject: String,
+    #[serde(default)]
+    pub body_html: Option<String>,
+}
+
+/// Sends the last assistant message (or the supplied HTML) as an email reply in
+/// the thread identified by `chat_threads.external_id`.
+pub async fn send_email_reply(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<EmailReplyBody>,
+) -> AppResult<Json<serde_json::Value>> {
+    let thread = chat_db::get_thread(&state.db, &id).await?;
+    let in_reply_to = thread
+        .external_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            AppError::BadRequest(
+                "thread sem Message-ID de e-mail; não é uma thread de e-mail".into(),
+            )
+        })?;
+    let html = match body.body_html {
+        Some(html) => html,
+        None => {
+            let messages = chat_db::list_messages(&state.db, &id).await?;
+            let content = messages
+                .iter()
+                .rev()
+                .find(|message| message.role == "assistant")
+                .map(|message| message.content.clone())
+                .ok_or_else(|| AppError::BadRequest("thread sem resposta do assistente".into()))?;
+            format!(
+                "<pre style=\"white-space:pre-wrap\">{}</pre>",
+                html_escape::encode_text(&content)
+            )
+        }
+    };
+    let secrets = crate::secrets::SecretStore::new(&state.paths);
+    let config =
+        crate::integrations::smtp_mailer::load_config(&state.db, &secrets, &thread.workspace_id)
+            .await?
+            .ok_or_else(|| AppError::BadRequest("SMTP não está configurado".into()))?;
+    crate::integrations::smtp_mailer::send_email_threaded(
+        &config,
+        &body.to,
+        &body.subject,
+        html,
+        Vec::new(),
+        Some(&crate::integrations::smtp_mailer::EmailThread {
+            in_reply_to: in_reply_to.to_string(),
+            references: vec![in_reply_to.to_string()],
+        }),
+    )
+    .await
+    .map_err(|error| AppError::Daemon(format!("{error:#}")))?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}

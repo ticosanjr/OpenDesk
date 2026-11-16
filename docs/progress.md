@@ -3260,3 +3260,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `mcp_agent_tools` com allow/deny; list/call filtrados por agente.
 - Core 233 testes, shell 356 (589).
 - ADR 0134.
+
+## 2026-11-17 — F5 resposta de e-mail no Chat
+
+- Endpoint de reply usando external_id como In-Reply-To/References.
+- Core 233 testes, shell 357 (590).
+- ADR 0135.

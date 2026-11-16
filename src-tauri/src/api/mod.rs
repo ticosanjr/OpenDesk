@@ -514,6 +514,10 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/chat/threads/{id}/files", post(chat::send_file))
         .route(
+            "/api/chat/threads/{id}/email-reply",
+            post(chat::send_email_reply),
+        )
+        .route(
             "/api/chat/threads/{id}/interrupt",
             post(chat::interrupt_thread),
         )
