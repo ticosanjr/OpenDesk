@@ -212,6 +212,12 @@ pendências manuais continuam listadas abaixo.
 - Voz (STT/TTS) e protocolo multi-node com claim/heartbeat/complete.
 - Testes de settings/capacidades, registro de nó, token, claim e conclusão.
 
+## 1.0.0 — hardening e fechamento
+
+- 513 testes Rust, 234 Vitest, ESLint/tsc e goldens visuais verdes.
+- Cabeçalhos de segurança, CSP da PWA, `/readyz` e retenção de sessões.
+- Release notes em `docs/releases/1.0.0.md`; ADR 0072.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

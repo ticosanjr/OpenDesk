@@ -111,6 +111,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
 
     let router = Router::new()
         .route("/healthz", get(healthz))
+        .route("/readyz", get(core::readyz))
         .route("/api/health", get(health))
         .route("/api/auth/session", post(auth::create_session))
         .route("/api/auth/logout", post(auth::logout))
@@ -754,11 +755,12 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
 
     let web_dir = std::env::var("OPENDESK_WEB_DIR").unwrap_or_else(|_| "dist".to_string());
     let index = std::path::Path::new(&web_dir).join("index.html");
-    if index.is_file() {
+    let router = if index.is_file() {
         router.fallback_service(ServeDir::new(&web_dir).fallback(ServeFile::new(index)))
     } else {
         router
-    }
+    };
+    router.layer(middleware::from_fn(core::security_headers))
 }
 
 #[cfg(test)]

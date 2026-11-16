@@ -8,6 +8,8 @@
 - Credenciais de integrações (SMTP, Google, Signal) no armazenamento local.
 - Navegador real do usuário exposto pelo OpenCode Browse.
 - Configuração nativa do OpenCode (`.opencode/`, `opencode.jsonc`).
+- Tokens de sessão remota e tokens de nós remotos (somente hash em SQLite).
+- Áudio de voz (temporário) e capturas de computer-use.
 
 ## Fronteiras de confiança
 
@@ -29,10 +31,15 @@
 | Path traversal ao abrir/restaurar arquivos | validação de caminhos, zip-slip, symlinks | auditar todos os endpoints |
 | Backup corrompido | SHA-256 + validação de ZIP | sem assinatura do backup |
 | Prompt injection em página web | skill Browse orienta allowlist/handoff; agente não contorna captcha | allowlist não é obrigatória por padrão |
-| MCP malicioso | instalação explícita, escopo por workspace, permissões | sem sandbox/quarentena |
+| MCP malicioso | inventário explícito, catálogo sem segredos, toggle/remoção, health | sem quarentena automática |
+| Nó remoto comprometido | token próprio com hash, escopo restrito ao protocolo, lease e posse do job | sem mTLS entre central e nó |
+| Sandbox insuficiente | modos explícitos, allowlist, env scrubbing e bwrap sem fallback | `strict` depende de bwrap instalado |
+| Computer-use indevido | sessão com aprovação opcional, ações contadas, texto não persistido | sem bloqueio por app/janela |
+| Voz vazando áudio | temporário apagado após STT, limite de 25 MB | motor externo pode gravar logs próprios |
 | Vazamento de prompts/segredos em logs | evidência truncada, sem prompts completos no aprendizado | logs de run ainda podem conter conteúdo |
 | Custo descontrolado | budget por workspace/agente, quota, HITL | alerta proativo em 80/100% |
 | Agente age no navegador real | abas isoladas, handoff para login/2FA, sem armazenar cookies | auditoria de sessões no OpenDesk |
+| PWA servida pelo daemon | login por sessão revogável, CORS, cabeçalhos de segurança e CSP | reverse proxy TLS é responsabilidade do operador |
 | Update malicioso | assinatura Ed25519 do `latest.json` + SHA-256 do asset; chave privada offline | rotação de chave exige release intermediário |
 
 ## Recomendações prioritárias

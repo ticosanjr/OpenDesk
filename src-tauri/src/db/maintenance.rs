@@ -59,6 +59,21 @@ pub async fn maintenance_once(pool: &SqlitePool, paths: &AppPaths) -> AppResult<
     .execute(pool)
     .await;
     let _ = crate::db::memory::delete_expired(pool).await;
+    let _ = sqlx::query(
+        "DELETE FROM auth_sessions
+         WHERE expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            OR (revoked_at IS NOT NULL
+                AND revoked_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-30 days'))",
+    )
+    .execute(pool)
+    .await;
+    let _ = sqlx::query(
+        "DELETE FROM computer_sessions
+         WHERE status = 'ENDED'
+           AND ended_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-30 days')",
+    )
+    .execute(pool)
+    .await;
 
     std::fs::create_dir_all(&paths.backups_dir)?;
     let backup = paths.backups_dir.join(format!(

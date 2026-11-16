@@ -72,6 +72,7 @@ mod export;
 mod files_save;
 mod governance;
 mod handoffs;
+mod hardening;
 mod io_bus;
 mod learning;
 mod mcp_hub;

@@ -161,9 +161,14 @@ aos agentes operar tarefas, execuções, rotinas, receitas, fila e artefatos; o
 pacote base `controle-opendesk` é instalado em novos workspaces e rotinas e
 receitas novas nascem desligadas (ADR 0044). A suíte funcional sob demanda vive
 em `npm run test:features`.
-Próxima frente: cobertura Rust ≥80% (plano em `docs/coverage-plan.md`; hoje
-64,81% total/71,14% core), builds Windows/macOS (`docs/platform-builds.md`) e
-contrato Google com conta dedicada (`docs/google-contract.md`).
+O programa v1.0 (ondas 0–9) está concluído: control plane, daemon/PWA/auth,
+harnesses plugáveis, canais/trust, handoffs, memória com ACL, MCP Hub,
+sandbox/computer-use, voz e multi-node. As decisões estão em ADRs 0062–0071 e o
+release em `docs/releases/1.0.0.md`.
+
+Próxima frente: cobertura Rust ≥80% (plano em `docs/coverage-plan.md`), builds
+Windows/macOS (`docs/platform-builds.md`) e contrato Google com conta dedicada
+(`docs/google-contract.md`).
 
 Releases são locais (`releases/`, máximo 3 versões) e nunca via CI. O remoto é
 `origin` em https://github.com/ticosanjr/OpenDesk (privado); `scripts/release.sh`

@@ -21,6 +21,59 @@ pub(crate) async fn healthz() -> impl IntoResponse {
     StatusCode::OK
 }
 
+/// Readiness differs from liveness: it verifies the database is usable.
+pub(crate) async fn readyz(State(state): State<Arc<AppState>>) -> axum::response::Response {
+    let db_ok = sqlx::query_scalar::<_, i64>("SELECT 1")
+        .fetch_one(&state.db)
+        .await
+        .is_ok();
+    let status = if db_ok {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+    (
+        status,
+        Json(json!({
+            "ready": db_ok,
+            "version": env!("CARGO_PKG_VERSION"),
+        })),
+    )
+        .into_response()
+}
+
+/// Small, safe header set. CSP is only sent for the static PWA (not `/api`),
+/// where it cannot break JSON clients.
+pub(crate) async fn security_headers(request: Request, next: Next) -> Response {
+    let is_api = request.uri().path().starts_with("/api/")
+        || request.uri().path() == "/ws"
+        || request.uri().path() == "/healthz"
+        || request.uri().path() == "/readyz";
+    let mut response = next.run(request).await;
+    let headers = response.headers_mut();
+    headers.insert(
+        "x-content-type-options",
+        axum::http::HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        "x-frame-options",
+        axum::http::HeaderValue::from_static("DENY"),
+    );
+    headers.insert(
+        "referrer-policy",
+        axum::http::HeaderValue::from_static("no-referrer"),
+    );
+    if !is_api {
+        headers.insert(
+            "content-security-policy",
+            axum::http::HeaderValue::from_static(
+                "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';                  img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:;                  connect-src 'self' ws: wss: http://127.0.0.1:* http://localhost:*; frame-ancestors 'none'",
+            ),
+        );
+    }
+    response
+}
+
 pub(crate) async fn health(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let daemon = state.daemon.status().await;
     Json(json!({
@@ -359,6 +412,7 @@ pub(crate) async fn auth_middleware(
 
     if request.method() == Method::OPTIONS
         || path == "/healthz"
+        || path == "/readyz"
         || path == "/api/health"
         || path.starts_with("/api/webhooks/")
     {

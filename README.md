@@ -4,12 +4,14 @@ Sistema operacional visual de governança, automação e observabilidade sobre o
 OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
-> **Status:** release 0.59.0. O OpenDesk cobre fundação, Studio SSOT, execução
-> V2, automação, Google Workspace + MCP, governança de agentes, aprendizado,
-> observabilidade, CLI headless, browse, backups, atualizações e o barramento
-> universal de I/O. A refatoração segura e as frentes de produto e plataforma
-> estão registradas em [docs/progress.md](docs/progress.md); o plano técnico
-> vive em [docs/implementation-plan.md](docs/implementation-plan.md).
+> **Status:** release 1.0.0. O programa v1.0 fechou as ondas de fundação do
+> control plane, daemon/PWA/auth, harnesses plugáveis, canais/trust, handoffs,
+> memória com ACL, MCP Hub, sandbox/computer-use, voz e multi-node. O desktop
+> continua sendo a interface principal; `opendeskd`, PWA e CLI operam o mesmo
+> estado sem duplicar regra. Histórico em
+> [docs/progress.md](docs/progress.md), decisões em
+> [docs/decisions](docs/decisions) e notas em
+> [docs/releases/1.0.0.md](docs/releases/1.0.0.md).
 > Repositório privado: <https://github.com/ticosanjr/OpenDesk>.
 
 ## O que já funciona
@@ -337,6 +339,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0069 — MCP Hub](docs/decisions/0069-mcp-hub.md)
 - [ADR 0070 — Sandbox e computer-use](docs/decisions/0070-sandbox-and-computer-use.md)
 - [ADR 0071 — Voz e multi-node](docs/decisions/0071-voice-and-multi-node.md)
+- [ADR 0072 — Hardening e fechamento da v1.0](docs/decisions/0072-v1-hardening.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)
