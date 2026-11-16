@@ -8,6 +8,7 @@
 //! `get_api_endpoint` and talks to it exactly like the embedded server.
 
 use crate::{
+    api_endpoint::base_url,
     app_state::{ApiEndpoint, AppState},
     paths::AppPaths,
 };
@@ -16,15 +17,6 @@ use reqwest::{Client, Method};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::{sync::Arc, time::Duration};
-
-/// Builds an HTTP base URL that is valid for IPv4, host names and IPv6 literals.
-pub fn base_url(host: &str, port: u16) -> String {
-    if host.contains(':') {
-        format!("http://[{host}]:{port}")
-    } else {
-        format!("http://{host}:{port}")
-    }
-}
 
 /// A thin authenticated client for a daemon owned by another process.
 pub struct RemoteShell {
@@ -149,12 +141,6 @@ impl ShellState {
 mod tests {
     use super::*;
     use crate::test_support::paths_in;
-
-    #[test]
-    fn base_url_handles_ipv4_and_ipv6() {
-        assert_eq!(base_url("127.0.0.1", 8080), "http://127.0.0.1:8080");
-        assert_eq!(base_url("::1", 8080), "http://[::1]:8080");
-    }
 
     #[test]
     fn remote_shell_reports_its_mode_and_endpoint() {

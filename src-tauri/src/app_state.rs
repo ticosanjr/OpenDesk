@@ -11,7 +11,6 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::{
     collections::HashMap,
@@ -62,12 +61,7 @@ pub struct AppState {
     chat_turns: Mutex<HashMap<String, ActiveChatTurn>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ApiEndpoint {
-    pub host: String,
-    pub port: u16,
-    pub token: String,
-}
+pub use crate::api_endpoint::ApiEndpoint;
 
 impl AppState {
     pub async fn initialize(paths: AppPaths) -> Result<Self> {

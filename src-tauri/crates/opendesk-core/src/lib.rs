@@ -7,11 +7,13 @@
 //! subsequent slices of the strangler refactor.
 
 pub mod adapters;
+pub mod api_endpoint;
 pub mod audit;
 pub mod backup;
 pub mod browse;
 pub mod browse_tags;
 pub mod config_sync;
+pub mod daemon_probe;
 pub mod db;
 pub mod dedupe;
 pub mod desktop_integration;
@@ -19,6 +21,7 @@ pub mod dsh_router;
 pub mod error;
 pub mod events;
 pub mod hitl;
+pub mod internal_api;
 pub mod mcp_config;
 pub mod mcp_server;
 pub mod media;

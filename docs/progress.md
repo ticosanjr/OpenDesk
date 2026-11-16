@@ -3233,3 +3233,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - MCP de configuração movido; core 224 testes, shell 359.
 - ADR 0129.
+
+## 2026-11-16 — endpoint/probe no core (REF-01)
+
+- ApiEndpoint/internal_api/daemon_probe movidos; core 228 testes, shell 355.
+- ADR 0130.

@@ -512,6 +512,10 @@ pendências manuais continuam listadas abaixo.
 
 - Propostas via MCP compilam no core.
 
+## Sprint 1 — endpoint/probe no core
+
+- base_url, probe e cliente local testados no core.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

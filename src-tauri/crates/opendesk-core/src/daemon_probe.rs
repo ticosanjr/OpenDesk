@@ -2,7 +2,7 @@
 //! embedded one. The probe is intentionally conservative: only localhost and a
 //! token from `api.json` are accepted.
 
-use crate::{app_state::ApiEndpoint, error::AppResult, paths::AppPaths, shell_state::base_url};
+use crate::{api_endpoint::ApiEndpoint, api_endpoint::base_url, error::AppResult, paths::AppPaths};
 use std::time::Duration;
 
 pub fn endpoint_from_lock(paths: &AppPaths) -> AppResult<Option<ApiEndpoint>> {
@@ -69,7 +69,7 @@ mod tests {
     #[test]
     fn reads_only_local_endpoints() {
         let dir = tempfile::tempdir().expect("temp");
-        let paths = crate::test_support::paths_in(dir.path());
+        let paths = crate::paths::test_paths(dir.path());
         assert!(endpoint_from_lock(&paths).expect("missing").is_none());
         std::fs::write(
             &paths.api_lock_path,
@@ -90,7 +90,7 @@ mod tests {
     #[tokio::test]
     async fn corrupt_lock_degrades_to_embedded() {
         let dir = tempfile::tempdir().expect("temp");
-        let paths = crate::test_support::paths_in(dir.path());
+        let paths = crate::paths::test_paths(dir.path());
         std::fs::write(&paths.api_lock_path, "not json").expect("lock");
         assert!(matches!(
             probe_outcome(&paths).await,
@@ -113,7 +113,7 @@ mod tests {
         });
 
         let dir = tempfile::tempdir().expect("temp");
-        let paths = crate::test_support::paths_in(dir.path());
+        let paths = crate::paths::test_paths(dir.path());
         std::fs::write(
             &paths.api_lock_path,
             format!(r#"{{"host":"127.0.0.1","port":{port},"token":"tok"}}"#),

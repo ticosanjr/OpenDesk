@@ -5,7 +5,7 @@
 //! `OPENDESK_DATA_DIR`/`OPENDESK_CONFIG_DIR` (the MCP bridge receives them from
 //! the workspace configuration).
 
-use crate::{app_state::ApiEndpoint, paths::AppPaths};
+use crate::{api_endpoint::ApiEndpoint, paths::AppPaths};
 use anyhow::{Context, Result, anyhow};
 use reqwest::{Client, Method};
 use serde_json::Value;
