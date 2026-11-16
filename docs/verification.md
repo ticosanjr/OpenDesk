@@ -430,6 +430,11 @@ pendências manuais continuam listadas abaixo.
 - `cargo test -p opendesk-core` cobre roundtrip/remoção de segredo.
 - Shell reexporta sem mudar chamadas.
 
+## Sprint 1 — runtime/adapters no core
+
+- `cargo test -p opendesk-core` cobre request/execução de runtime, sandbox, adapters e cliente OpenCode.
+- Shell injeta RunNotifier e reexporta os módulos.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

@@ -419,7 +419,7 @@ mod tests {
     async fn persists_the_policy() {
         let ctx = crate::test_support::context().await;
         let policy = set_for(
-            &ctx.state.db,
+            &ctx.db,
             None,
             SandboxPolicy {
                 mode: "workspace".into(),
@@ -430,10 +430,10 @@ mod tests {
         .await
         .expect("set");
         assert_eq!(policy.mode, "workspace");
-        assert_eq!(get(&ctx.state.db).await.expect("get").mode, "workspace");
+        assert_eq!(get(&ctx.db).await.expect("get").mode, "workspace");
 
         set_for(
-            &ctx.state.db,
+            &ctx.db,
             Some(&ctx.workspace_id),
             SandboxPolicy {
                 mode: "strict".into(),
@@ -443,14 +443,14 @@ mod tests {
         .await
         .expect("workspace set");
         assert_eq!(
-            get_for(&ctx.state.db, Some(&ctx.workspace_id))
+            get_for(&ctx.db, Some(&ctx.workspace_id))
                 .await
                 .expect("workspace get")
                 .mode,
             "strict"
         );
         assert_eq!(
-            get_for(&ctx.state.db, None).await.expect("global").mode,
+            get_for(&ctx.db, None).await.expect("global").mode,
             "workspace"
         );
     }

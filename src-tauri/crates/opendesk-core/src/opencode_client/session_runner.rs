@@ -1,7 +1,6 @@
 use crate::{
     db::{permissions, runs::RunUsage, settings},
     events::{EventBus, OpenDeskWsEvent},
-    integrations::telegram,
     opencode_client::rest_client::{FileDiff, ModelRefDto, RestClient},
     secrets::SecretStore,
 };
@@ -78,6 +77,7 @@ pub struct RunRequest<'a> {
     pub prompt: &'a str,
     pub log_path: &'a Path,
     pub cancel: CancellationToken,
+    pub notifier: Option<&'a dyn crate::notifier::RunNotifier>,
 }
 
 pub async fn execute_run(
@@ -208,6 +208,7 @@ pub async fn execute_run(
                                     &rest,
                                     &mut permissions,
                                     &request.cancel,
+                                    request.notifier,
                                 )
                                 .await
                                 {
@@ -419,6 +420,7 @@ async fn handle_event(
     rest: &RestClient,
     permissions: &mut Vec<PermissionDecision>,
     cancel: &CancellationToken,
+    notifier: Option<&dyn crate::notifier::RunNotifier>,
 ) -> bool {
     if !session_matches(event, session_id) {
         return false;
@@ -534,48 +536,18 @@ async fn handle_event(
                     resources: resources.clone(),
                 });
 
-                if let Ok(config) = crate::integrations::signal::load(pool).await
-                    && config.enabled
-                    && !config.account.trim().is_empty()
-                {
-                    let text = format!(
-                        "OpenDesk aguardando decisão\nAção: {action}\nRecursos: {}\nResponda: APROVAR {} ou NEGAR {}",
-                        resources.join(", "),
-                        &request_id[..request_id.len().min(12)],
-                        &request_id[..request_id.len().min(12)],
-                    );
-                    for recipient in config.allowlist.clone() {
-                        let cli = config.cli_path.clone();
-                        let account = config.account.clone();
-                        let text = text.clone();
-                        tokio::spawn(async move {
-                            let _ = crate::integrations::signal::send_text(
-                                &cli, &account, &recipient, &text,
-                            )
-                            .await;
-                        });
-                    }
-                }
-
-                if let Ok(config) = telegram::load(pool).await
-                    && config.enabled
-                    && telegram::token(secrets).is_some()
-                {
-                    let pool = pool.clone();
-                    let secrets = secrets.clone();
-                    let action = action.clone();
-                    let resources = resources.clone();
-                    let request_id = request_id.clone();
-                    tokio::spawn(async move {
-                        let _ = telegram::notify_permission(
-                            &pool,
-                            &secrets,
-                            &action,
-                            &resources,
-                            &request_id,
-                        )
+                if let Some(notifier) = notifier {
+                    let _ = notifier
+                        .permission_requested(crate::notifier::PermissionNotice {
+                            pool,
+                            secrets,
+                            workspace_id,
+                            run_id,
+                            action: &action,
+                            resources: &resources,
+                            request_id: &request_id,
+                        })
                         .await;
-                    });
                 }
 
                 let minutes = settings::get(pool, "permission_timeout_minutes")
@@ -704,7 +676,7 @@ fn extract_events(buffer: &mut String) -> Vec<Value> {
 /// Signals for a single chat turn: whether any tool was used and which
 /// write/edit/patch operations happened. Chat turns with tools or diffs become
 /// first-class executions; text-only turns stay in the chat history.
-pub(crate) fn chat_turn_signals(value: &Value, since_ms: i64) -> (bool, Vec<FileWrite>) {
+pub fn chat_turn_signals(value: &Value, since_ms: i64) -> (bool, Vec<FileWrite>) {
     let mut has_tool = false;
     let mut writes = Vec::new();
     let Some(messages) = value.get("data").and_then(Value::as_array) else {
@@ -995,6 +967,7 @@ mod tests {
         let outcome = execute_run(
             rest,
             RunRequest {
+                notifier: None,
                 pool: &pool,
                 secrets: &SecretStore::with_dir(temp.path().join("secrets")),
                 workspace_id: "ws-1",

@@ -6,13 +6,18 @@
 //! Domain modules (database, queue, adapters, recipes, DSH) move here in
 //! subsequent slices of the strangler refactor.
 
+pub mod adapters;
 pub mod db;
 pub mod dedupe;
 pub mod error;
 pub mod events;
 pub mod nodes;
+pub mod notifier;
+pub mod opencode_client;
 pub mod passkey;
 pub mod paths;
+pub mod runtime;
+pub mod sandbox;
 pub mod secrets;
 pub mod server_lock;
 pub mod text;

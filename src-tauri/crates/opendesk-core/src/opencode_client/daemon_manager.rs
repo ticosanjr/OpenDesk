@@ -87,7 +87,7 @@ impl DaemonManager {
     pub fn spawn_supervisor(self: &Arc<Self>) {
         cleanup_orphaned_daemons();
         let manager = Arc::clone(self);
-        tauri::async_runtime::spawn(async move {
+        tokio::spawn(async move {
             manager.supervise().await;
         });
     }
@@ -612,7 +612,7 @@ async fn terminate_pid(pid: u32) {
 /// Remove dedicated daemons left behind by a previous OpenDesk process that
 /// crashed or was replaced by an update. Only processes explicitly tagged by
 /// OpenDesk are touched; the user's own `opencode serve` is never killed.
-pub(crate) fn cleanup_orphaned_daemons() {
+pub fn cleanup_orphaned_daemons() {
     #[cfg(target_os = "linux")]
     {
         let Ok(entries) = std::fs::read_dir("/proc") else {

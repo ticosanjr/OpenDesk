@@ -332,7 +332,7 @@ mod tests {
     #[tokio::test]
     async fn seeds_builtin_harnesses_and_resolves_default() {
         let ctx = crate::test_support::context().await;
-        let service = AdapterService::load(&ctx.state.db).await.expect("load");
+        let service = AdapterService::load(&ctx.db).await.expect("load");
         let ids = service
             .list()
             .into_iter()
@@ -341,24 +341,18 @@ mod tests {
         for id in BUILTIN_HARNESSES {
             assert!(ids.contains(&(*id).to_string()), "missing {id}");
         }
-        assert_eq!(
-            default_harness(&ctx.state.db).await.expect("default"),
-            "opencode"
-        );
-        set_default_harness(&ctx.state.db, "codex")
+        assert_eq!(default_harness(&ctx.db).await.expect("default"), "opencode");
+        set_default_harness(&ctx.db, "codex")
             .await
             .expect("set default");
-        assert_eq!(
-            default_harness(&ctx.state.db).await.expect("default"),
-            "codex"
-        );
+        assert_eq!(default_harness(&ctx.db).await.expect("default"), "codex");
     }
 
     #[tokio::test]
     async fn rejects_unknown_harness_names() {
         assert!(validate_harness("nope").is_err());
         assert!(
-            set_default_harness(&crate::test_support::context().await.state.db, "nope")
+            set_default_harness(&crate::test_support::context().await.db, "nope")
                 .await
                 .is_err()
         );

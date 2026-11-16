@@ -1,4 +1,3 @@
-mod adapters;
 mod api;
 mod app_state;
 mod audit;
@@ -27,17 +26,15 @@ mod mcp_server;
 mod media;
 mod metrics;
 mod open_paths;
-mod opencode_client;
 mod personal_context;
 mod proposals;
 mod push;
 mod queue_scheduler;
 mod recipes;
 mod run_export;
+mod run_notifier;
 mod run_timeline;
 #[allow(dead_code)]
-mod runtime;
-mod sandbox;
 mod session_context;
 mod shell_state;
 mod skill_eval;
@@ -51,8 +48,8 @@ mod updates;
 mod voice;
 
 pub use opendesk_core::{
-    db, dedupe, error, events, nodes, passkey, paths, secrets, server_lock, text, token_estimate,
-    virtual_display, workspace_sync, worktree,
+    adapters, db, dedupe, error, events, nodes, notifier, opencode_client, passkey, paths, runtime,
+    sandbox, secrets, server_lock, text, token_estimate, virtual_display, workspace_sync, worktree,
 };
 
 use app_state::AppState;

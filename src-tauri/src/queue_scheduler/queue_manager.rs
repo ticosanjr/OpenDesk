@@ -568,7 +568,9 @@ impl QueueManager {
 
         let started = Instant::now();
         let secrets = SecretStore::new(&self.paths);
+        let notifier = crate::run_notifier::ShellRunNotifier;
         let request = RunRequest {
+            notifier: Some(&notifier),
             pool: &self.pool,
             secrets: &secrets,
             workspace_id: &job.workspace_id,

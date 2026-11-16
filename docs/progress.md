@@ -3131,3 +3131,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Próximo bloqueio: notificações Telegram/Signal no `session_runner`.
 - Core com 84 testes, shell com 496.
 - ADR 0111.
+
+## 2026-11-16 — runtime/adapters no core (REF-01)
+
+- `opencode_client`, `runtime`, `sandbox` e `adapters` no `opendesk-core`.
+- `RunNotifier` remove integrações do session_runner; shell injeta Telegram/Signal.
+- Core com 120 testes; shell 460.
+- ADR 0112.
