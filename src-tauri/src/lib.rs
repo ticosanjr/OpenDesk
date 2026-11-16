@@ -5,7 +5,6 @@ mod cli;
 mod computer;
 mod control_plane;
 mod daemon_probe;
-mod desktop_integration;
 mod doctor;
 mod governance;
 mod integrations;
@@ -35,11 +34,11 @@ mod updates;
 mod voice;
 
 pub use opendesk_core::{
-    adapters, audit, backup, browse, browse_tags, config_sync, db, dedupe, dsh_router, error,
-    events, hitl, mcp_server, media, metrics, nodes, notifier, opencode_client, passkey, paths,
-    personal_context, recipe_dispatch, recurrence, run_export, run_timeline, runtime, sandbox,
-    secrets, server_lock, skill_eval, text, token_estimate, update_signing, virtual_display,
-    workspace_sync, worktree,
+    adapters, audit, backup, browse, browse_tags, config_sync, db, dedupe, desktop_integration,
+    dsh_router, error, events, hitl, mcp_server, media, metrics, nodes, notifier, opencode_client,
+    passkey, paths, personal_context, recipe_dispatch, recurrence, run_export, run_timeline,
+    runtime, sandbox, secrets, server_lock, skill_eval, text, token_estimate, update_signing,
+    virtual_display, workspace_sync, worktree,
 };
 
 use app_state::AppState;

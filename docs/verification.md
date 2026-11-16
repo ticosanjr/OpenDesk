@@ -496,6 +496,10 @@ pendências manuais continuam listadas abaixo.
 
 - Engine usa RecipeStepDispatcher; comportamento de fila inalterado.
 
+## Sprint 1 — desktop integration no core
+
+- Integração AppImage testada no core.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

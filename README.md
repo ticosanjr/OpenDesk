@@ -394,6 +394,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0123 — Backup no core](docs/decisions/0123-backup-core.md)
 - [ADR 0124 — Signing/MCP no core](docs/decisions/0124-signing-mcp-core.md)
 - [ADR 0125 — Dispatch de receita](docs/decisions/0125-recipe-dispatch-trait.md)
+- [ADR 0126 — Desktop integration no core](docs/decisions/0126-desktop-integration-core.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

@@ -14,6 +14,7 @@ pub mod browse_tags;
 pub mod config_sync;
 pub mod db;
 pub mod dedupe;
+pub mod desktop_integration;
 pub mod dsh_router;
 pub mod error;
 pub mod events;

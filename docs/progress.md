@@ -3213,3 +3213,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - `RecipeStepDispatcher` no core; engine não importa mais api::tasks.
 - ADR 0125.
+
+## 2026-11-16 — desktop_integration no core (REF-01)
+
+- Módulo movido; core 219 testes, shell 364.
+- ADR 0126.
