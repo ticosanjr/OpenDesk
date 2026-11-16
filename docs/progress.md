@@ -3071,3 +3071,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `worktree` e `virtual_display` movidos para `opendesk-core`, sem Tauri.
 - Testes de git/overlay/Xvfb passam a rodar no crate do core.
 - ADR 0102.
+
+## 2026-11-16 — allowlist de janela/app (REQ-15)
+
+- Allowlist persistida com janelas/processos, checagem antes de captura e ação, falha fechada.
+- API e UI de configuração; sessões isoladas mostram display.
+- ADR 0103.

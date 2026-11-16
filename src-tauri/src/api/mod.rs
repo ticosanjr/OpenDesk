@@ -210,6 +210,10 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/computer/status", get(sandbox::computer_status))
         .route(
+            "/api/computer/allowlist",
+            get(sandbox::get_allowlist).put(sandbox::put_allowlist),
+        )
+        .route(
             "/api/computer/sessions",
             get(sandbox::list_sessions).post(sandbox::create_session),
         )

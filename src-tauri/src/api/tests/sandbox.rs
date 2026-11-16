@@ -48,6 +48,32 @@ async fn sandbox_policy_roundtrips() {
 }
 
 #[tokio::test]
+async fn computer_allowlist_roundtrips() {
+    let ctx = test_support::context().await;
+    let (status, current) = call(&ctx, Method::GET, "/api/computer/allowlist", None).await;
+    assert_eq!(status, StatusCode::OK, "{current}");
+    assert_eq!(current["enabled"], false);
+
+    let (status, saved) = call(
+        &ctx,
+        Method::PUT,
+        "/api/computer/allowlist",
+        Some(json!({
+            "enabled": true,
+            "windows": [" Chromium ", ""],
+            "apps": ["firefox"]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{saved}");
+    assert_eq!(saved["windows"], json!(["Chromium"]));
+    assert_eq!(saved["apps"], json!(["firefox"]));
+
+    let (_, loaded) = call(&ctx, Method::GET, "/api/computer/allowlist", None).await;
+    assert_eq!(loaded["enabled"], true);
+}
+
+#[tokio::test]
 async fn isolated_computer_session_uses_its_own_display() {
     if !crate::computer::can_start(true).available {
         return;

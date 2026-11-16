@@ -33,6 +33,12 @@ interface SandboxStatus {
   platform: string;
 }
 
+interface WindowAllowlist {
+  enabled: boolean;
+  windows: string[];
+  apps: string[];
+}
+
 interface Capabilities {
   available: boolean;
   backend: string;
@@ -66,25 +72,37 @@ export function SandboxComputerCard({ workspaceId }: { workspaceId: string }) {
   const [preview, setPreview] = useState<string | null>(null);
   const [requireApproval, setRequireApproval] = useState(true);
   const [isolated, setIsolated] = useState(true);
+  const [allowlist, setAllowlist] = useState<WindowAllowlist>({
+    enabled: false,
+    windows: [],
+    apps: [],
+  });
+  const [allowWindows, setAllowWindows] = useState("");
+  const [allowApps, setAllowApps] = useState("");
   const [action, setAction] = useState({ kind: "type", text: "", key: "", x: "0", y: "0" });
 
   const load = useCallback(async () => {
     if (!workspaceId) return;
     try {
-      const [sandboxStatus, capabilitiesStatus, sessionList] = await Promise.all([
-        apiGet<SandboxStatus>(
-          `/api/sandbox?workspace_id=${encodeURIComponent(workspaceId)}`,
-        ),
-        apiGet<Capabilities>("/api/computer/status"),
-        apiGet<ComputerSession[]>(
-          `/api/computer/sessions?workspace_id=${encodeURIComponent(workspaceId)}`,
-        ),
-      ]);
+      const [sandboxStatus, capabilitiesStatus, sessionList, allowlistStatus] =
+        await Promise.all([
+          apiGet<SandboxStatus>(
+            `/api/sandbox?workspace_id=${encodeURIComponent(workspaceId)}`,
+          ),
+          apiGet<Capabilities>("/api/computer/status"),
+          apiGet<ComputerSession[]>(
+            `/api/computer/sessions?workspace_id=${encodeURIComponent(workspaceId)}`,
+          ),
+          apiGet<WindowAllowlist>("/api/computer/allowlist"),
+        ]);
       setSandbox(sandboxStatus);
       setCapabilities(capabilitiesStatus);
       setSessions(sessionList);
       setCommands(sandboxStatus.policy.allowed_commands.join(", "));
       setPaths(sandboxStatus.policy.allowed_paths.join(", "));
+      setAllowlist(allowlistStatus);
+      setAllowWindows(allowlistStatus.windows.join(", "));
+      setAllowApps(allowlistStatus.apps.join(", "));
     } catch (cause) {
       toast({
         tone: "error",
@@ -149,6 +167,33 @@ export function SandboxComputerCard({ workspaceId }: { workspaceId: string }) {
       toast({
         tone: "error",
         title: "Computer-use indisponível",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function saveAllowlist() {
+    setBusy("allowlist");
+    try {
+      const saved = await apiPut<WindowAllowlist>("/api/computer/allowlist", {
+        enabled: allowlist.enabled,
+        windows: allowWindows
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+        apps: allowApps
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+      });
+      setAllowlist(saved);
+      toast({ tone: "success", title: "Allowlist de janelas salva" });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Falha ao salvar allowlist",
         description: cause instanceof Error ? cause.message : String(cause),
       });
     } finally {
@@ -402,6 +447,45 @@ export function SandboxComputerCard({ workspaceId }: { workspaceId: string }) {
             ) : null}
           </div>
 
+          <div className="space-y-2 rounded-lg border border-zinc-800/70 bg-zinc-950/30 p-3">
+            <label className="flex items-center gap-2 text-[12.5px] text-zinc-300">
+              <input
+                type="checkbox"
+                checked={allowlist.enabled}
+                onChange={(event) =>
+                  setAllowlist({ ...allowlist, enabled: event.target.checked })
+                }
+                className="h-4 w-4 accent-blue-500"
+              />
+              allowlist de janela/app para entrada e captura
+            </label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <input
+                value={allowWindows}
+                onChange={(event) => setAllowWindows(event.target.value)}
+                placeholder="janelas (título contém; vírgula)"
+                className={inputClass}
+              />
+              <input
+                value={allowApps}
+                onChange={(event) => setAllowApps(event.target.value)}
+                placeholder="apps (processo contém; vírgula)"
+                className={inputClass}
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7"
+                disabled={busy === "allowlist"}
+                onClick={() => void saveAllowlist()}
+              >
+                Salvar allowlist
+              </Button>
+            </div>
+          </div>
+
           {sessions.length === 0 ? (
             <EmptyState
               title="Nenhuma sessão"
@@ -429,6 +513,9 @@ export function SandboxComputerCard({ workspaceId }: { workspaceId: string }) {
                       </Badge>
                       <span className="font-mono text-[11px] text-zinc-500">
                         {session.id.slice(0, 8)} · {session.actions} ação(ões)
+                        {session.isolated && session.display
+                          ? ` · isolada ${session.display}`
+                          : ""}
                       </span>
                     </div>
                     {session.screenshot_path ? (

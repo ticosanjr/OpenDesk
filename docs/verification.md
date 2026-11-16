@@ -379,6 +379,12 @@ pendências manuais continuam listadas abaixo.
 - `cargo test -p opendesk-core` cobre worktree Git, overlay e Xvfb.
 - Shell reexporta os módulos sem alterar chamadas internas.
 
+## Sprint 5 — allowlist de computer-use
+
+- Janela/app permitidos por substring case-insensitive.
+- Alvo fora da lista ou leitura impossível falha fechado.
+- API roundtrip e UI de configuração.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

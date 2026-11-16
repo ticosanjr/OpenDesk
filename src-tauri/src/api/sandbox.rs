@@ -42,6 +42,19 @@ pub async fn computer_status() -> Json<ComputerCapabilities> {
     Json(computer::capabilities())
 }
 
+pub async fn get_allowlist(
+    State(state): State<Arc<AppState>>,
+) -> AppResult<Json<computer::WindowAllowlist>> {
+    Ok(Json(computer::allowlist(&state.db).await?))
+}
+
+pub async fn put_allowlist(
+    State(state): State<Arc<AppState>>,
+    Json(allowlist): Json<computer::WindowAllowlist>,
+) -> AppResult<Json<computer::WindowAllowlist>> {
+    Ok(Json(computer::set_allowlist(&state.db, allowlist).await?))
+}
+
 pub async fn list_sessions(
     State(state): State<Arc<AppState>>,
     Query(query): Query<WorkspaceQuery>,
