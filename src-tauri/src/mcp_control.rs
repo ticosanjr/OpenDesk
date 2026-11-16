@@ -221,7 +221,14 @@ pub async fn handle_http(
                     Err(anyhow!("agente sem permissão para a tool {name}"))
                 }
                 Some(name) => {
-                    let (_, targets) = load_dynamic_tools(workspace_id, phase).await;
+                    // Static tools do not need the two internal API calls used to
+                    // discover recipe/agent tools. Only dynamic names pay that cost.
+                    let dynamic = name.starts_with("recipe_") || name.starts_with("agent_");
+                    let (_, targets) = if dynamic {
+                        load_dynamic_tools(workspace_id, phase).await
+                    } else {
+                        (Vec::new(), std::collections::HashMap::new())
+                    };
                     dispatch(workspace_id, default_agent, &name, arguments, &targets)
                         .await
                         .map(|value| {

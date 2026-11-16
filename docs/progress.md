@@ -3271,3 +3271,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - skill_eval_cases + CRUD/API; core 234 testes, shell 357 (591).
 - ADR 0136.
+
+## 2026-11-17 — otimização do MCP HTTP
+
+- tools/call estática não carrega mais tools dinâmicas via API.
+- Removido helper morto do mtls.

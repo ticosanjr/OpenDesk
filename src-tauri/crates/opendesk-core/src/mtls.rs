@@ -6,10 +6,7 @@
 
 use crate::error::{AppError, AppResult};
 use serde::Serialize;
-use std::{
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::{path::Path, process::Command};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MtlsStatus {
@@ -110,11 +107,6 @@ pub fn validate(ca: &Path, cert: &Path, key: &Path) -> AppResult<MtlsStatus> {
         key: Some(key.to_string_lossy().to_string()),
         detail: Some("CA, certificado, SAN e validade ok".into()),
     })
-}
-
-#[allow(dead_code)]
-fn _paths(ca: &Path, cert: &Path, key: &Path) -> Vec<PathBuf> {
-    vec![ca.to_path_buf(), cert.to_path_buf(), key.to_path_buf()]
 }
 
 #[cfg(test)]
