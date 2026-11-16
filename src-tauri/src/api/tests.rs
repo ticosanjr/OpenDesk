@@ -93,6 +93,7 @@ mod resources;
 mod sandbox;
 mod schedules;
 mod seed;
+mod session_context;
 mod studio;
 mod tasks;
 mod telegram;

@@ -44,6 +44,7 @@ mod runtime;
 mod sandbox;
 mod secrets;
 mod server_lock;
+mod session_context;
 mod shell_state;
 mod skill_eval;
 mod starter_packs;

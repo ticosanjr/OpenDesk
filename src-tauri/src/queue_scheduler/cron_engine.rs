@@ -668,6 +668,7 @@ impl CronEngine {
                 needs_browser,
                 personal_context: &personal_context,
                 structured_memory: &memory_context,
+                session_packet: "",
             },
             &templates,
         );

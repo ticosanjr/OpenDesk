@@ -103,6 +103,13 @@ pub async fn get_task(
     Ok(Json(tasks::get(&state.db, &id).await?))
 }
 
+pub async fn session_packet(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<crate::session_context::SessionPacket>> {
+    Ok(Json(crate::session_context::build(&state.db, &id).await?))
+}
+
 pub async fn update_task(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
@@ -639,6 +646,9 @@ pub async fn post_task_message(
     )
     .await
     .unwrap_or_default();
+    let session_packet = crate::session_context::render_and_persist(&state.db, &task.id)
+        .await
+        .unwrap_or_default();
     let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
         &state.db,
         Some(&task.workspace_id),
@@ -660,6 +670,7 @@ pub async fn post_task_message(
             needs_browser,
             personal_context: &personal_context,
             structured_memory: &memory_context,
+            session_packet: &session_packet,
         },
         &templates,
     );

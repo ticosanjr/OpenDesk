@@ -3039,3 +3039,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `container_runtime` exposto na API/UI; Dockerfile base em `packaging/sandbox/`.
 - Sem runtime falha explicitamente; nunca degrada para execução sem sandbox.
 - ADR 0097.
+
+## 2026-11-16 — SessionContextPacket (REQ-07)
+
+- Pacote entre harnesses com plano, decisões, diffs, artefatos, memória e orçamento.
+- Persistido em `session_context_packets` e injetado no prompt de dispatch/follow-up/preview.
+- `GET /api/tasks/{id}/session-packet` para inspeção; limites de tamanho.
+- ADR 0098.

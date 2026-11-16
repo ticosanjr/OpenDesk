@@ -20,6 +20,8 @@ pub struct PackContext<'a> {
     /// Rendered notes from the structured memory store, already filtered by the
     /// agent's ACL.
     pub structured_memory: &'a str,
+    /// Compact cross-harness packet (plan, decisions, diffs, artifacts, budget).
+    pub session_packet: &'a str,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -102,6 +104,15 @@ pub fn pack_sections(context: &PackContext<'_>, templates: &PromptTemplates) -> 
                 &templates.structured_memory_block,
                 &[("structured_memory", context.structured_memory.trim())],
             ),
+        );
+    }
+
+    if !context.session_packet.trim().is_empty() {
+        push(
+            "session_packet",
+            "Contexto entre harnesses",
+            "Sessão",
+            context.session_packet.trim().chars().take(12_000).collect(),
         );
     }
 
@@ -282,6 +293,7 @@ mod tests {
                 needs_browser: false,
                 personal_context: "",
                 structured_memory: "",
+                session_packet: "",
             },
             &PromptTemplates::default(),
         );
@@ -308,6 +320,7 @@ mod tests {
                 needs_browser: true,
                 personal_context: "",
                 structured_memory: "",
+                session_packet: "",
             },
             &PromptTemplates::default(),
         );

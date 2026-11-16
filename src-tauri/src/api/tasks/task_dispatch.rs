@@ -265,6 +265,9 @@ pub(crate) async fn enqueue_decision_with_session(
     )
     .await
     .unwrap_or_default();
+    let session_packet = crate::session_context::render_and_persist(&state.db, &task.id)
+        .await
+        .unwrap_or_default();
     let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
         &state.db,
         Some(&task.workspace_id),
@@ -286,6 +289,7 @@ pub(crate) async fn enqueue_decision_with_session(
             needs_browser,
             personal_context: &personal_context,
             structured_memory: &memory_context,
+            session_packet: &session_packet,
         },
         &templates,
     );

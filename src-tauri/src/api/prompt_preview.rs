@@ -73,6 +73,10 @@ pub async fn preview(
         Some(&task.workspace_id),
     )
     .await?;
+    let session_packet = crate::session_context::build(&state.db, &task.id)
+        .await
+        .map(|packet| crate::session_context::render(&packet))
+        .unwrap_or_default();
     let context = PackContext {
         workspace_root: std::path::Path::new(&workspace.root_path),
         output_directory: &decision.output_directory,
@@ -88,6 +92,7 @@ pub async fn preview(
         needs_browser: crate::browse::needs_browser(&task.title, &task.description, &tags),
         personal_context: &personal_context,
         structured_memory: &memory_context,
+        session_packet: &session_packet,
     };
     let sections = dsh_router::context_packer::pack_sections(&context, &templates);
     let prompt = sections

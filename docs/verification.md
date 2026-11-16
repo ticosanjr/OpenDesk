@@ -350,6 +350,12 @@ pendências manuais continuam listadas abaixo.
 - UI mostra runtime disponível e permite editar a imagem.
 - Sem runtime, o run falha com conflito explícito.
 
+## Sprint 3 — SessionContextPacket
+
+- Pacote inclui plano, decisão e orçamento e é persistido por tarefa.
+- Rota de inspeção devolve o pacote atual.
+- Prompt preview/dispatch inclui a seção de continuidade.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

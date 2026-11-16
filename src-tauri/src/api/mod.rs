@@ -446,6 +446,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
                 .patch(tasks::update_task)
                 .delete(tasks::delete_task),
         )
+        .route("/api/tasks/{id}/session-packet", get(tasks::session_packet))
         .route("/api/tasks/{id}/dispatch", post(tasks::dispatch_task))
         .route("/api/tasks/{id}/approve-plan", post(tasks::approve_plan))
         .route("/api/tasks/{id}/move", post(tasks::move_task))
