@@ -9,9 +9,8 @@ pub struct TestContext {
     pub workspace_root: PathBuf,
 }
 
-pub async fn context() -> TestContext {
-    let temp = TempDir::new().expect("temp");
-    let root = temp.path();
+/// Builds an isolated [`AppPaths`] rooted at `root`, creating the directories.
+pub fn paths_in(root: &std::path::Path) -> AppPaths {
     let paths = AppPaths {
         data_dir: root.join("data"),
         config_dir: root.join("config"),
@@ -35,6 +34,13 @@ pub async fn context() -> TestContext {
     ] {
         std::fs::create_dir_all(dir).expect("dir");
     }
+    paths
+}
+
+pub async fn context() -> TestContext {
+    let temp = TempDir::new().expect("temp");
+    let root = temp.path();
+    let paths = paths_in(root);
     let workspace_root = root.join("workspace");
     std::fs::create_dir_all(&workspace_root).expect("workspace root");
     let state = Arc::new(AppState::initialize(paths).await.expect("state"));

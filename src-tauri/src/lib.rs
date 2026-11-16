@@ -30,6 +30,7 @@ mod opencode_client;
 mod paths;
 mod personal_context;
 mod proposals;
+mod push;
 mod queue_scheduler;
 mod recipes;
 mod run_export;
@@ -235,6 +236,7 @@ pub fn run() {
             });
             state.queue.spawn_worker();
             state.cron.spawn();
+            push::start(state.clone());
             tauri::async_runtime::spawn(crate::db::maintenance::run_loop(
                 state.db.clone(),
                 state.paths.clone(),
@@ -372,6 +374,7 @@ pub fn run_headless() {
             tracing::warn!(error = %error, "Telegram bridge was not started");
         }
         state.queue.spawn_worker();
+        push::start(state.clone());
         tauri::async_runtime::spawn(crate::db::maintenance::run_loop(
             state.db.clone(),
             state.paths.clone(),

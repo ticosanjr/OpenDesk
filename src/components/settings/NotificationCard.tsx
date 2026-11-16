@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiGet, apiPut } from "@/lib/api";
 import { toast } from "@/store/toast-store";
+import { PushNotificationPanel } from "@/components/settings/PushNotificationPanel";
 import {
   notificationEnabled,
   resetNotificationPreferences,
@@ -220,6 +221,7 @@ export function NotificationCard() {
             Restaurar padrões mínimos
           </Button>
         </div>
+        <PushNotificationPanel />
         <label className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5">
           <span>
             <span className="block text-[13.5px] font-medium text-zinc-200">

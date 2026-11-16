@@ -21,6 +21,7 @@ pub mod model_health;
 pub mod models;
 pub mod permissions;
 pub mod proposals;
+pub mod push;
 pub mod queue;
 pub mod recipe_files;
 pub mod router;
@@ -187,7 +188,7 @@ mod migration_tests {
                 .fetch_all(&pool)
                 .await
                 .unwrap();
-        assert_eq!(rows.last().unwrap().0, 43, "rows: {rows:?}");
+        assert_eq!(rows.last().unwrap().0, 44, "rows: {rows:?}");
         let calendar_table: Option<(String,)> = sqlx::query_as(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'calendar_events'",
         )

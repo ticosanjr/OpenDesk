@@ -168,6 +168,8 @@ pendências manuais continuam listadas abaixo.
 - Daemon com host configurável, PWA estática e login por sessão revogável.
 - CLI `opendesk chat`, `approvals` e `diff`, além de serviços de exemplo.
 - ADR 0063.
+- Web Push/VAPID: migração 0044, API, dispatcher, painel do PWA e service
+  worker; testes de chaves, CRUD e endpoints.
 
 ## Verificações manuais pendentes
 

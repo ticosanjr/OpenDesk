@@ -32,6 +32,7 @@ pub mod prompt_layer;
 pub mod prompt_preview;
 pub mod prompt_templates;
 pub mod proposals;
+pub mod push;
 pub mod queue;
 pub mod recipes;
 pub mod router;
@@ -104,6 +105,11 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/auth/session", post(auth::create_session))
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/sessions", get(auth::list_sessions))
+        .route("/api/push/vapid", get(push::vapid_key))
+        .route("/api/push/subscribe", post(push::subscribe))
+        .route("/api/push/unsubscribe", post(push::unsubscribe))
+        .route("/api/push/subscriptions", get(push::subscriptions))
+        .route("/api/push/test", post(push::test))
         .route("/api/meta", get(meta))
         .route("/api/about", get(about::about))
         .route(

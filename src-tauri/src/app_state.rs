@@ -49,6 +49,7 @@ pub struct AppState {
     pub signal: Arc<SignalBridge>,
     pub telegram: Arc<TelegramBridge>,
     pub io_bus: Arc<crate::io_bus::runtime::IoBus>,
+    pub push_keys: crate::push::VapidKeys,
     pub rate_limiter: crate::audit::RateLimiter,
     pub api_host: String,
     pub api_port: u16,
@@ -105,6 +106,7 @@ impl AppState {
         let api_token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
 
         let events = EventBus::new(2048);
+        let push_keys = crate::push::load_or_create_keys(&paths)?;
         let configured_binary = settings::get(&db, OPENCODE_BIN_SETTING)
             .await?
             .and_then(|value| value.as_str().map(PathBuf::from));
@@ -149,6 +151,7 @@ impl AppState {
             signal,
             telegram,
             io_bus,
+            push_keys,
             rate_limiter: crate::audit::RateLimiter::new(crate::audit::RateLimits::from_env()),
             api_host,
             api_port,

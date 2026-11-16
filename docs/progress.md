@@ -2760,4 +2760,15 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `opendesk chat` com mensagem única ou loop interativo, além de
   `approvals list/resolve` e `diff <run>`.
 - Serviços de exemplo systemd/launchd/Windows e `docs/daemon.md`.
-- ADR 0063. Pendências: core extraction, passkey, Web Push e TUI completa.
+- ADR 0063. Pendências: core extraction, passkey e TUI completa.
+
+### Web Push/VAPID
+
+- Migração 0044 (`push_subscriptions`) e chaves VAPID em `push_vapid.json` 0600.
+- `GET /api/push/vapid`, `POST /api/push/subscribe|unsubscribe|test` e
+  `GET /api/push/subscriptions`.
+- Dispatcher no `EventBus` para HITL, permissões, fim de execução, propostas e
+  orçamento, com remoção de endpoints expirados.
+- Painel de ativação/teste no PWA e handlers `push`/`notificationclick` no
+  service worker.
+- ADR 0064.

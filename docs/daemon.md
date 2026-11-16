@@ -41,4 +41,6 @@ sessões persistentes entram na onda de autenticação remota.
 ## PWA
 
 Com `OPENDESK_WEB_DIR` apontando para `dist`, o Axum serve a SPA, o manifest e o
-service worker. Web Push/VAPID ainda não está habilitado nesta etapa.
+service worker. O Web Push/VAPID é opcional: ative em Configurações →
+Notificações no PWA (exige HTTPS ou localhost) e use “Testar” para validar o
+caminho até o serviço de push.
