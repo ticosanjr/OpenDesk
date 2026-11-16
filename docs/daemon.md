@@ -68,9 +68,10 @@ opendesk node run --central https://desk.exemplo.com \
 
 ## Distribuição
 
-O release publica `opendeskd-<plataforma>` e o AppImage inclui o daemon em
-`usr/bin/opendeskd`. Os pacotes `.deb`/`.rpm` continuam contendo apenas o
-desktop; instale o daemon a partir do artefato avulso ou do AppImage.
+O release publica `opendeskd-<plataforma>`, o AppImage inclui o daemon em
+`usr/bin/opendeskd` e o `.deb` é reconstruído com o daemon e a unit
+`opendeskd-user.service`. O `.rpm` continua apenas com o desktop; use o artefato
+avulso ou o AppImage nesse caso.
 
 ## Sandbox no worker
 

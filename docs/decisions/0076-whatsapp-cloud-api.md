@@ -25,8 +25,9 @@
    sem isso, usa o workspace ativo.
 7. **Envio explícito.** `POST /api/channels/whatsapp/send` envia texto pela
    Graph API e é usado pelo teste da UI. Não há envio automático de respostas.
-8. **Mídia.** Imagens/documentos/áudio entram como marcador textual (ou legenda);
-   download/armazenamento de mídia fica para uma próxima etapa.
+8. **Mídia.** Imagens/documentos/áudio/vídeo são baixados pela Graph API (limite
+   de 25 MB) para `input/whatsapp/` do workspace; o ticket cita o caminho. Se o
+   download falhar, a mensagem mantém o marcador textual e o erro é logado.
 
 ## Consequências
 

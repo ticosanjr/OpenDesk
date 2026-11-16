@@ -242,6 +242,11 @@ pendências manuais continuam listadas abaixo.
 - Worker remoto suporta OpenCode local via REST/SSE, com timeout e interrupt.
 - Testes de parsing SSE e mapeamento de sessão.
 
+## Pós-1.2.0 — mídia e pacote
+
+- Extração de mídia Meta e extensões seguras cobertas por testes.
+- Injeção de `opendeskd`/systemd em `.deb` validada manualmente com `dpkg-deb`.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

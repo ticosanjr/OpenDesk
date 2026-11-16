@@ -267,6 +267,29 @@ if [[ "$SKIP_BUILD" != "1" ]]; then
   esac
 fi
 
+# Tauri bundles only the desktop binary. Inject the daemon and its systemd user
+# unit into the .deb so a package install is usable headless too. RPM rebuilding
+# needs rpmbuild/rpm2cpio, which are not guaranteed; those stay standalone.
+inject_daemon_into_deb() {
+  command -v dpkg-deb >/dev/null 2>&1 || return 0
+  local deb daemon unit tmp
+  deb="$(find "$ROOT/src-tauri/target/release/bundle/deb" -type f -name "*${VERSION}*.deb" 2>/dev/null | head -n1)"
+  daemon="$ROOT/src-tauri/target/release/opendeskd"
+  unit="$ROOT/packaging/systemd/opendeskd-user.service"
+  [[ -f "$deb" && -x "$daemon" && -f "$unit" ]] || return 0
+  tmp="$(mktemp -d)"
+  if dpkg-deb -R "$deb" "$tmp" >/dev/null 2>&1; then
+    install -Dm755 "$daemon" "$tmp/usr/bin/opendeskd"
+    install -Dm644 "$unit" "$tmp/usr/lib/systemd/user/opendeskd.service"
+    dpkg-deb --build --root-owner-group "$tmp" "$deb" >/dev/null 2>&1 || true
+  fi
+  rm -rf "$tmp"
+}
+
+if [[ "$PLATFORM" == linux-* ]]; then
+  inject_daemon_into_deb
+fi
+
 echo "==> Collecting v${VERSION} artifacts"
 if [[ -f "$DEST/manifest.json" ]]; then
   existing_platform="$(node -e 'console.log(require(process.argv[1]).platform || "")' "$DEST/manifest.json")"

@@ -1,5 +1,6 @@
 use crate::{
     app_state::AppState,
+    db::workspaces,
     db::{
         channels::{self, ChannelRoute, UpsertRouteInput},
         tasks,
@@ -385,6 +386,9 @@ struct MetaMessage {
     text: String,
     message_id: Option<String>,
     name: Option<String>,
+    media_id: Option<String>,
+    media_mime: Option<String>,
+    media_name: Option<String>,
 }
 
 fn extract_meta_messages(value: &Value) -> Vec<MetaMessage> {
@@ -425,6 +429,7 @@ fn extract_meta_messages(value: &Value) -> Vec<MetaMessage> {
                     continue;
                 };
                 let kind = message.get("type").and_then(Value::as_str).unwrap_or("");
+                let media = message.get(kind).and_then(Value::as_object);
                 let text = match kind {
                     "text" => message
                         .pointer("/text/body")
@@ -442,14 +447,13 @@ fn extract_meta_messages(value: &Value) -> Vec<MetaMessage> {
                         .and_then(Value::as_str)
                         .unwrap_or("")
                         .to_string(),
-                    "image" | "document" | "video" => message
+                    "image" | "document" | "video" | "audio" | "voice" | "sticker" => message
                         .pointer("/image/caption")
                         .or_else(|| message.pointer("/document/caption"))
                         .or_else(|| message.pointer("/video/caption"))
                         .and_then(Value::as_str)
                         .map(str::to_string)
                         .unwrap_or_else(|| format!("[{kind} recebido]")),
-                    "audio" => "[áudio recebido]".to_string(),
                     "" => continue,
                     other => format!("[{other} recebido]"),
                 };
@@ -468,6 +472,18 @@ fn extract_meta_messages(value: &Value) -> Vec<MetaMessage> {
                         .and_then(Value::as_str)
                         .map(str::to_string),
                     name,
+                    media_id: media
+                        .and_then(|media| media.get("id"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
+                    media_mime: media
+                        .and_then(|media| media.get("mime_type"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
+                    media_name: media
+                        .and_then(|media| media.get("filename"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
                 });
             }
         }
@@ -497,6 +513,134 @@ fn hex_decode(value: &str) -> Option<Vec<u8>> {
         .step_by(2)
         .map(|index| u8::from_str_radix(&value[index..index + 2], 16).ok())
         .collect()
+}
+
+fn media_extension(mime: Option<&str>, filename: Option<&str>) -> String {
+    if let Some(filename) = filename
+        && let Some(extension) = std::path::Path::new(filename)
+            .extension()
+            .and_then(|value| value.to_str())
+    {
+        let extension = extension
+            .chars()
+            .filter(|character| character.is_ascii_alphanumeric())
+            .take(8)
+            .collect::<String>();
+        if !extension.is_empty() {
+            return extension.to_lowercase();
+        }
+    }
+    match mime.unwrap_or("").split(';').next().unwrap_or("") {
+        "image/jpeg" => "jpg",
+        "image/png" => "png",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        "audio/ogg" => "ogg",
+        "audio/mpeg" => "mp3",
+        "audio/mp4" => "m4a",
+        "audio/wav" => "wav",
+        "video/mp4" => "mp4",
+        "application/pdf" => "pdf",
+        _ => "bin",
+    }
+    .to_string()
+}
+
+async fn download_whatsapp_media(
+    state: &Arc<AppState>,
+    config: &WhatsAppConfig,
+    workspace_root: &str,
+    message: &MetaMessage,
+) -> AppResult<String> {
+    let (Some(media_id), Some(access_token)) = (
+        message.media_id.as_deref(),
+        state
+            .secrets
+            .get(WHATSAPP_SECRET_NAMESPACE, "access_token")?,
+    ) else {
+        return Ok(message.text.clone());
+    };
+    let base = std::env::var("OPENDESK_WHATSAPP_GRAPH_URL")
+        .unwrap_or_else(|_| "https://graph.facebook.com".into());
+    let version = if config.api_version.trim().is_empty() {
+        "v21.0"
+    } else {
+        config.api_version.trim()
+    };
+    let client = reqwest::Client::new();
+    let metadata = client
+        .get(format!(
+            "{}/{}/{media_id}",
+            base.trim_end_matches('/'),
+            version
+        ))
+        .bearer_auth(&access_token)
+        .send()
+        .await
+        .map_err(|error| AppError::Internal(format!("Graph media inacessível: {error}")))?;
+    let status = metadata.status();
+    let value: Value = metadata.json().await.unwrap_or(Value::Null);
+    if !status.is_success() {
+        return Ok(message.text.clone());
+    }
+    if value
+        .get("file_size")
+        .and_then(Value::as_i64)
+        .is_some_and(|size| size > 25 * 1024 * 1024)
+    {
+        return Ok(format!(
+            "{}\n[mídia acima de 25 MB não baixada]",
+            message.text
+        ));
+    }
+    let Some(url) = value.get("url").and_then(Value::as_str) else {
+        return Ok(message.text.clone());
+    };
+    let mime = value
+        .get("mime_type")
+        .and_then(Value::as_str)
+        .or(message.media_mime.as_deref());
+    let response = client
+        .get(url)
+        .bearer_auth(&access_token)
+        .send()
+        .await
+        .map_err(|error| AppError::Internal(format!("download da mídia falhou: {error}")))?;
+    if !response.status().is_success() {
+        return Ok(message.text.clone());
+    }
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|error| AppError::Internal(format!("corpo da mídia falhou: {error}")))?;
+    if bytes.len() > 25 * 1024 * 1024 {
+        return Ok(format!(
+            "{}\n[mídia acima de 25 MB não baixada]",
+            message.text
+        ));
+    }
+    let extension = media_extension(mime, message.media_name.as_deref());
+    let dir = std::path::Path::new(workspace_root).join("input/whatsapp");
+    tokio::fs::create_dir_all(&dir).await?;
+    let id = message
+        .message_id
+        .as_deref()
+        .unwrap_or("media")
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric() || *character == '-')
+        .take(40)
+        .collect::<String>();
+    let file = format!(
+        "{}-{}.{}",
+        chrono::Utc::now().format("%Y%m%d%H%M%S"),
+        if id.is_empty() { "media" } else { &id },
+        extension
+    );
+    tokio::fs::write(dir.join(&file), &bytes).await?;
+    Ok(format!(
+        "{}\n[arquivo salvo em input/whatsapp/{file}]",
+        message.text
+    ))
 }
 
 /// Universal inbound webhook. Generic channels use `x-opendesk-channel-token`;
@@ -535,15 +679,32 @@ pub async fn inbound(
             ));
         }
         let config = whatsapp_config(&state).await?;
+        let workspace_id =
+            crate::api::tasks::resolve_workspace_id(&state, config.workspace_id.as_deref()).await?;
+        let workspace = workspaces::get(&state.db, &workspace_id).await?;
         let messages = extract_meta_messages(&value);
         let mut processed = 0;
         let mut failures = 0;
         for message in messages {
+            let text = match download_whatsapp_media(
+                &state,
+                &config,
+                &workspace.root_path,
+                &message,
+            )
+            .await
+            {
+                Ok(text) => text,
+                Err(error) => {
+                    tracing::warn!(error = %error, "WhatsApp media download failed");
+                    message.text.clone()
+                }
+            };
             match process_inbound(
                 &state,
                 &channel,
                 &message.identity,
-                &message.text,
+                &text,
                 message.message_id.as_deref(),
                 message.name.as_deref(),
                 false,
@@ -751,17 +912,35 @@ mod tests {
                         "contacts": [{ "wa_id": "5511999", "profile": { "name": "Ana" } }],
                         "messages": [
                             { "from": "5511999", "id": "wamid.1", "type": "text", "text": { "body": "Oi" } },
-                            { "from": "5511888", "id": "wamid.2", "type": "button", "button": { "text": "Sim" } }
+                            { "from": "5511888", "id": "wamid.2", "type": "button", "button": { "text": "Sim" } },
+                            { "from": "5511777", "id": "wamid.3", "type": "image", "image": { "id": "media-1", "mime_type": "image/jpeg", "caption": "foto" } }
                         ]
                     }
                 }]
             }]
         });
         let messages = extract_meta_messages(&payload);
-        assert_eq!(messages.len(), 2);
+        assert_eq!(messages.len(), 3);
         assert_eq!(messages[0].identity, "5511999");
         assert_eq!(messages[0].name.as_deref(), Some("Ana"));
         assert_eq!(messages[1].text, "Sim");
+        assert_eq!(messages[2].media_id.as_deref(), Some("media-1"));
+        assert_eq!(messages[2].media_mime.as_deref(), Some("image/jpeg"));
+        assert_eq!(messages[2].text, "foto");
+    }
+
+    #[test]
+    fn derives_safe_media_extensions() {
+        assert_eq!(media_extension(Some("image/jpeg"), None), "jpg");
+        assert_eq!(
+            media_extension(Some("application/pdf"), Some("NF.PDF")),
+            "pdf"
+        );
+        assert_eq!(
+            media_extension(Some("application/octet-stream"), Some("../../x.sh")),
+            "sh"
+        );
+        assert_eq!(media_extension(None, None), "bin");
     }
 
     #[test]

@@ -2896,3 +2896,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
   executa jobs `opencode` via REST/SSE local do nó.
 - Texto, falha, idle e diffs seguem o mesmo `complete` dos harnesses CLI.
 - ADR 0078.
+
+## 2026-11-16 — mídia do WhatsApp e daemon no .deb
+
+- Download de mídia Meta (25 MB) para `input/whatsapp/` com extensão segura.
+- `.deb` passa a incluir `opendeskd` e unit systemd de usuário via pós-processo
+  `dpkg-deb`; RPM segue sem reconstrução.
+- ADR 0079.
