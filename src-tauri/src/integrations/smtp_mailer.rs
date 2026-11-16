@@ -139,13 +139,20 @@ pub async fn test_connection(config: &SmtpConfig) -> AppResult<()> {
     Ok(())
 }
 
-pub async fn send_email(
+#[derive(Debug, Clone)]
+pub struct EmailThread {
+    pub in_reply_to: String,
+    pub references: Vec<String>,
+}
+
+pub fn build_message(
     config: &SmtpConfig,
     to: &str,
     subject: &str,
     html: String,
     attachments: Vec<EmailAttachment>,
-) -> Result<()> {
+    thread: Option<&EmailThread>,
+) -> Result<Message> {
     let from = config
         .from_email
         .parse()
@@ -161,13 +168,43 @@ pub async fn send_email(
             .singlepart(Attachment::new(attachment.filename).body(attachment.bytes, content_type));
     }
 
-    let email = Message::builder()
-        .from(from)
-        .to(to)
-        .subject(subject)
-        .multipart(body)
-        .context("could not build email")?;
+    let mut builder = Message::builder().from(from).to(to).subject(subject);
+    if let Some(thread) = thread {
+        let in_reply_to = thread.in_reply_to.trim();
+        if !in_reply_to.is_empty() {
+            builder = builder.in_reply_to(in_reply_to.to_string());
+        }
+        let references = if thread.references.is_empty() {
+            in_reply_to.to_string()
+        } else {
+            thread.references.join(" ")
+        };
+        if !references.trim().is_empty() {
+            builder = builder.references(references);
+        }
+    }
+    builder.multipart(body).context("could not build email")
+}
 
+pub async fn send_email(
+    config: &SmtpConfig,
+    to: &str,
+    subject: &str,
+    html: String,
+    attachments: Vec<EmailAttachment>,
+) -> Result<()> {
+    send_email_threaded(config, to, subject, html, attachments, None).await
+}
+
+pub async fn send_email_threaded(
+    config: &SmtpConfig,
+    to: &str,
+    subject: &str,
+    html: String,
+    attachments: Vec<EmailAttachment>,
+    thread: Option<&EmailThread>,
+) -> Result<()> {
+    let email = build_message(config, to, subject, html, attachments, thread)?;
     let transport = build_transport(config)?;
     transport.send(email).await.context("SMTP send failed")?;
     Ok(())
@@ -197,6 +234,31 @@ mod tests {
         assert!(build_transport(&config("smtp.gmail.com", 465, true, Some("u"))).is_ok());
         assert!(build_transport(&config("smtp.gmail.com", 587, false, Some("u"))).is_ok());
         assert!(build_transport(&config("localhost", 25, false, None)).is_ok());
+    }
+
+    #[test]
+    fn thread_headers_are_preserved_in_the_message() {
+        let message = build_message(
+            &config("smtp.gmail.com", 587, false, Some("u")),
+            "dest@example.com",
+            "Re: assunto",
+            "<p>ok</p>".into(),
+            Vec::new(),
+            Some(&EmailThread {
+                in_reply_to: "<root@example.com>".into(),
+                references: vec!["<root@example.com>".into()],
+            }),
+        )
+        .expect("message");
+        let formatted = String::from_utf8_lossy(&message.formatted()).to_string();
+        assert!(
+            formatted.contains("In-Reply-To: <root@example.com>"),
+            "{formatted}"
+        );
+        assert!(
+            formatted.contains("References: <root@example.com>"),
+            "{formatted}"
+        );
     }
 
     #[test]

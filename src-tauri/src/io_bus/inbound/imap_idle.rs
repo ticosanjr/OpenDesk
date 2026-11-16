@@ -138,6 +138,12 @@ async fn poll_once(
                 .message_id()
                 .map(str::to_string)
                 .unwrap_or_else(|| format!("{subject}:{from}:{}", message.message));
+            let in_reply_to = parsed
+                .in_reply_to()
+                .map(|values| values.iter().collect::<Vec<_>>().join(" "));
+            let references = parsed
+                .references()
+                .map(|values| values.iter().collect::<Vec<_>>().join(" "));
             let workspace = crate::db::workspaces::get(&state.db, &source.workspace_id).await?;
             let root = PathBuf::from(&workspace.root_path);
             let attachment_dir = root.join("input").join("attachments").join(
@@ -175,13 +181,19 @@ async fn poll_once(
             }
             let event = NormalizedTaskEvent {
                 source_id: source.id.clone(),
-                external_id: message_id,
-                title: subject,
+                external_id: message_id.clone(),
+                title: subject.clone(),
                 body_markdown: format!("# {from}\n\n{text}"),
                 priority: None,
                 tags: vec!["email".into()],
                 attachments,
-                metadata: serde_json::json!({ "from": from }),
+                metadata: serde_json::json!({
+                    "from": from,
+                    "subject": subject,
+                    "message_id": message_id,
+                    "in_reply_to": in_reply_to,
+                    "references": references,
+                }),
             };
             crate::io_bus::ingest(state, source, event).await?;
         }

@@ -764,6 +764,10 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/integrations/smtp/test", post(integrations::test_smtp))
         .route(
+            "/api/integrations/smtp/reply",
+            post(integrations::send_thread_reply),
+        )
+        .route(
             "/api/integrations/deliveries",
             get(integrations::list_deliveries),
         )

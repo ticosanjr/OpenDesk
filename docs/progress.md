@@ -3151,3 +3151,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `dsh_router` e `config_sync` movidos para `opendesk-core`.
 - Core com 162 testes; shell 420.
 - ADR 0114.
+
+## 2026-11-16 — threads de e-mail (REQ-14)
+
+- SMTP com In-Reply-To/References e endpoint `/api/integrations/smtp/reply`.
+- IMAP preserva message_id/in_reply_to/references/subject no metadata.
+- ADR 0115.

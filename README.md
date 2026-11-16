@@ -383,6 +383,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0112 — Runtime/adapters no core](docs/decisions/0112-core-runtime-slice.md)
 - [ADR 0113 — Browse tags no core](docs/decisions/0113-browse-tags-core.md)
 - [ADR 0114 — DSH/config no core](docs/decisions/0114-dsh-config-core.md)
+- [ADR 0115 — Threads de e-mail](docs/decisions/0115-email-thread-headers.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

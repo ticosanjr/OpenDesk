@@ -310,3 +310,38 @@ pub async fn retry_delivery(
         crate::integrations::delivery::retry_one(&state, &id).await?,
     ))
 }
+
+#[derive(Debug, Deserialize)]
+pub struct SendThreadBody {
+    pub to: String,
+    pub subject: String,
+    pub body_html: String,
+    pub in_reply_to: String,
+    #[serde(default)]
+    pub references: Vec<String>,
+}
+
+pub async fn send_thread_reply(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<SendThreadBody>,
+) -> AppResult<Json<serde_json::Value>> {
+    let workspace_id = crate::api::tasks::resolve_workspace_id(&state, None).await?;
+    let secrets = crate::secrets::SecretStore::new(&state.paths);
+    let config = smtp_mailer::load_config(&state.db, &secrets, &workspace_id)
+        .await?
+        .ok_or_else(|| AppError::BadRequest("SMTP não está configurado".into()))?;
+    smtp_mailer::send_email_threaded(
+        &config,
+        &body.to,
+        &body.subject,
+        body.body_html,
+        Vec::new(),
+        Some(&smtp_mailer::EmailThread {
+            in_reply_to: body.in_reply_to,
+            references: body.references,
+        }),
+    )
+    .await
+    .map_err(|error| AppError::Daemon(format!("{error:#}")))?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}

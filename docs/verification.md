@@ -445,6 +445,12 @@ pendências manuais continuam listadas abaixo.
 - DSH classifier/prompt packing e config sync rodam no core.
 - Shell reexporta sem mudar chamadas.
 
+## Sprint 5 — threads de e-mail
+
+- Mensagem SMTP preserva In-Reply-To/References.
+- IMAP guarda headers de thread no metadata do evento.
+- Endpoint de reply exige SMTP configurado.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:
