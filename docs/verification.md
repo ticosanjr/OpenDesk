@@ -202,6 +202,11 @@ pendências manuais continuam listadas abaixo.
 - MCP Hub: inventário, catálogo, teste, toggle e remoção.
 - Testes de instalação/toggle/delete, catálogo e comandos.
 
+## Pós-0.59.0 — v1.0 onda 7
+
+- Sandbox de CLI, status do bwrap e computer-use com aprovação.
+- Testes de política, allowlist, sessões e transições.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

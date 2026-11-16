@@ -42,6 +42,7 @@ pub mod queue;
 pub mod recipes;
 pub mod router;
 pub mod runs;
+pub mod sandbox;
 pub mod schedules;
 pub mod search;
 pub mod seed;
@@ -177,6 +178,28 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/mcp-hub/{scope}/{name}/toggle", post(mcp_hub::toggle))
         .route("/api/mcp-hub/{scope}/{name}/test", post(mcp_hub::test))
         .route("/api/mcp-hub/{scope}/{name}", delete(mcp_hub::delete))
+        .route(
+            "/api/sandbox",
+            get(sandbox::get_sandbox).put(sandbox::put_sandbox),
+        )
+        .route("/api/computer/status", get(sandbox::computer_status))
+        .route(
+            "/api/computer/sessions",
+            get(sandbox::list_sessions).post(sandbox::create_session),
+        )
+        .route(
+            "/api/computer/sessions/{id}/approve",
+            post(sandbox::approve_session),
+        )
+        .route(
+            "/api/computer/sessions/{id}/end",
+            post(sandbox::end_session),
+        )
+        .route(
+            "/api/computer/sessions/{id}/screenshot",
+            post(sandbox::screenshot),
+        )
+        .route("/api/computer/sessions/{id}/action", post(sandbox::action))
         .route("/api/meta", get(meta))
         .route("/api/about", get(about::about))
         .route(

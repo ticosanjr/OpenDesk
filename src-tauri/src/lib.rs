@@ -6,6 +6,7 @@ mod backup;
 mod browse;
 mod chat;
 mod cli;
+mod computer;
 mod config_sync;
 mod db;
 mod dedupe;
@@ -39,6 +40,7 @@ mod run_export;
 mod run_timeline;
 #[allow(dead_code)]
 mod runtime;
+mod sandbox;
 mod secrets;
 mod skill_eval;
 mod starter_packs;

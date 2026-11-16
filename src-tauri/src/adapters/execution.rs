@@ -26,12 +26,19 @@ pub async fn execute(
     request: RunRequest<'_>,
     events: &EventBus,
 ) -> RunOutcome {
+    let sandbox = crate::sandbox::get(request.pool).await.unwrap_or_default();
+    let run_timeout = if sandbox.max_runtime_minutes > 0 {
+        Duration::from_secs(sandbox.max_runtime_minutes as u64 * 60)
+    } else {
+        RUN_TIMEOUT
+    };
     let runtime_request = RuntimeRequest {
         workspace_root: request.workspace_root.to_string_lossy().to_string(),
         agent: request.agent.to_string(),
         model: (!request.model.trim().is_empty()).then(|| request.model.to_string()),
         prompt: request.prompt.to_string(),
         env: Default::default(),
+        sandbox,
     };
 
     let session_id = match adapter.start(runtime_request).await {
@@ -90,7 +97,7 @@ pub async fn execute(
     let mut last_activity = Instant::now();
 
     loop {
-        if started.elapsed() > RUN_TIMEOUT {
+        if started.elapsed() > run_timeout {
             let _ = adapter.interrupt(&session_id).await;
             status = Some(RunStatus::Failed);
             error_message = Some("run exceeded the 30 minute timeout".into());

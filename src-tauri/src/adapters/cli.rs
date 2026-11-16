@@ -193,9 +193,44 @@ async fn run_process(
         request.model.as_deref(),
         &request.workspace_root,
     );
-    let mut builder = Command::new(&command);
+    if !request.sandbox.command_allowed(&command) {
+        let _ = sender.send(RuntimeEvent::Error {
+            code: "sandbox_command".into(),
+            message: format!("comando {command} não está na allowlist do sandbox"),
+        });
+        let _ = sender.send(RuntimeEvent::RunFinished {
+            status: "failed".into(),
+            summary: None,
+        });
+        return;
+    }
+    let wrapped = match crate::sandbox::wrap_strict(
+        &request.sandbox,
+        &request.workspace_root,
+        &command,
+        &args,
+    ) {
+        Ok(wrapped) => wrapped,
+        Err(error) => {
+            let _ = sender.send(RuntimeEvent::Error {
+                code: "sandbox_unavailable".into(),
+                message: error.to_string(),
+            });
+            let _ = sender.send(RuntimeEvent::RunFinished {
+                status: "failed".into(),
+                summary: None,
+            });
+            return;
+        }
+    };
+    let (program, program_args) = wrapped
+        .split_first()
+        .map(|(program, args)| (program.clone(), args.to_vec()))
+        .unwrap_or((command.clone(), Vec::new()));
+    let mut builder = Command::new(&program);
+    crate::sandbox::scrub_environment(&mut builder, &request.sandbox);
     builder
-        .args(&args)
+        .args(&program_args)
         .current_dir(&request.workspace_root)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -811,6 +846,7 @@ mod tests {
                 model: None,
                 prompt: String::new(),
                 env: Default::default(),
+                sandbox: Default::default(),
             })
             .await
             .expect("start");

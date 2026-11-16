@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EngineCard } from "@/components/settings/EngineCard";
 import { HarnessCard } from "@/components/settings/HarnessCard";
+import { SandboxComputerCard } from "@/components/settings/SandboxComputerCard";
 import { UpdatesCard } from "@/components/settings/UpdatesCard";
 import { AboutCard } from "@/components/settings/AboutCard";
 import { NotificationCard } from "@/components/settings/NotificationCard";
@@ -80,6 +81,7 @@ export function SettingsPage() {
     { id: "general", label: "Geral", icon: Settings, group: "Geral" },
     { id: "engine", label: "Engine", icon: Cpu, group: "Motor" },
     { id: "harness", label: "Harnesses", icon: Workflow, group: "Motor" },
+    { id: "sandbox", label: "Sandbox", icon: ShieldCheck, group: "Motor" },
     { id: "updates", label: "Atualizações", icon: Download, group: "Motor" },
     { id: "prompt", label: "Prompt", icon: FileCode2, group: "Motor" },
     { id: "notifications", label: "Notificações", icon: Bell, group: "Operação" },
@@ -182,6 +184,9 @@ export function SettingsPage() {
         </div>
       ) : null}
       {activeTab === "harness" ? <HarnessCard /> : null}
+      {activeTab === "sandbox" && activeWorkspaceId ? (
+        <SandboxComputerCard workspaceId={activeWorkspaceId} />
+      ) : null}
       {activeTab === "notifications" ? <NotificationCard /> : null}
       {activeTab === "queue" ? <QueueSettingsCard /> : null}
       {activeTab === "backups" ? <BackupsCard /> : null}

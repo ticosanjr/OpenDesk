@@ -50,6 +50,8 @@ pub struct RuntimeRequest {
     pub prompt: String,
     #[serde(default)]
     pub env: HashMap<String, String>,
+    #[serde(default)]
+    pub sandbox: crate::sandbox::SandboxPolicy,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

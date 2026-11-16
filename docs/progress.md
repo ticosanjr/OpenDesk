@@ -2831,3 +2831,13 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Toggle por `disabled`, remoção com backup e auditoria da API.
 - Aba Integrações → MCP Hub.
 - ADR 0069.
+
+## 2026-11-16 — v1.0 onda 7: sandbox e computer-use
+
+- Política de sandbox (`off`/`workspace`/`strict`) com allowlist, env scrubbing,
+  timeout configurável e bubblewrap sem fallback silencioso.
+- Sessões de computer-use com aprovação humana, capturas grim/import e entrada
+  xdotool/ydotool.
+- Texto digitado não é persistido; ações são contadas e resumidas.
+- API `/api/sandbox` e `/api/computer/*`; UI Configurações → Sandbox.
+- Migração 0046 e ADR 0070.
