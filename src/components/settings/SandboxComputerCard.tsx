@@ -48,6 +48,8 @@ interface ComputerSession {
   require_approval: boolean;
   actions: number;
   screenshot_path?: string | null;
+  display?: string | null;
+  isolated?: boolean;
   created_at: string;
 }
 
@@ -63,6 +65,7 @@ export function SandboxComputerCard({ workspaceId }: { workspaceId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [requireApproval, setRequireApproval] = useState(true);
+  const [isolated, setIsolated] = useState(true);
   const [action, setAction] = useState({ kind: "type", text: "", key: "", x: "0", y: "0" });
 
   const load = useCallback(async () => {
@@ -132,6 +135,7 @@ export function SandboxComputerCard({ workspaceId }: { workspaceId: string }) {
       await apiPost("/api/computer/sessions", {
         workspace_id: workspaceId,
         require_approval: requireApproval,
+        isolated,
       });
       await load();
       toast({
@@ -374,10 +378,19 @@ export function SandboxComputerCard({ workspaceId }: { workspaceId: string }) {
               />
               exigir aprovação humana
             </label>
+            <label className="flex items-center gap-2 text-[12.5px] text-zinc-300">
+              <input
+                type="checkbox"
+                checked={isolated}
+                onChange={(event) => setIsolated(event.target.checked)}
+                className="h-4 w-4 accent-blue-500"
+              />
+              display isolado (Xvfb)
+            </label>
             <Button
               size="sm"
               className="h-7"
-              disabled={busy === "create" || !capabilities?.available}
+              disabled={busy === "create" || (!isolated && !capabilities?.available)}
               onClick={() => void createSession()}
             >
               Nova sessão

@@ -59,13 +59,15 @@ pub struct CreateSessionBody {
     pub run_id: Option<String>,
     #[serde(default)]
     pub require_approval: bool,
+    #[serde(default)]
+    pub isolated: bool,
 }
 
 pub async fn create_session(
     State(state): State<Arc<AppState>>,
     Json(body): Json<CreateSessionBody>,
 ) -> AppResult<Json<computer::ComputerSession>> {
-    let capabilities = computer::capabilities();
+    let capabilities = computer::can_start(body.isolated);
     if !capabilities.available {
         return Err(AppError::Conflict(
             capabilities
@@ -81,6 +83,7 @@ pub async fn create_session(
             &workspace_id,
             body.run_id.as_deref(),
             body.require_approval,
+            body.isolated,
         )
         .await?,
     ))

@@ -368,6 +368,12 @@ pendências manuais continuam listadas abaixo.
 - Estouro de limite falha após o step, com gasto e teto.
 - Grupos propagam e somam o gasto no escopo pai.
 
+## Sprint 5 — display virtual
+
+- Sessão isolada sobe Xvfb e expõe `display`; captura funciona no display virtual.
+- Encerrar a sessão mata o Xvfb e mantém o desktop real intocado.
+- Sem Xvfb/xdotool/import a criação retorna conflito explícito.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

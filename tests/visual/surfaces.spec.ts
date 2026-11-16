@@ -121,6 +121,15 @@ test("visual baselines for every route and main modal", async ({ page, request }
       await page.goto(route.path);
       if (route.name === "packs" && width === 1440) {
         await page.getByRole("button", { name: "Recomendados" }).click();
+        // Pack installation and the curated list are asynchronous; wait for
+        // both so the golden does not capture a partially loaded page.
+        await page
+          .getByText("1 INSTALADO(S) NESTE WORKSPACE")
+          .waitFor({ state: "visible", timeout: 15_000 });
+        await page
+          .getByRole("button", { name: "Instalar via tarefa" })
+          .first()
+          .waitFor({ state: "visible", timeout: 15_000 });
         await page.waitForTimeout(250);
       }
       await shot(page, `${route.name}-${width}.png`);

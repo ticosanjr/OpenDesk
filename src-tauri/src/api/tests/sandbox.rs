@@ -48,6 +48,46 @@ async fn sandbox_policy_roundtrips() {
 }
 
 #[tokio::test]
+async fn isolated_computer_session_uses_its_own_display() {
+    if !crate::computer::can_start(true).available {
+        return;
+    }
+    let ctx = test_support::context().await;
+    let (status, session) = call(
+        &ctx,
+        Method::POST,
+        "/api/computer/sessions",
+        Some(json!({ "isolated": true })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{session}");
+    let display = session["display"].as_str().expect("display");
+    assert!(display.starts_with(':'), "{session}");
+    assert_eq!(session["isolated"], true);
+
+    let id = session["id"].as_str().expect("id");
+    let (status, shot) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/computer/sessions/{id}/screenshot"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{shot}");
+    assert!(shot["data"].as_str().is_some_and(|data| !data.is_empty()));
+
+    let (status, ended) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/computer/sessions/{id}/end"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{ended}");
+    assert_eq!(ended["status"], "ENDED");
+}
+
+#[tokio::test]
 async fn computer_status_and_session_lifecycle() {
     let ctx = test_support::context().await;
     let (status, capabilities) = call(&ctx, Method::GET, "/api/computer/status", None).await;
@@ -66,7 +106,7 @@ async fn computer_status_and_session_lifecycle() {
         "{status}"
     );
 
-    let session = crate::computer::create(&ctx.state.db, &ctx.workspace_id, None, true)
+    let session = crate::computer::create(&ctx.state.db, &ctx.workspace_id, None, true, false)
         .await
         .expect("session");
     let (status, approved) = call(

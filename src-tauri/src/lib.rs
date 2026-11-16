@@ -53,6 +53,7 @@ mod test_support;
 mod tray;
 mod update_signing;
 mod updates;
+mod virtual_display;
 mod voice;
 mod worktree;
 

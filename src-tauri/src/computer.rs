@@ -26,6 +26,47 @@ pub struct ComputerCapabilities {
 }
 
 pub fn capabilities() -> ComputerCapabilities {
+    capabilities_for(None)
+}
+
+/// Capabilities for a new session, including the Xvfb requirement when the
+/// session should not touch the user's desktop.
+pub fn can_start(isolated: bool) -> ComputerCapabilities {
+    if !isolated {
+        return capabilities();
+    }
+    let mut capabilities = capabilities_for(Some(":virtual"));
+    if !crate::virtual_display::available() {
+        capabilities.available = false;
+        capabilities.reason =
+            Some("display isolado exige Xvfb, xdotool e imagemagick (import)".into());
+    }
+    capabilities
+}
+
+pub fn capabilities_for(forced_display: Option<&str>) -> ComputerCapabilities {
+    if let Some(display) = forced_display {
+        let screenshot = ["import", "scrot"]
+            .into_iter()
+            .find(|command| command_exists(command));
+        let input = ["xdotool", "ydotool"]
+            .into_iter()
+            .find(|command| command_exists(command));
+        return ComputerCapabilities {
+            available: screenshot.is_some() && input.is_some(),
+            backend: "x11-isolated".into(),
+            display: Some(display.to_string()),
+            screenshot_tool: screenshot.map(str::to_string),
+            input_tool: input.map(str::to_string),
+            reason: if screenshot.is_none() {
+                Some("instale imagemagick (import) para capturas no display virtual".into())
+            } else if input.is_none() {
+                Some("instale xdotool para entrada no display virtual".into())
+            } else {
+                None
+            },
+        };
+    }
     let display = std::env::var("WAYLAND_DISPLAY")
         .ok()
         .map(|value| format!("wayland:{value}"))
@@ -86,18 +127,23 @@ pub struct ComputerSession {
     pub actions: i64,
     pub last_action_json: Option<String>,
     pub screenshot_path: Option<String>,
+    #[sqlx(default)]
+    pub display: Option<String>,
+    #[sqlx(default)]
+    pub isolated: bool,
     pub created_at: String,
     pub ended_at: Option<String>,
 }
 
 const COLUMNS: &str = "id, workspace_id, run_id, status, require_approval, actions, \
-    last_action_json, screenshot_path, created_at, ended_at";
+    last_action_json, screenshot_path, display, isolated, created_at, ended_at";
 
 pub async fn create(
     pool: &SqlitePool,
     workspace_id: &str,
     run_id: Option<&str>,
     require_approval: bool,
+    isolated: bool,
 ) -> AppResult<ComputerSession> {
     let id = Uuid::now_v7().to_string();
     let status = if require_approval {
@@ -105,17 +151,29 @@ pub async fn create(
     } else {
         "ACTIVE"
     };
-    sqlx::query(
-        "INSERT INTO computer_sessions (id, workspace_id, run_id, status, require_approval)
-         VALUES (?, ?, ?, ?, ?)",
+    let display = if isolated {
+        Some(crate::virtual_display::start(&id)?)
+    } else {
+        None
+    };
+    let inserted = sqlx::query(
+        "INSERT INTO computer_sessions
+            (id, workspace_id, run_id, status, require_approval, display, isolated)
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(workspace_id)
     .bind(run_id)
     .bind(status)
     .bind(require_approval)
+    .bind(&display)
+    .bind(isolated)
     .execute(pool)
-    .await?;
+    .await;
+    if let Err(error) = inserted {
+        crate::virtual_display::stop(&id);
+        return Err(error.into());
+    }
     get(pool, &id).await
 }
 
@@ -162,6 +220,7 @@ pub async fn end(pool: &SqlitePool, id: &str) -> AppResult<ComputerSession> {
     .bind(id)
     .execute(pool)
     .await?;
+    crate::virtual_display::stop(id);
     get(pool, id).await
 }
 
@@ -186,7 +245,7 @@ pub async fn screenshot(
 ) -> AppResult<(String, Vec<u8>)> {
     let session = get(pool, id).await?;
     require_active(&session)?;
-    let capabilities = capabilities();
+    let capabilities = capabilities_for(session.display.as_deref());
     let Some(tool) = capabilities.screenshot_tool.as_deref() else {
         return Err(AppError::Conflict("nenhuma ferramenta de captura".into()));
     };
@@ -196,12 +255,17 @@ pub async fn screenshot(
         .join("computer");
     tokio::fs::create_dir_all(&dir).await?;
     let file = dir.join(format!("{id}.png"));
-    let output = tokio::time::timeout(
-        Duration::from_secs(15),
-        tokio::process::Command::new(tool).arg(&file).output(),
-    )
-    .await
-    .map_err(|_| AppError::Internal("captura expirou".into()))??;
+    let mut command = tokio::process::Command::new(tool);
+    if tool == "import" {
+        command.args(["-window", "root"]);
+    }
+    command.arg(&file);
+    if let Some(display) = session.display.as_deref() {
+        command.env("DISPLAY", display);
+    }
+    let output = tokio::time::timeout(Duration::from_secs(15), command.output())
+        .await
+        .map_err(|_| AppError::Internal("captura expirou".into()))??;
     if !output.status.success() {
         return Err(AppError::Internal(format!(
             "{tool} falhou: {}",
@@ -254,17 +318,19 @@ pub async fn act(
 ) -> AppResult<serde_json::Value> {
     let session = get(pool, id).await?;
     require_active(&session)?;
-    let capabilities = capabilities();
+    let capabilities = capabilities_for(session.display.as_deref());
     let Some(tool) = capabilities.input_tool.clone() else {
         return Err(AppError::Conflict("nenhuma ferramenta de entrada".into()));
     };
     let (program, args, summary) = build_action(&capabilities, &tool, &action)?;
-    let output = tokio::time::timeout(
-        Duration::from_secs(15),
-        tokio::process::Command::new(&program).args(&args).output(),
-    )
-    .await
-    .map_err(|_| AppError::Internal("ação expirou".into()))??;
+    let mut command = tokio::process::Command::new(&program);
+    command.args(&args);
+    if let Some(display) = session.display.as_deref() {
+        command.env("DISPLAY", display);
+    }
+    let output = tokio::time::timeout(Duration::from_secs(15), command.output())
+        .await
+        .map_err(|_| AppError::Internal("ação expirou".into()))??;
     if !output.status.success() {
         return Err(AppError::Internal(format!(
             "{tool} falhou: {}",
@@ -460,7 +526,7 @@ mod tests {
     #[tokio::test]
     async fn stores_sessions_and_requires_approval() {
         let ctx = crate::test_support::context().await;
-        let session = create(&ctx.state.db, &ctx.workspace_id, None, true)
+        let session = create(&ctx.state.db, &ctx.workspace_id, None, true, false)
             .await
             .expect("session");
         assert_eq!(session.status, "PENDING");

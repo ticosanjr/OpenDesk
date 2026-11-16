@@ -3058,3 +3058,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `budget_usd` em chamadas de sub-receita; gasto acumulado por escopo e grupos.
 - Estouro falha com gasto/limite; resume preserva `spent_usd` de grupos concluídos.
 - ADR 0100.
+
+## 2026-11-16 — display virtual isolado (REQ-15)
+
+- Sessões computer-use com Xvfb próprio, display persistido e cleanup ao encerrar.
+- Captura X11 usa `import -window root`; UI liga isolamento por padrão.
+- Teste E2E cria sessão isolada, captura e encerra; visual de Pacotes estabilizado.
+- ADR 0101.
