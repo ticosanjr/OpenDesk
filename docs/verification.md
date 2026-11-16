@@ -268,6 +268,11 @@ pendências manuais continuam listadas abaixo.
 - Arquivo de expiradas, decaimento e deduplicação exata.
 - Testes de consolidação/arquivo.
 
+## Fase 4 — pack pessoal
+
+- Manifesto, skill, agente, comando e receita validados pelo starter pack.
+- Testes de packs verdes.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "id": "assistente-pessoal",
+  "version": "1.0.0",
+  "name": "Assistente Pessoal Proativo",
+  "category": "vida",
+  "description": "Briefing matinal, triagem de e-mails e acompanhamento de compromissos pessoais com aprovação humana.",
+  "icon": "sun",
+  "color": "#f59e0b",
+  "recommended": false,
+  "requires": {
+    "tools": [],
+    "integrations": ["Google Calendar", "Gmail", "SMTP", "Telegram"]
+  },
+  "contents": {
+    "agents": ["briefing-pessoal.md"],
+    "skills": ["briefing-pessoal"],
+    "commands": ["briefing-agora.md"],
+    "recipes": ["morning-briefing.yaml"],
+    "routines": [],
+    "folders": ["briefing"]
+  },
+  "examples": [
+    {
+      "title": "Briefing matinal",
+      "recipe": "morning-briefing"
+    },
+    {
+      "title": "Briefing agora",
+      "command": "briefing-agora"
+    }
+  ]
+}

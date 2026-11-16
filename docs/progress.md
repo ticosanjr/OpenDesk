@@ -2931,3 +2931,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Notas expiradas/duplicadas vão para arquivo, não são apagadas.
 - Decaimento de confiança para notas não verificadas e consolidação na manutenção.
 - Migração 0050 e ADR 0084.
+
+## 2026-11-16 — pack assistente pessoal
+
+- Novo pack `assistente-pessoal`: briefing matinal com HITL, agente, skill e comando.
+- Catálogo atualizado; receita nasce desligada.
+- ADR 0085.

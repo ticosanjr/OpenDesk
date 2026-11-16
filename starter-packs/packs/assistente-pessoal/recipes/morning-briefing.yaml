@@ -1,0 +1,38 @@
+id: morning-briefing
+name: Morning Executive Briefing
+description: Consolida agenda, e-mails prioritários e pendências com aprovação humana.
+enabled: false
+triggers:
+  - type: CRON
+    config:
+      cron: "30 7 * * *"
+      timezone: America/Sao_Paulo
+flow:
+  - type: step
+    id: coletar
+    name: Coletar contexto
+    mode: audit
+    agent: briefing-pessoal
+    prompt: |
+      Leia a agenda das próximas 24h, os e-mails recentes que exigem decisão e as tarefas/rotinas atrasadas.
+      Salve um rascunho em {{run.output_dir}}/briefing-rascunho.md.
+      Não envie nada e não crie eventos.
+  - type: hitl
+    id: aprovar
+    interaction_type: APPROVAL_WITH_FEEDBACK
+    channels: [DESKTOP_UI, TELEGRAM]
+    timeout_minutes: 120
+    on_timeout: PAUSE_AND_ALERT
+    prompt_template: |
+      Revise o briefing abaixo. Aprovar envia a versão final pelo canal configurado.
+      {{steps.coletar.summary}}
+    attach_files:
+      - "{{run.output_dir}}/briefing-rascunho.md"
+  - type: step
+    id: finalizar
+    name: Finalizar briefing
+    mode: build
+    agent: briefing-pessoal
+    prompt: |
+      Com base na aprovação, gere a versão final em {{run.output_dir}}/briefing.md.
+      Seja curto: agenda, inbox acionável, pendências e até 3 decisões.
