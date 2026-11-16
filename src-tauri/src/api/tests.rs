@@ -75,6 +75,7 @@ mod handoffs;
 mod hardening;
 mod io_bus;
 mod learning;
+mod mcp_http;
 mod mcp_hub;
 mod memory;
 mod metrics;

@@ -26,6 +26,7 @@ pub mod integrations;
 pub mod interactions;
 pub mod io_bus;
 pub mod learning;
+pub mod mcp;
 pub mod mcp_hub;
 pub mod memory;
 pub mod meta;
@@ -261,6 +262,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/nodes/jobs/{id}/heartbeat", post(nodes::job_heartbeat))
         .route("/api/nodes/jobs/{id}/complete", post(nodes::complete_job))
         .route("/api/onboarding", get(onboarding::status))
+        .route("/api/mcp", post(mcp::rpc))
         .route("/api/meta", get(meta))
         .route("/api/about", get(about::about))
         .route(

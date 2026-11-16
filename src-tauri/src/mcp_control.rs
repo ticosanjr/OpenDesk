@@ -159,6 +159,66 @@ async fn load_dynamic_tools(
     (tools, targets)
 }
 
+/// HTTP gateway entry point used by `/api/mcp`. It shares the same tool list,
+/// dynamic recipe/agent tools and dispatch path as the stdio MCP server.
+pub async fn handle_http(
+    workspace_id: &str,
+    default_agent: &str,
+    phase: &str,
+    request: Value,
+) -> Value {
+    let id = request.get("id").cloned().unwrap_or(Value::Null);
+    let method = request.get("method").and_then(Value::as_str).unwrap_or("");
+    let params = request.get("params").cloned().unwrap_or(Value::Null);
+    let result = match method {
+        "initialize" => Ok(json!({
+            "protocolVersion": "2024-11-05",
+            "capabilities": { "tools": {} },
+            "serverInfo": { "name": "opendesk-control", "version": env!("CARGO_PKG_VERSION") }
+        })),
+        "notifications/initialized" => Ok(Value::Null),
+        "tools/list" => {
+            let mut available = tools::filtered_tools(phase, None);
+            let (dynamic, _) = load_dynamic_tools(workspace_id, phase).await;
+            available.extend(dynamic);
+            Ok(json!({ "tools": available }))
+        }
+        "tools/call" => {
+            let name = params
+                .get("name")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            let arguments = params
+                .get("arguments")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
+            match name {
+                Some(name) => {
+                    let (_, targets) = load_dynamic_tools(workspace_id, phase).await;
+                    dispatch(workspace_id, default_agent, &name, arguments, &targets)
+                        .await
+                        .map(|value| {
+                            json!({
+                                "content": [{ "type": "text", "text": value.to_string() }],
+                                "isError": false,
+                            })
+                        })
+                }
+                None => Err(anyhow!("params.name é obrigatório")),
+            }
+        }
+        other => Err(anyhow!("método MCP não suportado: {other}")),
+    };
+    match result {
+        Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
+        Err(error) => json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "error": { "code": -32601, "message": format!("{error:#}") },
+        }),
+    }
+}
+
 async fn dispatch(
     workspace_id: &str,
     default_agent: &str,

@@ -3090,3 +3090,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - API de manifest/bundle/apply por workspace; bundles restritos a data/sync.
 - mTLS e sync automático no worker ainda pendentes.
 - ADR 0105.
+
+## 2026-11-16 — MCP gateway HTTP (MCP-01)
+
+- `POST /api/mcp` JSON-RPC com initialize/tools/list/tools/call reutilizando o control plane.
+- Auth/rate limit/audit do middleware; filtro por fase e agente padrão por header.
+- Faltam SSE/proxy de servidores externos e RBAC por agente.
+- ADR 0106.

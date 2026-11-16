@@ -397,6 +397,12 @@ pendências manuais continuam listadas abaixo.
 - Bundle tar.zst contém só o delta; apply seco não escreve.
 - Apply real copia conteúdo e rejeita path traversal.
 
+## Sprint 4 — MCP gateway HTTP
+
+- initialize responde serverInfo do opendesk-control.
+- tools/list inclui task_list e respeita headers de fase.
+- tools/call reutiliza o dispatch do MCP stdio.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:
