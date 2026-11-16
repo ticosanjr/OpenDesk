@@ -302,7 +302,7 @@ mod tests {
     async fn renders_enabled_groups_in_order() {
         let ctx = crate::test_support::context().await;
         create(
-            &ctx.state.db,
+            &ctx.db,
             PersonalContextInput {
                 scope: "workspace".into(),
                 workspace_id: Some(ctx.workspace_id.clone()),
@@ -316,7 +316,7 @@ mod tests {
         .await
         .expect("workspace group");
         let global = create(
-            &ctx.state.db,
+            &ctx.db,
             PersonalContextInput {
                 scope: "global".into(),
                 workspace_id: None,
@@ -330,7 +330,7 @@ mod tests {
         .await
         .expect("global group");
         let disabled = create(
-            &ctx.state.db,
+            &ctx.db,
             PersonalContextInput {
                 scope: "global".into(),
                 workspace_id: None,
@@ -344,16 +344,14 @@ mod tests {
         .await
         .expect("disabled group");
 
-        let rendered = render(&ctx.state.db, &ctx.workspace_id)
-            .await
-            .expect("render");
+        let rendered = render(&ctx.db, &ctx.workspace_id).await.expect("render");
         assert!(rendered.contains("Responda de forma direta."));
         assert!(rendered.contains("Prefira português."));
         assert!(!rendered.contains("Não deve aparecer."));
         assert!(rendered.find("Tom").unwrap() < rendered.find("Global").unwrap());
 
-        delete(&ctx.state.db, &global.id).await.expect("delete");
-        delete(&ctx.state.db, &disabled.id)
+        delete(&ctx.db, &global.id).await.expect("delete");
+        delete(&ctx.db, &disabled.id)
             .await
             .expect("delete disabled");
     }

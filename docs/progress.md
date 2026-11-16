@@ -3157,3 +3157,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - SMTP com In-Reply-To/References e endpoint `/api/integrations/smtp/reply`.
 - IMAP preserva message_id/in_reply_to/references/subject no metadata.
 - ADR 0115.
+
+## 2026-11-16 — módulos folha no core (REF-01)
+
+- `media`, `skill_eval`, `personal_context` e `run_timeline` movidos.
+- Core 168 testes; shell 415.
+- ADR 0116.

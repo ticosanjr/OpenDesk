@@ -451,6 +451,11 @@ pendências manuais continuam listadas abaixo.
 - IMAP guarda headers de thread no metadata do evento.
 - Endpoint de reply exige SMTP configurado.
 
+## Sprint 1 — módulos folha no core
+
+- skill_eval/personal_context/run_timeline/media testados no core.
+- Shell reexporta sem mudar chamadas.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

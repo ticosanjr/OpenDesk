@@ -212,7 +212,7 @@ mod tests {
         )
         .expect("skill");
 
-        let log = ctx.state.paths.run_logs_dir.join("run-1.jsonl");
+        let log = ctx.paths.run_logs_dir.join("run-1.jsonl");
         std::fs::write(&log, "{\"content\":\"use invoice-audit para conferir\"}\n").expect("log");
         sqlx::query(
             "INSERT INTO task_runs
@@ -222,11 +222,11 @@ mod tests {
         )
         .bind(&ctx.workspace_id)
         .bind(log.to_string_lossy().to_string())
-        .execute(&ctx.state.db)
+        .execute(&ctx.db)
         .await
         .expect("run");
 
-        let usage = evaluate(&ctx.state.db, &ctx.state.paths, &ctx.workspace_root, 30)
+        let usage = evaluate(&ctx.db, &ctx.paths, &ctx.workspace_root, 30)
             .await
             .expect("eval");
         assert_eq!(usage.len(), 1);

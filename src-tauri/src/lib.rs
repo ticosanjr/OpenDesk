@@ -21,21 +21,17 @@ mod mcp_config;
 mod mcp_control;
 mod mcp_hub;
 mod mcp_server;
-mod media;
 mod metrics;
 mod open_paths;
-mod personal_context;
 mod proposals;
 mod push;
 mod queue_scheduler;
 mod recipes;
 mod run_export;
 mod run_notifier;
-mod run_timeline;
 #[allow(dead_code)]
 mod session_context;
 mod shell_state;
-mod skill_eval;
 mod skill_gate;
 mod starter_packs;
 #[cfg(test)]
@@ -46,9 +42,10 @@ mod updates;
 mod voice;
 
 pub use opendesk_core::{
-    adapters, browse_tags, config_sync, db, dedupe, dsh_router, error, events, nodes, notifier,
-    opencode_client, passkey, paths, runtime, sandbox, secrets, server_lock, text, token_estimate,
-    virtual_display, workspace_sync, worktree,
+    adapters, browse_tags, config_sync, db, dedupe, dsh_router, error, events, media, nodes,
+    notifier, opencode_client, passkey, paths, personal_context, run_timeline, runtime, sandbox,
+    secrets, server_lock, skill_eval, text, token_estimate, virtual_display, workspace_sync,
+    worktree,
 };
 
 use app_state::AppState;
