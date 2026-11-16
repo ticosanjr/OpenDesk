@@ -435,6 +435,11 @@ pendências manuais continuam listadas abaixo.
 - `cargo test -p opendesk-core` cobre request/execução de runtime, sandbox, adapters e cliente OpenCode.
 - Shell injeta RunNotifier e reexporta os módulos.
 
+## Sprint 1 — browse tags no core
+
+- Parsing de allowlist, intenção e risco cobertos no core.
+- Ativação de browse/MCP/skill continua coberta no shell.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

@@ -12,16 +12,9 @@ use serde::Serialize;
 use serde_json::json;
 use std::path::{Path, PathBuf};
 
-pub const BROWSE_TAG: &str = "needs-browser";
 pub const BROWSE_SKILL: &str = "browse-web";
-pub const BROWSE_ALLOWLIST_PREFIX: &str = "browse-allowlist:";
-const HIGH_RISK_TAGS: [&str; 5] = [
-    "browse-high-risk",
-    "browse-login",
-    "browse-payment",
-    "browse-banking",
-    "browse-2fa",
-];
+use crate::browse_tags::is_high_risk;
+pub use crate::browse_tags::{allowlist_from_tags, needs_browser};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct BrowseStatus {
@@ -229,38 +222,6 @@ pub async fn ensure_for_task(
     Ok(true)
 }
 
-pub fn needs_browser(title: &str, description: &str, tags: &[String]) -> bool {
-    if tags.iter().any(|tag| {
-        matches!(
-            tag.trim().to_lowercase().as_str(),
-            BROWSE_TAG | "browse" | "web-browser" | "navegador"
-        )
-    }) {
-        return true;
-    }
-    let text = format!("{title} {description}").to_lowercase();
-    if text.contains("http://") || text.contains("https://") || text.contains("www.") {
-        return true;
-    }
-    [
-        "navegue",
-        "navegar",
-        "navegador",
-        "browser",
-        "página web",
-        "pagina web",
-        "site oficial",
-        "scraping",
-        "pesquise na web",
-        "pesquisar na web",
-        "pesquisa online",
-        "acesse o site",
-        "abrir o site",
-    ]
-    .iter()
-    .any(|needle| text.contains(needle))
-}
-
 #[allow(dead_code)]
 pub fn instructions(tags: &[String]) -> String {
     let allowlist = allowlist_from_tags(tags);
@@ -285,52 +246,6 @@ Esta tarefa precisa navegar na internet. Use o servidor MCP `browse`, que contro
     )
 }
 
-/// Parses `browse-allowlist:example.com,sub.example.com` tags into normalized
-/// hostnames. Invalid entries are ignored; the tag is additive so tasks can
-/// still carry regular tags.
-pub fn allowlist_from_tags(tags: &[String]) -> Vec<String> {
-    let mut hosts: Vec<String> = Vec::new();
-    for tag in tags {
-        let lower = tag.trim().to_lowercase();
-        let Some(raw) = lower.strip_prefix(BROWSE_ALLOWLIST_PREFIX) else {
-            continue;
-        };
-        for item in raw.split(',') {
-            let host = item
-                .trim()
-                .trim_start_matches("https://")
-                .trim_start_matches("http://")
-                .split(['/', '?'])
-                .next()
-                .unwrap_or("")
-                .trim();
-            let valid = host.contains('.')
-                && !host.contains(' ')
-                && !host.contains('@')
-                && !host.contains('*')
-                && host.split('.').all(|label| {
-                    !label.is_empty()
-                        && !label.starts_with('-')
-                        && !label.ends_with('-')
-                        && label
-                            .chars()
-                            .all(|value| value.is_ascii_alphanumeric() || value == '-')
-                });
-            if valid && !hosts.iter().any(|existing| existing == host) {
-                hosts.push(host.to_string());
-            }
-        }
-    }
-    hosts
-}
-
-fn is_high_risk(tags: &[String]) -> bool {
-    tags.iter().any(|tag| {
-        let tag = tag.trim().to_lowercase();
-        HIGH_RISK_TAGS.iter().any(|risk| risk == &tag)
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -344,7 +259,11 @@ mod tests {
             &[]
         ));
         assert!(needs_browser("Navegar", "navegue na internet", &[]));
-        assert!(needs_browser("Tarefa", "x", &[BROWSE_TAG.into()]));
+        assert!(needs_browser(
+            "Tarefa",
+            "x",
+            &[crate::browse_tags::BROWSE_TAG.into()]
+        ));
         assert!(!needs_browser("Corrigir bug", "Ajuste o parser Rust", &[]));
     }
 

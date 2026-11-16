@@ -48,8 +48,9 @@ mod updates;
 mod voice;
 
 pub use opendesk_core::{
-    adapters, db, dedupe, error, events, nodes, notifier, opencode_client, passkey, paths, runtime,
-    sandbox, secrets, server_lock, text, token_estimate, virtual_display, workspace_sync, worktree,
+    adapters, browse_tags, db, dedupe, error, events, nodes, notifier, opencode_client, passkey,
+    paths, runtime, sandbox, secrets, server_lock, text, token_estimate, virtual_display,
+    workspace_sync, worktree,
 };
 
 use app_state::AppState;

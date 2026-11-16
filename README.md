@@ -381,6 +381,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0110 — RBAC no MCP HTTP](docs/decisions/0110-mcp-http-rbac.md)
 - [ADR 0111 — Secrets no core](docs/decisions/0111-secrets-core.md)
 - [ADR 0112 — Runtime/adapters no core](docs/decisions/0112-core-runtime-slice.md)
+- [ADR 0113 — Browse tags no core](docs/decisions/0113-browse-tags-core.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

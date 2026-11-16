@@ -3138,3 +3138,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `RunNotifier` remove integrações do session_runner; shell injeta Telegram/Signal.
 - Core com 120 testes; shell 460.
 - ADR 0112.
+
+## 2026-11-16 — browse tags no core (REF-01)
+
+- `browse_tags` (allowlist, intenção e risco) movido para o core.
+- Shell browse reexporta; dsh_router pode deixar de depender de AppState.
+- Core com 122 testes; shell 460.
+- ADR 0113.
