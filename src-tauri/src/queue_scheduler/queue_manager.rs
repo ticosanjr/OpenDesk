@@ -66,6 +66,15 @@ impl Drop for HeartbeatGuard {
     }
 }
 
+async fn worktree_runs_enabled(pool: &sqlx::SqlitePool) -> bool {
+    crate::db::settings::get(pool, "worktree_runs")
+        .await
+        .ok()
+        .flatten()
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+}
+
 pub struct QueueConfig {
     pub pool: SqlitePool,
     pub paths: AppPaths,
@@ -384,7 +393,41 @@ impl QueueManager {
         };
 
         let workspace_path = PathBuf::from(&workspace.root_path);
-        let plan = run_execution::plan_run(&job, task.as_ref(), &self.paths, &workspace_path);
+        let worktree_enabled = worktree_runs_enabled(&self.pool).await;
+        let (plan, worktree) = if worktree_enabled {
+            let prepared = match crate::worktree::prepare(
+                &job.workspace_id,
+                &workspace_path,
+                &self.paths.data_dir,
+                None,
+            ) {
+                Ok(worktree) => worktree,
+                Err(error) => {
+                    let message = format!("worktree indisponível: {error:#}");
+                    let _ = queue::finish(&self.pool, &job.id, "FAILED", Some(&message)).await;
+                    settlement::mark_schedule(&self.pool, &self.events, &job, "FAILED").await;
+                    self.publish_queue(&job.workspace_id).await;
+                    return;
+                }
+            };
+            let execution_root = PathBuf::from(&prepared.path);
+            let plan = run_execution::plan_run(&job, task.as_ref(), &self.paths, &execution_root);
+            let mut stored = prepared;
+            stored.run_id = Some(plan.run_id.clone());
+            if let Err(error) = crate::db::worktrees::insert(&self.pool, &stored).await {
+                tracing::warn!(error = %error, "could not persist run worktree");
+            }
+            (plan, Some(stored))
+        } else {
+            (
+                run_execution::plan_run(&job, task.as_ref(), &self.paths, &workspace_path),
+                None,
+            )
+        };
+        let execution_root = worktree
+            .as_ref()
+            .map(|worktree| PathBuf::from(&worktree.path))
+            .unwrap_or_else(|| workspace_path.clone());
         let run_id = plan.run_id;
         let log_path = plan.log_path;
         let phase = plan.phase;
@@ -532,7 +575,7 @@ impl QueueManager {
             run_id: &run_id,
             task_id: job.task_id.as_deref(),
             session_id: job.session_id.as_deref(),
-            workspace_root: &workspace_path,
+            workspace_root: &execution_root,
             agent: &job.resolved_agent,
             model: &job.resolved_model,
             phase: &phase,
@@ -587,7 +630,7 @@ impl QueueManager {
             &job,
             &run_id,
             &reason,
-            &workspace_path,
+            &execution_root,
             &output_dir,
             &outcome,
         )
@@ -948,6 +991,16 @@ mod tests {
         assert_eq!(dto.concurrency_group.as_deref(), Some("web_scraper"));
         assert_eq!(dto.retry_count, 1);
         assert_eq!(dto.error_message.as_deref(), Some("retry me"));
+    }
+
+    #[tokio::test]
+    async fn worktree_runs_setting_defaults_off_and_can_be_enabled() {
+        let ctx = crate::test_support::context().await;
+        assert!(!worktree_runs_enabled(&ctx.state.db).await);
+        crate::db::settings::set(&ctx.state.db, "worktree_runs", &serde_json::json!(true))
+            .await
+            .expect("setting");
+        assert!(worktree_runs_enabled(&ctx.state.db).await);
     }
 
     #[test]

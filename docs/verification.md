@@ -414,6 +414,12 @@ pendências manuais continuam listadas abaixo.
 - Shell continua verde com os módulos reexportados.
 - `cargo tree -p opendesk-core` sem Tauri.
 
+## Sprint 3 — worktree no executor
+
+- Setting default é off e não altera runs existentes.
+- Com setting on, output/artefatos nascem no worktree e a árvore principal fica intocada.
+- Falha de preparação falha o job com mensagem explícita.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

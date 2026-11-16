@@ -3111,3 +3111,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Core com 83 testes, shell com 495; sem Tauri no core.
 - `AppPaths.allow_temp_workspaces` e reclaim de displays Xvfb obsoletos.
 - ADR 0108.
+
+## 2026-11-16 — worktree no executor (REQ-06)
+
+- Setting `worktree_runs` liga isolamento opt-in no `execute_job`.
+- Output, artefatos e harness usam o root do worktree; merge segue via API/MCP.
+- Falha de preparação falha o job sem fallback silencioso.
+- ADR 0109.
