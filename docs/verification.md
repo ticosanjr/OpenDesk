@@ -197,6 +197,11 @@ pendências manuais continuam listadas abaixo.
 - MCP de memória e avaliação de skills com UI.
 - Testes de ACL, busca, expiração e API.
 
+## Pós-0.59.0 — v1.0 onda 6
+
+- MCP Hub: inventário, catálogo, teste, toggle e remoção.
+- Testes de instalação/toggle/delete, catálogo e comandos.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

@@ -2821,3 +2821,13 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - MCP `memory_save`/`memory_search`.
 - `/api/skills/eval` e cards de memória/avaliação na página de aprendizado.
 - ADR 0068.
+
+## 2026-11-16 — v1.0 onda 6: MCP Hub
+
+- Inventário global + workspace de `mcp.servers` (V1/V2, local/remoto).
+- Saúde estática e de runtime; teste de comando no PATH ou URL remota.
+- Catálogo curado (filesystem, fetch, sqlite, playwright, memory) com instalação
+  explícita no config nativo.
+- Toggle por `disabled`, remoção com backup e auditoria da API.
+- Aba Integrações → MCP Hub.
+- ADR 0069.

@@ -23,6 +23,7 @@ mod learning;
 mod mcp_bridge;
 mod mcp_config;
 mod mcp_control;
+mod mcp_hub;
 mod mcp_server;
 mod media;
 mod metrics;

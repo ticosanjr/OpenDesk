@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Inbox,
   Package,
+  Boxes,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { InfoRow } from "@/components/ui/info-row";
@@ -34,6 +35,7 @@ import { InboundSourcesCard } from "@/components/integrations/InboundSourcesCard
 import { OutboundSinksCard } from "@/components/integrations/OutboundSinksCard";
 import { BrowserCard } from "@/components/integrations/BrowserCard";
 import { ChannelsCard } from "@/components/integrations/ChannelsCard";
+import { McpHubCard } from "@/components/integrations/McpHubCard";
 import { TicketInboxCard } from "@/components/integrations/TicketInboxCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
@@ -110,6 +112,7 @@ export function IntegrationsPage() {
     { id: "inbound", label: "Entradas", icon: Inbox, group: "I/O" },
     { id: "sinks", label: "Saídas", icon: Package, group: "I/O" },
     { id: "deliveries", label: "Histórico", icon: Send, group: "Sistema" },
+    { id: "hub", label: "MCP Hub", icon: Boxes, group: "Sistema" },
     { id: "mcp", label: "MCP e segurança", icon: ShieldCheck, group: "Sistema" },
   ] as const;
   const activeTab = tabs.some((tab) => tab.id === section) ? section : "smtp";
@@ -631,6 +634,9 @@ export function IntegrationsPage() {
       </Card>
       ) : null}
 
+      {activeTab === "hub" && activeWorkspaceId ? (
+        <McpHubCard workspaceId={activeWorkspaceId} />
+      ) : null}
       {activeTab === "mcp" ? (
         <>
       <Card>

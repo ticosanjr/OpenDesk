@@ -26,6 +26,7 @@ pub mod integrations;
 pub mod interactions;
 pub mod io_bus;
 pub mod learning;
+pub mod mcp_hub;
 pub mod memory;
 pub mod meta;
 pub mod metrics;
@@ -170,6 +171,12 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/memory/search", get(memory::search))
         .route("/api/memory/context", get(memory::context))
         .route("/api/skills/eval", get(skills::evaluate))
+        .route("/api/mcp-hub/servers", get(mcp_hub::servers))
+        .route("/api/mcp-hub/catalog", get(mcp_hub::catalog))
+        .route("/api/mcp-hub/install", post(mcp_hub::install))
+        .route("/api/mcp-hub/{scope}/{name}/toggle", post(mcp_hub::toggle))
+        .route("/api/mcp-hub/{scope}/{name}/test", post(mcp_hub::test))
+        .route("/api/mcp-hub/{scope}/{name}", delete(mcp_hub::delete))
         .route("/api/meta", get(meta))
         .route("/api/about", get(about::about))
         .route(

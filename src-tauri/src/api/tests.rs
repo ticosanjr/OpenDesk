@@ -74,6 +74,7 @@ mod governance;
 mod handoffs;
 mod io_bus;
 mod learning;
+mod mcp_hub;
 mod memory;
 mod metrics;
 mod missed_runs;
