@@ -3228,3 +3228,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - Web Push sem AppState; core 222 testes, shell 361.
 - ADR 0128.
+
+## 2026-11-16 — mcp_config no core (REF-01)
+
+- MCP de configuração movido; core 224 testes, shell 359.
+- ADR 0129.

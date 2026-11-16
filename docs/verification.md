@@ -508,6 +508,10 @@ pendências manuais continuam listadas abaixo.
 
 - VAPID, subscriptions e fan-out testados no core.
 
+## Sprint 4 — MCP config no core
+
+- Propostas via MCP compilam no core.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

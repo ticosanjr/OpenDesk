@@ -19,6 +19,7 @@ pub mod dsh_router;
 pub mod error;
 pub mod events;
 pub mod hitl;
+pub mod mcp_config;
 pub mod mcp_server;
 pub mod media;
 pub mod metrics;

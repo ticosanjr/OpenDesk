@@ -397,6 +397,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0126 — Desktop integration no core](docs/decisions/0126-desktop-integration-core.md)
 - [ADR 0127 — Dispatcher injetado](docs/decisions/0127-dispatcher-injection.md)
 - [ADR 0128 — Web Push no core](docs/decisions/0128-push-core.md)
+- [ADR 0129 — MCP config no core](docs/decisions/0129-mcp-config-core.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

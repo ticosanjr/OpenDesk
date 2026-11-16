@@ -12,7 +12,6 @@ mod internal_api;
 mod io_bus;
 mod learning;
 mod mcp_bridge;
-mod mcp_config;
 mod mcp_control;
 mod mcp_hub;
 mod open_paths;
@@ -34,10 +33,10 @@ mod voice;
 
 pub use opendesk_core::{
     adapters, audit, backup, browse, browse_tags, config_sync, db, dedupe, desktop_integration,
-    dsh_router, error, events, hitl, mcp_server, media, metrics, nodes, notifier, opencode_client,
-    passkey, paths, personal_context, push, recipe_dispatch, recurrence, run_export, run_timeline,
-    runtime, sandbox, secrets, server_lock, skill_eval, text, token_estimate, update_signing,
-    virtual_display, workspace_sync, worktree,
+    dsh_router, error, events, hitl, mcp_config, mcp_server, media, metrics, nodes, notifier,
+    opencode_client, passkey, paths, personal_context, push, recipe_dispatch, recurrence,
+    run_export, run_timeline, runtime, sandbox, secrets, server_lock, skill_eval, text,
+    token_estimate, update_signing, virtual_display, workspace_sync, worktree,
 };
 
 use app_state::AppState;
