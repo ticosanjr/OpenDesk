@@ -461,6 +461,11 @@ pendências manuais continuam listadas abaixo.
 - Status/enable/disable e provisioning de browse testados no core.
 - API/dispatch/cron passam pool/paths explicitamente.
 
+## Sprint 2 — parser/store de receitas no core
+
+- Parser, schemas, versionamento e nós duráveis testados no core.
+- Engine/timeline/HITL de canais seguem no shell.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

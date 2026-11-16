@@ -3169,3 +3169,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Browse sem AppState; recebe pool/paths e roda no core.
 - Core 174 testes; shell 409.
 - ADR 0117.
+
+## 2026-11-16 — parser/store de receitas no core (REF-01)
+
+- `hitl`, `recipes::parser` e `recipes::store` movidos para `opendesk-core`.
+- Engine/HITL de canais/sinks/cron seguem no shell.
+- Core 197 testes; shell 386.
+- ADR 0118.

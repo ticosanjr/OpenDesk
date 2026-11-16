@@ -1270,11 +1270,11 @@ mod tests {
         let ctx = crate::test_support::context().await;
         let yaml = "id: durable\nname: Durable\ntrigger:\n  type: MANUAL\n  config: {}\nflow:\n  - type: step\n    id: s1\n    name: Passo 1\n    prompt: oi\n  - type: hitl\n    id: h1\n    interaction_type: BINARY_GATE\n    prompt_template: ok?\n  - type: sink\n    sink_type: DOC_COMPILER\n    config: {}\n";
         let recipe = crate::recipes::parser::parse(yaml).expect("recipe");
-        save_yaml(&ctx.state.db, &ctx.workspace_id, "durable", yaml)
+        save_yaml(&ctx.db, &ctx.workspace_id, "durable", yaml)
             .await
             .expect("index");
         let run = create_run(
-            &ctx.state.db,
+            &ctx.db,
             &recipe,
             &ctx.workspace_id,
             None,
@@ -1284,20 +1284,20 @@ mod tests {
         )
         .await
         .expect("run");
-        sync_run_nodes(&ctx.state.db, &run.id, &recipe.flow)
+        sync_run_nodes(&ctx.db, &run.id, &recipe.flow)
             .await
             .expect("nodes");
-        let nodes = list_run_nodes(&ctx.state.db, &run.id).await.expect("list");
+        let nodes = list_run_nodes(&ctx.db, &run.id).await.expect("list");
         assert_eq!(nodes.len(), 3);
         assert_eq!(nodes[0].kind, "step");
         assert_eq!(nodes[1].kind, "hitl");
         assert_eq!(nodes[2].kind, "sink");
 
-        mark_node_running(&ctx.state.db, &run.id, 0)
+        mark_node_running(&ctx.db, &run.id, 0)
             .await
             .expect("running");
         mark_node_done(
-            &ctx.state.db,
+            &ctx.db,
             &run.id,
             0,
             Some(&serde_json::json!({"ok": true})),
@@ -1305,38 +1305,18 @@ mod tests {
         )
         .await
         .expect("done");
-        let nodes = list_run_nodes(&ctx.state.db, &run.id).await.expect("list");
+        let nodes = list_run_nodes(&ctx.db, &run.id).await.expect("list");
         assert_eq!(nodes[0].status, "DONE");
         assert_eq!(nodes[0].attempts, 1);
 
-        assert_eq!(
-            resumable_runs(&ctx.state.db).await.expect("resume").len(),
-            1
-        );
-        request_cancel(&ctx.state.db, &run.id)
-            .await
-            .expect("cancel");
-        assert!(
-            is_cancel_requested(&ctx.state.db, &run.id)
-                .await
-                .expect("flag")
-        );
-        assert!(
-            resumable_runs(&ctx.state.db)
-                .await
-                .expect("resume")
-                .is_empty()
-        );
+        assert_eq!(resumable_runs(&ctx.db).await.expect("resume").len(), 1);
+        request_cancel(&ctx.db, &run.id).await.expect("cancel");
+        assert!(is_cancel_requested(&ctx.db, &run.id).await.expect("flag"));
+        assert!(resumable_runs(&ctx.db).await.expect("resume").is_empty());
 
-        reset_for_retry(&ctx.state.db, &run.id)
-            .await
-            .expect("retry");
-        assert!(
-            !is_cancel_requested(&ctx.state.db, &run.id)
-                .await
-                .expect("flag")
-        );
-        let nodes = list_run_nodes(&ctx.state.db, &run.id).await.expect("list");
+        reset_for_retry(&ctx.db, &run.id).await.expect("retry");
+        assert!(!is_cancel_requested(&ctx.db, &run.id).await.expect("flag"));
+        let nodes = list_run_nodes(&ctx.db, &run.id).await.expect("list");
         assert_eq!(nodes[0].status, "DONE");
         assert_eq!(nodes[1].status, "PENDING");
     }
@@ -1363,52 +1343,46 @@ mod tests {
         let ctx = crate::test_support::context().await;
         let v1 = "id: versionada\nname: Versionada\nflow:\n  - type: step\n    id: s1\n    name: S1\n    prompt: v1\n";
         let v2 = "id: versionada\nname: Versionada\nflow:\n  - type: step\n    id: s1\n    name: S1\n    prompt: v2\n";
-        save_yaml(&ctx.state.db, &ctx.workspace_id, "versionada", v1)
+        save_yaml(&ctx.db, &ctx.workspace_id, "versionada", v1)
             .await
             .expect("v1");
-        save_yaml(&ctx.state.db, &ctx.workspace_id, "versionada", v1)
+        save_yaml(&ctx.db, &ctx.workspace_id, "versionada", v1)
             .await
             .expect("same");
-        save_yaml(&ctx.state.db, &ctx.workspace_id, "versionada", v1)
+        save_yaml(&ctx.db, &ctx.workspace_id, "versionada", v1)
             .await
             .expect("same again");
-        let after_same = list_versions(&ctx.state.db, &ctx.workspace_id, "versionada")
+        let after_same = list_versions(&ctx.db, &ctx.workspace_id, "versionada")
             .await
             .expect("list");
         assert_eq!(after_same.len(), 2, "identical content must not duplicate");
 
-        save_yaml(&ctx.state.db, &ctx.workspace_id, "versionada", v2)
+        save_yaml(&ctx.db, &ctx.workspace_id, "versionada", v2)
             .await
             .expect("v2");
-        let versions = list_versions(&ctx.state.db, &ctx.workspace_id, "versionada")
+        let versions = list_versions(&ctx.db, &ctx.workspace_id, "versionada")
             .await
             .expect("list");
         assert_eq!(versions.len(), 3);
         let first = versions.last().expect("first");
-        let diff = diff_version(
-            &ctx.state.db,
-            &ctx.workspace_id,
-            "versionada",
-            &first.id,
-            None,
-        )
-        .await
-        .expect("diff");
+        let diff = diff_version(&ctx.db, &ctx.workspace_id, "versionada", &first.id, None)
+            .await
+            .expect("diff");
         assert!(diff.contains("prompt: v2"), "{diff}");
         assert!(
             diff.contains("prompt: v1") || diff.contains("-    prompt: v1"),
             "{diff}"
         );
 
-        rollback_version(&ctx.state.db, &ctx.workspace_id, "versionada", &first.id)
+        rollback_version(&ctx.db, &ctx.workspace_id, "versionada", &first.id)
             .await
             .expect("rollback");
-        let current = yaml_for(&ctx.state.db, &ctx.workspace_id, "versionada")
+        let current = yaml_for(&ctx.db, &ctx.workspace_id, "versionada")
             .await
             .expect("yaml");
         assert!(current.contains("prompt: v1"), "{current}");
         assert_eq!(
-            list_versions(&ctx.state.db, &ctx.workspace_id, "versionada")
+            list_versions(&ctx.db, &ctx.workspace_id, "versionada")
                 .await
                 .expect("list")
                 .len(),
@@ -1456,12 +1430,12 @@ flow:
         name: Analisar
         prompt: c
 "#;
-        save_yaml(&ctx.state.db, &ctx.workspace_id, "dag-paths", yaml)
+        save_yaml(&ctx.db, &ctx.workspace_id, "dag-paths", yaml)
             .await
             .expect("save");
         let recipe = crate::recipes::parser::parse(yaml).expect("recipe");
         let run = create_run(
-            &ctx.state.db,
+            &ctx.db,
             &recipe,
             &ctx.workspace_id,
             None,
@@ -1471,10 +1445,10 @@ flow:
         )
         .await
         .expect("run");
-        sync_run_nodes(&ctx.state.db, &run.id, &recipe.flow)
+        sync_run_nodes(&ctx.db, &run.id, &recipe.flow)
             .await
             .expect("sync");
-        let nodes = list_run_nodes(&ctx.state.db, &run.id).await.expect("list");
+        let nodes = list_run_nodes(&ctx.db, &run.id).await.expect("list");
         let paths: Vec<&str> = nodes
             .iter()
             .filter_map(|node| node.node_path.as_deref())
@@ -1492,7 +1466,7 @@ flow:
         }
 
         ensure_dag_node(
-            &ctx.state.db,
+            &ctx.db,
             &run.id,
             "arquivos/0000/analisar",
             Some("arquivos/0000"),
@@ -1503,7 +1477,7 @@ flow:
         )
         .await
         .expect("dynamic node");
-        let node = node_by_path(&ctx.state.db, &run.id, "arquivos/0000/analisar")
+        let node = node_by_path(&ctx.db, &run.id, "arquivos/0000/analisar")
             .await
             .expect("query")
             .expect("node");
