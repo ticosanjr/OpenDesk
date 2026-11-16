@@ -420,6 +420,11 @@ pendências manuais continuam listadas abaixo.
 - Com setting on, output/artefatos nascem no worktree e a árvore principal fica intocada.
 - Falha de preparação falha o job com mensagem explícita.
 
+## Sprint 4 — RBAC MCP HTTP
+
+- role=read esconde tools de build e mantém leitura.
+- phase explícito continua prevalecendo.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

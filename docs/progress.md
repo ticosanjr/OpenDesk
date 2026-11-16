@@ -3118,3 +3118,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Output, artefatos e harness usam o root do worktree; merge segue via API/MCP.
 - Falha de preparação falha o job sem fallback silencioso.
 - ADR 0109.
+
+## 2026-11-16 — RBAC de role no MCP HTTP (MCP-01)
+
+- Header `x-opendesk-mcp-role` restringe fases; phase explícito vence.
+- Teste HTTP garante que read não vê tools de build.
+- ADR 0110.

@@ -165,8 +165,24 @@ pub async fn handle_http(
     workspace_id: &str,
     default_agent: &str,
     phase: &str,
+    role: &str,
     request: Value,
 ) -> Value {
+    // A role narrows an "ALL" session to the phase it represents. Explicit
+    // phase headers still win, so callers can opt into a specific view.
+    let phase = if phase.trim().eq_ignore_ascii_case("ALL") && !role.trim().is_empty() {
+        match role.trim().to_lowercase().as_str() {
+            "read" => "AUDIT",
+            "audit" => "AUDIT",
+            "plan" => "PLAN",
+            "build" => "BUILD",
+            "ops" | "operator" => "OPS",
+            "chat" => "CHAT",
+            _ => phase,
+        }
+    } else {
+        phase
+    };
     let id = request.get("id").cloned().unwrap_or(Value::Null);
     let method = request.get("method").and_then(Value::as_str).unwrap_or("");
     let params = request.get("params").cloned().unwrap_or(Value::Null);

@@ -378,6 +378,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0107 — Terceira fatia do core](docs/decisions/0107-core-third-slice.md)
 - [ADR 0108 — DB no core](docs/decisions/0108-core-db-slice.md)
 - [ADR 0109 — Worktree no executor](docs/decisions/0109-worktree-run-wiring.md)
+- [ADR 0110 — RBAC no MCP HTTP](docs/decisions/0110-mcp-http-rbac.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

@@ -32,7 +32,11 @@ pub async fn rpc(
         .get("x-opendesk-mcp-phase")
         .and_then(|value| value.to_str().ok())
         .unwrap_or("ALL");
+    let role = headers
+        .get("x-opendesk-mcp-role")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("");
     Ok(Json(
-        crate::mcp_control::handle_http(&workspace_id, agent, phase, request).await,
+        crate::mcp_control::handle_http(&workspace_id, agent, phase, role, request).await,
     ))
 }
