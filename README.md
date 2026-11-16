@@ -4,9 +4,10 @@ Sistema operacional visual de governança, automação e observabilidade sobre o
 OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
-> **Status:** release 1.1.0. O programa v1.0 está completo e a 1.1 fechou as
-> pendências de autenticação e terminal: passkeys WebAuthn no PWA, bootstrap
-> compartilhado entre desktop e daemon e TUI de operação. O desktop
+> **Status:** release 1.2.0. O programa v1.0 está completo; a 1.2 fechou o
+> multi-node ponta a ponta com worker remoto e passou a publicar o binário
+> `opendeskd`. Antes dela, a 1.1 trouxe passkeys WebAuthn, bootstrap
+> compartilhado e TUI. O desktop
 > continua sendo a interface principal; `opendeskd`, PWA e CLI operam o mesmo
 > estado sem duplicar regra. Histórico em
 > [docs/progress.md](docs/progress.md), decisões em
@@ -342,6 +343,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0072 — Hardening e fechamento da v1.0](docs/decisions/0072-v1-hardening.md)
 - [ADR 0073 — Passkeys](docs/decisions/0073-passkeys.md)
 - [ADR 0074 — Bootstrap compartilhado e TUI](docs/decisions/0074-control-plane-bootstrap-and-tui.md)
+- [ADR 0075 — Worker remoto e distribuição do opendeskd](docs/decisions/0075-remote-worker.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

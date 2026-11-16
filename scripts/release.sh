@@ -246,6 +246,19 @@ if [[ "$SKIP_BUILD" != "1" ]]; then
   esac
 fi
 
+# The daemon is a separate binary and must be shipped even though the Tauri
+# bundler only packages the desktop app.
+if [[ "$SKIP_BUILD" != "1" && ! -x "$ROOT/src-tauri/target/release/opendeskd" ]]; then
+  echo "==> Building opendeskd"
+  (
+    cd "$ROOT/src-tauri" &&
+      CARGO_PROFILE_RELEASE_LTO=thin \
+        CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
+        CARGO_INCREMENTAL=1 \
+        cargo build --release --bin opendeskd
+  )
+fi
+
 echo "==> Collecting v${VERSION} artifacts"
 if [[ -f "$DEST/manifest.json" ]]; then
   existing_platform="$(node -e 'console.log(require(process.argv[1]).platform || "")' "$DEST/manifest.json")"
@@ -268,6 +281,9 @@ case "$PLATFORM" in
         -exec cp -f {} "$DEST/" \;
     done
     cp -f "$ROOT/src-tauri/target/release/opendesk" "$DEST/opendesk-${PLATFORM}"
+    if [[ -x "$ROOT/src-tauri/target/release/opendeskd" ]]; then
+      cp -f "$ROOT/src-tauri/target/release/opendeskd" "$DEST/opendeskd-${PLATFORM}"
+    fi
     ;;
   macos-*)
     for pattern in dmg macos app; do
@@ -279,6 +295,9 @@ case "$PLATFORM" in
         -exec cp -f {} "$DEST/" \;
     done
     cp -f "$ROOT/src-tauri/target/release/opendesk" "$DEST/opendesk-${PLATFORM}"
+    if [[ -x "$ROOT/src-tauri/target/release/opendeskd" ]]; then
+      cp -f "$ROOT/src-tauri/target/release/opendeskd" "$DEST/opendeskd-${PLATFORM}"
+    fi
     ;;
   windows-*)
     for pattern in msi nsis; do
@@ -290,6 +309,9 @@ case "$PLATFORM" in
         -exec cp -f {} "$DEST/" \;
     done
     cp -f "$ROOT/src-tauri/target/release/opendesk.exe" "$DEST/opendesk-${PLATFORM}.exe"
+    if [[ -x "$ROOT/src-tauri/target/release/opendeskd.exe" ]]; then
+      cp -f "$ROOT/src-tauri/target/release/opendeskd.exe" "$DEST/opendeskd-${PLATFORM}.exe"
+    fi
     ;;
   *)
     echo "release: plataforma ${PLATFORM} sem coleção de artefatos configurada" >&2

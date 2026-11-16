@@ -224,6 +224,12 @@ pendências manuais continuam listadas abaixo.
 - Bootstrap compartilhado e TUI do CLI.
 - Testes de origem, cerimônias, endpoints públicos/autenticados e TUI.
 
+## 1.2.0 — worker remoto e distribuição do daemon
+
+- Worker `opendesk node run` (claim, heartbeat, execução e complete).
+- Release publica `opendeskd-<plataforma>`.
+- Testes do mapeamento de harnesses e da suíte completa.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

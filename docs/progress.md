@@ -2869,3 +2869,12 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `opendesk tui` com tarefas, runs, aprovações, fila, nós e diffs.
 - UI de passkeys em Configurações → Segurança e login por passkey no PWA.
 - ADR 0074.
+
+## 2026-11-16 — 1.2.0: worker remoto e opendeskd no release
+
+- `opendesk node run` executa jobs CLI em nós remotos com heartbeat, claim,
+  execução no workspace e complete com run/uso/resumo.
+- Harnesses suportados no worker: Claude Code, Codex, Pi e Hermes.
+- Release passa a publicar `opendeskd-<plataforma>` além do desktop.
+- Teste do mapeamento de comandos e documentação do worker.
+- ADR 0075.

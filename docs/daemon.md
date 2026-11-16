@@ -44,3 +44,20 @@ Com `OPENDESK_WEB_DIR` apontando para `dist`, o Axum serve a SPA, o manifest e o
 service worker. O Web Push/VAPID é opcional: ative em Configurações →
 Notificações no PWA (exige HTTPS ou localhost) e use “Testar” para validar o
 caminho até o serviço de push.
+
+
+## Worker remoto (multi-node)
+
+Um segundo computador pode executar jobs CLI sem rodar a UI:
+
+```bash
+opendesk node run --central https://desk.exemplo.com \
+  --token "$OPENDESK_NODE_TOKEN"
+```
+
+- O token é criado em Configurações → Nós (ou `POST /api/nodes`).
+- O nó puxa jobs, envia heartbeat e conclui o run. `--once` executa um job.
+- Harnesses suportados: `claude-code`, `codex`, `pi`, `hermes`. Jobs `opencode`
+  precisam do daemon OpenCode local.
+- O `workspace_root` precisa estar montado no nó (NFS/SMB/rsync).
+- O release publica `opendeskd-<plataforma>` e `opendesk-<plataforma>`.

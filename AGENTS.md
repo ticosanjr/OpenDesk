@@ -165,7 +165,8 @@ O programa v1.0 (ondas 0–9) está concluído: control plane, daemon/PWA/auth,
 harnesses plugáveis, canais/trust, handoffs, memória com ACL, MCP Hub,
 sandbox/computer-use, voz e multi-node. A 1.1.0 fechou passkeys WebAuthn,
 bootstrap compartilhado desktop/daemon e TUI. As decisões estão em ADRs
-0062–0074 e as notas em `docs/releases/`.
+0062–0075 e as notas em `docs/releases/`. A 1.2.0 adicionou o worker remoto
+(`opendesk node run`) e passou a publicar `opendeskd` no release.
 
 Próxima frente: cobertura Rust ≥80% (plano em `docs/coverage-plan.md`), builds
 Windows/macOS (`docs/platform-builds.md`) e contrato Google com conta dedicada

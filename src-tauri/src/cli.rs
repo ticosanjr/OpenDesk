@@ -7,6 +7,11 @@ use reqwest::{Client, Method};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::io::{self, Write};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+use std::time::{Duration, Instant};
 
 const HELP: &str = "OpenDesk CLI
 
@@ -24,6 +29,7 @@ Uso:
   opendesk diff <run-id> [--json]
   opendesk nodes list [--json]
   opendesk tui [--workspace <id>]
+  opendesk node run --central <url> --token <token> [--once] [--poll <segundos>]
   opendesk runs list [--workspace <id>] [--limit <n>] [--json]
   opendesk runs show <run-id> [--json]
   opendesk queue list [--workspace <id>] [--json]
@@ -142,6 +148,26 @@ async fn execute(args: Args) -> Result<()> {
                         .unwrap_or("")
                 );
             }
+        }
+        ("node", Some("run")) => {
+            let central = args
+                .flags
+                .get("central")
+                .cloned()
+                .context("informe --central com a URL do control plane")?;
+            let token = args
+                .flags
+                .get("token")
+                .cloned()
+                .or_else(|| std::env::var("OPENDESK_NODE_TOKEN").ok())
+                .context("informe --token ou defina OPENDESK_NODE_TOKEN")?;
+            let poll = args
+                .flags
+                .get("poll")
+                .and_then(|value| value.parse::<u64>().ok())
+                .unwrap_or(10)
+                .max(2);
+            run_node(&central, &token, args.flags.contains_key("once"), poll).await?;
         }
         ("tui", _) => {
             let workspace_id =
@@ -1050,6 +1076,247 @@ async fn run_tui(
     Ok(())
 }
 
+async fn node_call(
+    client: &Client,
+    method: Method,
+    url: &str,
+    token: &str,
+    body: Option<Value>,
+) -> Result<Value> {
+    let mut request = client.request(method, url).bearer_auth(token);
+    if let Some(body) = body {
+        request = request.json(&body);
+    }
+    let response = request.send().await.context("control plane indisponível")?;
+    let status = response.status();
+    let value: Value = response.json().await.unwrap_or(Value::Null);
+    if !status.is_success() {
+        return Err(anyhow!(
+            "control plane respondeu {status}: {}",
+            value
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("erro desconhecido")
+        ));
+    }
+    Ok(value)
+}
+
+fn node_capabilities() -> Vec<String> {
+    let mut capabilities = Vec::new();
+    for (harness, command) in [
+        ("claude-code", "claude"),
+        ("codex", "codex"),
+        ("pi", "pi"),
+        ("hermes", "hermes"),
+    ] {
+        if std::env::var_os("PATH")
+            .map(|paths| std::env::split_paths(&paths).any(|dir| dir.join(command).is_file()))
+            .unwrap_or(false)
+        {
+            capabilities.push(harness.to_string());
+        }
+    }
+    capabilities
+}
+
+fn node_harness_command(harness: &str, prompt: &str) -> Option<(String, Vec<String>)> {
+    let prompt = prompt.to_string();
+    match harness {
+        "claude-code" => Some((
+            "claude".into(),
+            vec![
+                "-p".into(),
+                prompt,
+                "--output-format".into(),
+                "stream-json".into(),
+                "--verbose".into(),
+            ],
+        )),
+        "codex" => Some(("codex".into(), vec!["exec".into(), "--json".into(), prompt])),
+        "pi" => Some(("pi".into(), vec!["run".into(), "--json".into(), prompt])),
+        "hermes" => Some(("hermes".into(), vec!["run".into(), "--json".into(), prompt])),
+        _ => None,
+    }
+}
+
+async fn run_node(central: &str, token: &str, once: bool, poll_secs: u64) -> Result<()> {
+    let central = central.trim_end_matches('/').to_string();
+    let client = Client::builder()
+        .timeout(Duration::from_secs(60))
+        .build()
+        .context("cliente HTTP do nó")?;
+    let capabilities = node_capabilities();
+    if capabilities.is_empty() {
+        println!("Aviso: nenhum harness CLI encontrado no PATH (claude/codex/pi/hermes).");
+    }
+    println!(
+        "Nó OpenDesk conectado a {central} — harnesses: {}",
+        if capabilities.is_empty() {
+            "nenhum".to_string()
+        } else {
+            capabilities.join(", ")
+        }
+    );
+
+    loop {
+        node_call(
+            &client,
+            Method::POST,
+            &format!("{central}/api/nodes/heartbeat"),
+            token,
+            Some(json!({ "capabilities": capabilities, "status": "ONLINE" })),
+        )
+        .await?;
+
+        let claim = node_call(
+            &client,
+            Method::GET,
+            &format!("{central}/api/nodes/next-job"),
+            token,
+            None,
+        )
+        .await?;
+        let Some(job) = claim.get("job").filter(|value| !value.is_null()).cloned() else {
+            if once {
+                break;
+            }
+            tokio::time::sleep(Duration::from_secs(poll_secs)).await;
+            continue;
+        };
+
+        let job_id = job
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or("?")
+            .to_string();
+        let harness = job
+            .get("resolved_harness")
+            .and_then(Value::as_str)
+            .unwrap_or("opencode")
+            .to_string();
+        let prompt = job
+            .get("prompt_payload")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let workspace = claim
+            .get("workspace_root")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let run_id = claim
+            .get("run_id")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        println!(
+            "Executando job {} com {} em {}",
+            shorten(&job_id),
+            harness,
+            workspace
+        );
+
+        let stop = Arc::new(AtomicBool::new(false));
+        let heartbeat = {
+            let client = client.clone();
+            let central = central.clone();
+            let token = token.to_string();
+            let stop = stop.clone();
+            let job_id = job_id.clone();
+            tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(Duration::from_secs(20)).await;
+                    if stop.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    let _ = node_call(
+                        &client,
+                        Method::POST,
+                        &format!("{central}/api/nodes/jobs/{job_id}/heartbeat"),
+                        &token,
+                        None,
+                    )
+                    .await;
+                }
+            })
+        };
+
+        let started = Instant::now();
+        let outcome = execute_node_job(&harness, &prompt, &workspace).await;
+        stop.store(true, Ordering::Relaxed);
+        heartbeat.abort();
+
+        let body = match outcome {
+            Ok((success, output)) => {
+                let summary: String = output
+                    .chars()
+                    .rev()
+                    .take(4000)
+                    .collect::<String>()
+                    .chars()
+                    .rev()
+                    .collect();
+                json!({
+                    "status": if success { "completed" } else { "failed" },
+                    "run_id": run_id,
+                    "duration_ms": started.elapsed().as_millis() as i64,
+                    "summary": summary,
+                    "usage": {}
+                })
+            }
+            Err(error) => json!({
+                "status": "failed",
+                "run_id": run_id,
+                "duration_ms": started.elapsed().as_millis() as i64,
+                "error": error.to_string(),
+            }),
+        };
+        node_call(
+            &client,
+            Method::POST,
+            &format!("{central}/api/nodes/jobs/{job_id}/complete"),
+            token,
+            Some(body),
+        )
+        .await?;
+        println!("Job {} concluído.", shorten(&job_id));
+
+        if once {
+            break;
+        }
+    }
+    Ok(())
+}
+
+async fn execute_node_job(harness: &str, prompt: &str, workspace: &str) -> Result<(bool, String)> {
+    let Some((program, args)) = node_harness_command(harness, prompt) else {
+        return Err(anyhow!(
+            "harness {harness} não é suportado pelo worker remoto; use claude-code, codex, pi ou hermes"
+        ));
+    };
+    if !std::path::Path::new(workspace).is_dir() {
+        return Err(anyhow!(
+            "workspace {workspace} não está acessível neste nó; monte a pasta compartilhada"
+        ));
+    }
+    let output = tokio::time::timeout(
+        Duration::from_secs(30 * 60),
+        tokio::process::Command::new(&program)
+            .args(&args)
+            .current_dir(workspace)
+            .stdin(std::process::Stdio::null())
+            .output(),
+    )
+    .await
+    .map_err(|_| anyhow!("execução excedeu 30 minutos"))?
+    .with_context(|| format!("não foi possível executar {program}"))?;
+    let mut text = String::from_utf8_lossy(&output.stdout).to_string();
+    if !output.status.success() {
+        text.push_str(&String::from_utf8_lossy(&output.stderr));
+    }
+    Ok((output.status.success(), text))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1075,6 +1342,18 @@ mod tests {
             Some("Resumo")
         );
         assert!(parsed.json);
+    }
+
+    #[test]
+    fn maps_remote_harnesses_to_commands() {
+        let (program, args) = node_harness_command("claude-code", "olá").expect("claude");
+        assert_eq!(program, "claude");
+        assert!(args.contains(&"olá".to_string()));
+        let (program, args) = node_harness_command("codex", "olá").expect("codex");
+        assert_eq!(program, "codex");
+        assert_eq!(args[0], "exec");
+        assert!(node_harness_command("opencode", "olá").is_none());
+        assert!(node_harness_command("desconhecido", "olá").is_none());
     }
 
     #[test]
