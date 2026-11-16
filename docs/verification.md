@@ -218,6 +218,12 @@ pendências manuais continuam listadas abaixo.
 - Cabeçalhos de segurança, CSP da PWA, `/readyz` e retenção de sessões.
 - Release notes em `docs/releases/1.0.0.md`; ADR 0072.
 
+## 1.1.0 — passkeys, bootstrap e TUI
+
+- Passkeys WebAuthn (origem, cerimônias, credenciais e login).
+- Bootstrap compartilhado e TUI do CLI.
+- Testes de origem, cerimônias, endpoints públicos/autenticados e TUI.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

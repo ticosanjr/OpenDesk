@@ -59,6 +59,7 @@ pub async fn maintenance_once(pool: &SqlitePool, paths: &AppPaths) -> AppResult<
     .execute(pool)
     .await;
     let _ = crate::db::memory::delete_expired(pool).await;
+    let _ = crate::passkey::delete_expired_ceremonies(pool).await;
     let _ = sqlx::query(
         "DELETE FROM auth_sessions
          WHERE expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now')

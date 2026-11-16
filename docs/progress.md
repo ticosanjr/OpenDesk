@@ -2841,3 +2841,31 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Texto digitado não é persistido; ações são contadas e resumidas.
 - API `/api/sandbox` e `/api/computer/*`; UI Configurações → Sandbox.
 - Migração 0046 e ADR 0070.
+
+## 2026-11-16 — v1.0 onda 8: voz, multi-node e binários
+
+- STT/TTS por motores do host, com placeholders, limites e capacidades.
+- Áudio temporário fora do workspace; fala em `output/YYYY-MM/voice`.
+- Protocolo de nós: registro com token, heartbeat, claim atômico, lease e
+  conclusão com run/usage/eventos.
+- Token de nó restrito aos endpoints do protocolo; fila única com work stealing.
+- CLI `opendesk nodes list`; UI de voz e nós em Configurações.
+- Migração 0047 e ADR 0071.
+
+## 2026-11-16 — v1.0 onda 9: hardening e fechamento
+
+- Cabeçalhos de segurança e CSP para a PWA; `/readyz` sem autenticação.
+- Retenção de sessões remotas e de computer-use na manutenção.
+- Versão 1.0.0 em package.json, Cargo.toml/Cargo.lock e tauri.conf.json.
+- Notas de release em `docs/releases/1.0.0.md`, threat model e AGENTS atualizados.
+- Verificação final: 513 testes Rust, Vitest, ESLint, tsc e goldens visuais.
+- ADR 0072.
+
+## 2026-11-16 — 1.1.0: passkeys, bootstrap compartilhado e TUI
+
+- Passkeys WebAuthn: cerimônias no servidor, credenciais em SQLite, sessão
+  revogável e fallback por token (migração 0048, ADR 0073).
+- `control_plane::start` unifica a inicialização do desktop e do `opendeskd`.
+- `opendesk tui` com tarefas, runs, aprovações, fila, nós e diffs.
+- UI de passkeys em Configurações → Segurança e login por passkey no PWA.
+- ADR 0074.

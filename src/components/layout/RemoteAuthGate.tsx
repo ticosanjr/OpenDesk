@@ -1,7 +1,14 @@
-import { useState, type ReactNode } from "react";
-import { KeyRound, ShieldCheck } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Fingerprint, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  fetchPasskeyStatus,
+  hasSecureOrigin,
+  loginWithPasskey,
+  passkeySupported,
+  type PasskeyStatus,
+} from "@/lib/passkey";
 
 const TOKEN_KEY = "opendesk_api_token";
 
@@ -13,18 +20,30 @@ function hasEnvToken(): boolean {
   return Boolean(import.meta.env.VITE_OPENDESK_TOKEN);
 }
 
+function readStoredToken(): string {
+  try {
+    return window.localStorage.getItem(TOKEN_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export function RemoteAuthGate({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState(() => {
-    try {
-      return window.localStorage.getItem(TOKEN_KEY) ?? "";
-    } catch {
-      return "";
-    }
-  });
+  const [storedToken] = useState(readStoredToken);
+  const [token, setToken] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [passkey, setPasskey] = useState<PasskeyStatus | null>(null);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+
+  useEffect(() => {
+    if (isTauri() || hasEnvToken() || storedToken) return;
+    void fetchPasskeyStatus()
+      .then(setPasskey)
+      .catch(() => setPasskey(null));
+  }, [storedToken]);
 
   if (isTauri() || hasEnvToken()) return <>{children}</>;
-  if (token) return <>{children}</>;
+  if (storedToken) return <>{children}</>;
 
   async function signIn() {
     const value = token.trim();
@@ -57,6 +76,21 @@ export function RemoteAuthGate({ children }: { children: ReactNode }) {
     }
   }
 
+  async function passkeySignIn() {
+    setPasskeyBusy(true);
+    setError(null);
+    try {
+      await loginWithPasskey();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setPasskeyBusy(false);
+    }
+  }
+
+  const canUsePasskey =
+    Boolean(passkey?.enabled) && passkeySupported() && hasSecureOrigin();
+
   return (
     <div className="flex min-h-dvh items-center justify-center bg-zinc-950 p-4 text-zinc-200">
       <Card className="w-full max-w-md">
@@ -66,11 +100,33 @@ export function RemoteAuthGate({ children }: { children: ReactNode }) {
             Acesso remoto ao OpenDesk
           </CardTitle>
           <p className="mt-1 text-[12.5px] leading-relaxed text-zinc-500">
-            Este PWA está conectado ao opendeskd. Informe o token da API local
-            para abrir o control plane neste dispositivo.
+            Este PWA está conectado ao opendeskd. Entre com uma passkey ou com o
+            token da API local.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
+          {canUsePasskey ? (
+            <Button
+              className="w-full"
+              onClick={() => void passkeySignIn()}
+              disabled={passkeyBusy}
+            >
+              {passkeyBusy ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Fingerprint size={14} />
+              )}
+              Entrar com passkey
+            </Button>
+          ) : null}
+
+          {passkey?.enabled && !hasSecureOrigin() ? (
+            <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11.5px] text-amber-200">
+              Passkeys exigem HTTPS ou localhost. Abra o PWA por um domínio com
+              TLS para usá-las.
+            </p>
+          ) : null}
+
           <label>
             <span className="mb-1 block text-[12px] font-medium uppercase tracking-[0.12em] text-zinc-500">
               Token da API

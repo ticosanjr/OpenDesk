@@ -12,6 +12,7 @@ import {
   FolderPlus,
   HardDrive,
   Info,
+  Fingerprint,
   ListChecks,
   Loader2,
   Network,
@@ -33,6 +34,7 @@ import { HarnessCard } from "@/components/settings/HarnessCard";
 import { SandboxComputerCard } from "@/components/settings/SandboxComputerCard";
 import { VoiceCard } from "@/components/settings/VoiceCard";
 import { NodesCard } from "@/components/settings/NodesCard";
+import { PasskeyCard } from "@/components/settings/PasskeyCard";
 import { UpdatesCard } from "@/components/settings/UpdatesCard";
 import { AboutCard } from "@/components/settings/AboutCard";
 import { NotificationCard } from "@/components/settings/NotificationCard";
@@ -88,6 +90,7 @@ export function SettingsPage() {
     { id: "sandbox", label: "Sandbox", icon: ShieldCheck, group: "Motor" },
     { id: "voice", label: "Voz", icon: Volume2, group: "Operação" },
     { id: "nodes", label: "Nós", icon: Network, group: "Operação" },
+    { id: "security", label: "Segurança", icon: Fingerprint, group: "Operação" },
     { id: "updates", label: "Atualizações", icon: Download, group: "Motor" },
     { id: "prompt", label: "Prompt", icon: FileCode2, group: "Motor" },
     { id: "notifications", label: "Notificações", icon: Bell, group: "Operação" },
@@ -195,6 +198,7 @@ export function SettingsPage() {
       ) : null}
       {activeTab === "voice" ? <VoiceCard /> : null}
       {activeTab === "nodes" ? <NodesCard /> : null}
+      {activeTab === "security" ? <PasskeyCard /> : null}
       {activeTab === "notifications" ? <NotificationCard /> : null}
       {activeTab === "queue" ? <QueueSettingsCard /> : null}
       {activeTab === "backups" ? <BackupsCard /> : null}

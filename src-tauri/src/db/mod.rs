@@ -192,7 +192,7 @@ mod migration_tests {
                 .fetch_all(&pool)
                 .await
                 .unwrap();
-        assert_eq!(rows.last().unwrap().0, 47, "rows: {rows:?}");
+        assert_eq!(rows.last().unwrap().0, 48, "rows: {rows:?}");
         let calendar_table: Option<(String,)> = sqlx::query_as(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'calendar_events'",
         )
@@ -219,6 +219,8 @@ mod migration_tests {
             "adapter_registry",
             "runtime_events",
             "computer_sessions",
+            "passkey_credentials",
+            "passkey_ceremonies",
         ] {
             let found: Option<(String,)> =
                 sqlx::query_as("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")

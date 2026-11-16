@@ -163,8 +163,9 @@ receitas novas nascem desligadas (ADR 0044). A suíte funcional sob demanda vive
 em `npm run test:features`.
 O programa v1.0 (ondas 0–9) está concluído: control plane, daemon/PWA/auth,
 harnesses plugáveis, canais/trust, handoffs, memória com ACL, MCP Hub,
-sandbox/computer-use, voz e multi-node. As decisões estão em ADRs 0062–0071 e o
-release em `docs/releases/1.0.0.md`.
+sandbox/computer-use, voz e multi-node. A 1.1.0 fechou passkeys WebAuthn,
+bootstrap compartilhado desktop/daemon e TUI. As decisões estão em ADRs
+0062–0074 e as notas em `docs/releases/`.
 
 Próxima frente: cobertura Rust ≥80% (plano em `docs/coverage-plan.md`), builds
 Windows/macOS (`docs/platform-builds.md`) e contrato Google com conta dedicada

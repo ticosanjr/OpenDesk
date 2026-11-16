@@ -8,6 +8,7 @@ mod chat;
 mod cli;
 mod computer;
 mod config_sync;
+mod control_plane;
 mod db;
 mod dedupe;
 mod desktop_integration;
@@ -31,6 +32,7 @@ mod metrics;
 mod nodes;
 mod open_paths;
 mod opencode_client;
+mod passkey;
 mod paths;
 mod personal_context;
 mod proposals;
@@ -223,58 +225,14 @@ pub fn run() {
             {
                 tracing::warn!(error = %error, "Quick Capture global shortcut unavailable");
             }
-            state.daemon.spawn_supervisor();
-            tauri::async_runtime::spawn(integrations::delivery::retry_loop(state.clone()));
-            tauri::async_runtime::spawn(integrations::google_calendar::sync_loop(state.clone()));
-            if let Err(error) =
-                tauri::async_runtime::block_on(state.signal.start_if_enabled(state.clone()))
-            {
-                tracing::warn!(error = %error, "Signal bridge was not started");
-            }
-            let telegram_state = state.clone();
-            tauri::async_runtime::spawn(async move {
-                if let Err(error) = telegram_state
-                    .telegram
-                    .start_if_enabled(telegram_state.clone())
-                    .await
-                {
-                    tracing::warn!(error = %error, "Telegram bridge was not started");
-                }
-            });
-            state.queue.spawn_worker();
-            state.cron.spawn();
-            push::start(state.clone());
-            tauri::async_runtime::spawn(crate::db::maintenance::run_loop(
-                state.db.clone(),
-                state.paths.clone(),
-            ));
-            tauri::async_runtime::block_on(async {
-                if let Err(error) = crate::api::schedules::sync_all_trigger_sources(&state).await {
-                    tracing::warn!(error = %error, "routine trigger source sync failed");
-                }
-                state.io_bus.start(state.clone()).await?;
-                recipes::runtime::start(state.clone());
-                governance::start_heartbeat(state.clone());
-                if let Err(error) =
-                    crate::api::recipes::sync_all_recipe_trigger_sources(&state).await
-                {
-                    tracing::warn!(error = %error, "recipe trigger source sync failed");
-                }
-                if let Err(error) =
-                    crate::starter_packs::ensure_default_factory_workspace(&state).await
-                {
-                    tracing::warn!(error = %error, "default factory workspace failed");
-                }
-                if let Err(error) = proposals::ensure_all(&state).await {
-                    tracing::warn!(error = %error, "could not register config MCP bridge");
-                }
-                Ok::<(), crate::error::AppError>(())
-            })?;
+            tauri::async_runtime::block_on(control_plane::start(
+                state.clone(),
+                control_plane::StartOptions::default(),
+            ))?;
             tray::setup(app.handle(), state.clone())?;
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.maximize();
             }
-            tauri::async_runtime::block_on(state.refresh_watcher())?;
             tauri::async_runtime::block_on(api::spawn_server(state.clone()))?;
 
             install_shutdown_handlers(app.handle().clone(), state.clone());
@@ -362,41 +320,15 @@ pub fn run_headless() {
                 .expect("initialize OpenDesk state"),
         );
 
-        if std::env::var("OPENDESK_SKIP_DAEMON").is_ok() {
-            state
-                .daemon
-                .mark_unavailable("OpenCode daemon disabled by OPENDESK_SKIP_DAEMON")
-                .await;
-        } else {
-            state.daemon.spawn_supervisor();
-            tauri::async_runtime::spawn(integrations::delivery::retry_loop(state.clone()));
-            tauri::async_runtime::spawn(integrations::google_calendar::sync_loop(state.clone()));
-        }
-
-        state.refresh_watcher().await.expect("config watcher");
-        if let Err(error) = state.signal.start_if_enabled(state.clone()).await {
-            tracing::warn!(error = %error, "Signal bridge was not started");
-        }
-        if let Err(error) = state.telegram.start_if_enabled(state.clone()).await {
-            tracing::warn!(error = %error, "Telegram bridge was not started");
-        }
-        state.queue.spawn_worker();
-        push::start(state.clone());
-        tauri::async_runtime::spawn(crate::db::maintenance::run_loop(
-            state.db.clone(),
-            state.paths.clone(),
-        ));
-        tauri::async_runtime::spawn(integrations::delivery::retry_loop(state.clone()));
-        tauri::async_runtime::spawn(integrations::google_calendar::sync_loop(state.clone()));
-        state.cron.spawn();
-        state.io_bus.start(state.clone()).await.expect("io bus");
-        let _ = recipes::runtime::start(state.clone());
-        if let Err(error) = crate::starter_packs::ensure_default_factory_workspace(&state).await {
-            tracing::warn!(error = %error, "default factory workspace failed");
-        }
-        if let Err(error) = proposals::ensure_all(&state).await {
-            tracing::warn!(error = %error, "could not register config MCP bridge");
-        }
+        control_plane::start(
+            state.clone(),
+            control_plane::StartOptions {
+                daemon: std::env::var("OPENDESK_SKIP_DAEMON").is_err(),
+                integrations: true,
+            },
+        )
+        .await
+        .expect("control plane startup");
         api::spawn_server(state.clone())
             .await
             .expect("OpenDesk API server");

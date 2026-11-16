@@ -32,6 +32,7 @@ pub mod meta;
 pub mod metrics;
 pub mod missed_runs;
 pub mod nodes;
+pub mod passkey;
 pub mod permissions;
 pub mod personal_context;
 pub mod prompt_layer;
@@ -85,7 +86,7 @@ pub async fn spawn_server(state: Arc<AppState>) -> anyhow::Result<()> {
 
     tracing::info!(%address, "OpenDesk local API listening");
 
-    tauri::async_runtime::spawn(async move {
+    tokio::spawn(async move {
         if let Err(error) = axum::serve(listener, app).await {
             tracing::error!(error = %error, "OpenDesk API stopped");
         }
@@ -116,6 +117,22 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/auth/session", post(auth::create_session))
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/sessions", get(auth::list_sessions))
+        .route("/api/auth/passkey/status", get(passkey::status))
+        .route("/api/auth/passkeys", get(passkey::list))
+        .route("/api/auth/passkeys/{id}", delete(passkey::delete))
+        .route(
+            "/api/auth/passkey/register/start",
+            post(passkey::register_start),
+        )
+        .route(
+            "/api/auth/passkey/register/finish",
+            post(passkey::register_finish),
+        )
+        .route("/api/auth/passkey/login/start", post(passkey::login_start))
+        .route(
+            "/api/auth/passkey/login/finish",
+            post(passkey::login_finish),
+        )
         .route("/api/push/vapid", get(push::vapid_key))
         .route("/api/push/subscribe", post(push::subscribe))
         .route("/api/push/unsubscribe", post(push::unsubscribe))

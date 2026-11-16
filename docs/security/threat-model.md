@@ -40,6 +40,8 @@
 | Custo descontrolado | budget por workspace/agente, quota, HITL | alerta proativo em 80/100% |
 | Agente age no navegador real | abas isoladas, handoff para login/2FA, sem armazenar cookies | auditoria de sessões no OpenDesk |
 | PWA servida pelo daemon | login por sessão revogável, CORS, cabeçalhos de segurança e CSP | reverse proxy TLS é responsabilidade do operador |
+| Roubo de token do PWA | sessão revogável + passkey WebAuthn (sem token permanente) | comprometer o navegador ainda concede a sessão ativa |
+| Replay de cerimônia WebAuthn | estado no servidor, uso único, TTL de 10 min | depende de origem HTTPS correta |
 | Update malicioso | assinatura Ed25519 do `latest.json` + SHA-256 do asset; chave privada offline | rotação de chave exige release intermediário |
 
 ## Recomendações prioritárias

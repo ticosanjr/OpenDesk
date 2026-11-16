@@ -414,6 +414,9 @@ pub(crate) async fn auth_middleware(
         || path == "/healthz"
         || path == "/readyz"
         || path == "/api/health"
+        || path == "/api/auth/passkey/status"
+        || path == "/api/auth/passkey/login/start"
+        || path == "/api/auth/passkey/login/finish"
         || path.starts_with("/api/webhooks/")
     {
         return next.run(request).await;
