@@ -110,11 +110,11 @@ mod tests {
     #[tokio::test]
     async fn creates_validates_and_revokes_sessions() {
         let ctx = crate::test_support::context().await;
-        let (token, session) = create(&ctx.state.db, "pwa", 30).await.expect("session");
+        let (token, session) = create(&ctx.db, "pwa", 30).await.expect("session");
         assert_eq!(session.label, "pwa");
-        assert!(validate(&ctx.state.db, &token).await.expect("validate"));
-        assert!(!validate(&ctx.state.db, "wrong").await.expect("wrong"));
-        assert!(revoke(&ctx.state.db, &token).await.expect("revoke"));
-        assert!(!validate(&ctx.state.db, &token).await.expect("revoked"));
+        assert!(validate(&ctx.db, &token).await.expect("validate"));
+        assert!(!validate(&ctx.db, "wrong").await.expect("wrong"));
+        assert!(revoke(&ctx.db, &token).await.expect("revoke"));
+        assert!(!validate(&ctx.db, &token).await.expect("revoked"));
     }
 }

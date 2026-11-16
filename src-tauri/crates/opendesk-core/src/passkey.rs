@@ -390,39 +390,33 @@ mod tests {
     async fn ceremonies_are_single_use_and_expire() {
         let ctx = crate::test_support::context().await;
         let state = serde_json::json!({ "challenge": "x" });
-        let id = store_ceremony(&ctx.state.db, "login", &state)
+        let id = store_ceremony(&ctx.db, "login", &state)
             .await
             .expect("store");
         assert!(
-            take_ceremony(&ctx.state.db, &id, "login")
+            take_ceremony(&ctx.db, &id, "login")
                 .await
                 .expect("take")
                 .contains("challenge")
         );
-        assert!(take_ceremony(&ctx.state.db, &id, "login").await.is_err());
+        assert!(take_ceremony(&ctx.db, &id, "login").await.is_err());
 
-        let id = store_ceremony(&ctx.state.db, "login", &state)
+        let id = store_ceremony(&ctx.db, "login", &state)
             .await
             .expect("store");
         sqlx::query(
             "UPDATE passkey_ceremonies SET expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?",
         )
         .bind(&id)
-        .execute(&ctx.state.db)
+        .execute(&ctx.db)
         .await
         .expect("expire");
-        assert!(take_ceremony(&ctx.state.db, &id, "login").await.is_err());
+        assert!(take_ceremony(&ctx.db, &id, "login").await.is_err());
     }
 
     #[tokio::test]
     async fn status_counts_credentials() {
         let ctx = crate::test_support::context().await;
-        assert_eq!(
-            status(&ctx.state.db, None)
-                .await
-                .expect("status")
-                .registered,
-            0
-        );
+        assert_eq!(status(&ctx.db, None).await.expect("status").registered, 0);
     }
 }

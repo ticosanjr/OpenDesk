@@ -408,6 +408,12 @@ pendências manuais continuam listadas abaixo.
 - `cargo test -p opendesk-core` cobre sync delta, bundle/apply e lock.
 - Shell reexporta sem mudar rotas ou comandos.
 
+## Sprint 1 — DB no core
+
+- `cargo test -p opendesk-core` cobre migrações, repositórios, write-buffer, nós e passkey.
+- Shell continua verde com os módulos reexportados.
+- `cargo tree -p opendesk-core` sem Tauri.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

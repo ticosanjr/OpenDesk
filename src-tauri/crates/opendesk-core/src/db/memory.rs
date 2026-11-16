@@ -545,7 +545,7 @@ mod tests {
 
     async fn note(ctx: &crate::test_support::TestContext, namespace: &str) -> MemoryNote {
         create_note(
-            &ctx.state.db,
+            &ctx.db,
             &ctx.workspace_id,
             CreateNoteInput {
                 namespace: namespace.into(),
@@ -568,29 +568,29 @@ mod tests {
         let ctx = crate::test_support::context().await;
         let created = note(&ctx, "private").await;
         assert!(
-            can_write(&ctx.state.db, &ctx.workspace_id, "private", "build")
+            can_write(&ctx.db, &ctx.workspace_id, "private", "build")
                 .await
                 .expect("write")
         );
-        let namespace = ensure_namespace(&ctx.state.db, &ctx.workspace_id, "private", None)
+        let namespace = ensure_namespace(&ctx.db, &ctx.workspace_id, "private", None)
             .await
             .expect("namespace");
-        set_acl(&ctx.state.db, &namespace.id, "review", true, false)
+        set_acl(&ctx.db, &namespace.id, "review", true, false)
             .await
             .expect("acl");
         assert!(
-            !can_write(&ctx.state.db, &ctx.workspace_id, "private", "review")
+            !can_write(&ctx.db, &ctx.workspace_id, "private", "review")
                 .await
                 .expect("write")
         );
         assert!(
-            list_notes(&ctx.state.db, &ctx.workspace_id, None, Some("build"), 10)
+            list_notes(&ctx.db, &ctx.workspace_id, None, Some("build"), 10)
                 .await
                 .expect("list")
                 .is_empty()
         );
         assert_eq!(
-            list_notes(&ctx.state.db, &ctx.workspace_id, None, Some("review"), 10)
+            list_notes(&ctx.db, &ctx.workspace_id, None, Some("review"), 10)
                 .await
                 .expect("list")
                 .len(),
@@ -604,10 +604,10 @@ mod tests {
         let ctx = crate::test_support::context().await;
         note(&ctx, "core").await;
         note(&ctx, "core").await;
-        let changed = consolidate(&ctx.state.db).await.expect("consolidate");
+        let changed = consolidate(&ctx.db).await.expect("consolidate");
         assert!(changed >= 1);
         assert_eq!(
-            list_notes(&ctx.state.db, &ctx.workspace_id, None, None, 10)
+            list_notes(&ctx.db, &ctx.workspace_id, None, None, 10)
                 .await
                 .expect("list")
                 .len(),
@@ -615,7 +615,7 @@ mod tests {
         );
 
         let old = create_note(
-            &ctx.state.db,
+            &ctx.db,
             &ctx.workspace_id,
             CreateNoteInput {
                 namespace: "core".into(),
@@ -636,11 +636,11 @@ mod tests {
              WHERE id = ?",
         )
         .bind(&old.id)
-        .execute(&ctx.state.db)
+        .execute(&ctx.db)
         .await
         .expect("age");
-        consolidate(&ctx.state.db).await.expect("decay");
-        let decayed = get_note(&ctx.state.db, &old.id).await.expect("get");
+        consolidate(&ctx.db).await.expect("decay");
+        let decayed = get_note(&ctx.db, &old.id).await.expect("get");
         assert!(decayed.confidence < 0.2);
         assert!(decayed.archived_at.is_none());
     }
@@ -649,17 +649,17 @@ mod tests {
     async fn search_and_expiry() {
         let ctx = crate::test_support::context().await;
         note(&ctx, "core").await;
-        let found = search(&ctx.state.db, &ctx.workspace_id, "português", None, 10)
+        let found = search(&ctx.db, &ctx.workspace_id, "português", None, 10)
             .await
             .expect("search");
         assert_eq!(found.len(), 1);
-        let context = render_context(&ctx.state.db, &ctx.workspace_id, "build", "relatório", 5)
+        let context = render_context(&ctx.db, &ctx.workspace_id, "build", "relatório", 5)
             .await
             .expect("context");
         assert!(context.contains("Relatórios em português"));
 
         create_note(
-            &ctx.state.db,
+            &ctx.db,
             &ctx.workspace_id,
             CreateNoteInput {
                 namespace: "core".into(),
@@ -675,6 +675,6 @@ mod tests {
         )
         .await
         .expect("expired note");
-        assert_eq!(delete_expired(&ctx.state.db).await.expect("cleanup"), 1);
+        assert_eq!(delete_expired(&ctx.db).await.expect("cleanup"), 1);
     }
 }

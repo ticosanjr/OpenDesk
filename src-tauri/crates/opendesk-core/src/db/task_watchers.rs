@@ -78,7 +78,7 @@ mod tests {
     async fn replaces_and_deduplicates_watchers() {
         let ctx = crate::test_support::context().await;
         let task = crate::db::tasks::create(
-            &ctx.state.db,
+            &ctx.db,
             &ctx.workspace_id,
             crate::db::tasks::CreateTaskInput {
                 title: "Acompanhar".into(),
@@ -102,7 +102,7 @@ mod tests {
         .expect("task");
 
         let watchers = replace(
-            &ctx.state.db,
+            &ctx.db,
             &ctx.workspace_id,
             &task.id,
             &["telegram".into(), "telegram".into()],
@@ -112,14 +112,9 @@ mod tests {
         assert_eq!(watchers.len(), 1);
         assert_eq!(watchers[0].channel, "telegram");
 
-        let watchers = replace(
-            &ctx.state.db,
-            &ctx.workspace_id,
-            &task.id,
-            &["signal".into()],
-        )
-        .await
-        .expect("replace again");
+        let watchers = replace(&ctx.db, &ctx.workspace_id, &task.id, &["signal".into()])
+            .await
+            .expect("replace again");
         assert_eq!(watchers.len(), 1);
         assert_eq!(watchers[0].channel, "signal");
     }

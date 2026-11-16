@@ -55,13 +55,7 @@ fn canonicalize_workspace_path(
     let candidate = std::path::Path::new(trimmed);
     std::fs::create_dir_all(candidate).map_err(AppError::Io)?;
     let canonical = std::fs::canonicalize(candidate).map_err(AppError::Io)?;
-    if !allow_temp
-        && !cfg!(test)
-        && std::env::var("OPENDESK_ALLOW_TEMP_WORKSPACES")
-            .ok()
-            .as_deref()
-            != Some("1")
-    {
+    if !allow_temp && !paths.allow_temp_workspaces {
         let temp = std::fs::canonicalize(std::env::temp_dir()).ok();
         if temp
             .as_ref()
@@ -299,6 +293,7 @@ mod tests {
             run_logs_dir: root.join("runs"),
             daemon_lock_path: root.join("daemon.json"),
             api_lock_path: root.join("api.json"),
+            allow_temp_workspaces: true,
         }
     }
 

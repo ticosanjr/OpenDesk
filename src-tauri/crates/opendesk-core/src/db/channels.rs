@@ -203,7 +203,7 @@ mod tests {
     async fn resolves_exact_before_wildcard() {
         let ctx = crate::test_support::context().await;
         upsert(
-            &ctx.state.db,
+            &ctx.db,
             &ctx.workspace_id,
             UpsertRouteInput {
                 channel: "telegram".into(),
@@ -215,14 +215,14 @@ mod tests {
         )
         .await
         .expect("wildcard");
-        let route = resolve(&ctx.state.db, &ctx.workspace_id, "telegram", "42")
+        let route = resolve(&ctx.db, &ctx.workspace_id, "telegram", "42")
             .await
             .expect("resolve")
             .expect("route");
         assert_eq!(route.agent, "build");
 
         upsert(
-            &ctx.state.db,
+            &ctx.db,
             &ctx.workspace_id,
             UpsertRouteInput {
                 channel: "telegram".into(),
@@ -234,7 +234,7 @@ mod tests {
         )
         .await
         .expect("exact");
-        let route = resolve(&ctx.state.db, &ctx.workspace_id, "telegram", "42")
+        let route = resolve(&ctx.db, &ctx.workspace_id, "telegram", "42")
             .await
             .expect("resolve")
             .expect("route");
@@ -246,7 +246,7 @@ mod tests {
     async fn rejects_invalid_routes() {
         let ctx = crate::test_support::context().await;
         let error = upsert(
-            &ctx.state.db,
+            &ctx.db,
             &ctx.workspace_id,
             UpsertRouteInput {
                 channel: "carrier-pigeon".into(),

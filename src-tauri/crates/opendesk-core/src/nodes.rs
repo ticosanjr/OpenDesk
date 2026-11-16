@@ -280,7 +280,7 @@ mod tests {
     async fn registers_heartbeats_and_authenticates_nodes() {
         let ctx = crate::test_support::context().await;
         let (token, node) = create(
-            &ctx.state.db,
+            &ctx.db,
             "worker-1",
             "http://10.0.0.5:4096",
             vec!["opencode".into()],
@@ -290,21 +290,16 @@ mod tests {
         assert_eq!(node.status, "OFFLINE");
         assert!(!node.online);
 
-        let worker = authenticate(&ctx.state.db, &token)
+        let worker = authenticate(&ctx.db, &token)
             .await
             .expect("auth")
             .expect("worker");
         assert_eq!(worker.name, "worker-1");
-        assert!(
-            authenticate(&ctx.state.db, "nope")
-                .await
-                .expect("auth")
-                .is_none()
-        );
+        assert!(authenticate(&ctx.db, "nope").await.expect("auth").is_none());
 
         let beat = heartbeat(
-            &ctx.state.db,
-            &ctx.state.write_buffer,
+            &ctx.db,
+            &ctx.write_buffer,
             &token,
             HeartbeatInput {
                 capabilities: Some(vec!["opencode".into(), "codex".into()]),
@@ -317,7 +312,7 @@ mod tests {
         assert!(beat.online);
         assert_eq!(beat.capabilities.len(), 2);
 
-        assert!(delete(&ctx.state.db, &beat.id).await.expect("delete"));
-        assert!(list(&ctx.state.db).await.expect("list").is_empty());
+        assert!(delete(&ctx.db, &beat.id).await.expect("delete"));
+        assert!(list(&ctx.db).await.expect("list").is_empty());
     }
 }

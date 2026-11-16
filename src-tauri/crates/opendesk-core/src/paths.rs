@@ -18,6 +18,9 @@ pub struct AppPaths {
     pub run_logs_dir: PathBuf,
     pub daemon_lock_path: PathBuf,
     pub api_lock_path: PathBuf,
+    /// Allow workspace roots under the system temp directory (tests and
+    /// explicitly opted-in environments).
+    pub allow_temp_workspaces: bool,
 }
 
 impl AppPaths {
@@ -56,6 +59,10 @@ impl AppPaths {
             db_path: data_dir.join("opendesk.db"),
             daemon_lock_path: data_dir.join("daemon.json"),
             api_lock_path: data_dir.join("api.json"),
+            allow_temp_workspaces: std::env::var("OPENDESK_ALLOW_TEMP_WORKSPACES")
+                .ok()
+                .as_deref()
+                == Some("1"),
             data_dir,
             config_dir,
             cache_dir,
@@ -118,6 +125,7 @@ pub fn test_paths(root: &std::path::Path) -> AppPaths {
         run_logs_dir: root.join("runs"),
         daemon_lock_path: root.join("daemon.json"),
         api_lock_path: root.join("api.json"),
+        allow_temp_workspaces: true,
     };
     for dir in [
         &paths.data_dir,

@@ -10,8 +10,6 @@ mod computer;
 mod config_sync;
 mod control_plane;
 mod daemon_probe;
-mod db;
-mod dedupe;
 mod desktop_integration;
 mod doctor;
 mod dsh_router;
@@ -28,10 +26,8 @@ mod mcp_hub;
 mod mcp_server;
 mod media;
 mod metrics;
-mod nodes;
 mod open_paths;
 mod opencode_client;
-mod passkey;
 mod personal_context;
 mod proposals;
 mod push;
@@ -56,8 +52,8 @@ mod updates;
 mod voice;
 
 pub use opendesk_core::{
-    error, events, paths, server_lock, text, token_estimate, virtual_display, workspace_sync,
-    worktree,
+    db, dedupe, error, events, nodes, passkey, paths, server_lock, text, token_estimate,
+    virtual_display, workspace_sync, worktree,
 };
 
 use app_state::AppState;

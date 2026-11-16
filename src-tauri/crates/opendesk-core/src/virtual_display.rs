@@ -30,7 +30,22 @@ pub fn start(session_id: &str) -> AppResult<String> {
     }
     for number in 90..130 {
         let lock = format!("/tmp/.X{number}-lock");
+        let socket = format!("/tmp/.X11-unix/X{number}");
         if Path::new(&lock).exists() {
+            let alive = std::fs::read_to_string(&lock)
+                .ok()
+                .and_then(|value| value.trim().parse::<u32>().ok())
+                .is_some_and(|pid| Path::new(&format!("/proc/{pid}")).exists());
+            if alive {
+                continue;
+            }
+            // Stale lock/socket from a killed Xvfb: reclaim the display.
+            let _ = std::fs::remove_file(&lock);
+            let _ = std::fs::remove_file(&socket);
+        }
+        if std::env::var_os("DISPLAY").as_deref()
+            == Some(std::ffi::OsStr::new(&format!(":{number}")))
+        {
             continue;
         }
         let display = format!(":{number}");
@@ -42,7 +57,6 @@ pub fn start(session_id: &str) -> AppResult<String> {
             .stderr(Stdio::null())
             .spawn()
             .map_err(|error| AppError::Internal(format!("Xvfb: {error}")))?;
-        let socket = format!("/tmp/.X11-unix/X{number}");
         let mut ready = false;
         for _ in 0..30 {
             if Path::new(&socket).exists() {

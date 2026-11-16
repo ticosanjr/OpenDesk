@@ -158,7 +158,7 @@ mod tests {
              ) VALUES ('r1', 'e1', '2026-01-01T00:00:00Z',
                 strftime('%Y-%m-%dT%H:%M:%fZ','now','-100 days'))",
         )
-        .execute(&ctx.state.db)
+        .execute(&ctx.db)
         .await
         .expect("trigger fire");
         sqlx::query(
@@ -169,19 +169,19 @@ mod tests {
                 strftime('%Y-%m-%dT%H:%M:%fZ','now','-100 days'))",
         )
         .bind(&ctx.workspace_id)
-        .execute(&ctx.state.db)
+        .execute(&ctx.db)
         .await
         .expect("event");
-        maintenance_once(&ctx.state.db, &ctx.state.paths)
+        maintenance_once(&ctx.db, &ctx.paths)
             .await
             .expect("maintenance");
         let fires: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM calendar_trigger_fires")
-            .fetch_one(&ctx.state.db)
+            .fetch_one(&ctx.db)
             .await
             .expect("fires");
         let events: i64 =
             sqlx::query_scalar("SELECT COUNT(*) FROM calendar_events WHERE id = 'old-cancelled'")
-                .fetch_one(&ctx.state.db)
+                .fetch_one(&ctx.db)
                 .await
                 .expect("events");
         assert_eq!(fires, 0);

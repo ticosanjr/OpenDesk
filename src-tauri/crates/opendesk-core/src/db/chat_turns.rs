@@ -173,7 +173,7 @@ mod tests {
     async fn records_and_interrupts_a_chat_turn() {
         let ctx = crate::test_support::context().await;
         let thread = crate::db::chat::create_thread(
-            &ctx.state.db,
+            &ctx.db,
             crate::db::chat::CreateThreadInput {
                 workspace_id: ctx.workspace_id.clone(),
                 title: Some("Turno".into()),
@@ -186,7 +186,7 @@ mod tests {
         .await
         .expect("thread");
         let turn = create(
-            &ctx.state.db,
+            &ctx.db,
             CreateChatTurnInput {
                 workspace_id: ctx.workspace_id.clone(),
                 thread_id: thread.id.clone(),
@@ -200,13 +200,13 @@ mod tests {
         .expect("turn");
         assert_eq!(turn.status, "RUNNING");
         assert!(
-            active_for_thread(&ctx.state.db, &thread.id)
+            active_for_thread(&ctx.db, &thread.id)
                 .await
                 .expect("active")
                 .is_some()
         );
         let finished = finish(
-            &ctx.state.db,
+            &ctx.db,
             &turn.id,
             "SUCCESS",
             Some("pronto"),
@@ -226,7 +226,7 @@ mod tests {
         assert!(finished.completed_at.is_some());
 
         let second = create(
-            &ctx.state.db,
+            &ctx.db,
             CreateChatTurnInput {
                 workspace_id: ctx.workspace_id.clone(),
                 thread_id: thread.id,
@@ -239,6 +239,6 @@ mod tests {
         .await
         .expect("second");
         assert!(second.id != turn.id);
-        assert_eq!(mark_interrupted(&ctx.state.db).await.expect("interrupt"), 1);
+        assert_eq!(mark_interrupted(&ctx.db).await.expect("interrupt"), 1);
     }
 }

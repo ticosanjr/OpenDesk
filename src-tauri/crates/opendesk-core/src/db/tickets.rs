@@ -188,13 +188,13 @@ mod tests {
             assigned_agent: Some("build".into()),
             metadata: serde_json::json!({ "chat": 1 }),
         };
-        let (first, created) = create(&ctx.state.db, input()).await.expect("ticket");
+        let (first, created) = create(&ctx.db, input()).await.expect("ticket");
         assert!(created);
-        let (second, created) = create(&ctx.state.db, input()).await.expect("ticket");
+        let (second, created) = create(&ctx.db, input()).await.expect("ticket");
         assert!(!created);
         assert_eq!(first.id, second.id);
         assert_eq!(
-            list(&ctx.state.db, &ctx.workspace_id, Some("OPEN"), 10)
+            list(&ctx.db, &ctx.workspace_id, Some("OPEN"), 10)
                 .await
                 .expect("list")
                 .len(),
@@ -206,7 +206,7 @@ mod tests {
     async fn updates_status_and_rejects_unknown() {
         let ctx = crate::test_support::context().await;
         let (ticket, _) = create(
-            &ctx.state.db,
+            &ctx.db,
             CreateTicketInput {
                 workspace_id: ctx.workspace_id.clone(),
                 source: "web".into(),
@@ -221,7 +221,7 @@ mod tests {
         .await
         .expect("ticket");
         let updated = update(
-            &ctx.state.db,
+            &ctx.db,
             &ticket.id,
             UpdateTicketInput {
                 status: Some("triaged".into()),
@@ -238,7 +238,7 @@ mod tests {
 
         assert!(
             update(
-                &ctx.state.db,
+                &ctx.db,
                 &ticket.id,
                 UpdateTicketInput {
                     status: Some("nope".into()),

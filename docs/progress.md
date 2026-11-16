@@ -3103,3 +3103,11 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `workspace_sync` e `server_lock` movidos para `opendesk-core`.
 - Helper `paths::test_paths` para testes sem AppState.
 - ADR 0107.
+
+## 2026-11-16 — DB no core (REF-01)
+
+- `db`, migrações, `dedupe`, `nodes` e `passkey` movidos para `opendesk-core`.
+- `write_buffer` usa `tokio::spawn`; test_support próprio do core.
+- Core com 83 testes, shell com 495; sem Tauri no core.
+- `AppPaths.allow_temp_workspaces` e reclaim de displays Xvfb obsoletos.
+- ADR 0108.

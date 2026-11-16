@@ -142,7 +142,7 @@ mod tests {
     async fn upserts_lists_and_removes_subscriptions() {
         let ctx = crate::test_support::context().await;
         let first = upsert(
-            &ctx.state.db,
+            &ctx.db,
             "https://push.example/abc",
             "p256dh",
             "auth",
@@ -152,7 +152,7 @@ mod tests {
         .expect("subscription");
         assert_eq!(first.label, "phone");
         let second = upsert(
-            &ctx.state.db,
+            &ctx.db,
             "https://push.example/abc",
             "p256dh2",
             "auth2",
@@ -162,19 +162,19 @@ mod tests {
         .expect("refresh");
         assert_eq!(second.id, first.id);
         assert_eq!(second.label, "tablet");
-        assert_eq!(list(&ctx.state.db).await.expect("list").len(), 1);
+        assert_eq!(list(&ctx.db).await.expect("list").len(), 1);
         assert!(
-            remove(&ctx.state.db, "https://push.example/abc")
+            remove(&ctx.db, "https://push.example/abc")
                 .await
                 .expect("remove")
         );
-        assert!(list(&ctx.state.db).await.expect("list").is_empty());
+        assert!(list(&ctx.db).await.expect("list").is_empty());
     }
 
     #[tokio::test]
     async fn rejects_non_https_endpoints() {
         let ctx = crate::test_support::context().await;
-        let error = upsert(&ctx.state.db, "http://push.example", "a", "b", "x")
+        let error = upsert(&ctx.db, "http://push.example", "a", "b", "x")
             .await
             .expect_err("must reject plain http");
         assert!(matches!(error, AppError::BadRequest(_)));

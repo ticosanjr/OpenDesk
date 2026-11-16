@@ -240,6 +240,7 @@ mod tests {
             run_logs_dir: temp.path().join("runs"),
             daemon_lock_path: temp.path().join("daemon.json"),
             api_lock_path: temp.path().join("api.json"),
+            allow_temp_workspaces: true,
         };
         std::fs::create_dir_all(&paths.data_dir).expect("data");
         let appdir = temp.path().join("appdir");

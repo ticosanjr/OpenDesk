@@ -86,7 +86,7 @@ impl WriteBuffer {
         let (sender, receiver) = mpsc::channel(capacity.max(1));
         let counters = Arc::new(Counters::default());
         let task_counters = counters.clone();
-        tauri::async_runtime::spawn(async move {
+        tokio::spawn(async move {
             writer_loop(pool, interval, receiver, task_counters).await;
         });
         Arc::new(Self { sender, counters })
@@ -285,8 +285,8 @@ mod tests {
     #[tokio::test]
     async fn coalesces_repeated_heartbeats_into_one_write() {
         let ctx = crate::test_support::context().await;
-        let buffer = WriteBuffer::start(ctx.state.db.clone(), Duration::from_secs(30), 64);
-        let job_id = running_job(&ctx.state.db, &ctx.workspace_id, 0).await;
+        let buffer = WriteBuffer::start(ctx.db.clone(), Duration::from_secs(30), 64);
+        let job_id = running_job(&ctx.db, &ctx.workspace_id, 0).await;
 
         for _ in 0..50 {
             assert!(buffer.job_heartbeat(&job_id).await);
@@ -302,7 +302,7 @@ mod tests {
         let heartbeat: Option<String> =
             sqlx::query_scalar("SELECT last_heartbeat_at FROM execution_queue WHERE id = ?")
                 .bind(&job_id)
-                .fetch_one(&ctx.state.db)
+                .fetch_one(&ctx.db)
                 .await
                 .expect("heartbeat");
         assert!(heartbeat.is_some());
@@ -311,11 +311,11 @@ mod tests {
     #[tokio::test]
     async fn concurrent_run_and_node_heartbeats_never_lock_the_database() {
         let ctx = crate::test_support::context().await;
-        let buffer = WriteBuffer::start(ctx.state.db.clone(), Duration::from_millis(10), 32);
+        let buffer = WriteBuffer::start(ctx.db.clone(), Duration::from_millis(10), 32);
 
         let mut jobs = Vec::new();
         for index in 0..4 {
-            jobs.push(running_job(&ctx.state.db, &ctx.workspace_id, index).await);
+            jobs.push(running_job(&ctx.db, &ctx.workspace_id, index).await);
         }
         let mut nodes = Vec::new();
         for index in 0..8 {
@@ -324,7 +324,7 @@ mod tests {
                 .bind(&id)
                 .bind(&id)
                 .bind("http://127.0.0.1:4096")
-                .execute(&ctx.state.db)
+                .execute(&ctx.db)
                 .await
                 .expect("worker");
             nodes.push(id);
@@ -361,14 +361,14 @@ mod tests {
 
         let seen: i64 =
             sqlx::query_scalar("SELECT COUNT(*) FROM workers WHERE last_seen_at IS NOT NULL")
-                .fetch_one(&ctx.state.db)
+                .fetch_one(&ctx.db)
                 .await
                 .expect("seen");
         assert_eq!(seen, 8);
         let beats: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM execution_queue WHERE last_heartbeat_at IS NOT NULL",
         )
-        .fetch_one(&ctx.state.db)
+        .fetch_one(&ctx.db)
         .await
         .expect("beats");
         assert_eq!(beats, 4);

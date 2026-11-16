@@ -376,6 +376,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0105 — Sync delta do workspace](docs/decisions/0105-workspace-sync.md)
 - [ADR 0106 — MCP gateway HTTP](docs/decisions/0106-mcp-http-gateway.md)
 - [ADR 0107 — Terceira fatia do core](docs/decisions/0107-core-third-slice.md)
+- [ADR 0108 — DB no core](docs/decisions/0108-core-db-slice.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

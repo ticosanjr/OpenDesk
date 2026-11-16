@@ -105,6 +105,7 @@ async fn test_state() -> (tempfile::TempDir, Arc<AppState>, String) {
         run_logs_dir: root.join("runs"),
         daemon_lock_path: root.join("daemon.json"),
         api_lock_path: root.join("api.json"),
+        allow_temp_workspaces: true,
     };
     for dir in [
         &paths.data_dir,

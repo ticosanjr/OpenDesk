@@ -22,6 +22,7 @@ pub fn paths_in(root: &std::path::Path) -> AppPaths {
         run_logs_dir: root.join("runs"),
         daemon_lock_path: root.join("daemon.json"),
         api_lock_path: root.join("api.json"),
+        allow_temp_workspaces: true,
     };
     for dir in [
         &paths.data_dir,

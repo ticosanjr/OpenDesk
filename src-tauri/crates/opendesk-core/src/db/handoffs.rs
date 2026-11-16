@@ -283,29 +283,29 @@ mod tests {
     #[tokio::test]
     async fn enforces_status_transitions() {
         let ctx = crate::test_support::context().await;
-        let handoff = create(&ctx.state.db, &ctx.workspace_id, input("review"))
+        let handoff = create(&ctx.db, &ctx.workspace_id, input("review"))
             .await
             .expect("create");
         assert_eq!(handoff.status, "PENDING");
 
-        let error = transition(&ctx.state.db, &handoff.id, "DONE", None)
+        let error = transition(&ctx.db, &handoff.id, "DONE", None)
             .await
             .expect_err("cannot skip");
         assert!(matches!(error, AppError::Conflict(_)));
 
-        let accepted = transition(&ctx.state.db, &handoff.id, "accepted", None)
+        let accepted = transition(&ctx.db, &handoff.id, "accepted", None)
             .await
             .expect("accept");
         assert_eq!(accepted.status, "ACCEPTED");
         let merged = merge_result(
-            &ctx.state.db,
+            &ctx.db,
             &handoff.id,
             serde_json::json!({ "task_id": "task-1" }),
         )
         .await
         .expect("merge");
         assert_eq!(merged.result()["task_id"], "task-1");
-        let done = complete_for_task(&ctx.state.db, "task-1", true)
+        let done = complete_for_task(&ctx.db, "task-1", true)
             .await
             .expect("complete")
             .expect("handoff");
@@ -316,14 +316,14 @@ mod tests {
     async fn rejects_self_delegation_and_unknown_parent() {
         let ctx = crate::test_support::context().await;
         assert!(
-            create(&ctx.state.db, &ctx.workspace_id, input("build"))
+            create(&ctx.db, &ctx.workspace_id, input("build"))
                 .await
                 .is_err()
         );
         let mut orphan = input("review");
         orphan.parent_handoff_id = Some("missing".into());
         assert!(matches!(
-            create(&ctx.state.db, &ctx.workspace_id, orphan)
+            create(&ctx.db, &ctx.workspace_id, orphan)
                 .await
                 .expect_err("orphan"),
             AppError::NotFound(_)

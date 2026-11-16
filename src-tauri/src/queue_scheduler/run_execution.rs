@@ -424,6 +424,7 @@ mod tests {
             run_logs_dir: temp.path().join("runs"),
             daemon_lock_path: temp.path().join("daemon.json"),
             api_lock_path: temp.path().join("api.json"),
+            allow_temp_workspaces: true,
         };
         let plan = plan_run(&job(), None, &paths, temp.path());
         assert_eq!(plan.phase, "BUILD_DIRECT");
