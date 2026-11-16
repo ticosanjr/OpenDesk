@@ -167,6 +167,72 @@ pub struct HitlQuery {
     pub workspace_id: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Default)]
+pub struct VersionQuery {
+    pub workspace_id: Option<String>,
+    pub against: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RollbackBody {
+    pub version_id: String,
+}
+
+pub async fn versions(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Query(query): Query<RecipeQuery>,
+) -> AppResult<Json<Vec<store::RecipeVersionSummary>>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    Ok(Json(
+        store::list_versions(&state.db, &workspace_id, &id).await?,
+    ))
+}
+
+pub async fn version(
+    State(state): State<Arc<AppState>>,
+    Path((id, version_id)): Path<(String, String)>,
+    Query(query): Query<RecipeQuery>,
+) -> AppResult<Json<store::RecipeVersion>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    Ok(Json(
+        store::get_version(&state.db, &workspace_id, &id, &version_id).await?,
+    ))
+}
+
+pub async fn version_diff(
+    State(state): State<Arc<AppState>>,
+    Path((id, version_id)): Path<(String, String)>,
+    Query(query): Query<VersionQuery>,
+) -> AppResult<Json<serde_json::Value>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    let diff = store::diff_version(
+        &state.db,
+        &workspace_id,
+        &id,
+        &version_id,
+        query.against.as_deref(),
+    )
+    .await?;
+    Ok(Json(serde_json::json!({ "diff": diff })))
+}
+
+pub async fn rollback(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Query(query): Query<RecipeQuery>,
+    Json(body): Json<RollbackBody>,
+) -> AppResult<Json<store::RecipeIndex>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    let index = store::rollback_version(&state.db, &workspace_id, &id, &body.version_id).await?;
+    sync_recipe_trigger_sources(&state, &workspace_id, &id).await?;
+    Ok(Json(index))
+}
+
 pub async fn hitl_pending(
     State(state): State<Arc<AppState>>,
     Query(query): Query<HitlQuery>,

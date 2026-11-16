@@ -367,6 +367,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0096 — Sub-receitas](docs/decisions/0096-sub-recipes.md)
 - [ADR 0097 — Sandbox em container](docs/decisions/0097-container-sandbox.md)
 - [ADR 0098 — SessionContextPacket](docs/decisions/0098-session-context-packet.md)
+- [ADR 0099 — Versionamento de receitas](docs/decisions/0099-recipe-versioning.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

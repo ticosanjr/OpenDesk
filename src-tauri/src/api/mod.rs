@@ -601,6 +601,16 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
                 .delete(recipes::delete_recipe),
         )
         .route("/api/recipes/{id}/enabled", post(recipes::set_enabled))
+        .route("/api/recipes/{id}/versions", get(recipes::versions))
+        .route(
+            "/api/recipes/{id}/versions/{version_id}",
+            get(recipes::version),
+        )
+        .route(
+            "/api/recipes/{id}/versions/{version_id}/diff",
+            get(recipes::version_diff),
+        )
+        .route("/api/recipes/{id}/rollback", post(recipes::rollback))
         .route("/api/recipes/{id}/run", post(recipes::run))
         .route("/api/io/tools", get(io_bus::tools))
         .route("/api/io/tools/{name}/install", post(io_bus::install_tool))

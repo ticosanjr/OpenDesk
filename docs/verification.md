@@ -356,6 +356,12 @@ pendências manuais continuam listadas abaixo.
 - Rota de inspeção devolve o pacote atual.
 - Prompt preview/dispatch inclui a seção de continuidade.
 
+## Sprint 2 — versionamento de receitas
+
+- Duas edições geram duas versões; repetir o mesmo YAML não duplica.
+- Diff da versão antiga para a atual mostra a mudança.
+- Rollback restaura o conteúdo e registra uma nova versão.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

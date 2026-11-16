@@ -288,7 +288,133 @@ pub async fn save_yaml(
     std::fs::write(&path, &content)?;
     crate::config_sync::watcher::expect_write(&path, Some(sha256(&content)));
     sync_workspace(pool, workspace_id, Path::new(&root)).await?;
+    record_version(pool, workspace_id, id, &content).await?;
     get(pool, workspace_id, id).await
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct RecipeVersionSummary {
+    pub id: String,
+    pub content_sha256: String,
+    pub size_bytes: i64,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct RecipeVersion {
+    pub id: String,
+    pub workspace_id: String,
+    pub recipe_id: String,
+    pub content: String,
+    pub content_sha256: String,
+    pub created_at: String,
+}
+
+async fn record_version(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    recipe_id: &str,
+    content: &str,
+) -> AppResult<()> {
+    let hash = sha256(content);
+    let latest: Option<String> = sqlx::query_scalar(
+        "SELECT content_sha256 FROM recipe_versions
+         WHERE workspace_id = ? AND recipe_id = ?
+         ORDER BY created_at DESC, id DESC LIMIT 1",
+    )
+    .bind(workspace_id)
+    .bind(recipe_id)
+    .fetch_optional(pool)
+    .await?;
+    if latest.as_deref() == Some(hash.as_str()) {
+        return Ok(());
+    }
+    sqlx::query(
+        "INSERT INTO recipe_versions
+            (id, workspace_id, recipe_id, content, content_sha256)
+         VALUES (?, ?, ?, ?, ?)",
+    )
+    .bind(Uuid::now_v7().to_string())
+    .bind(workspace_id)
+    .bind(recipe_id)
+    .bind(content)
+    .bind(&hash)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn list_versions(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    recipe_id: &str,
+) -> AppResult<Vec<RecipeVersionSummary>> {
+    Ok(sqlx::query_as::<_, RecipeVersionSummary>(
+        "SELECT id, content_sha256, length(content) AS size_bytes, created_at
+         FROM recipe_versions
+         WHERE workspace_id = ? AND recipe_id = ?
+         ORDER BY created_at DESC, id DESC",
+    )
+    .bind(workspace_id)
+    .bind(recipe_id)
+    .fetch_all(pool)
+    .await?)
+}
+
+pub async fn get_version(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    recipe_id: &str,
+    version_id: &str,
+) -> AppResult<RecipeVersion> {
+    sqlx::query_as::<_, RecipeVersion>(
+        "SELECT id, workspace_id, recipe_id, content, content_sha256, created_at
+         FROM recipe_versions
+         WHERE id = ? AND workspace_id = ? AND recipe_id = ?",
+    )
+    .bind(version_id)
+    .bind(workspace_id)
+    .bind(recipe_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound(format!("versão {version_id} da receita {recipe_id}")))
+}
+
+/// Unified diff from a stored version to the current file (or another version).
+pub async fn diff_version(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    recipe_id: &str,
+    version_id: &str,
+    against: Option<&str>,
+) -> AppResult<String> {
+    let from = get_version(pool, workspace_id, recipe_id, version_id).await?;
+    let to = match against.filter(|value| *value != "current") {
+        Some(other) => {
+            get_version(pool, workspace_id, recipe_id, other)
+                .await?
+                .content
+        }
+        None => yaml_for(pool, workspace_id, recipe_id).await?,
+    };
+    Ok(similar::TextDiff::from_lines(&from.content, &to)
+        .unified_diff()
+        .context_radius(3)
+        .header(
+            &format!("{}@{}", recipe_id, &from.id[..8.min(from.id.len())]),
+            "current",
+        )
+        .to_string())
+}
+
+pub async fn rollback_version(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    recipe_id: &str,
+    version_id: &str,
+) -> AppResult<RecipeIndex> {
+    let version = get_version(pool, workspace_id, recipe_id, version_id).await?;
+    save_yaml(pool, workspace_id, recipe_id, &version.content).await
 }
 
 pub async fn create_run(
@@ -1230,6 +1356,64 @@ mod tests {
         let output = set_yaml_enabled(yaml, true);
         assert!(output.starts_with("enabled: true\n"));
         assert!(!output.ends_with('\n'));
+    }
+
+    #[tokio::test]
+    async fn versions_recipes_and_rolls_back() {
+        let ctx = crate::test_support::context().await;
+        let v1 = "id: versionada\nname: Versionada\nflow:\n  - type: step\n    id: s1\n    name: S1\n    prompt: v1\n";
+        let v2 = "id: versionada\nname: Versionada\nflow:\n  - type: step\n    id: s1\n    name: S1\n    prompt: v2\n";
+        save_yaml(&ctx.state.db, &ctx.workspace_id, "versionada", v1)
+            .await
+            .expect("v1");
+        save_yaml(&ctx.state.db, &ctx.workspace_id, "versionada", v1)
+            .await
+            .expect("same");
+        save_yaml(&ctx.state.db, &ctx.workspace_id, "versionada", v1)
+            .await
+            .expect("same again");
+        let after_same = list_versions(&ctx.state.db, &ctx.workspace_id, "versionada")
+            .await
+            .expect("list");
+        assert_eq!(after_same.len(), 2, "identical content must not duplicate");
+
+        save_yaml(&ctx.state.db, &ctx.workspace_id, "versionada", v2)
+            .await
+            .expect("v2");
+        let versions = list_versions(&ctx.state.db, &ctx.workspace_id, "versionada")
+            .await
+            .expect("list");
+        assert_eq!(versions.len(), 3);
+        let first = versions.last().expect("first");
+        let diff = diff_version(
+            &ctx.state.db,
+            &ctx.workspace_id,
+            "versionada",
+            &first.id,
+            None,
+        )
+        .await
+        .expect("diff");
+        assert!(diff.contains("prompt: v2"), "{diff}");
+        assert!(
+            diff.contains("prompt: v1") || diff.contains("-    prompt: v1"),
+            "{diff}"
+        );
+
+        rollback_version(&ctx.state.db, &ctx.workspace_id, "versionada", &first.id)
+            .await
+            .expect("rollback");
+        let current = yaml_for(&ctx.state.db, &ctx.workspace_id, "versionada")
+            .await
+            .expect("yaml");
+        assert!(current.contains("prompt: v1"), "{current}");
+        assert_eq!(
+            list_versions(&ctx.state.db, &ctx.workspace_id, "versionada")
+                .await
+                .expect("list")
+                .len(),
+            4
+        );
     }
 
     #[tokio::test]

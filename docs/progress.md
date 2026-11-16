@@ -3046,3 +3046,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Persistido em `session_context_packets` e injetado no prompt de dispatch/follow-up/preview.
 - `GET /api/tasks/{id}/session-packet` para inspeção; limites de tamanho.
 - ADR 0098.
+
+## 2026-11-16 — versionamento de receitas (REQ-04)
+
+- `recipe_versions` com conteúdo, SHA e timestamp; edições idênticas não duplicam.
+- API de listagem, leitura, diff unificado e rollback revalidado.
+- ADR 0099.
