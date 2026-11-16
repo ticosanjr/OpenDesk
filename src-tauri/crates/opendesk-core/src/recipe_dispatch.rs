@@ -24,3 +24,18 @@ pub trait RecipeStepDispatcher: Send + Sync {
         session_id: Option<&str>,
     ) -> AppResult<()>;
 }
+
+/// Used by tests and dry flows that never dispatch a real run.
+pub struct NoopRecipeDispatcher;
+
+#[async_trait]
+impl RecipeStepDispatcher for NoopRecipeDispatcher {
+    async fn dispatch(
+        &self,
+        _task_id: &str,
+        _request: RecipeStepRequest,
+        _session_id: Option<&str>,
+    ) -> AppResult<()> {
+        Ok(())
+    }
+}

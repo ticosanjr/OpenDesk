@@ -141,7 +141,18 @@ pub async fn start(
     let run_clone = run.clone();
     let recipe_clone = recipe.clone();
     tokio::spawn(async move {
-        if let Err(error) = execute(&state_clone, &recipe_clone, &run_clone, &trigger).await {
+        let dispatcher = crate::recipe_dispatcher::ShellRecipeDispatcher {
+            state: state_clone.clone(),
+        };
+        if let Err(error) = execute(
+            &state_clone,
+            &recipe_clone,
+            &run_clone,
+            &trigger,
+            &dispatcher,
+        )
+        .await
+        {
             tracing::warn!(run = %run_clone.id, error = %error, "recipe run failed");
             let message = format!("{error:#}");
             let _ = store::fail_running_nodes(&state_clone.db, &run_clone.id, &message).await;
@@ -194,7 +205,18 @@ pub async fn resume(state: Arc<AppState>, recipe: Recipe, run: store::RecipeRun)
     let run_clone = run.clone();
     let recipe_clone = recipe.clone();
     tokio::spawn(async move {
-        if let Err(error) = execute(&state_clone, &recipe_clone, &run_clone, &trigger).await {
+        let dispatcher = crate::recipe_dispatcher::ShellRecipeDispatcher {
+            state: state_clone.clone(),
+        };
+        if let Err(error) = execute(
+            &state_clone,
+            &recipe_clone,
+            &run_clone,
+            &trigger,
+            &dispatcher,
+        )
+        .await
+        {
             let message = format!("{error:#}");
             let _ = store::fail_running_nodes(&state_clone.db, &run_clone.id, &message).await;
             let _ = store::update_run(
@@ -235,9 +257,10 @@ async fn execute(
     recipe: &Recipe,
     run: &store::RecipeRun,
     trigger: &serde_json::Value,
+    dispatcher: &dyn crate::recipe_dispatch::RecipeStepDispatcher,
 ) -> AppResult<()> {
     if recipe.has_dag() {
-        return crate::recipes::dag::execute(state, recipe, run, trigger).await;
+        return crate::recipes::dag::execute(state, recipe, run, trigger, dispatcher).await;
     }
     let task_id = run
         .task_id
@@ -311,6 +334,7 @@ async fn execute(
                 let feedback = feedback_by_step.remove(&step.id);
                 if let Err(error) = execute_step(
                     state,
+                    dispatcher,
                     run,
                     &task_id,
                     step,
@@ -614,6 +638,7 @@ fn previous_step(flow: &[FlowItem], index: usize) -> Option<(usize, &Step)> {
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn execute_step(
     state: &Arc<AppState>,
+    dispatcher: &dyn crate::recipe_dispatch::RecipeStepDispatcher,
     run: &store::RecipeRun,
     task_id: &str,
     step: &Step,
@@ -686,11 +711,8 @@ pub(super) async fn execute_step(
         )
         .await?;
         let started = Utc::now().to_rfc3339();
-        let dispatcher = crate::recipe_dispatcher::ShellRecipeDispatcher {
-            state: state.clone(),
-        };
         crate::recipe_dispatch::RecipeStepDispatcher::dispatch(
-            &dispatcher,
+            dispatcher,
             task_id,
             crate::recipe_dispatch::RecipeStepRequest {
                 agent: step

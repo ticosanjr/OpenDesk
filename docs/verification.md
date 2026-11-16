@@ -500,6 +500,10 @@ pendências manuais continuam listadas abaixo.
 
 - Integração AppImage testada no core.
 
+## Sprint 2 — dispatcher injetado
+
+- Engine/DAG usam dispatcher recebido; dry run e DAG verdes.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

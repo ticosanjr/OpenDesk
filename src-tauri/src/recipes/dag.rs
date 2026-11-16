@@ -36,6 +36,7 @@ struct Ctx<'a> {
     trigger: &'a Value,
     run_vars: &'a Value,
     routine_id: Option<&'a str>,
+    dispatcher: &'a dyn crate::recipe_dispatch::RecipeStepDispatcher,
 }
 
 #[derive(Default)]
@@ -67,6 +68,7 @@ pub async fn execute(
     recipe: &Recipe,
     run: &store::RecipeRun,
     trigger: &Value,
+    dispatcher: &dyn crate::recipe_dispatch::RecipeStepDispatcher,
 ) -> AppResult<()> {
     let task_id = run
         .task_id
@@ -89,6 +91,7 @@ pub async fn execute(
         trigger,
         run_vars: &run_vars,
         routine_id,
+        dispatcher,
     };
 
     store::sync_run_nodes(&state.db, &run.id, &recipe.flow).await?;
@@ -203,6 +206,7 @@ fn run_scope<'a>(
                     let feedback = scope.feedback.remove(&step.id);
                     match execute_step(
                         ctx.state,
+                        ctx.dispatcher,
                         ctx.run,
                         ctx.task_id,
                         step,
@@ -1307,9 +1311,15 @@ flow:
     #[tokio::test]
     async fn executes_branch_parallel_and_empty_map_without_dispatching() {
         let (ctx, recipe, run) = fixture().await;
-        execute(&ctx.state, &recipe, &run, &json!({}))
-            .await
-            .expect("execute");
+        execute(
+            &ctx.state,
+            &recipe,
+            &run,
+            &json!({}),
+            &crate::recipe_dispatch::NoopRecipeDispatcher,
+        )
+        .await
+        .expect("execute");
 
         let completed = store::get_run(&ctx.state.db, &run.id).await.expect("run");
         assert_eq!(completed.status, "COMPLETED");
@@ -1355,9 +1365,15 @@ flow:
         when: "false"
 "#;
         let (ctx, recipe, run) = fixture_with(yaml, "dag-map").await;
-        execute(&ctx.state, &recipe, &run, &json!({}))
-            .await
-            .expect("execute");
+        execute(
+            &ctx.state,
+            &recipe,
+            &run,
+            &json!({}),
+            &crate::recipe_dispatch::NoopRecipeDispatcher,
+        )
+        .await
+        .expect("execute");
 
         let completed = store::get_run(&ctx.state.db, &run.id).await.expect("run");
         let outputs: Value = serde_json::from_str(&completed.step_outputs_json).expect("outputs");
@@ -1456,9 +1472,15 @@ flow:
             let _ = saved;
             (ctx, recipe, run)
         };
-        execute(&ctx.state, &recipe, &run, &json!({}))
-            .await
-            .expect("execute");
+        execute(
+            &ctx.state,
+            &recipe,
+            &run,
+            &json!({}),
+            &crate::recipe_dispatch::NoopRecipeDispatcher,
+        )
+        .await
+        .expect("execute");
 
         let completed = store::get_run(&ctx.state.db, &run.id).await.expect("run");
         let outputs: Value = serde_json::from_str(&completed.step_outputs_json).expect("outputs");
@@ -1546,9 +1568,15 @@ flow:
         )
         .await
         .expect("run");
-        let error = execute(&ctx.state, &recipe, &run, &json!({}))
-            .await
-            .expect_err("cycle");
+        let error = execute(
+            &ctx.state,
+            &recipe,
+            &run,
+            &json!({}),
+            &crate::recipe_dispatch::NoopRecipeDispatcher,
+        )
+        .await
+        .expect_err("cycle");
         assert!(format!("{error:#}").contains("ciclo"), "{error:#}");
     }
 
@@ -1570,9 +1598,15 @@ flow:
         .await
         .expect("cache");
 
-        execute(&ctx.state, &recipe, &run, &json!({}))
-            .await
-            .expect("execute");
+        execute(
+            &ctx.state,
+            &recipe,
+            &run,
+            &json!({}),
+            &crate::recipe_dispatch::NoopRecipeDispatcher,
+        )
+        .await
+        .expect("execute");
 
         let node = store::node_by_path(&ctx.state.db, &run.id, "decidir/t1")
             .await

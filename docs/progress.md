@@ -3218,3 +3218,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - Módulo movido; core 219 testes, shell 364.
 - ADR 0126.
+
+## 2026-11-16 — dispatcher injetado no engine (REF-01)
+
+- execute/DAG recebem RecipeStepDispatcher; testes usam Noop.
+- ADR 0127.
