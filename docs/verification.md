@@ -466,6 +466,11 @@ pendências manuais continuam listadas abaixo.
 - Parser, schemas, versionamento e nós duráveis testados no core.
 - Engine/timeline/HITL de canais seguem no shell.
 
+## Sprint 2 — recurrence no core
+
+- next_occurrence compartilhado por receitas/rotinas/calendário.
+- recipes::cron testado no core.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

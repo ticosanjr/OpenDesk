@@ -24,6 +24,7 @@ pub mod passkey;
 pub mod paths;
 pub mod personal_context;
 pub mod recipes;
+pub mod recurrence;
 pub mod run_timeline;
 pub mod runtime;
 pub mod sandbox;

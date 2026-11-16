@@ -3176,3 +3176,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Engine/HITL de canais/sinks/cron seguem no shell.
 - Core 197 testes; shell 386.
 - ADR 0118.
+
+## 2026-11-16 — recurrence/cron de receitas no core (REF-01)
+
+- `next_occurrence` em `opendesk-core::recurrence`; `recipes::cron` movido.
+- Core 201 testes; shell 382.
+- ADR 0119.
