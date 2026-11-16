@@ -509,8 +509,16 @@ pub struct RecipeRunNode {
     pub id: String,
     pub run_id: String,
     pub node_index: i64,
+    #[sqlx(default)]
+    pub node_path: Option<String>,
+    #[sqlx(default)]
+    pub parent_path: Option<String>,
     pub node_id: String,
     pub kind: String,
+    #[sqlx(default)]
+    pub item_key: Option<String>,
+    #[sqlx(default)]
+    pub join_policy: Option<String>,
     pub status: String,
     pub attempts: i64,
     pub session_id: Option<String>,
@@ -520,31 +528,116 @@ pub struct RecipeRunNode {
     pub finished_at: Option<String>,
 }
 
-const NODE_COLUMNS: &str = "id, run_id, node_index, node_id, kind, status, attempts, \
-    session_id, output_json, error_message, started_at, finished_at";
+const NODE_COLUMNS: &str = "id, run_id, node_index, node_path, parent_path, node_id, kind, \
+    item_key, join_policy, status, attempts, session_id, output_json, error_message, \
+    started_at, finished_at";
 
 pub async fn sync_run_nodes(
     pool: &SqlitePool,
     run_id: &str,
     flow: &[crate::recipes::parser::FlowItem],
 ) -> AppResult<()> {
-    for (index, item) in flow.iter().enumerate() {
-        let (node_id, kind) = crate::recipes::parser::node_descriptor(item, index);
-        let id = format!("{run_id}:{index}");
+    let mut seeds = Vec::new();
+    collect_node_seeds(flow, None, &mut seeds);
+    for (index, seed) in seeds.iter().enumerate() {
+        let id = format!("{run_id}:{}", seed.path);
         sqlx::query(
-            "INSERT INTO recipe_run_nodes (id, run_id, node_index, node_id, kind)
-             VALUES (?, ?, ?, ?, ?)
+            "INSERT INTO recipe_run_nodes
+                (id, run_id, node_index, node_path, parent_path, node_id, kind,
+                 item_key, join_policy)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(run_id, node_index) DO NOTHING",
         )
         .bind(id)
         .bind(run_id)
         .bind(index as i64)
-        .bind(node_id)
-        .bind(kind)
+        .bind(&seed.path)
+        .bind(&seed.parent)
+        .bind(&seed.node_id)
+        .bind(seed.kind)
+        .bind(&seed.item_key)
+        .bind(&seed.join_policy)
         .execute(pool)
         .await?;
     }
     Ok(())
+}
+
+struct NodeSeed {
+    path: String,
+    parent: Option<String>,
+    node_id: String,
+    kind: &'static str,
+    item_key: Option<String>,
+    join_policy: Option<String>,
+}
+
+fn join_path(parent: Option<&str>, id: &str) -> String {
+    match parent {
+        Some(parent) if !parent.is_empty() => format!("{parent}/{id}"),
+        _ => id.to_string(),
+    }
+}
+
+fn collect_node_seeds(
+    flow: &[crate::recipes::parser::FlowItem],
+    parent: Option<&str>,
+    seeds: &mut Vec<NodeSeed>,
+) {
+    use crate::recipes::parser::FlowItem;
+    for (index, item) in flow.iter().enumerate() {
+        let (node_id, kind) = crate::recipes::parser::node_descriptor(item, index);
+        let path = join_path(parent, &node_id);
+        match item {
+            FlowItem::Step(_) | FlowItem::Hitl(_) | FlowItem::Sink(_) => {
+                seeds.push(NodeSeed {
+                    path,
+                    parent: parent.map(str::to_string),
+                    node_id,
+                    kind,
+                    item_key: None,
+                    join_policy: None,
+                });
+            }
+            FlowItem::Branch(branch) => {
+                seeds.push(NodeSeed {
+                    path: path.clone(),
+                    parent: parent.map(str::to_string),
+                    node_id,
+                    kind,
+                    item_key: None,
+                    join_policy: None,
+                });
+                collect_node_seeds(&branch.then, Some(&path), seeds);
+                collect_node_seeds(&branch.otherwise, Some(&path), seeds);
+            }
+            FlowItem::Parallel(parallel) => {
+                seeds.push(NodeSeed {
+                    path: path.clone(),
+                    parent: parent.map(str::to_string),
+                    node_id,
+                    kind,
+                    item_key: None,
+                    join_policy: Some(parallel.join.clone()),
+                });
+                for (branch_index, branch) in parallel.branches.iter().enumerate() {
+                    let branch_path = join_path(Some(&path), &format!("b{branch_index}"));
+                    collect_node_seeds(branch, Some(&branch_path), seeds);
+                }
+            }
+            FlowItem::Map(_) => {
+                seeds.push(NodeSeed {
+                    path,
+                    parent: parent.map(str::to_string),
+                    node_id,
+                    kind,
+                    item_key: None,
+                    join_policy: None,
+                });
+                // Map children are materialized per item at runtime.
+            }
+        }
+    }
 }
 
 pub async fn list_run_nodes(pool: &SqlitePool, run_id: &str) -> AppResult<Vec<RecipeRunNode>> {
@@ -552,6 +645,28 @@ pub async fn list_run_nodes(pool: &SqlitePool, run_id: &str) -> AppResult<Vec<Re
         format!("SELECT {NODE_COLUMNS} FROM recipe_run_nodes WHERE run_id = ? ORDER BY node_index");
     Ok(sqlx::query_as::<_, RecipeRunNode>(&query)
         .bind(run_id)
+        .fetch_all(pool)
+        .await?)
+}
+
+/// All durable nodes below a group path (`prefix/...`). The range uses the
+/// ASCII order between `/` and `0`, avoiding LIKE wildcards in user ids.
+pub async fn list_nodes_under(
+    pool: &SqlitePool,
+    run_id: &str,
+    prefix: &str,
+) -> AppResult<Vec<RecipeRunNode>> {
+    let lower = format!("{prefix}/");
+    let upper = format!("{prefix}0");
+    let query = format!(
+        "SELECT {NODE_COLUMNS} FROM recipe_run_nodes
+         WHERE run_id = ? AND node_path > ? AND node_path < ?
+         ORDER BY node_index"
+    );
+    Ok(sqlx::query_as::<_, RecipeRunNode>(&query)
+        .bind(run_id)
+        .bind(lower)
+        .bind(upper)
         .fetch_all(pool)
         .await?)
 }
@@ -652,6 +767,117 @@ pub async fn fail_running_nodes(pool: &SqlitePool, run_id: &str, error: &str) ->
          WHERE run_id = ? AND status IN ('RUNNING', 'WAITING_HITL')",
     )
     .bind(error)
+    .bind(run_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Materializes a dynamic DAG node (map item groups) with a unique path.
+#[allow(clippy::too_many_arguments)]
+pub async fn ensure_dag_node(
+    pool: &SqlitePool,
+    run_id: &str,
+    path: &str,
+    parent_path: Option<&str>,
+    node_id: &str,
+    kind: &str,
+    item_key: Option<&str>,
+    join_policy: Option<&str>,
+) -> AppResult<()> {
+    let id = format!("{run_id}:{path}");
+    sqlx::query(
+        "INSERT INTO recipe_run_nodes
+            (id, run_id, node_index, node_path, parent_path, node_id, kind,
+             item_key, join_policy)
+         SELECT ?, ?, COALESCE(MAX(node_index), -1) + 1, ?, ?, ?, ?, ?, ?
+         FROM recipe_run_nodes WHERE run_id = ?
+         ON CONFLICT(run_id, node_path) DO NOTHING",
+    )
+    .bind(id)
+    .bind(run_id)
+    .bind(path)
+    .bind(parent_path)
+    .bind(node_id)
+    .bind(kind)
+    .bind(item_key)
+    .bind(join_policy)
+    .bind(run_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn node_by_path(
+    pool: &SqlitePool,
+    run_id: &str,
+    path: &str,
+) -> AppResult<Option<RecipeRunNode>> {
+    let query =
+        format!("SELECT {NODE_COLUMNS} FROM recipe_run_nodes WHERE run_id = ? AND node_path = ?");
+    Ok(sqlx::query_as::<_, RecipeRunNode>(&query)
+        .bind(run_id)
+        .bind(path)
+        .fetch_optional(pool)
+        .await?)
+}
+
+pub async fn mark_node_path(
+    pool: &SqlitePool,
+    run_id: &str,
+    path: &str,
+    status: &str,
+    output: Option<&serde_json::Value>,
+    session_id: Option<&str>,
+    error: Option<&str>,
+) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE recipe_run_nodes
+         SET status = ?, output_json = COALESCE(?, output_json),
+             session_id = COALESCE(?, session_id),
+             error_message = ?,
+             started_at = CASE WHEN ? = 'RUNNING'
+                 THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') ELSE started_at END,
+             finished_at = CASE WHEN ? IN ('DONE','FAILED','SKIPPED')
+                 THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') ELSE NULL END,
+             attempts = attempts + ?
+         WHERE run_id = ? AND node_path = ?",
+    )
+    .bind(status)
+    .bind(output.map(|value| value.to_string()))
+    .bind(session_id)
+    .bind(error)
+    .bind(status)
+    .bind(status)
+    .bind(if status == "RUNNING" { 1_i64 } else { 0 })
+    .bind(run_id)
+    .bind(path)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn reset_node_path(pool: &SqlitePool, run_id: &str, path: &str) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE recipe_run_nodes
+         SET status = 'PENDING', error_message = NULL, finished_at = NULL
+         WHERE run_id = ? AND node_path = ?",
+    )
+    .bind(run_id)
+    .bind(path)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Marks nodes that were statically planned but never selected (branch side
+/// not taken, map template) as SKIPPED before completing the run.
+pub async fn mark_pending_skipped(pool: &SqlitePool, run_id: &str) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE recipe_run_nodes
+         SET status = 'SKIPPED', finished_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE run_id = ? AND status = 'PENDING'",
+    )
     .bind(run_id)
     .execute(pool)
     .await?;
@@ -1004,5 +1230,100 @@ mod tests {
         let output = set_yaml_enabled(yaml, true);
         assert!(output.starts_with("enabled: true\n"));
         assert!(!output.ends_with('\n'));
+    }
+
+    #[tokio::test]
+    async fn seeds_path_addressed_nodes_for_dag_groups() {
+        let ctx = crate::test_support::context().await;
+        let yaml = r#"
+id: dag-paths
+name: DAG paths
+flow:
+  - type: branch
+    id: decidir
+    when: "true"
+    then:
+      - type: step
+        id: t1
+        name: T1
+        prompt: a
+    else:
+      - type: step
+        id: e1
+        name: E1
+        prompt: b
+  - type: parallel
+    id: lote
+    branches:
+      - - type: step
+          id: p1
+          name: P1
+          prompt: a
+      - - type: step
+          id: p2
+          name: P2
+          prompt: b
+  - type: map
+    id: arquivos
+    items: "[]"
+    flow:
+      - type: step
+        id: analisar
+        name: Analisar
+        prompt: c
+"#;
+        save_yaml(&ctx.state.db, &ctx.workspace_id, "dag-paths", yaml)
+            .await
+            .expect("save");
+        let recipe = crate::recipes::parser::parse(yaml).expect("recipe");
+        let run = create_run(
+            &ctx.state.db,
+            &recipe,
+            &ctx.workspace_id,
+            None,
+            &serde_json::json!({}),
+            "/tmp/out",
+            false,
+        )
+        .await
+        .expect("run");
+        sync_run_nodes(&ctx.state.db, &run.id, &recipe.flow)
+            .await
+            .expect("sync");
+        let nodes = list_run_nodes(&ctx.state.db, &run.id).await.expect("list");
+        let paths: Vec<&str> = nodes
+            .iter()
+            .filter_map(|node| node.node_path.as_deref())
+            .collect();
+        for expected in [
+            "decidir",
+            "decidir/t1",
+            "decidir/e1",
+            "lote",
+            "lote/b0/p1",
+            "lote/b1/p2",
+            "arquivos",
+        ] {
+            assert!(paths.contains(&expected), "missing {expected}: {paths:?}");
+        }
+
+        ensure_dag_node(
+            &ctx.state.db,
+            &run.id,
+            "arquivos/0000/analisar",
+            Some("arquivos/0000"),
+            "analisar",
+            "step",
+            Some("0000"),
+            None,
+        )
+        .await
+        .expect("dynamic node");
+        let node = node_by_path(&ctx.state.db, &run.id, "arquivos/0000/analisar")
+            .await
+            .expect("query")
+            .expect("node");
+        assert_eq!(node.item_key.as_deref(), Some("0000"));
+        assert_eq!(node.parent_path.as_deref(), Some("arquivos/0000"));
     }
 }

@@ -302,6 +302,13 @@ pendências manuais continuam listadas abaixo.
 - `cargo test --lib` executa shell e core.
 - Contratos base reexportados sem mudar chamadas internas.
 
+## Sprint 2 — receitas DAG
+
+- Parser e validação de `branch`, `parallel` e `map` com limites.
+- Execução de branch/parallel/map sem dispatch quando os passos estão desativados.
+- Map com itens dinâmicos cria caminhos `mapa/<item>/<step>` e ordena resultados.
+- Resume preserva passo DONE e restaura o output salvo.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

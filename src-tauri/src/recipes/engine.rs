@@ -55,7 +55,7 @@ pub async fn start(
         let recipe_clone = recipe.clone();
         let run_clone = run.clone();
         tokio::spawn(async move {
-            for step in recipe_clone.steps() {
+            for step in recipe_clone.all_steps() {
                 let _ = store::update_run(
                     &state_clone.db,
                     &run_clone.id,
@@ -236,6 +236,9 @@ async fn execute(
     run: &store::RecipeRun,
     trigger: &serde_json::Value,
 ) -> AppResult<()> {
+    if recipe.has_dag() {
+        return crate::recipes::dag::execute(state, recipe, run, trigger).await;
+    }
     let task_id = run
         .task_id
         .clone()
@@ -245,7 +248,8 @@ async fn execute(
         "output_dir": run.output_dir_path,
         "date": Utc::now().format("%Y-%m-%d").to_string(),
     });
-    let mut outputs = serde_json::json!({});
+    let mut outputs: serde_json::Value =
+        serde_json::from_str(&run.step_outputs_json).unwrap_or_else(|_| serde_json::json!({}));
     let mut session_id: Option<String> = None;
     let routine_id = trigger
         .get("routine_id")
@@ -380,6 +384,7 @@ async fn execute(
                     FlowItem::Step(step) => Some(step.name.as_str()),
                     FlowItem::Hitl(next) => Some(next.id.as_str()),
                     FlowItem::Sink(sink) => sink.name.as_deref(),
+                    _ => None,
                 });
                 let token =
                     match store::pending_hitl_for_checkpoint(&state.db, &run.id, &checkpoint.id)
@@ -549,6 +554,9 @@ async fn execute(
                 store::mark_node_done(&state.db, &run.id, index, Some(&outputs), None).await?;
                 index += 1;
             }
+            FlowItem::Branch(_) | FlowItem::Parallel(_) | FlowItem::Map(_) => {
+                unreachable!("DAG flows are routed to recipes::dag")
+            }
         }
     }
 
@@ -601,7 +609,7 @@ fn previous_step(flow: &[FlowItem], index: usize) -> Option<(usize, &Step)> {
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn execute_step(
+pub(super) async fn execute_step(
     state: &Arc<AppState>,
     run: &store::RecipeRun,
     task_id: &str,
@@ -770,7 +778,7 @@ async fn wait_for_run(
     }
 }
 
-fn replace_attachment(source: &str, targets: &[String]) -> AppResult<()> {
+pub(super) fn replace_attachment(source: &str, targets: &[String]) -> AppResult<()> {
     let target = targets
         .first()
         .ok_or_else(|| AppError::BadRequest("checkpoint sem arquivo de destino".into()))?;
@@ -782,7 +790,7 @@ fn replace_attachment(source: &str, targets: &[String]) -> AppResult<()> {
     Ok(())
 }
 
-async fn finish(
+pub(super) async fn finish(
     state: &Arc<AppState>,
     run: &store::RecipeRun,
     status: &str,
@@ -807,7 +815,7 @@ async fn finish(
     Ok(())
 }
 
-async fn mark_routine(state: &Arc<AppState>, trigger: &serde_json::Value, status: &str) {
+pub(super) async fn mark_routine(state: &Arc<AppState>, trigger: &serde_json::Value, status: &str) {
     if let Some(routine_id) = trigger
         .get("routine_id")
         .or_else(|| trigger.get("schedule_id"))

@@ -117,12 +117,59 @@ pub struct FlowSink {
     pub config: serde_json::Value,
 }
 
+/// Conditional group. `when` is evaluated against `trigger`, `run` and the
+/// outputs visible at this point; only the selected list runs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BranchFlow {
+    pub id: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    pub when: String,
+    #[serde(default)]
+    pub then: Vec<FlowItem>,
+    #[serde(default, rename = "else")]
+    pub otherwise: Vec<FlowItem>,
+}
+
+/// Fixed fan-out. Branches run concurrently and the group finishes according
+/// to `join` (`all` or `any`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParallelFlow {
+    pub id: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default = "default_join")]
+    pub join: String,
+    #[serde(default)]
+    pub branches: Vec<Vec<FlowItem>>,
+}
+
+/// Dynamic fan-out over a JSON array. Each item gets its own isolated outputs
+/// plus `items[item_var]` (and `steps[item_var]`) for templates.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MapFlow {
+    pub id: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    /// Expression rendered to a JSON array, e.g. `{{steps.list.structured.files}}`.
+    pub items: String,
+    #[serde(default = "default_item_var")]
+    pub item_var: String,
+    #[serde(default = "default_map_concurrency")]
+    pub max_concurrency: usize,
+    #[serde(default)]
+    pub flow: Vec<FlowItem>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum FlowItem {
     Step(Step),
     Hitl(HitlCheckpoint),
     Sink(FlowSink),
+    Branch(BranchFlow),
+    Parallel(ParallelFlow),
+    Map(MapFlow),
 }
 
 impl From<RecipeSink> for FlowSink {
@@ -132,6 +179,36 @@ impl From<RecipeSink> for FlowSink {
             name: sink.name,
             description: sink.description,
             config: sink.config,
+        }
+    }
+}
+
+impl FlowItem {
+    pub fn is_dag(&self) -> bool {
+        matches!(self, Self::Branch(_) | Self::Parallel(_) | Self::Map(_))
+    }
+
+    pub fn collect_steps<'a>(&'a self, steps: &mut Vec<&'a Step>) {
+        match self {
+            Self::Step(step) => steps.push(step),
+            Self::Hitl(_) | Self::Sink(_) => {}
+            Self::Branch(branch) => {
+                for item in branch.then.iter().chain(branch.otherwise.iter()) {
+                    item.collect_steps(steps);
+                }
+            }
+            Self::Parallel(parallel) => {
+                for branch in &parallel.branches {
+                    for item in branch {
+                        item.collect_steps(steps);
+                    }
+                }
+            }
+            Self::Map(map) => {
+                for item in &map.flow {
+                    item.collect_steps(steps);
+                }
+            }
         }
     }
 }
@@ -181,6 +258,20 @@ impl Recipe {
         self.steps().count()
     }
 
+    /// True when the flow needs the path-based DAG executor.
+    pub fn has_dag(&self) -> bool {
+        self.flow.iter().any(FlowItem::is_dag)
+    }
+
+    /// All steps, including ones nested in branch/parallel/map groups.
+    pub fn all_steps(&self) -> Vec<&Step> {
+        let mut steps = Vec::new();
+        for item in &self.flow {
+            item.collect_steps(&mut steps);
+        }
+        steps
+    }
+
     fn normalize(&mut self) {
         if self.triggers.is_empty() && !self.trigger.trigger_type.trim().is_empty() {
             self.triggers.push(self.trigger.clone());
@@ -224,6 +315,15 @@ fn default_timeout() -> i64 {
 fn default_on_timeout() -> String {
     "PAUSE_AND_ALERT".into()
 }
+fn default_join() -> String {
+    "all".into()
+}
+fn default_item_var() -> String {
+    "item".into()
+}
+fn default_map_concurrency() -> usize {
+    3
+}
 
 pub fn parse(text: &str) -> AppResult<Recipe> {
     let mut recipe: Recipe = serde_yaml::from_str(text)
@@ -233,6 +333,19 @@ pub fn parse(text: &str) -> AppResult<Recipe> {
     Ok(recipe)
 }
 
+const MAX_DAG_DEPTH: usize = 8;
+const MAX_DAG_NODES: usize = 500;
+const MAX_PARALLEL_BRANCHES: usize = 16;
+const MAX_MAP_CONCURRENCY: usize = 8;
+
+struct Validator {
+    step_ids: std::collections::HashSet<String>,
+    checkpoint_ids: std::collections::HashSet<String>,
+    group_ids: std::collections::HashSet<String>,
+    step_count: usize,
+    node_count: usize,
+}
+
 pub fn validate(recipe: &Recipe) -> AppResult<()> {
     if recipe.id.trim().is_empty() {
         return Err(AppError::BadRequest("recipe.id é obrigatório".into()));
@@ -240,103 +353,248 @@ pub fn validate(recipe: &Recipe) -> AppResult<()> {
     if recipe.name.trim().is_empty() {
         return Err(AppError::BadRequest("recipe.name é obrigatório".into()));
     }
-    let mut step_ids = std::collections::HashSet::new();
-    let mut checkpoint_ids = std::collections::HashSet::new();
-    let mut step_count = 0usize;
-    for item in &recipe.flow {
-        match item {
-            FlowItem::Step(step) => {
-                step_count += 1;
-                if step.id.trim().is_empty() || !step_ids.insert(step.id.clone()) {
-                    return Err(AppError::BadRequest(format!(
-                        "step id duplicado ou vazio: {}",
-                        step.id
-                    )));
-                }
-                if !matches!(step.mode.as_str(), "build" | "plan" | "audit") {
-                    return Err(AppError::BadRequest(format!(
-                        "modo de step inválido '{}'",
-                        step.mode
-                    )));
-                }
-                if step.prompt.trim().is_empty() {
-                    return Err(AppError::BadRequest(format!(
-                        "prompt vazio no step {}",
-                        step.id
-                    )));
-                }
-                for (field, schema) in [
-                    ("input_schema", step.input_schema.as_ref()),
-                    ("output_schema", step.output_schema.as_ref()),
-                ] {
-                    if let Some(schema) = schema
-                        && jsonschema::validator_for(schema).is_err()
-                    {
-                        return Err(AppError::BadRequest(format!(
-                            "{field} inválido no step {}",
-                            step.id
-                        )));
-                    }
-                }
-            }
-            FlowItem::Hitl(checkpoint) => {
-                let id = checkpoint_id(checkpoint);
-                if !checkpoint_ids.insert(id.clone()) {
-                    return Err(AppError::BadRequest(format!(
-                        "checkpoint id duplicado: {id}"
-                    )));
-                }
-                if !checkpoint.after_step.trim().is_empty()
-                    && !step_ids.contains(&checkpoint.after_step)
-                {
-                    return Err(AppError::BadRequest(format!(
-                        "checkpoint {} aponta para step inexistente {}",
-                        checkpoint.id, checkpoint.after_step
-                    )));
-                }
-                let kind = HitlKind::parse(&checkpoint.interaction_type).ok_or_else(|| {
-                    AppError::BadRequest(format!(
-                        "interaction_type inválido '{}'",
-                        checkpoint.interaction_type
-                    ))
-                })?;
-                if !matches!(
-                    checkpoint.on_timeout.as_str(),
-                    "PAUSE_AND_ALERT" | "AUTO_APPROVE" | "ABORT"
-                ) {
-                    return Err(AppError::BadRequest(format!(
-                        "on_timeout inválido '{}'",
-                        checkpoint.on_timeout
-                    )));
-                }
-                if kind.requires_options() && checkpoint.options.is_empty() {
-                    return Err(AppError::BadRequest(format!(
-                        "checkpoint {} {} precisa de options",
-                        id,
-                        kind.as_str()
-                    )));
-                }
-                if checkpoint.prompt_template.trim().is_empty() {
-                    return Err(AppError::BadRequest(format!(
-                        "checkpoint {id} precisa de prompt_template"
-                    )));
-                }
-            }
-            FlowItem::Sink(sink) => {
-                if sink.sink_type.trim().is_empty() {
-                    return Err(AppError::BadRequest(
-                        "sink sem tipo (sink_type) definido".into(),
-                    ));
-                }
-            }
-        }
-    }
-    if step_count == 0 {
+    let mut validator = Validator {
+        step_ids: Default::default(),
+        checkpoint_ids: Default::default(),
+        group_ids: Default::default(),
+        step_count: 0,
+        node_count: 0,
+    };
+    validator.collect(&recipe.flow, 0, None)?;
+    if validator.step_count == 0 {
         return Err(AppError::BadRequest(
             "a receita precisa de ao menos um step".into(),
         ));
     }
+    validator.check_references(&recipe.flow)?;
     Ok(())
+}
+
+impl Validator {
+    fn collect(&mut self, items: &[FlowItem], depth: usize, group: Option<&str>) -> AppResult<()> {
+        if depth > MAX_DAG_DEPTH {
+            return Err(AppError::BadRequest(format!(
+                "fluxo aninhado demais (máximo {MAX_DAG_DEPTH} níveis)"
+            )));
+        }
+        for item in items {
+            self.node_count += 1;
+            if self.node_count > MAX_DAG_NODES {
+                return Err(AppError::BadRequest(format!(
+                    "receita grande demais (máximo {MAX_DAG_NODES} nós)"
+                )));
+            }
+            match item {
+                FlowItem::Step(step) => {
+                    self.step_count += 1;
+                    if step.id.trim().is_empty() || !self.step_ids.insert(step.id.clone()) {
+                        return Err(AppError::BadRequest(format!(
+                            "step id duplicado ou vazio: {}",
+                            step.id
+                        )));
+                    }
+                    if !matches!(step.mode.as_str(), "build" | "plan" | "audit") {
+                        return Err(AppError::BadRequest(format!(
+                            "modo de step inválido '{}'",
+                            step.mode
+                        )));
+                    }
+                    if step.prompt.trim().is_empty() {
+                        return Err(AppError::BadRequest(format!(
+                            "prompt vazio no step {}",
+                            step.id
+                        )));
+                    }
+                    for (field, schema) in [
+                        ("input_schema", step.input_schema.as_ref()),
+                        ("output_schema", step.output_schema.as_ref()),
+                    ] {
+                        if let Some(schema) = schema
+                            && jsonschema::validator_for(schema).is_err()
+                        {
+                            return Err(AppError::BadRequest(format!(
+                                "{field} inválido no step {}",
+                                step.id
+                            )));
+                        }
+                    }
+                }
+                FlowItem::Hitl(checkpoint) => {
+                    if group.is_some() {
+                        return Err(AppError::BadRequest(
+                            "HITL não é permitido dentro de parallel/map; mova o checkpoint para o nível principal"
+                                .into(),
+                        ));
+                    }
+                    let id = checkpoint_id(checkpoint);
+                    if !self.checkpoint_ids.insert(id.clone()) {
+                        return Err(AppError::BadRequest(format!(
+                            "checkpoint id duplicado: {id}"
+                        )));
+                    }
+                    let kind = HitlKind::parse(&checkpoint.interaction_type).ok_or_else(|| {
+                        AppError::BadRequest(format!(
+                            "interaction_type inválido '{}'",
+                            checkpoint.interaction_type
+                        ))
+                    })?;
+                    if !matches!(
+                        checkpoint.on_timeout.as_str(),
+                        "PAUSE_AND_ALERT" | "AUTO_APPROVE" | "ABORT"
+                    ) {
+                        return Err(AppError::BadRequest(format!(
+                            "on_timeout inválido '{}'",
+                            checkpoint.on_timeout
+                        )));
+                    }
+                    if kind.requires_options() && checkpoint.options.is_empty() {
+                        return Err(AppError::BadRequest(format!(
+                            "checkpoint {} {} precisa de options",
+                            id,
+                            kind.as_str()
+                        )));
+                    }
+                    if checkpoint.prompt_template.trim().is_empty() {
+                        return Err(AppError::BadRequest(format!(
+                            "checkpoint {id} precisa de prompt_template"
+                        )));
+                    }
+                }
+                FlowItem::Sink(sink) => {
+                    if group.is_some() {
+                        return Err(AppError::BadRequest(
+                            "sink não é permitido dentro de parallel/map; execute-o após o join"
+                                .into(),
+                        ));
+                    }
+                    if sink.sink_type.trim().is_empty() {
+                        return Err(AppError::BadRequest(
+                            "sink sem tipo (sink_type) definido".into(),
+                        ));
+                    }
+                }
+                FlowItem::Branch(branch) => {
+                    self.group_id(&branch.id, "branch")?;
+                    if branch.when.trim().is_empty() {
+                        return Err(AppError::BadRequest(format!(
+                            "branch {} precisa de when",
+                            branch.id
+                        )));
+                    }
+                    if branch.then.is_empty() && branch.otherwise.is_empty() {
+                        return Err(AppError::BadRequest(format!(
+                            "branch {} precisa de then ou else",
+                            branch.id
+                        )));
+                    }
+                    self.collect(&branch.then, depth + 1, group)?;
+                    self.collect(&branch.otherwise, depth + 1, group)?;
+                }
+                FlowItem::Parallel(parallel) => {
+                    self.group_id(&parallel.id, "parallel")?;
+                    if !matches!(parallel.join.as_str(), "all" | "any") {
+                        return Err(AppError::BadRequest(format!(
+                            "join inválido no parallel {}: use all ou any",
+                            parallel.id
+                        )));
+                    }
+                    if parallel.branches.is_empty() {
+                        return Err(AppError::BadRequest(format!(
+                            "parallel {} precisa de ao menos um branch",
+                            parallel.id
+                        )));
+                    }
+                    if parallel.branches.len() > MAX_PARALLEL_BRANCHES {
+                        return Err(AppError::BadRequest(format!(
+                            "parallel {} excede {MAX_PARALLEL_BRANCHES} branches",
+                            parallel.id
+                        )));
+                    }
+                    for branch in &parallel.branches {
+                        if branch.is_empty() {
+                            return Err(AppError::BadRequest(format!(
+                                "branch vazio no parallel {}",
+                                parallel.id
+                            )));
+                        }
+                        self.collect(branch, depth + 1, Some(&parallel.id))?;
+                    }
+                }
+                FlowItem::Map(map) => {
+                    self.group_id(&map.id, "map")?;
+                    if map.items.trim().is_empty() {
+                        return Err(AppError::BadRequest(format!(
+                            "map {} precisa de items",
+                            map.id
+                        )));
+                    }
+                    if map.item_var.trim().is_empty()
+                        || !map
+                            .item_var
+                            .chars()
+                            .all(|character| character.is_ascii_alphanumeric() || character == '_')
+                    {
+                        return Err(AppError::BadRequest(format!(
+                            "item_var inválido no map {}",
+                            map.id
+                        )));
+                    }
+                    if !(1..=MAX_MAP_CONCURRENCY).contains(&map.max_concurrency) {
+                        return Err(AppError::BadRequest(format!(
+                            "max_concurrency do map {} deve ficar entre 1 e {MAX_MAP_CONCURRENCY}",
+                            map.id
+                        )));
+                    }
+                    if map.flow.is_empty() {
+                        return Err(AppError::BadRequest(format!(
+                            "map {} precisa de flow",
+                            map.id
+                        )));
+                    }
+                    self.collect(&map.flow, depth + 1, Some(&map.id))?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn group_id(&mut self, id: &str, kind: &str) -> AppResult<()> {
+        if id.trim().is_empty() || !self.group_ids.insert(id.to_string()) {
+            return Err(AppError::BadRequest(format!(
+                "{kind} id duplicado ou vazio: {id}"
+            )));
+        }
+        Ok(())
+    }
+
+    fn check_references(&self, items: &[FlowItem]) -> AppResult<()> {
+        for item in items {
+            match item {
+                FlowItem::Hitl(checkpoint) => {
+                    if !checkpoint.after_step.trim().is_empty()
+                        && !self.step_ids.contains(&checkpoint.after_step)
+                    {
+                        return Err(AppError::BadRequest(format!(
+                            "checkpoint {} aponta para step inexistente {}",
+                            checkpoint.id, checkpoint.after_step
+                        )));
+                    }
+                }
+                FlowItem::Branch(branch) => {
+                    self.check_references(&branch.then)?;
+                    self.check_references(&branch.otherwise)?;
+                }
+                FlowItem::Parallel(parallel) => {
+                    for branch in &parallel.branches {
+                        self.check_references(branch)?;
+                    }
+                }
+                FlowItem::Map(map) => self.check_references(&map.flow)?,
+                FlowItem::Step(_) | FlowItem::Sink(_) => {}
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Checkpoints use a generated stable id when the author leaves it empty.
@@ -354,6 +612,9 @@ pub fn node_descriptor(item: &FlowItem, index: usize) -> (String, &'static str) 
                 .unwrap_or_else(|| format!("sink-{index}")),
             "sink",
         ),
+        FlowItem::Branch(branch) => (branch.id.clone(), "branch"),
+        FlowItem::Parallel(parallel) => (parallel.id.clone(), "parallel"),
+        FlowItem::Map(map) => (map.id.clone(), "map"),
     }
 }
 
@@ -472,11 +733,17 @@ fn resolve(
     run: &serde_json::Value,
     steps: &serde_json::Value,
 ) -> Option<String> {
-    let (root, path) = expression
-        .strip_prefix("trigger.")
-        .map(|path| (trigger, path))
-        .or_else(|| expression.strip_prefix("run.").map(|path| (run, path)))
-        .or_else(|| expression.strip_prefix("steps.").map(|path| (steps, path)))?;
+    let (root, path) = if let Some(path) = expression.strip_prefix("trigger.") {
+        (trigger, path)
+    } else if let Some(path) = expression.strip_prefix("run.") {
+        (run, path)
+    } else if let Some(path) = expression.strip_prefix("steps.") {
+        (steps, path)
+    } else {
+        // Inside map groups the item variable is also exposed at the top level
+        // (`{{arquivo.path}}`) in addition to `{{steps.arquivo.path}}`.
+        (steps, expression)
+    };
     let pointer = format!("/{}", path.replace('.', "/"));
     let value = root.pointer(&pointer)?;
     Some(match value {
@@ -509,6 +776,106 @@ sinks:
   - type: DOC_COMPILER
     config: { format: pdf }
 "#;
+
+    #[test]
+    fn resolves_top_level_map_variables() {
+        let steps = serde_json::json!({
+            "arquivo": { "path": "input/a.txt" },
+            "list": { "structured": { "files": ["a", "b"] } }
+        });
+        assert_eq!(
+            render(
+                "Analise {{arquivo.path}}",
+                &serde_json::Value::Null,
+                &serde_json::Value::Null,
+                &steps
+            )
+            .expect("render"),
+            "Analise input/a.txt"
+        );
+    }
+
+    #[test]
+    fn parses_and_validates_dag_groups() {
+        let yaml = r#"
+id: dag
+name: DAG
+flow:
+  - type: branch
+    id: decidir
+    when: steps.plan.structured.status == "ok"
+    then:
+      - type: step
+        id: t1
+        name: Then
+        prompt: ok
+    else:
+      - type: step
+        id: e1
+        name: Else
+        prompt: fallback
+  - type: parallel
+    id: lote
+    join: all
+    branches:
+      - - type: step
+          id: p1
+          name: P1
+          prompt: a
+      - - type: step
+          id: p2
+          name: P2
+          prompt: b
+  - type: map
+    id: arquivos
+    items: "{{steps.list.structured.files}}"
+    item_var: arquivo
+    max_concurrency: 2
+    flow:
+      - type: step
+        id: analisar
+        name: Analisar
+        prompt: "Analise {{arquivo.path}}"
+"#;
+        let recipe = parse(yaml).expect("parse");
+        assert!(recipe.has_dag());
+        assert_eq!(recipe.all_steps().len(), 5);
+        let yaml = serde_yaml::to_string(&recipe).expect("serialize");
+        parse(&yaml).expect("round trip");
+
+        let invalid = r#"
+id: bad
+name: Bad
+flow:
+  - type: parallel
+    id: p
+    branches:
+      - - type: hitl
+          interaction_type: BINARY_GATE
+          prompt_template: ok
+  - type: step
+    id: s
+    name: S
+    prompt: x
+"#;
+        assert!(parse(invalid).is_err(), "HITL inside parallel must fail");
+
+        let invalid = r#"
+id: bad2
+name: Bad2
+flow:
+  - type: map
+    id: m
+    items: "[]"
+    max_concurrency: 99
+    flow:
+      - type: step
+        id: s
+        name: S
+        prompt: x
+"#;
+        assert!(parse(invalid).is_err(), "concurrency must be bounded");
+    }
 
     #[test]
     fn evaluates_when_conditions() {

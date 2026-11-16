@@ -2984,3 +2984,11 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Movidos `error`, `events`, `paths`, `text` e `token_estimate`, reexportados pelo crate raiz.
 - Testes e clippy cobrem core e shell via `default-members`.
 - ADR 0089.
+
+## 2026-11-16 — receitas DAG (REQ-02)
+
+- `branch`, `parallel` (join all/any) e `map` com concorrência limitada.
+- Nós duráveis por caminho (`node_path`) e migração 0051; grupos concluídos restauram outputs.
+- Resume não repete nós DONE/SKIPPED; map materializa itens e ordena resultados.
+- Limites de profundidade/nós/branches/concorrência; HITL/sink fora de grupos concorrentes.
+- ADR 0090.

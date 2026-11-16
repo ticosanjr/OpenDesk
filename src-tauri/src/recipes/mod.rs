@@ -1,4 +1,5 @@
 pub mod cron;
+pub mod dag;
 pub mod engine;
 pub mod hitl;
 pub mod parser;

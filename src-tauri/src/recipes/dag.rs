@@ -1,0 +1,1219 @@
+//! Path-addressed DAG executor for recipes with branch, parallel and map
+//! groups. Flat recipes keep using the original sequential driver in
+//! `engine.rs`.
+//!
+//! Every executable node has a stable path (`plan`, `lote/b0/revisar`,
+//! `arquivos/0001/analisar`). Durability is keyed by that path, so a restart
+//! resumes at the first node that is not DONE/SKIPPED even when the earlier
+//! part of the flow contained concurrent groups.
+
+use crate::{
+    app_state::AppState,
+    db::tasks,
+    error::{AppError, AppResult},
+    events::OpenDeskWsEvent,
+    recipes::{
+        engine::{execute_step, finish, mark_routine, replace_attachment},
+        hitl::{self, HitlOutcome, HitlResolution},
+        parser::{self, FlowItem, HitlCheckpoint, Recipe, Step},
+        sinks, store,
+    },
+};
+use chrono::Utc;
+use futures_util::{
+    future::{BoxFuture, join_all},
+    stream::{self, StreamExt},
+};
+use serde_json::{Value, json};
+use std::{collections::HashMap, sync::Arc};
+
+struct Ctx<'a> {
+    state: &'a Arc<AppState>,
+    recipe: &'a Recipe,
+    run: &'a store::RecipeRun,
+    task_id: &'a str,
+    trigger: &'a Value,
+    run_vars: &'a Value,
+    routine_id: Option<&'a str>,
+}
+
+#[derive(Default)]
+struct ScopeState {
+    outputs: Value,
+    session_id: Option<String>,
+    feedback: HashMap<String, String>,
+    review_rounds: usize,
+}
+
+enum ScopeOutcome {
+    Continue,
+    Cancelled,
+}
+
+struct MapItemResult {
+    order: usize,
+    key: String,
+    item: Value,
+    outputs: Value,
+}
+
+pub async fn execute(
+    state: &Arc<AppState>,
+    recipe: &Recipe,
+    run: &store::RecipeRun,
+    trigger: &Value,
+) -> AppResult<()> {
+    let task_id = run
+        .task_id
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("recipe run sem task".into()))?;
+    let run_vars = json!({
+        "id": run.id,
+        "output_dir": run.output_dir_path,
+        "date": Utc::now().format("%Y-%m-%d").to_string(),
+    });
+    let routine_id = trigger
+        .get("routine_id")
+        .or_else(|| trigger.get("schedule_id"))
+        .and_then(Value::as_str);
+    let ctx = Ctx {
+        state,
+        recipe,
+        run,
+        task_id,
+        trigger,
+        run_vars: &run_vars,
+        routine_id,
+    };
+
+    store::sync_run_nodes(&state.db, &run.id, &recipe.flow).await?;
+    let mut scope = ScopeState {
+        outputs: serde_json::from_str(&run.step_outputs_json).unwrap_or_else(|_| json!({})),
+        ..Default::default()
+    };
+    match run_scope(&ctx, &recipe.flow, None, &mut scope).await? {
+        ScopeOutcome::Cancelled => return Ok(()),
+        ScopeOutcome::Continue => {}
+    }
+
+    store::mark_pending_skipped(&state.db, &run.id).await?;
+    let _ = tasks::move_to(&state.db, task_id, "DONE", None).await;
+    let _ = tasks::set_phase_status(&state.db, task_id, Some("done"), Some("DONE")).await;
+    store::update_run(
+        &state.db,
+        &run.id,
+        "COMPLETED",
+        None,
+        Some(&scope.outputs),
+        None,
+        true,
+    )
+    .await?;
+    mark_routine(state, trigger, "SUCCESS").await;
+    state.events.publish(OpenDeskWsEvent::RecipeRunUpdated {
+        run_id: run.id.clone(),
+        recipe_id: recipe.id.clone(),
+        workspace_id: run.workspace_id.clone(),
+        status: "COMPLETED".into(),
+    });
+    Ok(())
+}
+
+fn run_scope<'a>(
+    ctx: &'a Ctx<'a>,
+    items: &'a [FlowItem],
+    parent: Option<&'a str>,
+    scope: &'a mut ScopeState,
+) -> BoxFuture<'a, AppResult<ScopeOutcome>> {
+    Box::pin(async move {
+        let mut index = 0usize;
+        while index < items.len() {
+            if store::is_cancel_requested(&ctx.state.db, &ctx.run.id).await? {
+                finish(
+                    ctx.state,
+                    ctx.run,
+                    "REJECTED",
+                    "cancelado pelo usuário",
+                    ctx.routine_id,
+                )
+                .await?;
+                return Ok(ScopeOutcome::Cancelled);
+            }
+            match &items[index] {
+                FlowItem::Step(step) => {
+                    let path = child_path(parent, &step.id);
+                    let node =
+                        ensure_node(ctx, &path, parent, &step.id, "step", None, None).await?;
+                    if finished(&node) {
+                        if node.status == "SKIPPED" {
+                            scope.outputs[&step.id] = json!({ "skipped": true });
+                        } else {
+                            merge_node_output(scope, &node, &step.id);
+                        }
+                        index += 1;
+                        continue;
+                    }
+                    let should_run = step
+                        .when
+                        .as_deref()
+                        .map(|condition| {
+                            parser::evaluate_when(
+                                condition,
+                                ctx.trigger,
+                                ctx.run_vars,
+                                &scope.outputs,
+                            )
+                        })
+                        .transpose()?
+                        .unwrap_or(true);
+                    if !should_run {
+                        store::mark_node_path(
+                            &ctx.state.db,
+                            &ctx.run.id,
+                            &path,
+                            "SKIPPED",
+                            None,
+                            None,
+                            None,
+                        )
+                        .await?;
+                        scope.outputs[&step.id] = json!({
+                            "skipped": true,
+                            "reason": step.when,
+                        });
+                        index += 1;
+                        continue;
+                    }
+                    store::mark_node_path(
+                        &ctx.state.db,
+                        &ctx.run.id,
+                        &path,
+                        "RUNNING",
+                        None,
+                        None,
+                        None,
+                    )
+                    .await?;
+                    let feedback = scope.feedback.remove(&step.id);
+                    match execute_step(
+                        ctx.state,
+                        ctx.run,
+                        ctx.task_id,
+                        step,
+                        ctx.trigger,
+                        ctx.run_vars,
+                        &mut scope.outputs,
+                        &mut scope.session_id,
+                        feedback,
+                        ctx.routine_id,
+                    )
+                    .await
+                    {
+                        Ok(()) => {
+                            store::mark_node_path(
+                                &ctx.state.db,
+                                &ctx.run.id,
+                                &path,
+                                "DONE",
+                                scope.outputs.get(&step.id),
+                                scope.session_id.as_deref(),
+                                None,
+                            )
+                            .await?;
+                        }
+                        Err(error) => {
+                            if store::is_cancel_requested(&ctx.state.db, &ctx.run.id).await? {
+                                finish(
+                                    ctx.state,
+                                    ctx.run,
+                                    "REJECTED",
+                                    "cancelado pelo usuário",
+                                    ctx.routine_id,
+                                )
+                                .await?;
+                                return Ok(ScopeOutcome::Cancelled);
+                            }
+                            return Err(error);
+                        }
+                    }
+                    index += 1;
+                }
+                FlowItem::Hitl(checkpoint) => {
+                    let id = parser::checkpoint_id(checkpoint);
+                    let path = child_path(parent, &id);
+                    let node = ensure_node(ctx, &path, parent, &id, "hitl", None, None).await?;
+                    if finished(&node) {
+                        index += 1;
+                        continue;
+                    }
+                    if !handle_hitl(ctx, checkpoint, &path, items, index, scope).await? {
+                        return Ok(ScopeOutcome::Cancelled);
+                    }
+                    index += 1;
+                }
+                FlowItem::Sink(sink) => {
+                    let (id, _) = parser::node_descriptor(&items[index], index);
+                    let path = child_path(parent, &id);
+                    let node = ensure_node(ctx, &path, parent, &id, "sink", None, None).await?;
+                    if finished(&node) {
+                        index += 1;
+                        continue;
+                    }
+                    store::mark_node_path(
+                        &ctx.state.db,
+                        &ctx.run.id,
+                        &path,
+                        "RUNNING",
+                        None,
+                        None,
+                        None,
+                    )
+                    .await?;
+                    store::update_run(
+                        &ctx.state.db,
+                        &ctx.run.id,
+                        "RUNNING_SINKS",
+                        None,
+                        Some(&scope.outputs),
+                        None,
+                        false,
+                    )
+                    .await?;
+                    sinks::execute_one(ctx.state, sink, ctx.run, ctx.trigger, &scope.outputs)
+                        .await?;
+                    store::mark_node_path(
+                        &ctx.state.db,
+                        &ctx.run.id,
+                        &path,
+                        "DONE",
+                        Some(&scope.outputs),
+                        None,
+                        None,
+                    )
+                    .await?;
+                    index += 1;
+                }
+                FlowItem::Branch(branch) => {
+                    let path = child_path(parent, &branch.id);
+                    let node =
+                        ensure_node(ctx, &path, parent, &branch.id, "branch", None, None).await?;
+                    if finished(&node) {
+                        index += 1;
+                        continue;
+                    }
+                    store::mark_node_path(
+                        &ctx.state.db,
+                        &ctx.run.id,
+                        &path,
+                        "RUNNING",
+                        None,
+                        None,
+                        None,
+                    )
+                    .await?;
+                    let selected = parser::evaluate_when(
+                        &branch.when,
+                        ctx.trigger,
+                        ctx.run_vars,
+                        &scope.outputs,
+                    )?;
+                    let branch_items = if selected {
+                        &branch.then
+                    } else {
+                        &branch.otherwise
+                    };
+                    match run_scope(ctx, branch_items, Some(&path), scope).await? {
+                        ScopeOutcome::Continue => {}
+                        ScopeOutcome::Cancelled => return Ok(ScopeOutcome::Cancelled),
+                    }
+                    scope.outputs[&branch.id] = json!({
+                        "then": selected,
+                        "steps": branch_items.len(),
+                    });
+                    store::mark_node_path(
+                        &ctx.state.db,
+                        &ctx.run.id,
+                        &path,
+                        "DONE",
+                        Some(&json!({ "then": selected, "steps": branch_items.len() })),
+                        None,
+                        None,
+                    )
+                    .await?;
+                    index += 1;
+                }
+                FlowItem::Parallel(parallel) => {
+                    match run_parallel(ctx, parallel, parent, scope).await? {
+                        ScopeOutcome::Continue => {}
+                        ScopeOutcome::Cancelled => return Ok(ScopeOutcome::Cancelled),
+                    }
+                    index += 1;
+                }
+                FlowItem::Map(map) => {
+                    match run_map(ctx, map, parent, scope).await? {
+                        ScopeOutcome::Continue => {}
+                        ScopeOutcome::Cancelled => return Ok(ScopeOutcome::Cancelled),
+                    }
+                    index += 1;
+                }
+            }
+        }
+        Ok(ScopeOutcome::Continue)
+    })
+}
+
+async fn run_parallel(
+    ctx: &Ctx<'_>,
+    parallel: &parser::ParallelFlow,
+    parent: Option<&str>,
+    scope: &mut ScopeState,
+) -> AppResult<ScopeOutcome> {
+    let path = child_path(parent, &parallel.id);
+    let node = ensure_node(
+        ctx,
+        &path,
+        parent,
+        &parallel.id,
+        "parallel",
+        None,
+        Some(&parallel.join),
+    )
+    .await?;
+    if finished(&node) {
+        restore_finished(ctx, &path, &node, scope).await?;
+        return Ok(ScopeOutcome::Continue);
+    }
+    store::mark_node_path(
+        &ctx.state.db,
+        &ctx.run.id,
+        &path,
+        "RUNNING",
+        None,
+        None,
+        None,
+    )
+    .await?;
+    liveness(ctx, &parallel.id, &scope.outputs).await?;
+
+    let mut futures = Vec::with_capacity(parallel.branches.len());
+    for (branch_index, branch) in parallel.branches.iter().enumerate() {
+        let branch_path = child_path(Some(&path), &format!("b{branch_index}"));
+        let mut local = ScopeState {
+            outputs: scope.outputs.clone(),
+            ..Default::default()
+        };
+        futures.push(async move {
+            let result = run_scope(ctx, branch, Some(&branch_path), &mut local).await;
+            (result, local)
+        });
+    }
+    let results = join_all(futures).await;
+
+    let mut merged = scope.outputs.clone();
+    let mut cancelled = false;
+    let mut error = None;
+    let mut succeeded = 0usize;
+    for (result, local) in &results {
+        match result {
+            Ok(ScopeOutcome::Continue) => {
+                succeeded += 1;
+                merge_outputs(&mut merged, &local.outputs);
+            }
+            Ok(ScopeOutcome::Cancelled) => cancelled = true,
+            Err(failure) => {
+                if error.is_none() {
+                    error = Some(format!("{failure:#}"));
+                }
+            }
+        }
+    }
+    if cancelled {
+        finish(
+            ctx.state,
+            ctx.run,
+            "REJECTED",
+            "cancelado pelo usuário",
+            ctx.routine_id,
+        )
+        .await?;
+        return Ok(ScopeOutcome::Cancelled);
+    }
+
+    let completed =
+        succeeded > 0 && (parallel.join == "all" && error.is_none() || parallel.join == "any");
+    if !completed {
+        let message = error.unwrap_or_else(|| "nenhum branch concluiu".into());
+        store::mark_node_path(
+            &ctx.state.db,
+            &ctx.run.id,
+            &path,
+            "FAILED",
+            None,
+            None,
+            Some(&message),
+        )
+        .await?;
+        return Err(AppError::BadRequest(format!(
+            "parallel {} falhou: {message}",
+            parallel.id
+        )));
+    }
+    scope.outputs = merged;
+    scope.outputs[&parallel.id] = json!({
+        "join": parallel.join,
+        "branches": parallel.branches.len(),
+        "succeeded": succeeded,
+    });
+    store::mark_node_path(
+        &ctx.state.db,
+        &ctx.run.id,
+        &path,
+        "DONE",
+        Some(&json!({
+            "join": parallel.join,
+            "branches": parallel.branches.len(),
+            "succeeded": succeeded,
+        })),
+        None,
+        None,
+    )
+    .await?;
+    Ok(ScopeOutcome::Continue)
+}
+
+async fn run_map(
+    ctx: &Ctx<'_>,
+    map: &parser::MapFlow,
+    parent: Option<&str>,
+    scope: &mut ScopeState,
+) -> AppResult<ScopeOutcome> {
+    let path = child_path(parent, &map.id);
+    let node = ensure_node(ctx, &path, parent, &map.id, "map", None, None).await?;
+    if finished(&node) {
+        if let Some(output) = node
+            .output_json
+            .as_deref()
+            .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+        {
+            scope.outputs[&map.id] = output;
+        }
+        return Ok(ScopeOutcome::Continue);
+    }
+    store::mark_node_path(
+        &ctx.state.db,
+        &ctx.run.id,
+        &path,
+        "RUNNING",
+        None,
+        None,
+        None,
+    )
+    .await?;
+    liveness(ctx, &map.id, &scope.outputs).await?;
+
+    let rendered = parser::render(&map.items, ctx.trigger, ctx.run_vars, &scope.outputs)?;
+    let items: Vec<Value> = if rendered.trim().is_empty() {
+        Vec::new()
+    } else {
+        serde_json::from_str(&rendered).map_err(|error| {
+            AppError::BadRequest(format!("items do map {} não é JSON: {error}", map.id))
+        })?
+    };
+    let base_outputs = scope.outputs.clone();
+    let max_concurrency = map.max_concurrency.clamp(1, 8);
+    let group_path = path.clone();
+    let jobs = items.into_iter().enumerate().map(move |(index, item)| {
+        let key = item_key(&item, index);
+        let item_scope_path = format!("{group_path}/{key}");
+        let parent_path = group_path.clone();
+        let mut local = ScopeState {
+            outputs: base_outputs.clone(),
+            ..Default::default()
+        };
+        local.outputs[&map.item_var] = item.clone();
+        local.outputs[&map.id] = json!({
+            "item": item,
+            "index": index,
+            "key": key,
+        });
+        let item_for_result = item.clone();
+        let index_for_result = index;
+        async move {
+            let item_node = ensure_node(
+                ctx,
+                &item_scope_path,
+                Some(&parent_path),
+                &key,
+                "map_item",
+                Some(&key),
+                None,
+            )
+            .await?;
+            if finished(&item_node) {
+                let outputs = item_node
+                    .output_json
+                    .as_deref()
+                    .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+                    .unwrap_or_else(|| json!({}));
+                return Ok::<_, AppError>((
+                    ScopeOutcome::Continue,
+                    MapItemResult {
+                        order: index_for_result,
+                        key,
+                        item: item_for_result,
+                        outputs,
+                    },
+                ));
+            }
+            store::mark_node_path(
+                &ctx.state.db,
+                &ctx.run.id,
+                &item_scope_path,
+                "RUNNING",
+                None,
+                None,
+                None,
+            )
+            .await?;
+            let outcome = run_scope(ctx, &map.flow, Some(&item_scope_path), &mut local).await?;
+            store::mark_node_path(
+                &ctx.state.db,
+                &ctx.run.id,
+                &item_scope_path,
+                "DONE",
+                Some(&local.outputs),
+                local.session_id.as_deref(),
+                None,
+            )
+            .await?;
+            Ok::<_, AppError>((
+                outcome,
+                MapItemResult {
+                    order: index_for_result,
+                    key,
+                    item: item_for_result,
+                    outputs: local.outputs,
+                },
+            ))
+        }
+    });
+
+    let mut results = Vec::new();
+    let mut stream = stream::iter(jobs).buffer_unordered(max_concurrency);
+    while let Some(result) = stream.next().await {
+        let (outcome, item) = result?;
+        if matches!(outcome, ScopeOutcome::Cancelled) {
+            finish(
+                ctx.state,
+                ctx.run,
+                "REJECTED",
+                "cancelado pelo usuário",
+                ctx.routine_id,
+            )
+            .await?;
+            return Ok(ScopeOutcome::Cancelled);
+        }
+        results.push(item);
+    }
+    results.sort_by_key(|result| result.order);
+
+    let summary = json!({
+        "count": results.len(),
+        "items": results.iter().map(|result| json!({
+            "key": result.key,
+            "item": result.item,
+            "outputs": result.outputs,
+        })).collect::<Vec<_>>(),
+    });
+    scope.outputs[&map.id] = summary.clone();
+    store::mark_node_path(
+        &ctx.state.db,
+        &ctx.run.id,
+        &path,
+        "DONE",
+        Some(&summary),
+        None,
+        None,
+    )
+    .await?;
+    Ok(ScopeOutcome::Continue)
+}
+
+async fn handle_hitl(
+    ctx: &Ctx<'_>,
+    checkpoint: &HitlCheckpoint,
+    path: &str,
+    items: &[FlowItem],
+    index: usize,
+    scope: &mut ScopeState,
+) -> AppResult<bool> {
+    let mut checkpoint = checkpoint.clone();
+    checkpoint.id = parser::checkpoint_id(&checkpoint);
+    let current_step = previous_step(items, index).map(|(_, step)| step.id.clone());
+    store::update_run(
+        &ctx.state.db,
+        &ctx.run.id,
+        "WAITING_HITL",
+        current_step.as_deref(),
+        Some(&scope.outputs),
+        None,
+        false,
+    )
+    .await?;
+    store::mark_node_path(
+        &ctx.state.db,
+        &ctx.run.id,
+        path,
+        "WAITING_HITL",
+        None,
+        None,
+        None,
+    )
+    .await?;
+    let _ = tasks::move_to(&ctx.state.db, ctx.task_id, "IN_REVIEW", None).await;
+    let _ = tasks::set_phase_status(
+        &ctx.state.db,
+        ctx.task_id,
+        Some("waiting_hitl"),
+        Some("IN_REVIEW"),
+    )
+    .await;
+    let message = parser::render(
+        &checkpoint.prompt_template,
+        ctx.trigger,
+        ctx.run_vars,
+        &scope.outputs,
+    )?;
+    let attachments = checkpoint
+        .attach_files
+        .iter()
+        .map(|path| parser::render(path, ctx.trigger, ctx.run_vars, &scope.outputs))
+        .collect::<AppResult<Vec<_>>>()?;
+    let next_step = next_item_name(items, index + 1);
+    let token = match store::pending_hitl_for_checkpoint(&ctx.state.db, &ctx.run.id, &checkpoint.id)
+        .await?
+    {
+        Some(existing) => existing.token,
+        None => {
+            hitl::request(
+                ctx.state,
+                ctx.run,
+                &checkpoint,
+                &ctx.recipe.name,
+                &message,
+                next_step,
+                &attachments,
+            )
+            .await?
+        }
+    };
+    ctx.state.events.publish(OpenDeskWsEvent::HitlRequested {
+        token: token.clone(),
+        run_id: ctx.run.id.clone(),
+        workspace_id: ctx.run.workspace_id.clone(),
+        checkpoint_id: checkpoint.id.clone(),
+        interaction_type: checkpoint.interaction_type.clone(),
+    });
+    let outcome = hitl::wait(ctx.state, &token, checkpoint.timeout_minutes).await?;
+    match outcome {
+        HitlOutcome::Resolved(HitlResolution::Approved) => {
+            ctx.state.events.publish(OpenDeskWsEvent::HitlResolved {
+                token,
+                status: "APPROVED".into(),
+            });
+            store::mark_node_path(&ctx.state.db, &ctx.run.id, path, "DONE", None, None, None)
+                .await?;
+            Ok(true)
+        }
+        HitlOutcome::Resolved(HitlResolution::Rejected { reason }) => {
+            finish(
+                ctx.state,
+                ctx.run,
+                "REJECTED",
+                reason.as_deref().unwrap_or("rejeitado pelo usuário"),
+                ctx.routine_id,
+            )
+            .await?;
+            Ok(false)
+        }
+        HitlOutcome::Resolved(HitlResolution::FeedbackProvided {
+            feedback_text,
+            attached_files,
+        }) => {
+            if let Some(file) = attached_files.first() {
+                replace_attachment(file, &attachments)?;
+                store::mark_node_path(&ctx.state.db, &ctx.run.id, path, "DONE", None, None, None)
+                    .await?;
+                return Ok(true);
+            }
+            replay_previous(ctx, items, index, path, &feedback_text, scope).await
+        }
+        HitlOutcome::Resolved(HitlResolution::ChoiceSelected { option_value, .. }) => {
+            let feedback = format!("Opção escolhida: {option_value}");
+            replay_previous(ctx, items, index, path, &feedback, scope).await
+        }
+        HitlOutcome::Resolved(HitlResolution::ArtifactEdited { path: edited }) => {
+            replace_attachment(&edited, &attachments)?;
+            store::mark_node_path(&ctx.state.db, &ctx.run.id, path, "DONE", None, None, None)
+                .await?;
+            Ok(true)
+        }
+        HitlOutcome::Expired => {
+            if checkpoint.on_timeout == "AUTO_APPROVE" {
+                store::mark_node_path(&ctx.state.db, &ctx.run.id, path, "DONE", None, None, None)
+                    .await?;
+                Ok(true)
+            } else {
+                finish(
+                    ctx.state,
+                    ctx.run,
+                    "TIMED_OUT",
+                    "timeout do checkpoint HITL",
+                    ctx.routine_id,
+                )
+                .await?;
+                Ok(false)
+            }
+        }
+        HitlOutcome::Cancelled => {
+            finish(
+                ctx.state,
+                ctx.run,
+                "REJECTED",
+                "cancelado pelo usuário",
+                ctx.routine_id,
+            )
+            .await?;
+            Ok(false)
+        }
+    }
+}
+
+/// Records feedback for the previous step and rewinds the scope so it runs
+/// again. The caller only advances after the HITL is approved.
+async fn replay_previous(
+    ctx: &Ctx<'_>,
+    items: &[FlowItem],
+    index: usize,
+    hitl_path: &str,
+    feedback: &str,
+    scope: &mut ScopeState,
+) -> AppResult<bool> {
+    scope.review_rounds += 1;
+    if scope.review_rounds > 5 {
+        finish(
+            ctx.state,
+            ctx.run,
+            "REJECTED",
+            "limite de revisões atingido",
+            ctx.routine_id,
+        )
+        .await?;
+        return Ok(false);
+    }
+    let Some((_previous_index, previous_step)) = previous_step(items, index) else {
+        finish(
+            ctx.state,
+            ctx.run,
+            "REJECTED",
+            "checkpoint sem step anterior para refazer",
+            ctx.routine_id,
+        )
+        .await?;
+        return Ok(false);
+    };
+    let previous_path = child_path(parent_path(hitl_path), &previous_step.id);
+    scope
+        .feedback
+        .insert(previous_step.id.clone(), feedback.to_string());
+    store::reset_node_path(&ctx.state.db, &ctx.run.id, &previous_path).await?;
+    store::reset_node_path(&ctx.state.db, &ctx.run.id, hitl_path).await?;
+    Ok(true)
+}
+
+async fn restore_finished(
+    ctx: &Ctx<'_>,
+    path: &str,
+    node: &store::RecipeRunNode,
+    scope: &mut ScopeState,
+) -> AppResult<()> {
+    if let Some(output) = parse_output(node) {
+        scope.outputs[&node.node_id] = output;
+    }
+    if node.kind == "map" {
+        return Ok(());
+    }
+    let children = store::list_nodes_under(&ctx.state.db, &ctx.run.id, path).await?;
+    // Descendants of a nested map are represented by the map group output;
+    // restoring each item step would overwrite the same step id.
+    let map_prefixes: Vec<String> = children
+        .iter()
+        .filter(|child| child.kind == "map")
+        .filter_map(|child| child.node_path.clone())
+        .collect();
+    for child in children {
+        let Some(child_path) = child.node_path.as_deref() else {
+            continue;
+        };
+        if map_prefixes
+            .iter()
+            .any(|prefix| child_path != prefix && child_path.starts_with(&format!("{prefix}/")))
+        {
+            continue;
+        }
+        if matches!(child.kind.as_str(), "map_item") {
+            continue;
+        }
+        if let Some(output) = parse_output(&child) {
+            scope.outputs[&child.node_id] = output;
+        }
+    }
+    Ok(())
+}
+
+fn parse_output(node: &store::RecipeRunNode) -> Option<Value> {
+    node.output_json
+        .as_deref()
+        .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+}
+
+fn merge_node_output(scope: &mut ScopeState, node: &store::RecipeRunNode, step_id: &str) {
+    if let Some(output) = parse_output(node) {
+        scope.outputs[step_id] = output;
+    }
+}
+
+async fn ensure_node(
+    ctx: &Ctx<'_>,
+    path: &str,
+    parent: Option<&str>,
+    node_id: &str,
+    kind: &str,
+    item_key: Option<&str>,
+    join_policy: Option<&str>,
+) -> AppResult<store::RecipeRunNode> {
+    store::ensure_dag_node(
+        &ctx.state.db,
+        &ctx.run.id,
+        path,
+        parent,
+        node_id,
+        kind,
+        item_key,
+        join_policy,
+    )
+    .await?;
+    store::node_by_path(&ctx.state.db, &ctx.run.id, path)
+        .await?
+        .ok_or_else(|| AppError::Internal(format!("nó de receita ausente: {path}")))
+}
+
+fn finished(node: &store::RecipeRunNode) -> bool {
+    matches!(node.status.as_str(), "DONE" | "SKIPPED")
+}
+
+async fn liveness(ctx: &Ctx<'_>, node_id: &str, outputs: &Value) -> AppResult<()> {
+    store::update_run(
+        &ctx.state.db,
+        &ctx.run.id,
+        "RUNNING_STEP",
+        Some(node_id),
+        Some(outputs),
+        None,
+        false,
+    )
+    .await?;
+    Ok(())
+}
+
+fn previous_step(items: &[FlowItem], index: usize) -> Option<(usize, &Step)> {
+    items[..index]
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(position, item)| match item {
+            FlowItem::Step(step) => Some((position, step)),
+            _ => None,
+        })
+}
+
+fn next_item_name(items: &[FlowItem], index: usize) -> Option<&str> {
+    items.get(index).and_then(|item| match item {
+        FlowItem::Step(step) => Some(step.name.as_str()),
+        FlowItem::Hitl(checkpoint) => Some(checkpoint.id.as_str()),
+        FlowItem::Sink(sink) => sink.name.as_deref(),
+        FlowItem::Branch(branch) => Some(branch.name.as_deref().unwrap_or(&branch.id)),
+        FlowItem::Parallel(parallel) => Some(parallel.name.as_deref().unwrap_or(&parallel.id)),
+        FlowItem::Map(map) => Some(map.name.as_deref().unwrap_or(&map.id)),
+    })
+}
+
+fn child_path(parent: Option<&str>, id: &str) -> String {
+    match parent {
+        Some(parent) if !parent.is_empty() => format!("{parent}/{id}"),
+        _ => id.to_string(),
+    }
+}
+
+fn parent_path(path: &str) -> Option<&str> {
+    path.rsplit_once('/').map(|(parent, _)| parent)
+}
+
+fn item_key(item: &Value, index: usize) -> String {
+    if let Some(path) = item.as_str() {
+        return format!("{index:04}-{}", file_stem(path));
+    }
+    if let Some(key) = item.get("key").and_then(Value::as_str)
+        && !key.trim().is_empty()
+    {
+        let sanitized: String = key
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() || matches!(character, '-' | '_') {
+                    character
+                } else {
+                    '-'
+                }
+            })
+            .collect();
+        return format!("{index:04}-{sanitized}");
+    }
+    if let Some(name) = item.get("path").and_then(Value::as_str) {
+        return format!("{index:04}-{}", file_stem(name));
+    }
+    format!("{index:04}")
+}
+
+fn file_stem(path: &str) -> String {
+    std::path::Path::new(path)
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().to_string())
+        .unwrap_or_else(|| "item".into())
+}
+
+fn merge_outputs(target: &mut Value, source: &Value) {
+    if let (Some(target), Some(source)) = (target.as_object_mut(), source.as_object()) {
+        for (key, value) in source {
+            target.insert(key.clone(), value.clone());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::recipes::parser;
+
+    const YAML: &str = r#"
+id: dag-exec
+name: DAG exec
+flow:
+  - type: branch
+    id: decidir
+    when: "true"
+    then:
+      - type: step
+        id: t1
+        name: Then
+        prompt: a
+        when: "false"
+    else:
+      - type: step
+        id: e1
+        name: Else
+        prompt: b
+        when: "false"
+  - type: parallel
+    id: lote
+    join: all
+    branches:
+      - - type: step
+          id: p1
+          name: P1
+          prompt: a
+          when: "false"
+      - - type: step
+          id: p2
+          name: P2
+          prompt: b
+          when: "false"
+  - type: map
+    id: arquivos
+    items: "[]"
+    flow:
+      - type: step
+        id: analisar
+        name: Analisar
+        prompt: c
+"#;
+
+    async fn fixture_with(
+        yaml: &str,
+        id: &str,
+    ) -> (
+        crate::test_support::TestContext,
+        parser::Recipe,
+        store::RecipeRun,
+    ) {
+        let ctx = crate::test_support::context().await;
+        store::save_yaml(&ctx.state.db, &ctx.workspace_id, id, yaml)
+            .await
+            .expect("save");
+        let recipe = parser::parse(yaml).expect("recipe");
+        let task = tasks::create(
+            &ctx.state.db,
+            &ctx.workspace_id,
+            tasks::CreateTaskInput {
+                title: "dag".into(),
+                description: "dag".into(),
+                execution_mode: Some("BUILD_DIRECT".into()),
+                priority: Some(2),
+                assigned_agent: None,
+                preferred_model: None,
+                preferred_harness: None,
+                effort_level: None,
+                care_level: Some("standard".into()),
+                notify_email: None,
+                export_to_gdocs: false,
+                tags: vec![],
+                origin: Some("RECIPE".into()),
+                parent_task_id: None,
+                dedupe: None,
+            },
+        )
+        .await
+        .expect("task");
+        let run = store::create_run(
+            &ctx.state.db,
+            &recipe,
+            &ctx.workspace_id,
+            Some(&task.id),
+            &json!({}),
+            "/tmp/dag-out",
+            false,
+        )
+        .await
+        .expect("run");
+        (ctx, recipe, run)
+    }
+
+    async fn fixture() -> (
+        crate::test_support::TestContext,
+        parser::Recipe,
+        store::RecipeRun,
+    ) {
+        fixture_with(YAML, "dag-exec").await
+    }
+
+    #[tokio::test]
+    async fn executes_branch_parallel_and_empty_map_without_dispatching() {
+        let (ctx, recipe, run) = fixture().await;
+        execute(&ctx.state, &recipe, &run, &json!({}))
+            .await
+            .expect("execute");
+
+        let completed = store::get_run(&ctx.state.db, &run.id).await.expect("run");
+        assert_eq!(completed.status, "COMPLETED");
+        let outputs: Value = serde_json::from_str(&completed.step_outputs_json).expect("outputs");
+        assert_eq!(outputs["decidir"]["then"], true);
+        assert_eq!(outputs["arquivos"]["count"], 0);
+
+        let nodes = store::list_run_nodes(&ctx.state.db, &run.id)
+            .await
+            .expect("nodes");
+        for expected in [
+            ("decidir", "DONE"),
+            ("decidir/t1", "SKIPPED"),
+            ("decidir/e1", "SKIPPED"),
+            ("lote", "DONE"),
+            ("lote/b0/p1", "SKIPPED"),
+            ("lote/b1/p2", "SKIPPED"),
+            ("arquivos", "DONE"),
+        ] {
+            let node = nodes
+                .iter()
+                .find(|node| node.node_path.as_deref() == Some(expected.0))
+                .unwrap_or_else(|| panic!("missing {}", expected.0));
+            assert_eq!(node.status, expected.1, "node {}", expected.0);
+        }
+    }
+
+    #[tokio::test]
+    async fn expands_map_items_into_durable_paths() {
+        let yaml = r#"
+id: dag-map
+name: DAG map
+flow:
+  - type: map
+    id: mapa
+    items: '[{"path":"a.txt"},{"path":"b.txt"}]'
+    max_concurrency: 2
+    flow:
+      - type: step
+        id: analisar
+        name: Analisar
+        prompt: "Analise {{item.path}}"
+        when: "false"
+"#;
+        let (ctx, recipe, run) = fixture_with(yaml, "dag-map").await;
+        execute(&ctx.state, &recipe, &run, &json!({}))
+            .await
+            .expect("execute");
+
+        let completed = store::get_run(&ctx.state.db, &run.id).await.expect("run");
+        let outputs: Value = serde_json::from_str(&completed.step_outputs_json).expect("outputs");
+        assert_eq!(outputs["mapa"]["count"], 2);
+        assert_eq!(outputs["mapa"]["items"][0]["key"], "0000-a");
+        assert_eq!(outputs["mapa"]["items"][1]["key"], "0001-b");
+
+        let nodes = store::list_run_nodes(&ctx.state.db, &run.id)
+            .await
+            .expect("nodes");
+        for path in [
+            "mapa/0000-a",
+            "mapa/0000-a/analisar",
+            "mapa/0001-b",
+            "mapa/0001-b/analisar",
+        ] {
+            assert!(
+                nodes
+                    .iter()
+                    .any(|node| node.node_path.as_deref() == Some(path)),
+                "missing node {path}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn resume_skips_a_completed_step_and_restores_its_output() {
+        let (ctx, recipe, run) = fixture().await;
+        store::sync_run_nodes(&ctx.state.db, &run.id, &recipe.flow)
+            .await
+            .expect("sync");
+        store::mark_node_path(
+            &ctx.state.db,
+            &run.id,
+            "decidir/t1",
+            "DONE",
+            Some(&json!({ "summary": "cached" })),
+            Some("session-1"),
+            None,
+        )
+        .await
+        .expect("cache");
+
+        execute(&ctx.state, &recipe, &run, &json!({}))
+            .await
+            .expect("execute");
+
+        let node = store::node_by_path(&ctx.state.db, &run.id, "decidir/t1")
+            .await
+            .expect("node")
+            .expect("row");
+        assert_eq!(node.status, "DONE");
+        assert_eq!(node.attempts, 0, "resume must not re-run a DONE step");
+        let completed = store::get_run(&ctx.state.db, &run.id).await.expect("run");
+        let outputs: Value = serde_json::from_str(&completed.step_outputs_json).expect("outputs");
+        assert_eq!(outputs["t1"]["summary"], "cached");
+    }
+}
