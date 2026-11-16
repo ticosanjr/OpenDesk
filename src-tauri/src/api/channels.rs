@@ -10,15 +10,21 @@ use crate::{
 };
 use axum::{
     Json,
+    body::Bytes,
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
+    response::IntoResponse,
 };
+use hmac::{Hmac, KeyInit, Mac};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use sha2::Sha256;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 const WHATSAPP_SETTING: &str = "channels.whatsapp";
+const WHATSAPP_SECRET_NAMESPACE: &str = "channel_whatsapp";
 const WEBHOOK_NAMESPACE: &str = "channel_webhook";
 const WEBHOOK_HEADER: &str = "x-opendesk-channel-token";
 const MAX_TEXT: usize = 16_000;
@@ -60,13 +66,18 @@ pub async fn delete_route(
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct WhatsAppConfig {
-    /// Kept for the future connector; today it only records intent.
     pub enabled: bool,
     /// `structure`, `cloud-api` or `baileys`.
     pub provider: String,
     pub phone_number: String,
-    #[serde(default)]
+    /// Meta Cloud API phone number id.
+    pub phone_number_id: String,
+    pub business_account_id: String,
+    pub api_version: String,
+    /// Optional workspace for inbound messages; defaults to the active one.
+    pub workspace_id: Option<String>,
     pub notes: String,
 }
 
@@ -76,44 +87,174 @@ impl Default for WhatsAppConfig {
             enabled: false,
             provider: "structure".into(),
             phone_number: String::new(),
+            phone_number_id: String::new(),
+            business_account_id: String::new(),
+            api_version: "v21.0".into(),
+            workspace_id: None,
             notes: String::new(),
         }
     }
 }
 
-pub async fn get_whatsapp(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>> {
-    let config = crate::db::settings::get(&state.db, WHATSAPP_SETTING)
+async fn whatsapp_config(state: &AppState) -> AppResult<WhatsAppConfig> {
+    Ok(crate::db::settings::get(&state.db, WHATSAPP_SETTING)
         .await?
         .and_then(|value| serde_json::from_value::<WhatsAppConfig>(value).ok())
-        .unwrap_or_default();
+        .unwrap_or_default())
+}
+
+fn whatsapp_connected(state: &AppState, config: &WhatsAppConfig) -> AppResult<bool> {
+    Ok(config.enabled
+        && config.provider == "cloud-api"
+        && !config.phone_number_id.trim().is_empty()
+        && state
+            .secrets
+            .get(WHATSAPP_SECRET_NAMESPACE, "access_token")?
+            .is_some())
+}
+
+pub async fn get_whatsapp(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>> {
+    let config = whatsapp_config(&state).await?;
     let token_set = state.secrets.get(WEBHOOK_NAMESPACE, "whatsapp")?.is_some();
+    let access_token_set = state
+        .secrets
+        .get(WHATSAPP_SECRET_NAMESPACE, "access_token")?
+        .is_some();
+    let app_secret_set = state
+        .secrets
+        .get(WHATSAPP_SECRET_NAMESPACE, "app_secret")?
+        .is_some();
+    let connected = whatsapp_connected(&state, &config)?;
     Ok(Json(json!({
         "config": config,
-        "connected": false,
-        "connector": "structure-only",
+        "connected": connected,
+        "connector": if config.provider == "cloud-api" { "cloud-api" } else { "structure-only" },
         "webhook_token_set": token_set,
+        "access_token_set": access_token_set,
+        "app_secret_set": app_secret_set,
     })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WhatsAppUpdate {
+    #[serde(flatten)]
+    pub config: WhatsAppConfig,
+    #[serde(default)]
+    pub access_token: Option<String>,
+    #[serde(default)]
+    pub app_secret: Option<String>,
 }
 
 pub async fn put_whatsapp(
     State(state): State<Arc<AppState>>,
-    Json(config): Json<WhatsAppConfig>,
+    Json(body): Json<WhatsAppUpdate>,
 ) -> AppResult<Json<Value>> {
-    if !["structure", "cloud-api", "baileys"].contains(&config.provider.as_str()) {
+    if !["structure", "cloud-api", "baileys"].contains(&body.config.provider.as_str()) {
         return Err(AppError::BadRequest(
             "provider de WhatsApp inválido; use structure, cloud-api ou baileys".into(),
         ));
     }
+    if body.config.provider == "cloud-api" && body.config.phone_number_id.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "cloud-api exige phone_number_id (Meta)".into(),
+        ));
+    }
+    for (key, value) in [
+        ("access_token", body.access_token.as_deref()),
+        ("app_secret", body.app_secret.as_deref()),
+    ] {
+        match value.map(str::trim) {
+            Some("") => state.secrets.delete(WHATSAPP_SECRET_NAMESPACE, key)?,
+            Some(value) => state.secrets.set(WHATSAPP_SECRET_NAMESPACE, key, value)?,
+            None => {}
+        }
+    }
     crate::db::settings::set(
         &state.db,
         WHATSAPP_SETTING,
-        &serde_json::to_value(&config).map_err(|error| AppError::Internal(error.to_string()))?,
+        &serde_json::to_value(&body.config)
+            .map_err(|error| AppError::Internal(error.to_string()))?,
     )
     .await?;
+    let connected = whatsapp_connected(&state, &body.config)?;
     Ok(Json(json!({
-        "config": config,
-        "connected": false,
-        "connector": "structure-only",
+        "config": body.config,
+        "connected": connected,
+        "connector": "cloud-api",
+        "access_token_set": state.secrets.get(WHATSAPP_SECRET_NAMESPACE, "access_token")?.is_some(),
+        "app_secret_set": state.secrets.get(WHATSAPP_SECRET_NAMESPACE, "app_secret")?.is_some(),
+    })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WhatsAppSend {
+    pub to: String,
+    pub text: String,
+}
+
+pub async fn send_whatsapp(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<WhatsAppSend>,
+) -> AppResult<Json<Value>> {
+    let config = whatsapp_config(&state).await?;
+    if !whatsapp_connected(&state, &config)? {
+        return Err(AppError::Conflict(
+            "WhatsApp Cloud API não está conectado (provider, phone_number_id, token e enabled)"
+                .into(),
+        ));
+    }
+    let to = body.to.trim();
+    let text = body.text.trim();
+    if to.is_empty() || text.is_empty() {
+        return Err(AppError::BadRequest(
+            "destinatário e texto são obrigatórios".into(),
+        ));
+    }
+    let access_token = state
+        .secrets
+        .get(WHATSAPP_SECRET_NAMESPACE, "access_token")?
+        .ok_or_else(|| AppError::Conflict("access token do WhatsApp ausente".into()))?;
+    let base = std::env::var("OPENDESK_WHATSAPP_GRAPH_URL")
+        .unwrap_or_else(|_| "https://graph.facebook.com".into());
+    let version = if config.api_version.trim().is_empty() {
+        "v21.0"
+    } else {
+        config.api_version.trim()
+    };
+    let url = format!(
+        "{}/{}/{}/messages",
+        base.trim_end_matches('/'),
+        version,
+        config.phone_number_id.trim()
+    );
+    let response = reqwest::Client::new()
+        .post(&url)
+        .bearer_auth(access_token)
+        .json(&json!({
+            "messaging_product": "whatsapp",
+            "to": to,
+            "type": "text",
+            "text": { "preview_url": false, "body": text }
+        }))
+        .send()
+        .await
+        .map_err(|error| AppError::Internal(format!("Graph API inacessível: {error}")))?;
+    let status = response.status();
+    let value: Value = response.json().await.unwrap_or(Value::Null);
+    if !status.is_success() {
+        return Err(AppError::Internal(format!(
+            "Graph API recusou ({status}): {}",
+            value
+                .pointer("/error/message")
+                .and_then(Value::as_str)
+                .unwrap_or("erro desconhecido")
+        )));
+    }
+    Ok(Json(json!({
+        "message_id": value
+            .pointer("/messages/0/id")
+            .and_then(Value::as_str),
+        "to": to,
     })))
 }
 
@@ -133,6 +274,8 @@ pub async fn status(
     let workspace_id =
         crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
     let routes = channels::list(&state.db, &workspace_id).await?;
+    let whatsapp = whatsapp_config(&state).await?;
+    let whatsapp_connected = whatsapp_connected(&state, &whatsapp)?;
     let list = channels::CHANNELS
         .iter()
         .map(|channel| ChannelStatus {
@@ -149,7 +292,13 @@ pub async fn status(
                 .is_some(),
             webhook_path: format!("/api/webhooks/channels/{channel}"),
             connector: if *channel == "whatsapp" {
-                "structure-only".into()
+                if whatsapp_connected {
+                    "cloud-api".into()
+                } else if whatsapp.provider == "cloud-api" {
+                    "cloud-api (incompleto)".into()
+                } else {
+                    "structure-only".into()
+                }
             } else if matches!(*channel, "telegram" | "signal") {
                 "native-bridge".into()
             } else {
@@ -181,6 +330,39 @@ pub async fn rotate_webhook_token(
     })))
 }
 
+/// Meta webhook verification: `GET /api/webhooks/channels/whatsapp?hub.*`.
+pub async fn verify_webhook(
+    State(state): State<Arc<AppState>>,
+    Path(channel): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> axum::response::Response {
+    let result = async {
+        let channel = channels::validate_channel(&channel)?;
+        let mode = query.get("hub.mode").map(String::as_str).unwrap_or("");
+        let token = query
+            .get("hub.verify_token")
+            .map(String::as_str)
+            .unwrap_or("");
+        let challenge = query.get("hub.challenge").cloned().unwrap_or_default();
+        if mode != "subscribe" {
+            return Err(AppError::BadRequest("hub.mode inválido".into()));
+        }
+        let expected = state
+            .secrets
+            .get(WEBHOOK_NAMESPACE, &channel)?
+            .ok_or_else(|| AppError::BadRequest("canal sem token de webhook".into()))?;
+        if token != expected {
+            return Err(AppError::BadRequest("verify_token inválido".into()));
+        }
+        Ok(challenge)
+    }
+    .await;
+    match result {
+        Ok(challenge) => (StatusCode::OK, challenge).into_response(),
+        Err(error) => error.into_response(),
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct InboundBody {
     #[serde(default)]
@@ -197,16 +379,189 @@ pub struct InboundBody {
     pub metadata: Value,
 }
 
-/// Universal inbound webhook. Requires the channel token created through
-/// `/api/channels/{channel}/webhook-token`. Trust decides whether a task is
-/// created and whether it starts held for human review.
+#[derive(Debug, Clone)]
+struct MetaMessage {
+    identity: String,
+    text: String,
+    message_id: Option<String>,
+    name: Option<String>,
+}
+
+fn extract_meta_messages(value: &Value) -> Vec<MetaMessage> {
+    let mut messages = Vec::new();
+    let Some(entries) = value.get("entry").and_then(Value::as_array) else {
+        return messages;
+    };
+    for entry in entries {
+        let Some(changes) = entry.get("changes").and_then(Value::as_array) else {
+            continue;
+        };
+        for change in changes {
+            let Some(value) = change.get("value") else {
+                continue;
+            };
+            let contacts = value
+                .get("contacts")
+                .and_then(Value::as_array)
+                .map(|contacts| {
+                    contacts
+                        .iter()
+                        .filter_map(|contact| {
+                            let id = contact.get("wa_id").and_then(Value::as_str)?;
+                            let name = contact
+                                .pointer("/profile/name")
+                                .and_then(Value::as_str)
+                                .map(str::to_string);
+                            Some((id.to_string(), name))
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let Some(items) = value.get("messages").and_then(Value::as_array) else {
+                continue;
+            };
+            for message in items {
+                let Some(identity) = message.get("from").and_then(Value::as_str) else {
+                    continue;
+                };
+                let kind = message.get("type").and_then(Value::as_str).unwrap_or("");
+                let text = match kind {
+                    "text" => message
+                        .pointer("/text/body")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string(),
+                    "button" => message
+                        .pointer("/button/text")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string(),
+                    "interactive" => message
+                        .pointer("/interactive/button_reply/title")
+                        .or_else(|| message.pointer("/interactive/list_reply/title"))
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string(),
+                    "image" | "document" | "video" => message
+                        .pointer("/image/caption")
+                        .or_else(|| message.pointer("/document/caption"))
+                        .or_else(|| message.pointer("/video/caption"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                        .unwrap_or_else(|| format!("[{kind} recebido]")),
+                    "audio" => "[áudio recebido]".to_string(),
+                    "" => continue,
+                    other => format!("[{other} recebido]"),
+                };
+                if text.trim().is_empty() {
+                    continue;
+                }
+                let name = contacts
+                    .iter()
+                    .find(|(id, _)| id == identity)
+                    .and_then(|(_, name)| name.clone());
+                messages.push(MetaMessage {
+                    identity: identity.to_string(),
+                    text,
+                    message_id: message
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
+                    name,
+                });
+            }
+        }
+    }
+    messages
+}
+
+fn verify_meta_signature(secret: &str, body: &[u8], header: &str) -> bool {
+    let Some(encoded) = header.strip_prefix("sha256=") else {
+        return false;
+    };
+    let Some(expected) = hex_decode(encoded) else {
+        return false;
+    };
+    let Ok(mut mac) = Hmac::<Sha256>::new_from_slice(secret.as_bytes()) else {
+        return false;
+    };
+    mac.update(body);
+    mac.finalize().into_bytes().as_slice() == expected.as_slice()
+}
+
+fn hex_decode(value: &str) -> Option<Vec<u8>> {
+    if !value.len().is_multiple_of(2) {
+        return None;
+    }
+    (0..value.len())
+        .step_by(2)
+        .map(|index| u8::from_str_radix(&value[index..index + 2], 16).ok())
+        .collect()
+}
+
+/// Universal inbound webhook. Generic channels use `x-opendesk-channel-token`;
+/// Meta sends a signed `whatsapp_business_account` payload.
 pub async fn inbound(
     State(state): State<Arc<AppState>>,
     Path(channel): Path<String>,
     headers: HeaderMap,
-    Json(body): Json<InboundBody>,
+    body: Bytes,
 ) -> AppResult<Json<Value>> {
     let channel = channels::validate_channel(&channel)?;
+    let value: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
+    let is_meta = value.get("object").and_then(Value::as_str) == Some("whatsapp_business_account");
+
+    if is_meta {
+        if channel != "whatsapp" {
+            return Err(AppError::BadRequest(
+                "payload Meta só é aceito no canal whatsapp".into(),
+            ));
+        }
+        let secret = state
+            .secrets
+            .get(WHATSAPP_SECRET_NAMESPACE, "app_secret")?
+            .ok_or_else(|| {
+                AppError::BadRequest(
+                    "configure o app_secret do WhatsApp para validar o webhook".into(),
+                )
+            })?;
+        let signature = headers
+            .get("x-hub-signature-256")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("");
+        if !verify_meta_signature(&secret, &body, signature) {
+            return Err(AppError::BadRequest(
+                "assinatura do webhook inválida".into(),
+            ));
+        }
+        let config = whatsapp_config(&state).await?;
+        let messages = extract_meta_messages(&value);
+        let mut processed = 0;
+        let mut failures = 0;
+        for message in messages {
+            match process_inbound(
+                &state,
+                &channel,
+                &message.identity,
+                &message.text,
+                message.message_id.as_deref(),
+                message.name.as_deref(),
+                false,
+                Value::Null,
+                config.workspace_id.as_deref(),
+            )
+            .await
+            {
+                Ok(_) => processed += 1,
+                Err(error) => {
+                    failures += 1;
+                    tracing::warn!(identity = %message.identity, error = %error, "WhatsApp message rejected");
+                }
+            }
+        }
+        return Ok(Json(json!({ "accepted": processed, "rejected": failures })));
+    }
+
     let expected = state
         .secrets
         .get(WEBHOOK_NAMESPACE, &channel)?
@@ -222,20 +577,47 @@ pub async fn inbound(
     if provided != expected {
         return Err(AppError::BadRequest("token do canal inválido".into()));
     }
+    let body: InboundBody = serde_json::from_slice(&body)
+        .map_err(|error| AppError::BadRequest(format!("payload inválido: {error}")))?;
+    let result = process_inbound(
+        &state,
+        &channel,
+        &body.identity,
+        &body.text,
+        body.message_id.as_deref(),
+        body.name.as_deref(),
+        body.already_seen,
+        body.metadata,
+        None,
+    )
+    .await?;
+    Ok(Json(result))
+}
 
-    let text = body.text.trim();
+#[allow(clippy::too_many_arguments)]
+async fn process_inbound(
+    state: &Arc<AppState>,
+    channel: &str,
+    identity: &str,
+    text: &str,
+    message_id: Option<&str>,
+    name: Option<&str>,
+    already_seen: bool,
+    metadata: Value,
+    workspace_override: Option<&str>,
+) -> AppResult<Value> {
+    let text = text.trim();
     if text.is_empty() {
         return Err(AppError::BadRequest("mensagem vazia".into()));
     }
     let text = text.chars().take(MAX_TEXT).collect::<String>();
     let identity = {
-        let value = body.identity.trim();
+        let value = identity.trim();
         if value.is_empty() { "unknown" } else { value }
     };
 
-    // Without an explicit workspace in the payload, use the active/default one.
-    let workspace_id = crate::api::tasks::resolve_workspace_id(&state, None).await?;
-    let route = channels::resolve(&state.db, &workspace_id, &channel, identity)
+    let workspace_id = crate::api::tasks::resolve_workspace_id(state, workspace_override).await?;
+    let route = channels::resolve(&state.db, &workspace_id, channel, identity)
         .await?
         .ok_or_else(|| {
             AppError::NotFound(format!(
@@ -243,9 +625,7 @@ pub async fn inbound(
             ))
         })?;
 
-    let title = body
-        .name
-        .as_deref()
+    let title = name
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(|name| format!("{name} via {channel}"))
@@ -268,17 +648,17 @@ pub async fn inbound(
         &state.db,
         CreateTicketInput {
             workspace_id: workspace_id.clone(),
-            source: channel.clone(),
-            source_ref: body.message_id.clone(),
+            source: channel.to_string(),
+            source_ref: message_id.map(str::to_string),
             title,
             body: text.clone(),
             priority: Some(if route.trust_level == "trusted" { 3 } else { 2 }),
             assigned_agent: Some(route.agent.clone()),
             metadata: json!({
                 "identity": identity,
-                "name": body.name,
-                "already_seen": body.already_seen,
-                "extra": body.metadata,
+                "name": name,
+                "already_seen": already_seen,
+                "extra": metadata,
             }),
         },
     )
@@ -343,16 +723,68 @@ pub async fn inbound(
     state.events.publish(OpenDeskWsEvent::TicketUpdated {
         ticket_id: ticket.id.clone(),
         workspace_id: workspace_id.clone(),
-        source: channel.clone(),
+        source: channel.to_string(),
         status: "OPEN".into(),
     });
 
-    Ok(Json(json!({
+    Ok(json!({
         "ticket_id": ticket.id,
         "task_id": task_id,
         "held": held,
         "trust_level": route.trust_level,
         "permission_profile": route.permission_profile,
         "agent": route.agent,
-    })))
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extracts_meta_text_and_interactive_messages() {
+        let payload = json!({
+            "object": "whatsapp_business_account",
+            "entry": [{
+                "changes": [{
+                    "value": {
+                        "contacts": [{ "wa_id": "5511999", "profile": { "name": "Ana" } }],
+                        "messages": [
+                            { "from": "5511999", "id": "wamid.1", "type": "text", "text": { "body": "Oi" } },
+                            { "from": "5511888", "id": "wamid.2", "type": "button", "button": { "text": "Sim" } }
+                        ]
+                    }
+                }]
+            }]
+        });
+        let messages = extract_meta_messages(&payload);
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].identity, "5511999");
+        assert_eq!(messages[0].name.as_deref(), Some("Ana"));
+        assert_eq!(messages[1].text, "Sim");
+    }
+
+    #[test]
+    fn verifies_signature() {
+        let body = br#"{"hello":"world"}"#;
+        let mut mac = Hmac::<Sha256>::new_from_slice(b"secret").expect("mac");
+        mac.update(body);
+        let encoded = mac
+            .finalize()
+            .into_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert!(verify_meta_signature(
+            "secret",
+            body,
+            &format!("sha256={encoded}")
+        ));
+        assert!(!verify_meta_signature(
+            "other",
+            body,
+            &format!("sha256={encoded}")
+        ));
+        assert!(!verify_meta_signature("secret", body, "sha1=abc"));
+    }
 }

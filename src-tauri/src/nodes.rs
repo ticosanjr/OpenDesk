@@ -67,6 +67,12 @@ impl Worker {
 const COLUMNS: &str = "id, name, endpoint, capabilities_json, status, token_hash, \
     last_seen_at, created_at, updated_at";
 
+fn new_token() -> String {
+    let mut bytes = [0u8; 32];
+    rand::rngs::OsRng.fill_bytes(&mut bytes);
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 fn hash(token: &str) -> String {
     let digest = Sha256::digest(token.as_bytes());
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
@@ -127,6 +133,23 @@ pub async fn create(
     .execute(pool)
     .await?;
     Ok((token, get(pool, &id).await?.view()))
+}
+
+/// Rotates the node token; the old token stops authenticating immediately.
+pub async fn rotate_token(pool: &SqlitePool, id: &str) -> AppResult<(String, NodeView)> {
+    let token = new_token();
+    let result = sqlx::query(
+        "UPDATE workers SET token_hash = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE id = ?",
+    )
+    .bind(hash(&token))
+    .bind(id)
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound(format!("node {id}")));
+    }
+    Ok((token, get(pool, id).await?.view()))
 }
 
 pub async fn delete(pool: &SqlitePool, id: &str) -> AppResult<bool> {

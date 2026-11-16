@@ -2878,3 +2878,14 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Release passa a publicar `opendeskd-<plataforma>` além do desktop.
 - Teste do mapeamento de comandos e documentação do worker.
 - ADR 0075.
+
+## 2026-11-16 — pós-1.2.0: WhatsApp Cloud API e hardening multi-node
+
+- WhatsApp Cloud API: verificação de webhook, assinatura HMAC, normalização de
+  texto/botão/interativo/mídia, envio de texto e credenciais no SecretStore.
+- Worker remoto aplica sandbox do workspace, envia diffs e a central registra
+  artefatos com validação de caminho.
+- Rotação de token de nó e botão na UI.
+- Sandbox por workspace com fallback global.
+- AppImage passa a incluir `opendeskd`.
+- ADRs 0076 e 0077.

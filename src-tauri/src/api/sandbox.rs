@@ -19,15 +19,23 @@ pub struct WorkspaceQuery {
     pub workspace_id: Option<String>,
 }
 
-pub async fn get_sandbox(State(state): State<Arc<AppState>>) -> AppResult<Json<SandboxStatus>> {
-    Ok(Json(sandbox::status(&state.db).await?))
+pub async fn get_sandbox(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<WorkspaceQuery>,
+) -> AppResult<Json<SandboxStatus>> {
+    Ok(Json(
+        sandbox::status(&state.db, query.workspace_id.as_deref()).await?,
+    ))
 }
 
 pub async fn put_sandbox(
     State(state): State<Arc<AppState>>,
+    Query(query): Query<WorkspaceQuery>,
     Json(policy): Json<SandboxPolicy>,
 ) -> AppResult<Json<SandboxPolicy>> {
-    Ok(Json(sandbox::set(&state.db, policy).await?))
+    Ok(Json(
+        sandbox::set_for(&state.db, query.workspace_id.as_deref(), policy).await?,
+    ))
 }
 
 pub async fn computer_status() -> Json<ComputerCapabilities> {

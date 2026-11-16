@@ -30,6 +30,21 @@ async fn sandbox_policy_roundtrips() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let query = format!("?workspace_id={}", ctx.workspace_id);
+    let (status, workspace) = call(
+        &ctx,
+        Method::PUT,
+        &format!("/api/sandbox{query}"),
+        Some(json!({ "mode": "workspace", "network": false })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{workspace}");
+    let (status, current) = call(&ctx, Method::GET, &format!("/api/sandbox{query}"), None).await;
+    assert_eq!(status, StatusCode::OK, "{current}");
+    assert_eq!(current["scope"], "workspace");
+    assert_eq!(current["policy"]["mode"], "workspace");
+    assert_eq!(current["policy"]["network"], false);
 }
 
 #[tokio::test]

@@ -174,6 +174,39 @@ fn bwrap_available() -> bool {
         .unwrap_or(false)
 }
 
+fn workspace_key(workspace_id: &str) -> String {
+    format!("{SANDBOX_SETTING}:{workspace_id}")
+}
+
+/// Workspace-specific policy wins over the global default.
+pub async fn get_for(pool: &SqlitePool, workspace_id: Option<&str>) -> AppResult<SandboxPolicy> {
+    if let Some(workspace_id) = workspace_id
+        && let Some(value) = settings::get(pool, &workspace_key(workspace_id)).await?
+        && let Ok(policy) = serde_json::from_value::<SandboxPolicy>(value)
+    {
+        return Ok(policy);
+    }
+    get(pool).await
+}
+
+pub async fn set_for(
+    pool: &SqlitePool,
+    workspace_id: Option<&str>,
+    policy: SandboxPolicy,
+) -> AppResult<SandboxPolicy> {
+    let policy = policy.validate()?;
+    let key = workspace_id
+        .map(workspace_key)
+        .unwrap_or_else(|| SANDBOX_SETTING.to_string());
+    settings::set(
+        pool,
+        &key,
+        &serde_json::to_value(&policy).map_err(|error| AppError::Internal(error.to_string()))?,
+    )
+    .await?;
+    Ok(policy)
+}
+
 pub async fn get(pool: &SqlitePool) -> AppResult<SandboxPolicy> {
     let value = settings::get(pool, SANDBOX_SETTING).await?;
     Ok(value
@@ -181,27 +214,27 @@ pub async fn get(pool: &SqlitePool) -> AppResult<SandboxPolicy> {
         .unwrap_or_default())
 }
 
-pub async fn set(pool: &SqlitePool, policy: SandboxPolicy) -> AppResult<SandboxPolicy> {
-    let policy = policy.validate()?;
-    settings::set(
-        pool,
-        SANDBOX_SETTING,
-        &serde_json::to_value(&policy).map_err(|error| AppError::Internal(error.to_string()))?,
-    )
-    .await?;
-    Ok(policy)
-}
-
 #[derive(Debug, Serialize)]
 pub struct SandboxStatus {
     pub policy: SandboxPolicy,
+    pub scope: String,
+    pub workspace_id: Option<String>,
     pub bwrap_available: bool,
     pub platform: String,
 }
 
-pub async fn status(pool: &SqlitePool) -> AppResult<SandboxStatus> {
+pub async fn status(pool: &SqlitePool, workspace_id: Option<&str>) -> AppResult<SandboxStatus> {
+    let has_override = if let Some(workspace_id) = workspace_id {
+        settings::get(pool, &workspace_key(workspace_id))
+            .await?
+            .is_some()
+    } else {
+        false
+    };
     Ok(SandboxStatus {
-        policy: get(pool).await?,
+        policy: get_for(pool, workspace_id).await?,
+        scope: if has_override { "workspace" } else { "global" }.into(),
+        workspace_id: workspace_id.map(str::to_string),
         bwrap_available: bwrap_available(),
         platform: std::env::consts::OS.to_string(),
     })
@@ -248,8 +281,9 @@ mod tests {
     #[tokio::test]
     async fn persists_the_policy() {
         let ctx = crate::test_support::context().await;
-        let policy = set(
+        let policy = set_for(
             &ctx.state.db,
+            None,
             SandboxPolicy {
                 mode: "workspace".into(),
                 scrub_env: true,
@@ -260,5 +294,27 @@ mod tests {
         .expect("set");
         assert_eq!(policy.mode, "workspace");
         assert_eq!(get(&ctx.state.db).await.expect("get").mode, "workspace");
+
+        set_for(
+            &ctx.state.db,
+            Some(&ctx.workspace_id),
+            SandboxPolicy {
+                mode: "strict".into(),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("workspace set");
+        assert_eq!(
+            get_for(&ctx.state.db, Some(&ctx.workspace_id))
+                .await
+                .expect("workspace get")
+                .mode,
+            "strict"
+        );
+        assert_eq!(
+            get_for(&ctx.state.db, None).await.expect("global").mode,
+            "workspace"
+        );
     }
 }

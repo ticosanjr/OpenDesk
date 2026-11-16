@@ -29,6 +29,10 @@ interface WhatsAppConfig {
   enabled: boolean;
   provider: string;
   phone_number: string;
+  phone_number_id: string;
+  business_account_id: string;
+  api_version: string;
+  workspace_id?: string | null;
   notes: string;
 }
 
@@ -46,9 +50,19 @@ export function ChannelsCard({ workspaceId }: { workspaceId: string }) {
     enabled: false,
     provider: "structure",
     phone_number: "",
+    phone_number_id: "",
+    business_account_id: "",
+    api_version: "v21.0",
+    workspace_id: null,
     notes: "",
   });
   const [tokenSet, setTokenSet] = useState(false);
+  const [accessTokenSet, setAccessTokenSet] = useState(false);
+  const [appSecretSet, setAppSecretSet] = useState(false);
+  const [accessToken, setAccessToken] = useState("");
+  const [appSecret, setAppSecret] = useState("");
+  const [sendTo, setSendTo] = useState("");
+  const [sendText, setSendText] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<{ channel: string; token: string } | null>(
@@ -71,14 +85,20 @@ export function ChannelsCard({ workspaceId }: { workspaceId: string }) {
       const [status, list, config] = await Promise.all([
         apiGet<ChannelStatus[]>(`/api/channels/status${query}`),
         apiGet<ChannelRoute[]>(`/api/channels/routes${query}`),
-        apiGet<{ config: WhatsAppConfig; webhook_token_set: boolean }>(
-          "/api/channels/whatsapp",
-        ),
+        apiGet<{
+          config: WhatsAppConfig;
+          webhook_token_set: boolean;
+          access_token_set: boolean;
+          app_secret_set: boolean;
+          connected: boolean;
+        }>("/api/channels/whatsapp"),
       ]);
       setStatuses(status);
       setRoutes(list);
       setWhatsapp(config.config);
       setTokenSet(config.webhook_token_set);
+      setAccessTokenSet(config.access_token_set);
+      setAppSecretSet(config.app_secret_set);
     } catch (cause) {
       toast({
         tone: "error",
@@ -97,18 +117,54 @@ export function ChannelsCard({ workspaceId }: { workspaceId: string }) {
   async function saveWhatsApp() {
     setBusy("whatsapp");
     try {
-      await apiPut("/api/channels/whatsapp", whatsapp);
+      await apiPut("/api/channels/whatsapp", {
+        ...whatsapp,
+        access_token: accessToken.trim() || undefined,
+        app_secret: appSecret.trim() || undefined,
+      });
+      setAccessToken("");
+      setAppSecret("");
       toast({
         tone: "success",
         title: "Configuração de WhatsApp salva",
         description:
-          "Estrutura pronta; o conector real será habilitado em uma próxima etapa.",
+          whatsapp.provider === "cloud-api"
+            ? "Cloud API configurada; use o teste de envio."
+            : "Estrutura pronta para configurar o provider.",
       });
       await load();
     } catch (cause) {
       toast({
         tone: "error",
         title: "Falha ao salvar",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function sendWhatsApp() {
+    if (!sendTo.trim() || !sendText.trim()) {
+      toast({ tone: "error", title: "Informe destinatário e texto" });
+      return;
+    }
+    setBusy("send");
+    try {
+      const result = await apiPost<{ message_id?: string }>(
+        "/api/channels/whatsapp/send",
+        { to: sendTo.trim(), text: sendText.trim() },
+      );
+      setSendText("");
+      toast({
+        tone: "success",
+        title: "Mensagem enviada",
+        description: result.message_id ?? "Meta aceitou o envio.",
+      });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Falha no envio",
         description: cause instanceof Error ? cause.message : String(cause),
       });
     } finally {
@@ -269,6 +325,30 @@ export function ChannelsCard({ workspaceId }: { workspaceId: string }) {
               className={inputClass}
             />
             <input
+              value={whatsapp.phone_number_id}
+              onChange={(event) =>
+                setWhatsapp({ ...whatsapp, phone_number_id: event.target.value })
+              }
+              placeholder="phone_number_id (Meta)"
+              className={inputClass}
+            />
+            <input
+              value={whatsapp.business_account_id}
+              onChange={(event) =>
+                setWhatsapp({ ...whatsapp, business_account_id: event.target.value })
+              }
+              placeholder="business account id (opcional)"
+              className={inputClass}
+            />
+            <input
+              value={whatsapp.api_version}
+              onChange={(event) =>
+                setWhatsapp({ ...whatsapp, api_version: event.target.value })
+              }
+              placeholder="v21.0"
+              className={inputClass}
+            />
+            <input
               value={whatsapp.notes}
               onChange={(event) =>
                 setWhatsapp({ ...whatsapp, notes: event.target.value })
@@ -276,18 +356,64 @@ export function ChannelsCard({ workspaceId }: { workspaceId: string }) {
               placeholder="observações do número/conta"
               className={inputClass}
             />
+            <input
+              type="password"
+              value={accessToken}
+              onChange={(event) => setAccessToken(event.target.value)}
+              placeholder={accessTokenSet ? "token salvo (deixe vazio para manter)" : "access token (Meta)"}
+              className={inputClass}
+              autoComplete="new-password"
+            />
+            <input
+              type="password"
+              value={appSecret}
+              onChange={(event) => setAppSecret(event.target.value)}
+              placeholder={appSecretSet ? "app secret salvo (deixe vazio para manter)" : "app secret (assinatura)"}
+              className={inputClass}
+              autoComplete="new-password"
+            />
             <div className="sm:col-span-2 flex items-center justify-between gap-2">
               <p className="text-[11.5px] text-zinc-500">
                 O conector real (Cloud API/Baileys) fica para a onda de canais
                 externos. Rotas e webhook já funcionam.
               </p>
+              <div className="flex items-center gap-1.5">
+                {accessTokenSet && appSecretSet ? (
+                  <Badge variant="green">cloud-api pronta</Badge>
+                ) : (
+                  <Badge variant="default">faltam credenciais</Badge>
+                )}
+                <Button
+                  size="sm"
+                  className="h-7"
+                  disabled={busy === "whatsapp"}
+                  onClick={() => void saveWhatsApp()}
+                >
+                  Salvar
+                </Button>
+              </div>
+            </div>
+            <div className="sm:col-span-2 flex flex-wrap items-end gap-2 border-t border-zinc-800/60 pt-2">
+              <input
+                value={sendTo}
+                onChange={(event) => setSendTo(event.target.value)}
+                placeholder="destinatário (5511999...)"
+                className={`${inputClass} w-44 font-mono`}
+              />
+              <input
+                value={sendText}
+                onChange={(event) => setSendText(event.target.value)}
+                placeholder="texto de teste"
+                className={`${inputClass} flex-1`}
+              />
               <Button
+                variant="outline"
                 size="sm"
-                className="h-7"
-                disabled={busy === "whatsapp"}
-                onClick={() => void saveWhatsApp()}
+                className="h-8"
+                disabled={busy === "send" || !accessTokenSet || !whatsapp.phone_number_id}
+                onClick={() => void sendWhatsApp()}
               >
-                Salvar
+                Enviar teste
               </Button>
             </div>
           </div>

@@ -81,6 +81,45 @@ async fn node_registration_heartbeat_and_token_scope() {
 }
 
 #[tokio::test]
+async fn rotates_the_node_token() {
+    let ctx = test_support::context().await;
+    let (_, created) = call(
+        &ctx,
+        Method::POST,
+        "/api/nodes",
+        Some(json!({ "name": "worker-3" })),
+    )
+    .await;
+    let id = created["node"]["id"].as_str().expect("node id");
+    let old = created["token"].as_str().expect("token").to_string();
+    let (status, rotated) =
+        call(&ctx, Method::POST, &format!("/api/nodes/{id}/rotate"), None).await;
+    assert_eq!(status, StatusCode::OK, "{rotated}");
+    let new = rotated["token"].as_str().expect("new token").to_string();
+    assert_ne!(old, new);
+
+    let (status, _) = call_with_token(
+        &ctx,
+        Method::POST,
+        "/api/nodes/heartbeat",
+        &old,
+        Some(json!({})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    let (status, body) = call_with_token(
+        &ctx,
+        Method::POST,
+        "/api/nodes/heartbeat",
+        &new,
+        Some(json!({})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+}
+
+#[tokio::test]
 async fn node_claims_leases_and_completes_a_job() {
     let ctx = test_support::context().await;
     let (_, created) = call(
@@ -130,6 +169,8 @@ async fn node_claims_leases_and_completes_a_job() {
     assert_eq!(claim["job"]["id"], job.id);
     assert!(claim["run_id"].is_string());
     assert!(claim["workspace_root"].is_string());
+    assert_eq!(claim["sandbox"]["mode"], "off");
+    let run_id = claim["run_id"].as_str().expect("run id").to_string();
 
     let claimed = queue_db::get(&ctx.state.db, &job.id).await.expect("queue");
     assert_eq!(claimed.status, "RUNNING");
@@ -145,6 +186,8 @@ async fn node_claims_leases_and_completes_a_job() {
     .await;
     assert_eq!(status, StatusCode::OK, "{beat}");
 
+    std::fs::write(ctx.workspace_root.join("worker-out.txt"), "artefato remoto")
+        .expect("workspace file");
     let (status, done) = call_with_token(
         &ctx,
         Method::POST,
@@ -154,7 +197,8 @@ async fn node_claims_leases_and_completes_a_job() {
             "status": "completed",
             "summary": "ok",
             "duration_ms": 1000,
-            "usage": { "tokens_input": 10, "tokens_output": 5 }
+            "usage": { "tokens_input": 10, "tokens_output": 5 },
+            "files": [{ "path": "worker-out.txt", "status": "added", "patch": "diff" }]
         })),
     )
     .await;
@@ -167,6 +211,16 @@ async fn node_claims_leases_and_completes_a_job() {
             .status,
         "COMPLETED"
     );
+    let (status, artifacts) = call(
+        &ctx,
+        Method::GET,
+        &format!("/api/artifacts?run_id={run_id}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{artifacts}");
+    assert_eq!(artifacts.as_array().map(Vec::len), Some(1));
+    assert_eq!(artifacts[0]["file_path"], "worker-out.txt");
 
     let (status, empty) =
         call_with_token(&ctx, Method::GET, "/api/nodes/next-job", &token, None).await;

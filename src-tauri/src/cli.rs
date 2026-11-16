@@ -1209,6 +1209,11 @@ async fn run_node(central: &str, token: &str, once: bool, poll_secs: u64) -> Res
             .get("run_id")
             .and_then(Value::as_str)
             .map(str::to_string);
+        let sandbox: crate::sandbox::SandboxPolicy = claim
+            .get("sandbox")
+            .cloned()
+            .and_then(|value| serde_json::from_value(value).ok())
+            .unwrap_or_default();
         println!(
             "Executando job {} com {} em {}",
             shorten(&job_id),
@@ -1242,12 +1247,12 @@ async fn run_node(central: &str, token: &str, once: bool, poll_secs: u64) -> Res
         };
 
         let started = Instant::now();
-        let outcome = execute_node_job(&harness, &prompt, &workspace).await;
+        let outcome = execute_node_job(&harness, &prompt, &workspace, &sandbox).await;
         stop.store(true, Ordering::Relaxed);
         heartbeat.abort();
 
         let body = match outcome {
-            Ok((success, output)) => {
+            Ok((success, output, files)) => {
                 let summary: String = output
                     .chars()
                     .rev()
@@ -1261,7 +1266,8 @@ async fn run_node(central: &str, token: &str, once: bool, poll_secs: u64) -> Res
                     "run_id": run_id,
                     "duration_ms": started.elapsed().as_millis() as i64,
                     "summary": summary,
-                    "usage": {}
+                    "usage": {},
+                    "files": files
                 })
             }
             Err(error) => json!({
@@ -1288,33 +1294,66 @@ async fn run_node(central: &str, token: &str, once: bool, poll_secs: u64) -> Res
     Ok(())
 }
 
-async fn execute_node_job(harness: &str, prompt: &str, workspace: &str) -> Result<(bool, String)> {
+async fn execute_node_job(
+    harness: &str,
+    prompt: &str,
+    workspace: &str,
+    sandbox: &crate::sandbox::SandboxPolicy,
+) -> Result<(bool, String, Vec<Value>)> {
     let Some((program, args)) = node_harness_command(harness, prompt) else {
         return Err(anyhow!(
             "harness {harness} não é suportado pelo worker remoto; use claude-code, codex, pi ou hermes"
         ));
     };
+    if !sandbox.command_allowed(&program) {
+        return Err(anyhow!(
+            "comando {program} não está na allowlist do sandbox do workspace"
+        ));
+    }
     if !std::path::Path::new(workspace).is_dir() {
         return Err(anyhow!(
             "workspace {workspace} não está acessível neste nó; monte a pasta compartilhada"
         ));
     }
+    let wrapped = crate::sandbox::wrap_strict(sandbox, workspace, &program, &args)?;
+    let (program, args) = wrapped
+        .split_first()
+        .map(|(program, args)| (program.clone(), args.to_vec()))
+        .unwrap_or((program.clone(), Vec::new()));
+    let timeout_minutes = if sandbox.max_runtime_minutes > 0 {
+        sandbox.max_runtime_minutes as u64
+    } else {
+        30
+    };
+    let mut command = tokio::process::Command::new(&program);
+    crate::sandbox::scrub_environment(&mut command, sandbox);
     let output = tokio::time::timeout(
-        Duration::from_secs(30 * 60),
-        tokio::process::Command::new(&program)
+        Duration::from_secs(timeout_minutes * 60),
+        command
             .args(&args)
             .current_dir(workspace)
             .stdin(std::process::Stdio::null())
             .output(),
     )
     .await
-    .map_err(|_| anyhow!("execução excedeu 30 minutos"))?
+    .map_err(|_| anyhow!("execução excedeu {timeout_minutes} minutos"))?
     .with_context(|| format!("não foi possível executar {program}"))?;
     let mut text = String::from_utf8_lossy(&output.stdout).to_string();
     if !output.status.success() {
         text.push_str(&String::from_utf8_lossy(&output.stderr));
     }
-    Ok((output.status.success(), text))
+    let files = crate::adapters::cli::git_diffs(workspace)
+        .await
+        .into_iter()
+        .map(|diff| {
+            json!({
+                "path": diff.path,
+                "status": diff.status,
+                "patch": diff.patch,
+            })
+        })
+        .collect::<Vec<_>>();
+    Ok((output.status.success(), text, files))
 }
 
 #[cfg(test)]

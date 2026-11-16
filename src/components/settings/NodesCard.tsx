@@ -81,6 +81,28 @@ export function NodesCard() {
     }
   }
 
+  async function rotate(id: string, name: string) {
+    setBusy(`rotate:${id}`);
+    try {
+      const result = await apiPost<{ token: string }>(`/api/nodes/${id}/rotate`);
+      setRevealed({ name, token: result.token });
+      await load();
+      toast({
+        tone: "success",
+        title: "Token rotacionado",
+        description: "O token anterior deixou de autenticar. Copie o novo agora.",
+      });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Falha ao rotacionar",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function remove(id: string) {
     setBusy(id);
     try {
@@ -184,15 +206,26 @@ export function NodesCard() {
                       : "nunca conectou"}
                   </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2"
-                  disabled={busy === node.id}
-                  onClick={() => void remove(node.id)}
-                >
-                  <Trash2 size={11} />
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7"
+                    disabled={busy === `rotate:${node.id}`}
+                    onClick={() => void rotate(node.id, node.name)}
+                  >
+                    Rotacionar token
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2"
+                    disabled={busy === node.id}
+                    onClick={() => void remove(node.id)}
+                  >
+                    <Trash2 size={11} />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

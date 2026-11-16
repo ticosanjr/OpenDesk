@@ -230,6 +230,13 @@ pendências manuais continuam listadas abaixo.
 - Release publica `opendeskd-<plataforma>`.
 - Testes do mapeamento de harnesses e da suíte completa.
 
+## Pós-1.2.0 — WhatsApp Cloud API e multi-node
+
+- Webhook Meta (challenge + assinatura), normalização e criação de ticket.
+- Sandbox propagado ao worker, artefatos remotos e rotação de token.
+- Sandbox por workspace e `opendeskd` no AppImage.
+- Testes de assinatura, extração Meta, rotas, artefatos e rotação.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

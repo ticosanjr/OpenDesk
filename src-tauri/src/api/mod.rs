@@ -157,12 +157,16 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             "/api/channels/{channel}/webhook-token",
             post(channels::rotate_webhook_token),
         )
+        .route("/api/channels/whatsapp/send", post(channels::send_whatsapp))
         .route("/api/tickets", get(tickets::list))
         .route(
             "/api/tickets/{id}",
             get(tickets::get).patch(tickets::update),
         )
-        .route("/api/webhooks/channels/{channel}", post(channels::inbound))
+        .route(
+            "/api/webhooks/channels/{channel}",
+            get(channels::verify_webhook).post(channels::inbound),
+        )
         .route("/api/handoffs", get(handoffs::list).post(handoffs::create))
         .route("/api/handoffs/{id}", get(handoffs::get))
         .route("/api/handoffs/{id}/accept", post(handoffs::accept))
@@ -229,6 +233,7 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             "/api/nodes/{id}",
             patch(nodes::update).delete(nodes::delete),
         )
+        .route("/api/nodes/{id}/rotate", post(nodes::rotate))
         .route("/api/nodes/heartbeat", post(nodes::heartbeat))
         .route("/api/nodes/next-job", get(nodes::next_job))
         .route("/api/nodes/jobs/{id}/heartbeat", post(nodes::job_heartbeat))

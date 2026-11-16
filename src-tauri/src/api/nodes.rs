@@ -55,6 +55,14 @@ pub async fn update(
     Ok(Json(nodes::update(&state.db, &id, input).await?))
 }
 
+pub async fn rotate(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<Value>> {
+    let (token, node) = nodes::rotate_token(&state.db, &id).await?;
+    Ok(Json(json!({ "token": token, "node": node })))
+}
+
 pub async fn delete(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
@@ -123,10 +131,14 @@ pub async fn next_job(
         let _ = queue::finish(&state.db, &job.id, "FAILED", Some(&error.to_string())).await;
         return Err(error);
     }
+    let sandbox = crate::sandbox::get_for(&state.db, Some(&job.workspace_id))
+        .await
+        .unwrap_or_default();
     Ok(Json(json!({
         "job": job,
         "run_id": run_id,
         "workspace_root": workspace.root_path,
+        "sandbox": sandbox,
     })))
 }
 
@@ -160,6 +172,19 @@ pub struct UsageBody {
     pub estimated_cost_usd: f64,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct RemoteFile {
+    pub path: String,
+    #[serde(default = "default_file_status")]
+    pub status: String,
+    #[serde(default)]
+    pub patch: String,
+}
+
+fn default_file_status() -> String {
+    "modified".into()
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CompleteBody {
     pub status: String,
@@ -173,6 +198,8 @@ pub struct CompleteBody {
     pub run_id: Option<String>,
     #[serde(default)]
     pub usage: UsageBody,
+    #[serde(default)]
+    pub files: Vec<RemoteFile>,
 }
 
 pub async fn complete_job(
@@ -238,6 +265,44 @@ pub async fn complete_job(
             tokens_output: usage.tokens_output,
         });
     }
+    if let Some(run_id) = run_id.as_deref()
+        && !body.files.is_empty()
+        && let Ok(workspace) = workspaces::get(&state.db, &job.workspace_id).await
+    {
+        let workspace_root = std::path::Path::new(&workspace.root_path);
+        let reason = format!("worker {} · {}", worker.name, job.resolved_mode);
+        for file in body.files.iter().take(200) {
+            let path = std::path::Path::new(&file.path);
+            if path.is_absolute()
+                || path
+                    .components()
+                    .any(|component| matches!(component, std::path::Component::ParentDir))
+            {
+                continue;
+            }
+            let action = match file.status.as_str() {
+                "added" => "CREATED",
+                "deleted" => "DELETED",
+                _ => "MODIFIED",
+            };
+            crate::queue_scheduler::run_execution::record_artifact(
+                &state.db,
+                &state.events,
+                &job.workspace_id,
+                job.task_id.as_deref(),
+                run_id,
+                &job.resolved_agent,
+                &reason,
+                workspace_root,
+                &file.path,
+                action,
+                (!file.patch.is_empty()).then_some(file.patch.as_str()),
+                None,
+            )
+            .await;
+        }
+    }
+
     if let Some(task_id) = job.task_id.as_deref() {
         let task_status = match queue_status {
             "COMPLETED" => "DONE",

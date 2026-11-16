@@ -42,6 +42,9 @@
 | PWA servida pelo daemon | login por sessão revogável, CORS, cabeçalhos de segurança e CSP | reverse proxy TLS é responsabilidade do operador |
 | Roubo de token do PWA | sessão revogável + passkey WebAuthn (sem token permanente) | comprometer o navegador ainda concede a sessão ativa |
 | Replay de cerimônia WebAuthn | estado no servidor, uso único, TTL de 10 min | depende de origem HTTPS correta |
+| Webhook WhatsApp forjado | assinatura HMAC-SHA256 com app secret + verify token | app secret precisa ser configurado |
+| Artefato remoto fora do workspace | worker envia caminho relativo; central rejeita absoluto e `..` | symlink dentro do workspace ainda é seguido |
+| Token de nó vazado | hash no banco + rotação imediata pela UI/API | sem mTLS entre central e worker |
 | Update malicioso | assinatura Ed25519 do `latest.json` + SHA-256 do asset; chave privada offline | rotação de chave exige release intermediário |
 
 ## Recomendações prioritárias

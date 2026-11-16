@@ -205,6 +205,9 @@ bundle_appimage() {
     echo "==> Reusing the AppImage AppDir (linuxdeploy skipped)"
     cp -f "$ROOT/src-tauri/target/release/${BIN_NAME}" "$appdir/usr/bin/opendesk"
     patch_appimage_binary "$appdir/usr/bin/opendesk"
+    if [[ -x "$ROOT/src-tauri/target/release/opendeskd" ]]; then
+      cp -f "$ROOT/src-tauri/target/release/opendeskd" "$appdir/usr/bin/opendeskd"
+    fi
     mkdir -p "$outdir"
     ARCH="$(uname -m)" VERSION="$VERSION" \
       "$tool" "$appdir" "$outdir/OpenDesk_${VERSION}_$(appimage_arch).AppImage"
@@ -212,6 +215,12 @@ bundle_appimage() {
     echo "==> Building the AppImage from scratch (linuxdeploy)"
     npx tauri bundle --bundles appimage
     printf '%s\n' "$key" >"$keyfile"
+    tool="$(appimage_tool || true)"
+    if [[ -n "$tool" && -x "$ROOT/src-tauri/target/release/opendeskd" ]]; then
+      cp -f "$ROOT/src-tauri/target/release/opendeskd" "$appdir/usr/bin/opendeskd"
+      ARCH="$(uname -m)" VERSION="$VERSION" \
+        "$tool" "$appdir" "$outdir/OpenDesk_${VERSION}_$(appimage_arch).AppImage"
+    fi
   fi
 }
 
@@ -240,23 +249,22 @@ if [[ "$SKIP_BUILD" != "1" ]]; then
     fi
   fi
 
+  # The AppImage bundles the daemon too, so build it before packaging.
+  if [[ ! -x "$ROOT/src-tauri/target/release/opendeskd" ]]; then
+    echo "==> Building opendeskd"
+    (
+      cd "$ROOT/src-tauri" &&
+        CARGO_PROFILE_RELEASE_LTO=thin \
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
+          CARGO_INCREMENTAL=1 \
+          cargo build --release --bin opendeskd
+    )
+  fi
+
   case "$PLATFORM" in
     linux-*) bundle_linux ;;
     *) npx tauri bundle ;;
   esac
-fi
-
-# The daemon is a separate binary and must be shipped even though the Tauri
-# bundler only packages the desktop app.
-if [[ "$SKIP_BUILD" != "1" && ! -x "$ROOT/src-tauri/target/release/opendeskd" ]]; then
-  echo "==> Building opendeskd"
-  (
-    cd "$ROOT/src-tauri" &&
-      CARGO_PROFILE_RELEASE_LTO=thin \
-        CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
-        CARGO_INCREMENTAL=1 \
-        cargo build --release --bin opendeskd
-  )
 fi
 
 echo "==> Collecting v${VERSION} artifacts"

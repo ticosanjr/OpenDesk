@@ -275,7 +275,7 @@ pub(crate) async fn record_chat_artifacts(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn record_artifact(
+pub(crate) async fn record_artifact(
     pool: &SqlitePool,
     events: &EventBus,
     workspace_id: &str,

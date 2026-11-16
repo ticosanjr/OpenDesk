@@ -26,7 +26,9 @@ pub async fn execute(
     request: RunRequest<'_>,
     events: &EventBus,
 ) -> RunOutcome {
-    let sandbox = crate::sandbox::get(request.pool).await.unwrap_or_default();
+    let sandbox = crate::sandbox::get_for(request.pool, Some(request.workspace_id))
+        .await
+        .unwrap_or_default();
     let run_timeout = if sandbox.max_runtime_minutes > 0 {
         Duration::from_secs(sandbox.max_runtime_minutes as u64 * 60)
     } else {

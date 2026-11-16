@@ -25,6 +25,8 @@ interface SandboxPolicy {
 
 interface SandboxStatus {
   policy: SandboxPolicy;
+  scope: string;
+  workspace_id?: string | null;
   bwrap_available: boolean;
   platform: string;
 }
@@ -65,7 +67,9 @@ export function SandboxComputerCard({ workspaceId }: { workspaceId: string }) {
     if (!workspaceId) return;
     try {
       const [sandboxStatus, capabilitiesStatus, sessionList] = await Promise.all([
-        apiGet<SandboxStatus>("/api/sandbox"),
+        apiGet<SandboxStatus>(
+          `/api/sandbox?workspace_id=${encodeURIComponent(workspaceId)}`,
+        ),
         apiGet<Capabilities>("/api/computer/status"),
         apiGet<ComputerSession[]>(
           `/api/computer/sessions?workspace_id=${encodeURIComponent(workspaceId)}`,
@@ -93,18 +97,21 @@ export function SandboxComputerCard({ workspaceId }: { workspaceId: string }) {
     if (!sandbox) return;
     setBusy("sandbox");
     try {
-      const policy = await apiPut<SandboxPolicy>("/api/sandbox", {
-        ...sandbox.policy,
-        allowed_commands: commands
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean),
-        allowed_paths: paths
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean),
-      });
-      setSandbox({ ...sandbox, policy });
+      const policy = await apiPut<SandboxPolicy>(
+        `/api/sandbox?workspace_id=${encodeURIComponent(workspaceId)}`,
+        {
+          ...sandbox.policy,
+          allowed_commands: commands
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean),
+          allowed_paths: paths
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean),
+        },
+      );
+      setSandbox({ ...sandbox, policy, scope: "workspace" });
       toast({ tone: "success", title: "Política de sandbox salva" });
     } catch (cause) {
       toast({
@@ -213,9 +220,14 @@ export function SandboxComputerCard({ workspaceId }: { workspaceId: string }) {
             </p>
           </div>
           {sandbox ? (
-            <Badge variant={sandbox.bwrap_available ? "green" : "default"}>
-              bwrap {sandbox.bwrap_available ? "ok" : "ausente"}
-            </Badge>
+            <div className="flex items-center gap-1.5">
+              <Badge variant={sandbox.scope === "workspace" ? "blue" : "default"}>
+                {sandbox.scope}
+              </Badge>
+              <Badge variant={sandbox.bwrap_available ? "green" : "default"}>
+                bwrap {sandbox.bwrap_available ? "ok" : "ausente"}
+              </Badge>
+            </div>
           ) : null}
         </CardHeader>
         <CardContent className="space-y-2">

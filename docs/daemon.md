@@ -61,3 +61,16 @@ opendesk node run --central https://desk.exemplo.com \
   precisam do daemon OpenCode local.
 - O `workspace_root` precisa estar montado no nó (NFS/SMB/rsync).
 - O release publica `opendeskd-<plataforma>` e `opendesk-<plataforma>`.
+
+
+## Distribuição
+
+O release publica `opendeskd-<plataforma>` e o AppImage inclui o daemon em
+`usr/bin/opendeskd`. Os pacotes `.deb`/`.rpm` continuam contendo apenas o
+desktop; instale o daemon a partir do artefato avulso ou do AppImage.
+
+## Sandbox no worker
+
+O claim devolve a política de sandbox do workspace. O worker aplica allowlist,
+timeout, env scrubbing e bubblewrap em `strict`, e envia os arquivos alterados
+para a central registrar proveniência.
