@@ -381,6 +381,7 @@ async fn queue_jobs_can_be_prioritized_cancelled_and_retried() {
             resolved_agent: "build".into(),
             resolved_model: "opencode-go/glm-5.3".into(),
             resolved_effort: "low".into(),
+            resolved_harness: "opencode".into(),
             job_kind: "task".into(),
             scheduled_for: None,
             output_dir: Some(ctx.workspace_root.to_string_lossy().to_string()),

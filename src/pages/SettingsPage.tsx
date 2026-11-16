@@ -17,6 +17,7 @@ import {
   Save,
   Settings,
   ShieldCheck,
+  Workflow,
   Wrench,
 } from "lucide-react";
 import { openPath } from "@tauri-apps/plugin-opener";
@@ -26,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EngineCard } from "@/components/settings/EngineCard";
+import { HarnessCard } from "@/components/settings/HarnessCard";
 import { UpdatesCard } from "@/components/settings/UpdatesCard";
 import { AboutCard } from "@/components/settings/AboutCard";
 import { NotificationCard } from "@/components/settings/NotificationCard";
@@ -77,6 +79,7 @@ export function SettingsPage() {
   const tabs = [
     { id: "general", label: "Geral", icon: Settings, group: "Geral" },
     { id: "engine", label: "Engine", icon: Cpu, group: "Motor" },
+    { id: "harness", label: "Harnesses", icon: Workflow, group: "Motor" },
     { id: "updates", label: "Atualizações", icon: Download, group: "Motor" },
     { id: "prompt", label: "Prompt", icon: FileCode2, group: "Motor" },
     { id: "notifications", label: "Notificações", icon: Bell, group: "Operação" },
@@ -178,6 +181,7 @@ export function SettingsPage() {
           <PromptSettings />
         </div>
       ) : null}
+      {activeTab === "harness" ? <HarnessCard /> : null}
       {activeTab === "notifications" ? <NotificationCard /> : null}
       {activeTab === "queue" ? <QueueSettingsCard /> : null}
       {activeTab === "backups" ? <BackupsCard /> : null}

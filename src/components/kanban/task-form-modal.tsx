@@ -6,6 +6,7 @@ import {
   Plus,
 } from "lucide-react";
 import { AgentCombobox } from "@/components/ui/agent-combobox";
+import { HARNESS_OPTIONS } from "@/lib/harnesses";
 import { Button } from "@/components/ui/button";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { Modal } from "@/components/ui/modal";
@@ -129,6 +130,7 @@ export function TaskFormModal({
   const [browseAllowlist, setBrowseAllowlist] = useState("");
   const [agent, setAgent] = useState("");
   const [model, setModel] = useState<string | null>(null);
+  const [harness, setHarness] = useState("");
   const [attachments, setAttachments] = useState<string[]>([]);
   const [effort, setEffort] = useState("medium");
   const [careLevel, setCareLevel] = useState<"quick" | "standard" | "careful">(
@@ -153,6 +155,7 @@ export function TaskFormModal({
       setPriority(source.priority);
       setAgent(source.assigned_agent ?? "");
       setModel(source.preferred_model ?? null);
+      setHarness(source.preferred_harness ?? "");
       setAttachments([]);
       setEffort(source.effort_level);
       setCareLevel(source.care_level ?? "standard");
@@ -277,6 +280,7 @@ export function TaskFormModal({
         priority,
         assigned_agent: agent.trim() || null,
         preferred_model: model,
+        preferred_harness: harness.trim() || null,
         effort_level: effort,
         care_level: careLevel,
         notify_email: email.trim() || null,
@@ -327,6 +331,7 @@ export function TaskFormModal({
           model_override: Boolean(model),
           clear_agent: !agent.trim(),
           clear_model: !model,
+          clear_harness: !harness.trim(),
         });
         toast({
           tone: "success",
@@ -472,6 +477,21 @@ export function TaskFormModal({
             placeholder="digite para filtrar (ex.: deepseek, glm, opencode-go/…)"
           />
         </div>
+        <label>
+          <span className={labelClass}>Harness (opcional)</span>
+          <select
+            value={harness}
+            onChange={(event) => setHarness(event.target.value)}
+            className={inputClass}
+          >
+            <option value="">automático (padrão do workspace)</option>
+            {HARNESS_OPTIONS.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label} — {option.description}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>
           <span className={labelClass}>Effort</span>
           <select

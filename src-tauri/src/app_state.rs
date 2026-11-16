@@ -50,6 +50,7 @@ pub struct AppState {
     pub telegram: Arc<TelegramBridge>,
     pub io_bus: Arc<crate::io_bus::runtime::IoBus>,
     pub push_keys: crate::push::VapidKeys,
+    pub adapters: Arc<crate::adapters::AdapterService>,
     pub rate_limiter: crate::audit::RateLimiter,
     pub api_host: String,
     pub api_port: u16,
@@ -113,6 +114,7 @@ impl AppState {
         let locator = Arc::new(OpenCodeLocator::new(configured_binary));
         let daemon = DaemonManager::new(paths.clone(), events.clone(), locator.clone());
         let secrets = Arc::new(SecretStore::new(&paths));
+        let adapters = Arc::new(crate::adapters::AdapterService::load(&db).await?);
 
         let google = GoogleOAuth::new(db.clone(), secrets.clone(), events.clone());
         let signal = Arc::new(SignalBridge::default());
@@ -129,6 +131,7 @@ impl AppState {
             daemon.clone(),
             google.clone(),
             concurrency,
+            adapters.clone(),
         );
         let cron = CronEngine::new(
             db.clone(),
@@ -152,6 +155,7 @@ impl AppState {
             telegram,
             io_bus,
             push_keys,
+            adapters,
             rate_limiter: crate::audit::RateLimiter::new(crate::audit::RateLimits::from_env()),
             api_host,
             api_port,

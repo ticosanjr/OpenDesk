@@ -85,6 +85,7 @@ pub async fn capture(
             priority: Some(2),
             assigned_agent: agent.clone(),
             preferred_model: None,
+            preferred_harness: None,
             effort_level: None,
             care_level: Some("standard".into()),
             notify_email: None,

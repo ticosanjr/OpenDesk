@@ -134,6 +134,7 @@ pub async fn ingest(
             priority: event.priority.or(Some(2)),
             assigned_agent: source.target_agent.clone(),
             preferred_model: None,
+            preferred_harness: None,
             effort_level: None,
             care_level: Some("standard".into()),
             notify_email: None,

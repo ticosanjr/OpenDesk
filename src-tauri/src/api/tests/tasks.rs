@@ -210,6 +210,7 @@ async fn task_fork_and_delete_with_queued_job() {
             resolved_agent: "build".into(),
             resolved_model: "opencode-go/glm-5.3".into(),
             resolved_effort: "low".into(),
+            resolved_harness: "opencode".into(),
             job_kind: "task".into(),
             scheduled_for: None,
             output_dir: None,

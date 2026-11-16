@@ -601,6 +601,7 @@ pub async fn run_heartbeat(
             priority: Some(2),
             assigned_agent: Some(agent_id.to_string()),
             preferred_model: None,
+            preferred_harness: None,
             effort_level: None,
             care_level: Some("standard".into()),
             notify_email: None,

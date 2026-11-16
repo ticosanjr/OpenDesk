@@ -132,6 +132,7 @@ pub(crate) async fn plan_decision(
     let router_models = router_db::models(&state.db, &task.workspace_id)
         .await
         .unwrap_or_default();
+    let default_harness = crate::adapters::default_harness(&state.db).await?;
     let input = RouterInput {
         workspace_id: &task.workspace_id,
         workspace_root: std::path::Path::new(&workspace.root_path),
@@ -147,6 +148,8 @@ pub(crate) async fn plan_decision(
         }),
         manual_model: body.manual_model.as_deref().or(task_model),
         manual_effort: body.manual_effort.as_deref(),
+        manual_harness: task.preferred_harness.as_deref(),
+        default_harness: Some(&default_harness),
         policy: &policy,
         rules: &rules,
         available_models: &available_models,
@@ -294,6 +297,7 @@ pub(crate) async fn enqueue_decision_with_session(
             resolved_agent: selected_agent,
             resolved_model: decision.selected_model.clone(),
             resolved_effort: decision.effort.clone(),
+            resolved_harness: decision.harness.clone(),
             job_kind: "task".into(),
             scheduled_for: None,
             output_dir: Some(decision.output_directory.clone()),

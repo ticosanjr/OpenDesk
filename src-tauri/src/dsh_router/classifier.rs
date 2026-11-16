@@ -10,6 +10,7 @@ pub struct RouterDecision {
     pub phase: String,
     pub selected_agent: String,
     pub selected_model: String,
+    pub harness: String,
     pub effort: String,
     pub output_directory: String,
     pub rationale: String,
@@ -34,6 +35,10 @@ pub struct RouterInput<'a> {
     pub manual_agent: Option<&'a str>,
     pub manual_model: Option<&'a str>,
     pub manual_effort: Option<&'a str>,
+    /// Explicit harness for this task/run; wins over the workspace default.
+    pub manual_harness: Option<&'a str>,
+    /// Workspace default adapter, e.g. `opencode` or `claude-code`.
+    pub default_harness: Option<&'a str>,
     pub policy: &'a str,
     pub rules: &'a [RouterRule],
     pub available_models: &'a [ModelDto],
@@ -251,10 +256,19 @@ pub fn classify(input: &RouterInput<'_>) -> RouterDecision {
         .map(Path::to_path_buf)
         .unwrap_or_else(|| output_directory(input.workspace_root, input.title));
 
+    let harness = input
+        .manual_harness
+        .or(input.default_harness)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("opencode")
+        .to_string();
+
     RouterDecision {
         phase: phase.into(),
         selected_agent,
         selected_model: resolved_model,
+        harness,
         effort,
         output_directory: output.to_string_lossy().to_string(),
         rationale: format!(
@@ -637,6 +651,8 @@ mod tests {
             manual_agent: None,
             manual_model: None,
             manual_effort: None,
+            manual_harness: None,
+            default_harness: None,
             policy,
             rules,
             available_models: available,

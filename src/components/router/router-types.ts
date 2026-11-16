@@ -6,6 +6,7 @@ export interface RouterConfig {
   default_model?: string | null;
   manual_model?: string | null;
   router_model?: string | null;
+  default_harness?: string;
   cost_blend: number;
   rules: RouterRule[];
   budget: BudgetStatus;
@@ -41,6 +42,7 @@ export interface RouterTestResult {
     phase: string;
     selected_agent: string;
     selected_model: string;
+    harness: string;
     effort: string;
     rationale: string;
     origin: string;

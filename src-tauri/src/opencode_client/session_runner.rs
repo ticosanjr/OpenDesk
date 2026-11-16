@@ -632,7 +632,7 @@ async fn handle_event(
     false
 }
 
-fn publish_chunk(
+pub(crate) fn publish_chunk(
     events: &EventBus,
     run_id: &str,
     task_id: Option<&str>,
@@ -647,7 +647,7 @@ fn publish_chunk(
     });
 }
 
-fn append_log(path: &Path, value: &Value) {
+pub(crate) fn append_log(path: &Path, value: &Value) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }

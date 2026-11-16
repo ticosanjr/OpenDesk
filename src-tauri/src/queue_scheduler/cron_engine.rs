@@ -588,6 +588,7 @@ impl CronEngine {
         let router_models = router_db::models(&self.pool, &schedule.workspace_id)
             .await
             .unwrap_or_default();
+        let default_harness = crate::adapters::default_harness(&self.pool).await?;
         let input = RouterInput {
             workspace_id: &schedule.workspace_id,
             workspace_root: &workspace_root,
@@ -599,6 +600,8 @@ impl CronEngine {
             manual_agent: schedule.agent_name.as_deref(),
             manual_model: None,
             manual_effort: None,
+            manual_harness: None,
+            default_harness: Some(&default_harness),
             policy: &schedule.router_policy,
             rules: &rules,
             available_models: &available_models,
@@ -672,6 +675,7 @@ impl CronEngine {
                 resolved_agent: decision.selected_agent,
                 resolved_model: decision.selected_model,
                 resolved_effort: decision.effort,
+                resolved_harness: decision.harness,
                 job_kind: "schedule".into(),
                 scheduled_for: Some(scheduled_for.to_string()),
                 output_dir: Some(decision.output_directory),

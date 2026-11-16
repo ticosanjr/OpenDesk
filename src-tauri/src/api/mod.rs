@@ -1,4 +1,5 @@
 pub mod about;
+pub mod adapters;
 pub mod artifacts;
 pub mod attachments;
 pub mod attention;
@@ -110,6 +111,11 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/push/unsubscribe", post(push::unsubscribe))
         .route("/api/push/subscriptions", get(push::subscriptions))
         .route("/api/push/test", post(push::test))
+        .route("/api/adapters", get(adapters::list))
+        .route("/api/adapters/runtime", get(adapters::runtime_info))
+        .route("/api/adapters/default", post(adapters::set_default))
+        .route("/api/adapters/{id}", patch(adapters::update))
+        .route("/api/adapters/{id}/health", post(adapters::health))
         .route("/api/meta", get(meta))
         .route("/api/about", get(about::about))
         .route(

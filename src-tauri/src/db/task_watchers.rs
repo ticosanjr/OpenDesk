@@ -87,6 +87,7 @@ mod tests {
                 priority: None,
                 assigned_agent: None,
                 preferred_model: None,
+                preferred_harness: None,
                 effort_level: None,
                 care_level: None,
                 notify_email: None,

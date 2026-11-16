@@ -121,7 +121,8 @@ export function RouterPolicyTestCard({
                             <Badge variant="blue">{result.decision.origin}</Badge>
                             <span className="font-mono text-blue-100">
                               @{result.decision.selected_agent} ·{" "}
-                              {result.decision.effort} · {result.decision.phase}
+                              {result.decision.effort} · {result.decision.phase} ·{" "}
+                              {result.decision.harness}
                             </span>
                           </div>
                           {result.decision.rule_name ? (

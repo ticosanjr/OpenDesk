@@ -28,6 +28,7 @@ pub struct RouterConfig {
     pub policy: String,
     pub default_model: Option<String>,
     pub manual_model: Option<String>,
+    pub default_harness: String,
     pub router_model: Option<String>,
     pub cost_blend: f64,
     pub rules: Vec<RouterRule>,
@@ -53,6 +54,7 @@ pub async fn get_config(
         policy,
         default_model: models.default_model,
         manual_model: models.manual_model,
+        default_harness: crate::adapters::default_harness(&state.db).await?,
         router_model,
         cost_blend,
         rules,
@@ -74,6 +76,7 @@ pub struct TestDecisionBody {
     pub manual_model: Option<String>,
     pub manual_agent: Option<String>,
     pub manual_effort: Option<String>,
+    pub manual_harness: Option<String>,
     pub execution_mode: Option<String>,
 }
 
@@ -110,6 +113,7 @@ pub async fn test_decision(
         body.description
     };
     let execution_mode = body.execution_mode.unwrap_or_else(|| "AUTO_DSH".into());
+    let default_harness = crate::adapters::default_harness(&state.db).await?;
     let decision = dsh_router::classify(&RouterInput {
         workspace_id: &workspace_id,
         workspace_root: std::path::Path::new(&workspace.root_path),
@@ -121,6 +125,8 @@ pub async fn test_decision(
         manual_agent: body.manual_agent.as_deref(),
         manual_model: None,
         manual_effort: body.manual_effort.as_deref(),
+        manual_harness: body.manual_harness.as_deref(),
+        default_harness: Some(&default_harness),
         policy: &policy,
         rules: &rules,
         available_models: &available_models,

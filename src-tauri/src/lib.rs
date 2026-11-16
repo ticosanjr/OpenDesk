@@ -1,3 +1,4 @@
+mod adapters;
 mod api;
 mod app_state;
 mod audit;

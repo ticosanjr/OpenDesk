@@ -177,6 +177,7 @@ pub async fn seed(
                 priority: Some(2),
                 assigned_agent: task.agent,
                 preferred_model: None,
+                preferred_harness: None,
                 effort_level: None,
                 care_level: Some("standard".into()),
                 notify_email: None,

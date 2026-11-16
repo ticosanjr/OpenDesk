@@ -18,6 +18,8 @@ pub struct Task {
     pub assigned_agent: Option<String>,
     pub preferred_model: Option<String>,
     #[sqlx(default)]
+    pub preferred_harness: Option<String>,
+    #[sqlx(default)]
     pub agent_override: bool,
     #[sqlx(default)]
     pub model_override: bool,
@@ -79,6 +81,8 @@ pub struct CreateTaskInput {
     #[serde(default)]
     pub preferred_model: Option<String>,
     #[serde(default)]
+    pub preferred_harness: Option<String>,
+    #[serde(default)]
     pub effort_level: Option<String>,
     #[serde(default)]
     pub care_level: Option<String>,
@@ -108,6 +112,7 @@ pub struct UpdateTaskInput {
     pub execution_mode: Option<String>,
     pub assigned_agent: Option<String>,
     pub preferred_model: Option<String>,
+    pub preferred_harness: Option<String>,
     pub effort_level: Option<String>,
     pub care_level: Option<String>,
     pub plan_markdown: Option<String>,
@@ -125,11 +130,13 @@ pub struct UpdateTaskInput {
     #[serde(default)]
     pub clear_model: bool,
     #[serde(default)]
+    pub clear_harness: bool,
+    #[serde(default)]
     pub clear_plan: bool,
 }
 
 pub(crate) const COLUMNS: &str = "id, workspace_id, title, description, status, phase, phase_status, \
-    priority, execution_mode, assigned_agent, preferred_model, agent_override, model_override, \
+    priority, execution_mode, assigned_agent, preferred_model, preferred_harness, agent_override, model_override, \
     effort_level, care_level, plan_markdown, output_dir_path, notify_email, export_to_gdocs, tags_json, \
     position_index, last_run_id, last_run_status, last_run_at, blocked_reason, cancelled_at, \
     forked_from_task_id, origin, parent_task_id, dedupe_key, held, created_at, updated_at";
@@ -401,10 +408,10 @@ pub async fn create_with_id(
     let insert = sqlx::query(
         "INSERT INTO tasks (
             id, workspace_id, title, description, status, priority,
-            execution_mode, assigned_agent, preferred_model, agent_override, model_override,
+            execution_mode, assigned_agent, preferred_model, preferred_harness, agent_override, model_override,
             effort_level, care_level, notify_email, export_to_gdocs, tags_json, position_index,
             origin, parent_task_id, dedupe_key
-         ) VALUES (?, ?, ?, ?, 'TODO', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         ) VALUES (?, ?, ?, ?, 'TODO', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(workspace_id)
@@ -414,6 +421,7 @@ pub async fn create_with_id(
     .bind(&mode)
     .bind(input.assigned_agent.as_deref())
     .bind(input.preferred_model.as_deref())
+    .bind(input.preferred_harness.as_deref())
     .bind(input.assigned_agent.is_some())
     .bind(input.preferred_model.is_some())
     .bind(&effort)
@@ -479,7 +487,7 @@ pub async fn update(pool: &SqlitePool, id: &str, input: UpdateTaskInput) -> AppR
     sqlx::query(
         "UPDATE tasks SET
             title = ?, description = ?, status = ?, phase = ?, phase_status = ?,
-            priority = ?, execution_mode = ?, assigned_agent = ?, preferred_model = ?,
+            priority = ?, execution_mode = ?, assigned_agent = ?, preferred_model = ?, preferred_harness = ?,
             agent_override = ?, model_override = ?, effort_level = ?, care_level = ?, plan_markdown = ?, output_dir_path = ?, notify_email = ?,
             export_to_gdocs = ?, tags_json = ?, position_index = ?,
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -501,6 +509,11 @@ pub async fn update(pool: &SqlitePool, id: &str, input: UpdateTaskInput) -> AppR
         None
     } else {
         input.preferred_model.or(current.preferred_model)
+    })
+    .bind(if input.clear_harness {
+        None
+    } else {
+        input.preferred_harness.or(current.preferred_harness)
     })
     .bind(if input.clear_agent {
         false
@@ -859,6 +872,7 @@ mod tests {
             priority: Some(9),
             assigned_agent: Some("build".into()),
             preferred_model: None,
+            preferred_harness: None,
             effort_level: Some("high".into()),
             care_level: Some("standard".into()),
             notify_email: Some("ops@example.com".into()),
@@ -1004,6 +1018,7 @@ mod tests {
             execution_mode: "AUTO_DSH".into(),
             assigned_agent: None,
             preferred_model: None,
+            preferred_harness: None,
             agent_override: false,
             model_override: false,
             effort_level: "medium".into(),

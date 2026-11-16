@@ -330,6 +330,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0062 — Fundação do control plane v1.0](docs/decisions/0062-control-plane-foundation.md)
 - [ADR 0063 — Daemon, PWA e CLI chat](docs/decisions/0063-daemon-pwa-and-cli-chat.md)
 - [ADR 0064 — Web Push/VAPID](docs/decisions/0064-web-push.md)
+- [ADR 0065 — Harnesses plugáveis](docs/decisions/0065-pluggable-harnesses.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

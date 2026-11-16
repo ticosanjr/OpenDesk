@@ -171,6 +171,13 @@ pendências manuais continuam listadas abaixo.
 - Web Push/VAPID: migração 0044, API, dispatcher, painel do PWA e service
   worker; testes de chaves, CRUD e endpoints.
 
+## Pós-0.59.0 — v1.0 onda 2
+
+- Harnesses OpenCode/Claude Code/Codex/Pi/Hermes, normalização e execução
+  compartilhada.
+- Migração 0045, API `/api/adapters`, UI de harnesses e seleção no DSH.
+- Testes de normalização, spawn real de CLI e endpoints.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

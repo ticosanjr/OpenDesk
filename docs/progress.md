@@ -2772,3 +2772,18 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Painel de ativação/teste no PWA e handlers `push`/`notificationclick` no
   service worker.
 - ADR 0064.
+
+## 2026-11-16 — v1.0 onda 2: harnesses plugáveis
+
+- `OpenCodeAdapter` (daemon REST/SSE) e `CliAdapter` (Claude Code, Codex, Pi,
+  Hermes) sob o mesmo contrato normalizado.
+- Execução compartilhada: o mesmo `RunOutcome` alimenta fila, artefatos, budget
+  e notificações, independente do harness.
+- Diffs de CLIs via `git status --porcelain`.
+- Migração 0045: `tasks.preferred_harness`, `execution_queue.resolved_harness`
+  e metadados de comando/health em `adapter_registry`.
+- API `/api/adapters` (listar, editar, health, padrão) e UI Configurações →
+  Harnesses.
+- DSH escolhe harness (tarefa → padrão do workspace → OpenCode) e o exibe no
+  teste de roteamento; o formulário de tarefa permite a escolha.
+- ADR 0065.

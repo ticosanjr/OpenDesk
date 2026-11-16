@@ -81,6 +81,7 @@ export interface Task {
   execution_mode: string;
   assigned_agent?: string | null;
   preferred_model?: string | null;
+  preferred_harness?: string | null;
   agent_override?: boolean;
   model_override?: boolean;
   effort_level: string;

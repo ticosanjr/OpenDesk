@@ -177,6 +177,7 @@ pub async fn resolve_delegation(
             priority: Some(2),
             assigned_agent: Some(delegation.to_agent.clone()),
             preferred_model: None,
+            preferred_harness: None,
             effort_level: None,
             care_level: Some("standard".into()),
             notify_email: None,

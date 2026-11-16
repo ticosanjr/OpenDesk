@@ -83,6 +83,9 @@ pub async fn create_task(
     Json(input): Json<CreateTaskInput>,
 ) -> AppResult<Json<tasks::Task>> {
     validate_model_ref(input.preferred_model.as_deref())?;
+    if let Some(harness) = input.preferred_harness.as_deref() {
+        crate::adapters::validate_harness(harness)?;
+    }
     let workspace_id = resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
     let task = tasks::create(&state.db, &workspace_id, input).await?;
     let task = if task.deduplicated {
@@ -106,6 +109,9 @@ pub async fn update_task(
     Json(input): Json<UpdateTaskInput>,
 ) -> AppResult<Json<tasks::Task>> {
     validate_model_ref(input.preferred_model.as_deref())?;
+    if let Some(harness) = input.preferred_harness.as_deref() {
+        crate::adapters::validate_harness(harness)?;
+    }
     let task = tasks::update(&state.db, &id, input).await?;
     state.events.publish(OpenDeskWsEvent::TaskUpdated {
         task_id: task.id.clone(),
@@ -667,6 +673,7 @@ pub async fn post_task_message(
             resolved_agent: decision.selected_agent.clone(),
             resolved_model: decision.selected_model.clone(),
             resolved_effort: decision.effort.clone(),
+            resolved_harness: decision.harness.clone(),
             job_kind: "follow_up".into(),
             scheduled_for: None,
             output_dir: Some(decision.output_directory.clone()),

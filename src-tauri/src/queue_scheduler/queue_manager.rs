@@ -1,4 +1,5 @@
 use crate::{
+    adapters::AdapterService,
     db::{budget, model_health, queue, router as router_db, runs, tasks, workspaces},
     error::{AppError, AppResult},
     events::{EventBus, OpenDeskWsEvent, QueueJobDto},
@@ -40,6 +41,7 @@ pub struct QueueManager {
     paths: AppPaths,
     events: EventBus,
     daemon: Arc<DaemonManager>,
+    adapters: Arc<AdapterService>,
     google: Arc<GoogleOAuth>,
     paused: AtomicBool,
     pause_reason: Mutex<Option<String>>,
@@ -71,12 +73,14 @@ impl QueueManager {
         daemon: Arc<DaemonManager>,
         google: Arc<GoogleOAuth>,
         concurrency: usize,
+        adapters: Arc<AdapterService>,
     ) -> Arc<Self> {
         Arc::new(Self {
             pool,
             paths,
             events,
             daemon,
+            adapters,
             google,
             paused: AtomicBool::new(false),
             pause_reason: Mutex::new(None),
@@ -431,54 +435,71 @@ impl QueueManager {
             }
         };
 
-        let Some(rest) = self.daemon.client().await else {
-            let _ = runs::finish(
-                &self.pool,
-                &run.id,
-                "FAILED",
-                &runs::RunUsage::default(),
-                0,
-                Some("OpenCode daemon is offline"),
-                None,
-            )
-            .await;
-            let _ = runs::set_error(
-                &self.pool,
-                &run.id,
-                "engine_offline",
-                "OpenCode daemon is offline",
-                "Abra Configurações → OpenCode Engine, configure o binário ou reinicie o motor.",
-            )
-            .await;
-            let _ = queue::finish(
-                &self.pool,
-                &job.id,
-                "FAILED",
-                Some("OpenCode daemon is offline"),
-            )
-            .await;
-            settlement::mark_schedule(&self.pool, &self.events, &job, "SKIPPED_OFFLINE").await;
-            if let Some(task) = &task {
-                let _ =
-                    tasks::set_phase_status(&self.pool, &task.id, Some("failed"), Some("BLOCKED"))
+        let rest = if job.resolved_harness == "opencode" {
+            match self.daemon.client().await {
+                Some(rest) => Some(rest),
+                None => {
+                    let _ = runs::finish(
+                        &self.pool,
+                        &run.id,
+                        "FAILED",
+                        &runs::RunUsage::default(),
+                        0,
+                        Some("OpenCode daemon is offline"),
+                        None,
+                    )
+                    .await;
+                    let _ = runs::set_error(
+                        &self.pool,
+                        &run.id,
+                        "engine_offline",
+                        "OpenCode daemon is offline",
+                        "Abra Configurações → OpenCode Engine, configure o binário ou reinicie o motor.",
+                    )
+                    .await;
+                    let _ = queue::finish(
+                        &self.pool,
+                        &job.id,
+                        "FAILED",
+                        Some("OpenCode daemon is offline"),
+                    )
+                    .await;
+                    settlement::mark_schedule(&self.pool, &self.events, &job, "SKIPPED_OFFLINE")
                         .await;
-                let _ = tasks::set_blocked_reason(
-                    &self.pool,
-                    &task.id,
-                    Some("OpenCode daemon is offline"),
-                )
-                .await;
-                let _ =
-                    tasks::set_last_run(&self.pool, &task.id, Some(&run.id), Some("FAILED")).await;
-                self.events.publish(OpenDeskWsEvent::TaskUpdated {
-                    task_id: task.id.clone(),
-                    workspace_id: task.workspace_id.clone(),
-                    stage: "BLOCKED".into(),
-                    phase_status: Some("failed".into()),
-                });
+                    if let Some(task) = &task {
+                        let _ = tasks::set_phase_status(
+                            &self.pool,
+                            &task.id,
+                            Some("failed"),
+                            Some("BLOCKED"),
+                        )
+                        .await;
+                        let _ = tasks::set_blocked_reason(
+                            &self.pool,
+                            &task.id,
+                            Some("OpenCode daemon is offline"),
+                        )
+                        .await;
+                        let _ = tasks::set_last_run(
+                            &self.pool,
+                            &task.id,
+                            Some(&run.id),
+                            Some("FAILED"),
+                        )
+                        .await;
+                        self.events.publish(OpenDeskWsEvent::TaskUpdated {
+                            task_id: task.id.clone(),
+                            workspace_id: task.workspace_id.clone(),
+                            stage: "BLOCKED".into(),
+                            phase_status: Some("failed".into()),
+                        });
+                    }
+                    self.publish_queue(&job.workspace_id).await;
+                    return;
+                }
             }
-            self.publish_queue(&job.workspace_id).await;
-            return;
+        } else {
+            None
         };
 
         let cancel = CancellationToken::new();
@@ -506,7 +527,22 @@ impl QueueManager {
             cancel,
         };
 
-        let mut outcome = session_runner::execute_run(rest.clone(), request, &self.events).await;
+        let rest_for_compact = rest.clone();
+        let mut outcome = match rest {
+            Some(rest) => session_runner::execute_run(rest, request, &self.events).await,
+            None => match self
+                .adapters
+                .runtime(&job.resolved_harness, self.daemon.clone())
+            {
+                Ok(adapter) => {
+                    crate::adapters::execution::execute(adapter, request, &self.events).await
+                }
+                Err(error) => crate::adapters::execution::failed_outcome(
+                    request.log_path,
+                    format!("harness {} indisponível: {error}", job.resolved_harness),
+                ),
+            },
+        };
         if self
             .lease_expired
             .lock()
@@ -557,7 +593,10 @@ impl QueueManager {
             let _ = model_health::record_success(&self.pool, &job.resolved_model).await;
             // Keep the session usable for follow-ups: compact automatically
             // once the context is close to the 128k window.
-            if outcome.usage.tokens_input > 100_000 && !outcome.session_id.is_empty() {
+            if outcome.usage.tokens_input > 100_000
+                && !outcome.session_id.is_empty()
+                && let Some(rest) = rest_for_compact.as_ref()
+            {
                 let _ = rest.compact_session(&outcome.session_id).await;
             }
         } else {
@@ -594,6 +633,7 @@ impl QueueManager {
                             resolved_agent: job.resolved_agent.clone(),
                             resolved_model: fallback.clone(),
                             resolved_effort: job.resolved_effort.clone(),
+                            resolved_harness: job.resolved_harness.clone(),
                             job_kind: "fallback".into(),
                             scheduled_for: None,
                             output_dir: job.output_dir.clone(),
@@ -853,6 +893,7 @@ mod tests {
             resolved_agent: "build".into(),
             resolved_model: "opencode-go/glm-5.3".into(),
             resolved_effort: "high".into(),
+            resolved_harness: "opencode".into(),
             job_kind: "task".into(),
             scheduled_for: None,
             output_dir: Some("/tmp/out".into()),
