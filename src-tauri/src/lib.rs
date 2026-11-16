@@ -370,8 +370,8 @@ async fn wait_for_daemon_shutdown() {
 }
 
 /// `opendesk doctor` — preflight for the engine and local state without a GUI.
-pub fn run_doctor(json: bool, fix_daemons: bool) {
-    std::process::exit(doctor::run(json, fix_daemons));
+pub fn run_doctor(json: bool, fix_daemons: bool, live: bool) {
+    std::process::exit(doctor::run(json, fix_daemons, live));
 }
 
 /// Local update-signing utilities (`keygen-update`, `sign-update`). They are

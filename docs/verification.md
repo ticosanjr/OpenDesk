@@ -273,6 +273,11 @@ pendências manuais continuam listadas abaixo.
 - Manifesto, skill, agente, comando e receita validados pelo starter pack.
 - Testes de packs verdes.
 
+## Fase 4 — doctor live
+
+- Sondas de daemon, harnesses, SMTP, Google, Telegram, Signal, WhatsApp e WebAuthn.
+- Relatório humano/JSON com status por integração.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

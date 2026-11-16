@@ -2937,3 +2937,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Novo pack `assistente-pessoal`: briefing matinal com HITL, agente, skill e comando.
 - Catálogo atualizado; receita nasce desligada.
 - ADR 0085.
+
+## 2026-11-16 — doctor --live
+
+- `opendesk doctor --live` sonda daemon, harnesses CLI, SMTP, Google, Telegram,
+  Signal, WhatsApp e origem WebAuthn com relatório acionável.
+- Sem release.

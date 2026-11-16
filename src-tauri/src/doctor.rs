@@ -26,6 +26,15 @@ pub struct DoctorReport {
     pub daemon: Option<ServiceProbe>,
     pub shared_services: Vec<ServiceProbe>,
     pub warnings: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub live: Option<Vec<LiveProbe>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LiveProbe {
+    pub name: String,
+    pub status: String,
+    pub detail: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -37,11 +46,11 @@ pub struct ServiceProbe {
     pub error: Option<String>,
 }
 
-pub fn run(json: bool, fix_daemons: bool) -> i32 {
+pub fn run(json: bool, fix_daemons: bool, live: bool) -> i32 {
     if fix_daemons {
         crate::opencode_client::daemon_manager::cleanup_orphaned_daemons();
     }
-    let report = match build_report() {
+    let report = match build_report(live) {
         Ok(report) => report,
         Err(error) => {
             eprintln!("OpenDesk doctor failed: {error:#}");
@@ -74,14 +83,16 @@ pub fn run(json: bool, fix_daemons: bool) -> i32 {
     }
 }
 
-fn build_report() -> anyhow::Result<DoctorReport> {
+fn build_report(live: bool) -> anyhow::Result<DoctorReport> {
     let paths = AppPaths::discover()?;
     let runtime = tokio::runtime::Runtime::new()?;
     runtime.block_on(async move {
         let mut warnings = Vec::new();
+        let mut live_pool: Option<sqlx::SqlitePool> = None;
         let (database_ok, workspaces, mcp_control_workspaces, base_pack_workspaces, configured_binary) =
             match db::init(&paths.db_path).await {
                 Ok(pool) => {
+                    live_pool = Some(pool.clone());
                     let workspaces: i64 =
                         sqlx::query_scalar("SELECT COUNT(*) FROM workspaces")
                             .fetch_one(&pool)
@@ -152,6 +163,18 @@ fn build_report() -> anyhow::Result<DoctorReport> {
 
         let daemon = probe_daemon(&paths.daemon_lock_path).await;
         let shared_services = probe_shared_services().await;
+        let live_report = if live {
+            match live_pool.as_ref() {
+                Some(pool) => Some(probe_live(pool, &paths, &daemon).await),
+                None => Some(vec![LiveProbe {
+                    name: "database".into(),
+                    status: "unavailable".into(),
+                    detail: None,
+                }]),
+            }
+        } else {
+            None
+        };
         match &daemon {
             Some(probe) if probe.online => {}
             _ if shared_services.is_empty() && binary.is_none() => warnings.push(
@@ -174,6 +197,7 @@ fn build_report() -> anyhow::Result<DoctorReport> {
             daemon,
             shared_services,
             warnings,
+            live: live_report,
         })
     })
 }
@@ -253,6 +277,163 @@ fn service_state_paths() -> Vec<PathBuf> {
         paths.push(home.join(".config/opencode/service.json"));
     }
     paths
+}
+
+async fn probe_live(
+    pool: &sqlx::SqlitePool,
+    paths: &AppPaths,
+    daemon: &Option<ServiceProbe>,
+) -> Vec<LiveProbe> {
+    let secrets = crate::secrets::SecretStore::new(paths);
+    let workspace_id = settings::active_workspace_id(pool).await.ok().flatten();
+    let mut probes = Vec::new();
+
+    probes.push(LiveProbe {
+        name: "opencode-daemon".into(),
+        status: if daemon.as_ref().is_some_and(|probe| probe.online) {
+            "ok".into()
+        } else {
+            "offline".into()
+        },
+        detail: daemon.as_ref().and_then(|probe| probe.error.clone()),
+    });
+
+    let adapters = crate::adapters::AdapterService::load(pool).await;
+    match adapters {
+        Ok(service) => {
+            for spec in service.list().into_iter().filter(|spec| spec.kind == "cli") {
+                let health = service.health(pool, &spec.id).await;
+                probes.push(LiveProbe {
+                    name: format!("harness:{}", spec.id),
+                    status: health
+                        .as_ref()
+                        .map(|health| health.status.to_lowercase())
+                        .unwrap_or_else(|_| "error".into()),
+                    detail: health
+                        .ok()
+                        .and_then(|health| health.version.or(health.error)),
+                });
+            }
+        }
+        Err(error) => probes.push(LiveProbe {
+            name: "harnesses".into(),
+            status: "error".into(),
+            detail: Some(error.to_string()),
+        }),
+    }
+
+    if let Some(workspace_id) = workspace_id {
+        match crate::integrations::smtp_mailer::load_config(pool, &secrets, &workspace_id).await {
+            Ok(Some(config)) => {
+                let result = crate::integrations::smtp_mailer::test_connection(&config).await;
+                probes.push(LiveProbe {
+                    name: "smtp".into(),
+                    status: if result.is_ok() { "ok" } else { "error" }.into(),
+                    detail: result.err().map(|error| format!("{error:#}")),
+                });
+            }
+            Ok(None) => probes.push(LiveProbe {
+                name: "smtp".into(),
+                status: "not-configured".into(),
+                detail: None,
+            }),
+            Err(error) => probes.push(LiveProbe {
+                name: "smtp".into(),
+                status: "error".into(),
+                detail: Some(format!("{error:#}")),
+            }),
+        }
+
+        match crate::db::integrations::get(pool, &workspace_id).await {
+            Ok(Some(integration)) => {
+                probes.push(LiveProbe {
+                    name: "google".into(),
+                    status: if integration.google_scopes.is_some()
+                        && integration.google_account_email.is_some()
+                    {
+                        "configured"
+                    } else {
+                        "not-configured"
+                    }
+                    .into(),
+                    detail: integration.google_account_email,
+                });
+            }
+            _ => probes.push(LiveProbe {
+                name: "google".into(),
+                status: "not-configured".into(),
+                detail: None,
+            }),
+        }
+    }
+
+    let telegram = crate::integrations::telegram::load(pool).await.ok();
+    let telegram_token = crate::integrations::telegram::token(&secrets).is_some();
+    probes.push(LiveProbe {
+        name: "telegram".into(),
+        status: if telegram_token && telegram.as_ref().is_some_and(|config| config.enabled) {
+            "configured"
+        } else {
+            "not-configured"
+        }
+        .into(),
+        detail: None,
+    });
+
+    let signal = crate::integrations::signal::load(pool).await.ok();
+    probes.push(LiveProbe {
+        name: "signal".into(),
+        status: if signal
+            .as_ref()
+            .is_some_and(|config| !config.account.trim().is_empty())
+        {
+            "configured"
+        } else {
+            "not-configured"
+        }
+        .into(),
+        detail: signal.map(|config| config.cli_path),
+    });
+
+    let whatsapp = crate::db::settings::get(pool, "channels.whatsapp")
+        .await
+        .ok()
+        .flatten()
+        .and_then(|value| serde_json::from_value::<serde_json::Value>(value).ok());
+    let whatsapp_configured = whatsapp
+        .as_ref()
+        .and_then(|config| config.get("provider"))
+        .and_then(Value::as_str)
+        == Some("cloud-api")
+        && secrets
+            .get("channel_whatsapp", "access_token")
+            .ok()
+            .flatten()
+            .is_some();
+    probes.push(LiveProbe {
+        name: "whatsapp".into(),
+        status: if whatsapp_configured {
+            "configured"
+        } else {
+            "not-configured"
+        }
+        .into(),
+        detail: None,
+    });
+
+    let origin = std::env::var("OPENDESK_WEBAUTHN_ORIGIN").ok();
+    probes.push(LiveProbe {
+        name: "webauthn".into(),
+        status: if origin.is_some() {
+            "configured"
+        } else {
+            "origin-from-request"
+        }
+        .into(),
+        detail: origin,
+    });
+
+    probes
 }
 
 fn print_human(report: &DoctorReport) {

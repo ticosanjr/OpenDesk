@@ -25,7 +25,8 @@ fn main() {
     } else if std::env::args().any(|argument| argument == "doctor") {
         let json = std::env::args().any(|argument| argument == "--json");
         let fix_daemons = std::env::args().any(|argument| argument == "--fix-daemons");
-        opendesk_lib::run_doctor(json, fix_daemons);
+        let live = std::env::args().any(|argument| argument == "--live");
+        opendesk_lib::run_doctor(json, fix_daemons, live);
     } else if std::env::args().any(|argument| argument == "mcp-config") {
         opendesk_lib::run_mcp_config();
     } else if std::env::args().any(|argument| argument == "mcp-control") {
