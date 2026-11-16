@@ -2,6 +2,7 @@ import { Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } fr
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, RefreshCw, Settings, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { MobileNav } from "@/components/layout/MobileNav";
 import { Topbar } from "@/components/layout/Topbar";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { WorkspaceDialog } from "@/components/layout/WorkspaceDialog";
@@ -506,7 +507,10 @@ export function AppShell() {
             </button>
           </div>
         ) : null}
-        <main ref={mainRef} className="app-main min-h-0 flex-1">
+        <main
+          ref={mainRef}
+          className="app-main min-h-0 flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0"
+        >
           <Suspense
             fallback={
               <div className="space-y-3 p-5 lg:p-7">
@@ -525,6 +529,7 @@ export function AppShell() {
           </Suspense>
         </main>
       </div>
+      <MobileNav />
       <CommandPalette />
       <WorkspaceDialog />
       <ConfirmDialog />

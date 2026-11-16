@@ -88,7 +88,7 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "app-sidebar flex h-full shrink-0 flex-col border-r workspace-divider bg-[#0b0b0d] transition-[width] duration-200",
+        "app-sidebar hidden h-full shrink-0 flex-col border-r workspace-divider bg-[#0b0b0d] transition-[width] duration-200 sm:flex",
         collapsed ? "w-[64px]" : "w-[236px]",
       )}
     >

@@ -78,7 +78,7 @@ export function Topbar() {
   }
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b workspace-divider bg-[#0b0b0d]/90 px-4 backdrop-blur">
+    <header className="flex h-14 shrink-0 items-center gap-1.5 border-b workspace-divider bg-[#0b0b0d]/90 px-2 backdrop-blur sm:gap-3 sm:px-4">
       <div ref={workspaceRef} className="relative min-w-0 shrink-0">
         <button
           type="button"
@@ -86,7 +86,7 @@ export function Topbar() {
             setWorkspaceQuery("");
             setWorkspaceOpen((current) => !current);
           }}
-          className="flex h-9 w-[220px] items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 text-left text-[14px] font-medium text-zinc-200 outline-none transition-colors hover:border-zinc-700 focus:border-blue-500/60"
+          className="flex h-9 w-[132px] items-center gap-2 rounded-lg sm:w-[220px] border border-zinc-800 bg-zinc-900/50 px-3 text-left text-[14px] font-medium text-zinc-200 outline-none transition-colors hover:border-zinc-700 focus:border-blue-500/60"
           title={activeWorkspace?.root_path}
           aria-expanded={workspaceOpen}
           aria-label={`Workspace ativo: ${activeWorkspace?.name ?? "nenhum"}`}
@@ -249,7 +249,7 @@ export function Topbar() {
           title="Buscar e executar comandos (Ctrl/Cmd+K)"
         >
           <Search size={14} />
-          <span className="text-[12.5px]">Buscar</span>
+          <span className="hidden text-[12.5px] sm:inline">Buscar</span>
           <span className="sr-only"> e executar comandos</span>
         </Button>
 

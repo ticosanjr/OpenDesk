@@ -321,6 +321,12 @@ pendências manuais continuam listadas abaixo.
 - Merge sem aprovação é rejeitado.
 - Overlay sem Git copia, mostra diff e aplica alterações.
 
+## Sprint 5 — shell mobile
+
+- 390×844: barra inferior visível, sidebar oculta, main reserva 64 px.
+- Rotas principais sem overflow horizontal no viewport de celular.
+- 1440 px preserva sidebar e esconde a barra inferior.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

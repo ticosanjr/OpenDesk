@@ -3006,3 +3006,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Tabela `run_worktrees` (migração 0052), rotas de API e tools MCP `worktree_*`.
 - Conflito aborta sem alterar a árvore; cleanup remove worktree/branch.
 - ADR 0092.
+
+## 2026-11-16 — shell mobile-first (REQ-12)
+
+- Barra inferior de 4 destinos em `<768px`; sidebar oculta no celular.
+- Safe area, viewport-fit=cover e main com padding para a barra.
+- Topbar compacta e testes Playwright de 390×844 sem overflow.
+- ADR 0093.
