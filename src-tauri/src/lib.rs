@@ -15,8 +15,6 @@ mod dedupe;
 mod desktop_integration;
 mod doctor;
 mod dsh_router;
-mod error;
-mod events;
 mod governance;
 mod hitl;
 mod integrations;
@@ -34,7 +32,6 @@ mod nodes;
 mod open_paths;
 mod opencode_client;
 mod passkey;
-mod paths;
 mod personal_context;
 mod proposals;
 mod push;
@@ -52,12 +49,12 @@ mod skill_eval;
 mod starter_packs;
 #[cfg(test)]
 mod test_support;
-mod text;
-mod token_estimate;
 mod tray;
 mod update_signing;
 mod updates;
 mod voice;
+
+pub use opendesk_core::{error, events, paths, text, token_estimate};
 
 use app_state::AppState;
 use daemon_probe::ProbeOutcome;

@@ -2977,3 +2977,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Coalescing por job/nó, backpressure por canal limitado e métricas em `/api/about`.
 - Transições de estado continuam síncronas; carga de 4 runs + 8 nós sem falha de lock no teste.
 - ADR 0088.
+
+## 2026-11-16 — opendesk-core (REF-01, primeira fatia)
+
+- `src-tauri` virou workspace com `crates/opendesk-core` sem Tauri.
+- Movidos `error`, `events`, `paths`, `text` e `token_estimate`, reexportados pelo crate raiz.
+- Testes e clippy cobrem core e shell via `default-members`.
+- ADR 0089.

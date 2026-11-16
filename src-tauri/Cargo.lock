@@ -4919,6 +4919,7 @@ dependencies = [
  "notify",
  "notify-debouncer-full",
  "open",
+ "opendesk-core",
  "p256 0.13.2",
  "pdf-extract",
  "pulldown-cmark",
@@ -4958,6 +4959,22 @@ dependencies = [
  "web-push",
  "webauthn-rs",
  "zip",
+]
+
+[[package]]
+name = "opendesk-core"
+version = "1.2.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "directories",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

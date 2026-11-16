@@ -296,6 +296,12 @@ pendências manuais continuam listadas abaixo.
 - 4 runs + 8 nós com 1.200 atualizações concorrentes, sem falha de lock.
 - Presença de nós e lease de jobs atualizados após o flush.
 
+## Sprint 1 — opendesk-core (primeira fatia)
+
+- `cargo tree -p opendesk-core` sem Tauri.
+- `cargo test --lib` executa shell e core.
+- Contratos base reexportados sem mudar chamadas internas.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:
