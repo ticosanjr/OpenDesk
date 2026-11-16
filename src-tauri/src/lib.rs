@@ -53,6 +53,7 @@ mod tray;
 mod update_signing;
 mod updates;
 mod voice;
+mod worktree;
 
 pub use opendesk_core::{error, events, paths, text, token_estimate};
 

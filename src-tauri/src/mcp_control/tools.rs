@@ -571,6 +571,51 @@ pub(super) fn tools() -> Vec<Value> {
                 "properties": { "id": { "type": "string" } }
             }),
         ),
+        tool(
+            "worktree_list",
+            "Lista os worktrees/overlays isolados do workspace.",
+            empty(),
+        ),
+        tool(
+            "worktree_prepare",
+            "Cria um worktree Git (ou overlay sem Git) para isolar um run. Retorna id, caminho e modo.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "run_id": { "type": "string" }
+                }
+            }),
+        ),
+        tool(
+            "worktree_diff",
+            "Mostra o diff/lista de mudanças do worktree sem tocar na árvore principal.",
+            json!({
+                "type": "object",
+                "required": ["id"],
+                "properties": { "id": { "type": "string" } }
+            }),
+        ),
+        tool(
+            "worktree_merge",
+            "Mescla o worktree na árvore principal. Exige approved=true; conflitos abortam sem alterar o workspace.",
+            json!({
+                "type": "object",
+                "required": ["id", "approved"],
+                "properties": {
+                    "id": { "type": "string" },
+                    "approved": { "type": "boolean" }
+                }
+            }),
+        ),
+        tool(
+            "worktree_cleanup",
+            "Remove o worktree e o branch temporário. Use depois do merge ou quando o run for descartado.",
+            json!({
+                "type": "object",
+                "required": ["id"],
+                "properties": { "id": { "type": "string" } }
+            }),
+        ),
     ]
 }
 
@@ -689,8 +734,13 @@ fn visible_in(name: &str, phase: &str) -> bool {
             | "recipe_resume"
             | "recipe_cancel"
             | "attention_list"
+            | "worktree_cleanup"
     ) {
         "OPS"
+    } else if matches!(name, "worktree_prepare") {
+        "BUILD"
+    } else if matches!(name, "worktree_merge") {
+        "AUDIT"
     } else if matches!(
         name,
         "task_create"
@@ -794,7 +844,16 @@ mod tests {
         ] {
             assert!(names.iter().any(|name| name == expected), "{expected}");
         }
-        assert_eq!(names.len(), 38);
+        for expected in [
+            "worktree_list",
+            "worktree_prepare",
+            "worktree_diff",
+            "worktree_merge",
+            "worktree_cleanup",
+        ] {
+            assert!(names.iter().any(|name| name == expected), "{expected}");
+        }
+        assert_eq!(names.len(), 43);
     }
 
     #[test]

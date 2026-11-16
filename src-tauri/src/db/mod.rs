@@ -37,6 +37,7 @@ pub mod task_watchers;
 pub mod tasks;
 pub mod tickets;
 pub mod workspaces;
+pub mod worktrees;
 pub mod write_buffer;
 
 pub async fn init(db_path: &Path) -> Result<SqlitePool> {
@@ -193,7 +194,7 @@ mod migration_tests {
                 .fetch_all(&pool)
                 .await
                 .unwrap();
-        assert_eq!(rows.last().unwrap().0, 51, "rows: {rows:?}");
+        assert_eq!(rows.last().unwrap().0, 52, "rows: {rows:?}");
         let calendar_table: Option<(String,)> = sqlx::query_as(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'calendar_events'",
         )

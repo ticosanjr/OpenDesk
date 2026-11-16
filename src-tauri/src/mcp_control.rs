@@ -656,6 +656,60 @@ async fn dispatch(
             )
             .await
         }
+        "worktree_list" => {
+            call(
+                &client,
+                &endpoint,
+                Method::GET,
+                &ws_path("/api/worktrees", workspace_id),
+                None,
+            )
+            .await
+        }
+        "worktree_prepare" => {
+            call(
+                &client,
+                &endpoint,
+                Method::POST,
+                &ws_path("/api/worktrees", workspace_id),
+                Some(json!({ "run_id": optional(&args, "run_id") })),
+            )
+            .await
+        }
+        "worktree_diff" => {
+            let id = required(&args, "id")?;
+            call(
+                &client,
+                &endpoint,
+                Method::GET,
+                &format!("/api/worktrees/{id}/diff"),
+                None,
+            )
+            .await
+        }
+        "worktree_merge" => {
+            let id = required(&args, "id")?;
+            let body = json!({ "approved": bool_arg(&args, "approved").unwrap_or(false) });
+            call(
+                &client,
+                &endpoint,
+                Method::POST,
+                &format!("/api/worktrees/{id}/merge"),
+                Some(body),
+            )
+            .await
+        }
+        "worktree_cleanup" => {
+            let id = required(&args, "id")?;
+            call(
+                &client,
+                &endpoint,
+                Method::DELETE,
+                &format!("/api/worktrees/{id}"),
+                None,
+            )
+            .await
+        }
         other => Err(anyhow!("ferramenta desconhecida: {other}")),
     }
 }

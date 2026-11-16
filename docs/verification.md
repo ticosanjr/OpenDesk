@@ -315,6 +315,12 @@ pendências manuais continuam listadas abaixo.
 - Agentes habilitados viram `agent_<id>`; desabilitados não aparecem.
 - Nome sanitizado e busca em `mcp_discover_tools`.
 
+## Sprint 3 — worktrees
+
+- Git: prepare, diff com arquivo novo, merge aprovado e cleanup.
+- Merge sem aprovação é rejeitado.
+- Overlay sem Git copia, mostra diff e aplica alterações.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

@@ -2999,3 +2999,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Receitas rodam com `trigger`/`dry_run`; agentes criam tarefa e tentam dispatch.
 - `mcp_discover_tools` inclui as tools dinâmicas; AUDIT fica sem elas.
 - ADR 0091.
+
+## 2026-11-16 — worktrees por run (REQ-06/MCP-05)
+
+- Worktree Git com branch temporário e overlay sem Git; diff e merge com aprovação.
+- Tabela `run_worktrees` (migração 0052), rotas de API e tools MCP `worktree_*`.
+- Conflito aborta sem alterar a árvore; cleanup remove worktree/branch.
+- ADR 0092.

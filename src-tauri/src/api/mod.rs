@@ -59,6 +59,7 @@ pub mod telegram;
 pub mod tickets;
 pub mod updates;
 pub mod voice;
+pub mod worktrees;
 pub mod ws;
 
 use crate::app_state::AppState;
@@ -224,6 +225,13 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             post(sandbox::screenshot),
         )
         .route("/api/computer/sessions/{id}/action", post(sandbox::action))
+        .route(
+            "/api/worktrees",
+            get(worktrees::list).post(worktrees::prepare),
+        )
+        .route("/api/worktrees/{id}/diff", get(worktrees::diff))
+        .route("/api/worktrees/{id}/merge", post(worktrees::merge))
+        .route("/api/worktrees/{id}", delete(worktrees::cleanup))
         .route("/api/voice/status", get(voice::status))
         .route("/api/voice/settings", put(voice::put_settings))
         .route("/api/voice/transcribe", post(voice::transcribe))
