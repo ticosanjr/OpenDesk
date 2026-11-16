@@ -54,6 +54,7 @@ pub mod skills;
 pub mod starter_packs;
 pub mod studio;
 pub mod studio_ops;
+pub mod sync;
 pub mod task_watchers;
 pub mod tasks;
 pub mod telegram;
@@ -383,6 +384,9 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
                 .delete(delete_workspace),
         )
         .route("/api/workspaces/{id}/activate", post(activate_workspace))
+        .route("/api/workspaces/{id}/sync/manifest", get(sync::manifest))
+        .route("/api/workspaces/{id}/sync/bundle", post(sync::bundle))
+        .route("/api/workspaces/{id}/sync/apply", post(sync::apply))
         .route("/api/settings", get(list_settings))
         .route("/api/settings/dedupe", get(dedupe::get).put(dedupe::put))
         .route("/api/settings/{key}", get(get_setting).put(put_setting))

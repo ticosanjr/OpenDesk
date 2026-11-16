@@ -55,6 +55,7 @@ mod tray;
 mod update_signing;
 mod updates;
 mod voice;
+mod workspace_sync;
 
 pub use opendesk_core::{error, events, paths, text, token_estimate, virtual_display, worktree};
 

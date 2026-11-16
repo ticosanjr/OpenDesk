@@ -391,6 +391,12 @@ pendências manuais continuam listadas abaixo.
 - Aprovar bloqueado falha; rejeitar registra decisão.
 - Sem amostras o gate é INSUFFICIENT e não aprova.
 
+## Sprint 3 — sync delta
+
+- Manifesto lista arquivos e detecta added/changed/removed.
+- Bundle tar.zst contém só o delta; apply seco não escreve.
+- Apply real copia conteúdo e rejeita path traversal.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

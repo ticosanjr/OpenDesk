@@ -3083,3 +3083,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `skill_eval_gates` com PASS/BLOCKED/INSUFFICIENT e thresholds configuráveis.
 - API de execução, último gate e decisão humana; aprovar bloqueado é conflito.
 - ADR 0104.
+
+## 2026-11-16 — sync delta de workspace (REQ-10)
+
+- Manifesto com SHA/mtime, delta e bundle tar.zst; apply com dry-run e proteção de path.
+- API de manifest/bundle/apply por workspace; bundles restritos a data/sync.
+- mTLS e sync automático no worker ainda pendentes.
+- ADR 0105.

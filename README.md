@@ -373,6 +373,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0102 — Segunda fatia do core](docs/decisions/0102-core-second-slice.md)
 - [ADR 0103 — Allowlist de janela/app](docs/decisions/0103-computer-allowlist.md)
 - [ADR 0104 — Eval Gate de skills](docs/decisions/0104-skill-eval-gate.md)
+- [ADR 0105 — Sync delta do workspace](docs/decisions/0105-workspace-sync.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

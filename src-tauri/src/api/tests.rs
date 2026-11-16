@@ -96,6 +96,7 @@ mod seed;
 mod session_context;
 mod skill_gate;
 mod studio;
+mod sync;
 mod tasks;
 mod telegram;
 mod voice;
