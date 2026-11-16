@@ -284,7 +284,7 @@ async fn probe_live(
     paths: &AppPaths,
     daemon: &Option<ServiceProbe>,
 ) -> Vec<LiveProbe> {
-    let secrets = crate::secrets::SecretStore::new(paths);
+    let secrets = std::sync::Arc::new(crate::secrets::SecretStore::new(paths));
     let workspace_id = settings::active_workspace_id(pool).await.ok().flatten();
     let mut probes = Vec::new();
 
@@ -344,82 +344,59 @@ async fn probe_live(
             }),
         }
 
-        match crate::db::integrations::get(pool, &workspace_id).await {
-            Ok(Some(integration)) => {
-                probes.push(LiveProbe {
+        let google = crate::integrations::google_oauth::GoogleOAuth::new(
+            pool.clone(),
+            secrets.clone(),
+            crate::events::EventBus::new(8),
+        );
+        probes.push(match google.status(&workspace_id).await {
+            Ok(status) if status.connected => match google.access_token(&workspace_id).await {
+                Ok(_) => LiveProbe {
                     name: "google".into(),
-                    status: if integration.google_scopes.is_some()
-                        && integration.google_account_email.is_some()
-                    {
-                        "configured"
-                    } else {
-                        "not-configured"
-                    }
-                    .into(),
-                    detail: integration.google_account_email,
-                });
-            }
-            _ => probes.push(LiveProbe {
+                    status: "ok".into(),
+                    detail: status.email,
+                },
+                Err(error) => LiveProbe {
+                    name: "google".into(),
+                    status: "error".into(),
+                    detail: Some(format!("{error:#}")),
+                },
+            },
+            Ok(_) => LiveProbe {
                 name: "google".into(),
                 status: "not-configured".into(),
                 detail: None,
-            }),
-        }
+            },
+            Err(error) => LiveProbe {
+                name: "google".into(),
+                status: "error".into(),
+                detail: Some(format!("{error:#}")),
+            },
+        });
     }
 
     let telegram = crate::integrations::telegram::load(pool).await.ok();
-    let telegram_token = crate::integrations::telegram::token(&secrets).is_some();
-    probes.push(LiveProbe {
-        name: "telegram".into(),
-        status: if telegram_token && telegram.as_ref().is_some_and(|config| config.enabled) {
-            "configured"
-        } else {
-            "not-configured"
-        }
-        .into(),
-        detail: None,
-    });
+    let telegram_token = crate::integrations::telegram::token(&secrets);
+    probes.push(
+        probe_telegram(
+            telegram_token,
+            telegram.as_ref().map(|config| config.enabled),
+        )
+        .await,
+    );
 
     let signal = crate::integrations::signal::load(pool).await.ok();
-    probes.push(LiveProbe {
-        name: "signal".into(),
-        status: if signal
-            .as_ref()
-            .is_some_and(|config| !config.account.trim().is_empty())
-        {
-            "configured"
-        } else {
-            "not-configured"
-        }
-        .into(),
-        detail: signal.map(|config| config.cli_path),
-    });
+    probes.push(probe_signal(signal).await);
 
     let whatsapp = crate::db::settings::get(pool, "channels.whatsapp")
         .await
         .ok()
-        .flatten()
-        .and_then(|value| serde_json::from_value::<serde_json::Value>(value).ok());
-    let whatsapp_configured = whatsapp
-        .as_ref()
-        .and_then(|config| config.get("provider"))
-        .and_then(Value::as_str)
-        == Some("cloud-api")
-        && secrets
-            .get("channel_whatsapp", "access_token")
-            .ok()
-            .flatten()
-            .is_some();
-    probes.push(LiveProbe {
-        name: "whatsapp".into(),
-        status: if whatsapp_configured {
-            "configured"
-        } else {
-            "not-configured"
-        }
-        .into(),
-        detail: None,
-    });
+        .flatten();
+    let whatsapp_token = secrets
+        .get("channel_whatsapp", "access_token")
+        .ok()
+        .flatten();
+    probes.push(probe_whatsapp(whatsapp, whatsapp_token).await);
 
     let origin = std::env::var("OPENDESK_WEBAUTHN_ORIGIN").ok();
     probes.push(LiveProbe {
@@ -434,6 +411,171 @@ async fn probe_live(
     });
 
     probes
+}
+
+async fn probe_telegram(token: Option<String>, enabled: Option<bool>) -> LiveProbe {
+    let Some(token) = token.filter(|value| !value.trim().is_empty()) else {
+        return LiveProbe {
+            name: "telegram".into(),
+            status: "not-configured".into(),
+            detail: None,
+        };
+    };
+    if !enabled.unwrap_or(false) {
+        return LiveProbe {
+            name: "telegram".into(),
+            status: "disabled".into(),
+            detail: Some("token presente, bot desabilitado".into()),
+        };
+    }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(6))
+        .build()
+        .unwrap_or_default();
+    match client
+        .get(format!("https://api.telegram.org/bot{token}/getMe"))
+        .send()
+        .await
+    {
+        Ok(response) if response.status().is_success() => {
+            let body: Value = response.json().await.unwrap_or(Value::Null);
+            let username = body
+                .pointer("/result/username")
+                .and_then(Value::as_str)
+                .map(|value| format!("@{value}"))
+                .unwrap_or_else(|| "bot".into());
+            LiveProbe {
+                name: "telegram".into(),
+                status: "ok".into(),
+                detail: Some(username),
+            }
+        }
+        Ok(response) => LiveProbe {
+            name: "telegram".into(),
+            status: "error".into(),
+            detail: Some(format!("getMe HTTP {}", response.status().as_u16())),
+        },
+        Err(error) => LiveProbe {
+            name: "telegram".into(),
+            status: "error".into(),
+            detail: Some(format!("{error:#}")),
+        },
+    }
+}
+
+async fn probe_signal(config: Option<crate::integrations::signal::SignalConfig>) -> LiveProbe {
+    let Some(config) = config else {
+        return LiveProbe {
+            name: "signal".into(),
+            status: "not-configured".into(),
+            detail: None,
+        };
+    };
+    if config.account.trim().is_empty() {
+        return LiveProbe {
+            name: "signal".into(),
+            status: "not-configured".into(),
+            detail: Some(config.cli_path),
+        };
+    }
+    match crate::integrations::signal::detect_cli(&config.cli_path).await {
+        Some(version) => LiveProbe {
+            name: "signal".into(),
+            status: "ok".into(),
+            detail: Some(format!("{} · {version}", config.account)),
+        },
+        None => LiveProbe {
+            name: "signal".into(),
+            status: "error".into(),
+            detail: Some(format!("signal-cli não respondeu em {}", config.cli_path)),
+        },
+    }
+}
+
+async fn probe_whatsapp(config: Option<Value>, token: Option<String>) -> LiveProbe {
+    let Some(config) = config else {
+        return LiveProbe {
+            name: "whatsapp".into(),
+            status: "not-configured".into(),
+            detail: None,
+        };
+    };
+    let provider = config
+        .get("provider")
+        .and_then(Value::as_str)
+        .unwrap_or("structure");
+    if config.get("enabled").and_then(Value::as_bool) != Some(true) {
+        return LiveProbe {
+            name: "whatsapp".into(),
+            status: "disabled".into(),
+            detail: Some(format!("provider: {provider}")),
+        };
+    }
+    if provider != "cloud-api" {
+        return LiveProbe {
+            name: "whatsapp".into(),
+            status: "configured".into(),
+            detail: Some(format!("provider: {provider} (sem probe de rede)")),
+        };
+    }
+    let Some(token) = token else {
+        return LiveProbe {
+            name: "whatsapp".into(),
+            status: "error".into(),
+            detail: Some("access_token ausente".into()),
+        };
+    };
+    let phone_number_id = config
+        .get("phone_number_id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let version = config
+        .get("api_version")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("v21.0");
+    if phone_number_id.trim().is_empty() {
+        return LiveProbe {
+            name: "whatsapp".into(),
+            status: "error".into(),
+            detail: Some("phone_number_id ausente".into()),
+        };
+    }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(6))
+        .build()
+        .unwrap_or_default();
+    let url = format!(
+        "https://graph.facebook.com/{version}/{phone_number_id}?fields=display_phone_number,verified_name&access_token={token}"
+    );
+    match client.get(url).send().await {
+        Ok(response) if response.status().is_success() => {
+            let body: Value = response.json().await.unwrap_or(Value::Null);
+            LiveProbe {
+                name: "whatsapp".into(),
+                status: "ok".into(),
+                detail: body
+                    .get("display_phone_number")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                    .or_else(|| {
+                        body.get("verified_name")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    }),
+            }
+        }
+        Ok(response) => LiveProbe {
+            name: "whatsapp".into(),
+            status: "error".into(),
+            detail: Some(format!("Graph HTTP {}", response.status().as_u16())),
+        },
+        Err(error) => LiveProbe {
+            name: "whatsapp".into(),
+            status: "error".into(),
+            detail: Some(format!("{error:#}")),
+        },
+    }
 }
 
 fn print_human(report: &DoctorReport) {
@@ -537,5 +679,12 @@ mod tests {
         assert!(!probe.online);
         assert!(probe.error.is_some());
         assert_eq!(probe.source, "test");
+    }
+
+    #[tokio::test]
+    async fn live_probes_degrade_to_not_configured() {
+        assert_eq!(probe_telegram(None, None).await.status, "not-configured");
+        assert_eq!(probe_signal(None).await.status, "not-configured");
+        assert_eq!(probe_whatsapp(None, None).await.status, "not-configured");
     }
 }

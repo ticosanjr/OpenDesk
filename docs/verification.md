@@ -333,6 +333,11 @@ pendências manuais continuam listadas abaixo.
 - Diálogo abre pela Topbar, verifica de novo e navega para a tela do item.
 - E2E com workspace real valida root e botão Verificar.
 
+## Sprint 6 — doctor live
+
+- Probes reais de Google (refresh), Telegram (getMe), Signal (CLI) e WhatsApp (Graph).
+- Sem configuração o status é not-configured; sem rede/token inválido é error.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

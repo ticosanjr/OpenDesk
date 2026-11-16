@@ -3020,3 +3020,9 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Diálogo "Primeiros passos" com essenciais/opcionais, progresso e links diretos.
 - Teste E2E com workspace real; goldens de Kanban/Pacotes atualizados.
 - ADR 0094.
+
+## 2026-11-16 — doctor live completo (REF-05)
+
+- Google valida refresh token; Telegram chama getMe; Signal valida CLI; WhatsApp consulta Graph.
+- Estados error/disabled/not-configured distintos e timeouts curtos.
+- ADR 0095.
