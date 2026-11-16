@@ -41,6 +41,7 @@ tokio-util = "0.7"
 tracing = "0.1"
 tar = "0.4"
 unicode-normalization = "0.1"
+urlencoding = "2"
 uuid = { version = "1", features = ["v4", "v5", "v7"] }
 walkdir = "2"
 webauthn-rs = { version = "0.6", default-features = false, features = ["danger-allow-state-serialisation"] }

@@ -3193,3 +3193,8 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - `metrics` movido; core 207 testes, shell 376.
 - ADR 0121.
+
+## 2026-11-16 — audit no core (REF-01)
+
+- `audit` movido; core 210 testes, shell 373.
+- ADR 0122.

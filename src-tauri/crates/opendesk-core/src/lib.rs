@@ -7,6 +7,7 @@
 //! subsequent slices of the strangler refactor.
 
 pub mod adapters;
+pub mod audit;
 pub mod browse;
 pub mod browse_tags;
 pub mod config_sync;

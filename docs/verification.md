@@ -480,6 +480,10 @@ pendências manuais continuam listadas abaixo.
 
 - Métricas de runs/fila/falhas testadas no core.
 
+## Sprint 1 — audit no core
+
+- Registro/classificação e rate limiter testados no core.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

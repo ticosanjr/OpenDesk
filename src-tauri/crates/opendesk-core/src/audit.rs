@@ -345,13 +345,13 @@ mod tests {
         let uri: axum::http::Uri = format!("/api/backups?workspace_id={}", ctx.workspace_id)
             .parse()
             .expect("uri");
-        record(&ctx.state.db, &Method::POST, &uri, 200, 12)
+        record(&ctx.db, &Method::POST, &uri, 200, 12)
             .await
             .expect("record");
-        record(&ctx.state.db, &Method::GET, &uri, 200, 1)
+        record(&ctx.db, &Method::GET, &uri, 200, 1)
             .await
             .expect("ignored");
-        let entries = list(&ctx.state.db, Some(&ctx.workspace_id), None, 10)
+        let entries = list(&ctx.db, Some(&ctx.workspace_id), None, 10)
             .await
             .expect("list");
         assert_eq!(entries.len(), 1);
