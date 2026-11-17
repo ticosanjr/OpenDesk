@@ -306,4 +306,8 @@ pub fn recipe_context(state: &Arc<AppState>) -> crate::recipe_context::RecipeCon
     .with_dispatcher(Arc::new(crate::recipe_dispatcher::ShellRecipeDispatcher {
         state: state.clone(),
     }))
+    .with_channels(Arc::new(crate::recipes::hitl::ShellHitlChannels {
+        state: state.clone(),
+    }))
+    .with_sinks(Arc::new(crate::recipes::sinks::ShellRecipeSinks))
 }

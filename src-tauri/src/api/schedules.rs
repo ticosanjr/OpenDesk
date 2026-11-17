@@ -301,7 +301,7 @@ pub(crate) async fn execute_schedule_from_source(
             "metadata": event.metadata,
         });
         let run = match crate::recipes::engine::start(
-            state.clone(),
+            crate::app_state::recipe_context(state),
             &schedule.workspace_id,
             recipe,
             trigger,
@@ -369,7 +369,7 @@ pub(crate) async fn execute_signal_routines(
                 "text": text,
             });
             if let Err(error) = crate::recipes::engine::start(
-                state.clone(),
+                crate::app_state::recipe_context(state),
                 &schedule.workspace_id,
                 recipe,
                 trigger,
@@ -426,7 +426,7 @@ pub(crate) async fn execute_signal_routines(
                 "recipe_id": recipe.id,
             });
             crate::recipes::engine::start(
-                state.clone(),
+                crate::app_state::recipe_context(state),
                 &index.workspace_id,
                 recipe.clone(),
                 context,

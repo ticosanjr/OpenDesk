@@ -82,7 +82,7 @@ pub async fn ingest(
             "metadata": event.metadata,
         });
         let run = crate::recipes::engine::start(
-            state.clone(),
+            crate::app_state::recipe_context(state),
             &source.workspace_id,
             recipe,
             trigger,

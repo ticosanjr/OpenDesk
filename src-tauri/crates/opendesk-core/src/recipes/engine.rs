@@ -1,30 +1,30 @@
 use crate::{
-    app_state::AppState,
     db::{self, tasks},
     error::{AppError, AppResult},
     events::OpenDeskWsEvent,
+    recipe_context::RecipeContext,
     recipes::{
         hitl::{self, HitlOutcome, HitlResolution},
         parser::{self, FlowItem, Recipe, Step},
-        sinks, store,
+        store,
     },
 };
 use chrono::Utc;
 use serde_json::json;
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 pub async fn start(
-    state: Arc<AppState>,
+    context: RecipeContext,
     workspace_id: &str,
     recipe: Recipe,
     trigger: serde_json::Value,
     dry_run: bool,
 ) -> AppResult<store::RecipeRun> {
-    let index = store::get(&state.db, workspace_id, &recipe.id).await?;
+    let index = store::get(&context.pool, workspace_id, &recipe.id).await?;
     if !index.is_enabled || !recipe.enabled {
         return Err(AppError::BadRequest("receita desabilitada".into()));
     }
-    let workspace = db::workspaces::get(&state.db, &index.workspace_id).await?;
+    let workspace = db::workspaces::get(&context.pool, &index.workspace_id).await?;
     let output = crate::dsh_router::output_directory(
         std::path::Path::new(&workspace.root_path),
         &format!(
@@ -42,7 +42,7 @@ pub async fn start(
 
     if dry_run {
         let run = store::create_run(
-            &state.db,
+            &context.pool,
             &recipe,
             &index.workspace_id,
             None,
@@ -51,13 +51,13 @@ pub async fn start(
             true,
         )
         .await?;
-        let state_clone = state.clone();
+        let context_clone = context.clone();
         let recipe_clone = recipe.clone();
         let run_clone = run.clone();
         tokio::spawn(async move {
             for step in recipe_clone.all_steps() {
                 let _ = store::update_run(
-                    &state_clone.db,
+                    &context_clone.pool,
                     &run_clone.id,
                     "RUNNING_STEP",
                     Some(&step.id),
@@ -69,7 +69,7 @@ pub async fn start(
                 tokio::time::sleep(Duration::from_millis(250)).await;
             }
             let _ = store::update_run(
-                &state_clone.db,
+                &context_clone.pool,
                 &run_clone.id,
                 "COMPLETED",
                 None,
@@ -78,7 +78,7 @@ pub async fn start(
                 true,
             )
             .await;
-            state_clone
+            context_clone
                 .events
                 .publish(OpenDeskWsEvent::RecipeRunUpdated {
                     run_id: run_clone.id,
@@ -91,7 +91,7 @@ pub async fn start(
     }
 
     let task = tasks::create(
-        &state.db,
+        &context.pool,
         &index.workspace_id,
         tasks::CreateTaskInput {
             title: format!("{} · receita", recipe.name),
@@ -116,7 +116,7 @@ pub async fn start(
     )
     .await?;
     if task.deduplicated
-        && let Some(existing) = store::latest_run_for_task(&state.db, &task.id).await?
+        && let Some(existing) = store::latest_run_for_task(&context.pool, &task.id).await?
     {
         tracing::info!(
             recipe_id = %recipe.id,
@@ -125,9 +125,9 @@ pub async fn start(
         );
         return Ok(existing);
     }
-    tasks::set_output_dir(&state.db, &task.id, &output).await?;
+    tasks::set_output_dir(&context.pool, &task.id, &output).await?;
     let run = store::create_run(
-        &state.db,
+        &context.pool,
         &recipe,
         &index.workspace_id,
         Some(&task.id),
@@ -136,28 +136,25 @@ pub async fn start(
         false,
     )
     .await?;
-    store::sync_run_nodes(&state.db, &run.id, &recipe.flow).await?;
-    let state_clone = state.clone();
+    store::sync_run_nodes(&context.pool, &run.id, &recipe.flow).await?;
+    let context_clone = context.clone();
     let run_clone = run.clone();
     let recipe_clone = recipe.clone();
     tokio::spawn(async move {
-        let dispatcher = crate::recipe_dispatcher::ShellRecipeDispatcher {
-            state: state_clone.clone(),
-        };
         if let Err(error) = execute(
-            &state_clone,
+            &context_clone,
             &recipe_clone,
             &run_clone,
             &trigger,
-            &dispatcher,
+            context_clone.dispatcher(),
         )
         .await
         {
             tracing::warn!(run = %run_clone.id, error = %error, "recipe run failed");
             let message = format!("{error:#}");
-            let _ = store::fail_running_nodes(&state_clone.db, &run_clone.id, &message).await;
+            let _ = store::fail_running_nodes(&context_clone.pool, &run_clone.id, &message).await;
             let _ = store::update_run(
-                &state_clone.db,
+                &context_clone.pool,
                 &run_clone.id,
                 "FAILED",
                 None,
@@ -168,21 +165,21 @@ pub async fn start(
             .await;
             if let Some(task_id) = &run_clone.task_id {
                 let _ = tasks::set_phase_status(
-                    &state_clone.db,
+                    &context_clone.pool,
                     task_id,
                     Some("failed"),
                     Some("BLOCKED"),
                 )
                 .await;
                 let _ = tasks::set_blocked_reason(
-                    &state_clone.db,
+                    &context_clone.pool,
                     task_id,
                     Some(&format!("{error:#}")),
                 )
                 .await;
             }
-            mark_routine(&state_clone, &trigger, "FAILED").await;
-            state_clone
+            mark_routine(&context_clone, &trigger, "FAILED").await;
+            context_clone
                 .events
                 .publish(OpenDeskWsEvent::RecipeRunUpdated {
                     run_id: run_clone.id,
@@ -196,31 +193,41 @@ pub async fn start(
 }
 
 /// Restarts a durable run after boot/crash/retry. Existing DONE nodes are kept.
-pub async fn resume(state: Arc<AppState>, recipe: Recipe, run: store::RecipeRun) -> AppResult<()> {
+pub async fn resume(
+    context: RecipeContext,
+    recipe: Recipe,
+    run: store::RecipeRun,
+) -> AppResult<()> {
     let trigger: serde_json::Value =
         serde_json::from_str(&run.trigger_context_json).unwrap_or_else(|_| json!({}));
-    store::sync_run_nodes(&state.db, &run.id, &recipe.flow).await?;
-    let _ = store::update_run(&state.db, &run.id, "RUNNING_STEP", None, None, None, false).await;
-    let state_clone = state.clone();
+    store::sync_run_nodes(&context.pool, &run.id, &recipe.flow).await?;
+    let _ = store::update_run(
+        &context.pool,
+        &run.id,
+        "RUNNING_STEP",
+        None,
+        None,
+        None,
+        false,
+    )
+    .await;
+    let context_clone = context.clone();
     let run_clone = run.clone();
     let recipe_clone = recipe.clone();
     tokio::spawn(async move {
-        let dispatcher = crate::recipe_dispatcher::ShellRecipeDispatcher {
-            state: state_clone.clone(),
-        };
         if let Err(error) = execute(
-            &state_clone,
+            &context_clone,
             &recipe_clone,
             &run_clone,
             &trigger,
-            &dispatcher,
+            context_clone.dispatcher(),
         )
         .await
         {
             let message = format!("{error:#}");
-            let _ = store::fail_running_nodes(&state_clone.db, &run_clone.id, &message).await;
+            let _ = store::fail_running_nodes(&context_clone.pool, &run_clone.id, &message).await;
             let _ = store::update_run(
-                &state_clone.db,
+                &context_clone.pool,
                 &run_clone.id,
                 "FAILED",
                 None,
@@ -231,15 +238,16 @@ pub async fn resume(state: Arc<AppState>, recipe: Recipe, run: store::RecipeRun)
             .await;
             if let Some(task_id) = &run_clone.task_id {
                 let _ = tasks::set_phase_status(
-                    &state_clone.db,
+                    &context_clone.pool,
                     task_id,
                     Some("failed"),
                     Some("BLOCKED"),
                 )
                 .await;
-                let _ = tasks::set_blocked_reason(&state_clone.db, task_id, Some(&message)).await;
+                let _ =
+                    tasks::set_blocked_reason(&context_clone.pool, task_id, Some(&message)).await;
             }
-            state_clone
+            context_clone
                 .events
                 .publish(OpenDeskWsEvent::RecipeRunUpdated {
                     run_id: run_clone.id,
@@ -253,14 +261,14 @@ pub async fn resume(state: Arc<AppState>, recipe: Recipe, run: store::RecipeRun)
 }
 
 async fn execute(
-    state: &Arc<AppState>,
+    context: &RecipeContext,
     recipe: &Recipe,
     run: &store::RecipeRun,
     trigger: &serde_json::Value,
     dispatcher: &dyn crate::recipe_dispatch::RecipeStepDispatcher,
 ) -> AppResult<()> {
     if recipe.has_dag() {
-        return crate::recipes::dag::execute(state, recipe, run, trigger, dispatcher).await;
+        return crate::recipes::dag::execute(context, recipe, run, trigger, dispatcher).await;
     }
     let task_id = run
         .task_id
@@ -282,8 +290,8 @@ async fn execute(
     let mut feedback_by_step: std::collections::HashMap<String, String> = Default::default();
     let mut review_rounds = 0usize;
     let flow = recipe.flow.clone();
-    store::sync_run_nodes(&state.db, &run.id, &flow).await?;
-    let nodes = store::list_run_nodes(&state.db, &run.id).await?;
+    store::sync_run_nodes(&context.pool, &run.id, &flow).await?;
+    let nodes = store::list_run_nodes(&context.pool, &run.id).await?;
     let mut index = nodes
         .iter()
         .find(|node| !matches!(node.status.as_str(), "DONE" | "SKIPPED"))
@@ -291,9 +299,9 @@ async fn execute(
         .unwrap_or(flow.len());
 
     while index < flow.len() {
-        if store::is_cancel_requested(&state.db, &run.id).await? {
+        if store::is_cancel_requested(&context.pool, &run.id).await? {
             finish(
-                state,
+                context,
                 run,
                 "REJECTED",
                 "cancelado pelo usuário",
@@ -302,7 +310,7 @@ async fn execute(
             .await?;
             return Ok(());
         }
-        store::mark_node_running(&state.db, &run.id, index).await?;
+        store::mark_node_running(&context.pool, &run.id, index).await?;
         match &flow[index] {
             FlowItem::Step(step) => {
                 let should_run = step
@@ -327,13 +335,13 @@ async fn execute(
                             "reason": step.when,
                         });
                     }
-                    store::mark_node_skipped(&state.db, &run.id, index).await?;
+                    store::mark_node_skipped(&context.pool, &run.id, index).await?;
                     index += 1;
                     continue;
                 }
                 let feedback = feedback_by_step.remove(&step.id);
                 if let Err(error) = execute_step(
-                    state,
+                    context,
                     dispatcher,
                     run,
                     &task_id,
@@ -347,9 +355,9 @@ async fn execute(
                 )
                 .await
                 {
-                    if store::is_cancel_requested(&state.db, &run.id).await? {
+                    if store::is_cancel_requested(&context.pool, &run.id).await? {
                         finish(
-                            state,
+                            context,
                             run,
                             "REJECTED",
                             "cancelado pelo usuário",
@@ -361,7 +369,7 @@ async fn execute(
                     return Err(error);
                 }
                 store::mark_node_done(
-                    &state.db,
+                    &context.pool,
                     &run.id,
                     index,
                     outputs.get(&step.id),
@@ -379,7 +387,7 @@ async fn execute(
                     _ => None,
                 });
                 store::update_run(
-                    &state.db,
+                    &context.pool,
                     &run.id,
                     "WAITING_HITL",
                     current_step.as_deref(),
@@ -388,10 +396,10 @@ async fn execute(
                     false,
                 )
                 .await?;
-                store::mark_node_waiting(&state.db, &run.id, index).await?;
-                let _ = tasks::move_to(&state.db, &task_id, "IN_REVIEW", None).await;
+                store::mark_node_waiting(&context.pool, &run.id, index).await?;
+                let _ = tasks::move_to(&context.pool, &task_id, "IN_REVIEW", None).await;
                 let _ = tasks::set_phase_status(
-                    &state.db,
+                    &context.pool,
                     &task_id,
                     Some("waiting_hitl"),
                     Some("IN_REVIEW"),
@@ -410,40 +418,38 @@ async fn execute(
                     FlowItem::Sink(sink) => sink.name.as_deref(),
                     _ => None,
                 });
-                let token =
-                    match store::pending_hitl_for_checkpoint(&state.db, &run.id, &checkpoint.id)
+                let token = match store::pending_hitl_for_checkpoint(
+                    &context.pool,
+                    &run.id,
+                    &checkpoint.id,
+                )
+                .await?
+                {
+                    Some(existing) => existing.token,
+                    None => {
+                        hitl::request(
+                            context,
+                            run,
+                            &checkpoint,
+                            &recipe.name,
+                            &message,
+                            next_step,
+                            &attachments,
+                        )
                         .await?
-                    {
-                        Some(existing) => existing.token,
-                        None => {
-                            hitl::request(
-                                &crate::app_state::recipe_context(state),
-                                run,
-                                &checkpoint,
-                                &recipe.name,
-                                &message,
-                                next_step,
-                                &attachments,
-                            )
-                            .await?
-                        }
-                    };
-                state.events.publish(OpenDeskWsEvent::HitlRequested {
+                    }
+                };
+                context.events.publish(OpenDeskWsEvent::HitlRequested {
                     token: token.clone(),
                     run_id: run.id.clone(),
                     workspace_id: run.workspace_id.clone(),
                     checkpoint_id: checkpoint.id.clone(),
                     interaction_type: checkpoint.interaction_type.clone(),
                 });
-                let outcome = hitl::wait(
-                    &crate::app_state::recipe_context(state),
-                    &token,
-                    checkpoint.timeout_minutes,
-                )
-                .await?;
+                let outcome = hitl::wait(context, &token, checkpoint.timeout_minutes).await?;
                 match outcome {
                     HitlOutcome::Resolved(HitlResolution::Approved) => {
-                        state.events.publish(OpenDeskWsEvent::HitlResolved {
+                        context.events.publish(OpenDeskWsEvent::HitlResolved {
                             token,
                             status: "APPROVED".into(),
                         });
@@ -451,7 +457,7 @@ async fn execute(
                     }
                     HitlOutcome::Resolved(HitlResolution::Rejected { reason }) => {
                         finish(
-                            state,
+                            context,
                             run,
                             "REJECTED",
                             reason.as_deref().unwrap_or("rejeitado pelo usuário"),
@@ -472,7 +478,7 @@ async fn execute(
                         review_rounds += 1;
                         if review_rounds > 5 {
                             finish(
-                                state,
+                                context,
                                 run,
                                 "REJECTED",
                                 "limite de revisões atingido",
@@ -484,7 +490,7 @@ async fn execute(
                         let Some((previous_index, previous_step)) = previous_step(&flow, index)
                         else {
                             finish(
-                                state,
+                                context,
                                 run,
                                 "REJECTED",
                                 "checkpoint sem step anterior para refazer",
@@ -502,7 +508,7 @@ async fn execute(
                         review_rounds += 1;
                         if review_rounds > 5 {
                             finish(
-                                state,
+                                context,
                                 run,
                                 "REJECTED",
                                 "limite de revisões atingido",
@@ -514,7 +520,7 @@ async fn execute(
                         let Some((previous_index, previous_step)) = previous_step(&flow, index)
                         else {
                             finish(
-                                state,
+                                context,
                                 run,
                                 "REJECTED",
                                 "checkpoint sem step anterior para refazer",
@@ -538,7 +544,7 @@ async fn execute(
                             index += 1;
                         } else {
                             finish(
-                                state,
+                                context,
                                 run,
                                 "TIMED_OUT",
                                 "timeout do checkpoint HITL",
@@ -550,7 +556,7 @@ async fn execute(
                     }
                     HitlOutcome::Cancelled => {
                         finish(
-                            state,
+                            context,
                             run,
                             "REJECTED",
                             "cancelado pelo usuário",
@@ -561,16 +567,17 @@ async fn execute(
                     }
                 }
                 if index == hitl_index + 1 {
-                    let _ = store::mark_node_done(&state.db, &run.id, hitl_index, None, None).await;
+                    let _ =
+                        store::mark_node_done(&context.pool, &run.id, hitl_index, None, None).await;
                 } else if index < hitl_index {
                     // Feedback/choice re-runs the previous step and this HITL.
-                    let _ = store::reset_node(&state.db, &run.id, hitl_index).await;
-                    let _ = store::reset_node(&state.db, &run.id, index).await;
+                    let _ = store::reset_node(&context.pool, &run.id, hitl_index).await;
+                    let _ = store::reset_node(&context.pool, &run.id, index).await;
                 }
             }
             FlowItem::Sink(sink) => {
                 store::update_run(
-                    &state.db,
+                    &context.pool,
                     &run.id,
                     "RUNNING_SINKS",
                     None,
@@ -579,15 +586,11 @@ async fn execute(
                     false,
                 )
                 .await?;
-                sinks::execute_one(
-                    &crate::app_state::recipe_context(state),
-                    sink,
-                    run,
-                    trigger,
-                    &outputs,
-                )
-                .await?;
-                store::mark_node_done(&state.db, &run.id, index, Some(&outputs), None).await?;
+                context
+                    .sinks()
+                    .execute(context, sink, run, trigger, &outputs)
+                    .await?;
+                store::mark_node_done(&context.pool, &run.id, index, Some(&outputs), None).await?;
                 index += 1;
             }
             FlowItem::Branch(_)
@@ -599,10 +602,10 @@ async fn execute(
         }
     }
 
-    let _ = tasks::move_to(&state.db, &task_id, "DONE", None).await;
-    let _ = tasks::set_phase_status(&state.db, &task_id, Some("done"), Some("DONE")).await;
+    let _ = tasks::move_to(&context.pool, &task_id, "DONE", None).await;
+    let _ = tasks::set_phase_status(&context.pool, &task_id, Some("done"), Some("DONE")).await;
     store::update_run(
-        &state.db,
+        &context.pool,
         &run.id,
         "COMPLETED",
         None,
@@ -611,8 +614,8 @@ async fn execute(
         true,
     )
     .await?;
-    mark_routine(state, trigger, "SUCCESS").await;
-    state.events.publish(OpenDeskWsEvent::RecipeRunUpdated {
+    mark_routine(context, trigger, "SUCCESS").await;
+    context.events.publish(OpenDeskWsEvent::RecipeRunUpdated {
         run_id: run.id.clone(),
         recipe_id: recipe.id.clone(),
         workspace_id: run.workspace_id.clone(),
@@ -649,7 +652,7 @@ fn previous_step(flow: &[FlowItem], index: usize) -> Option<(usize, &Step)> {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn execute_step(
-    state: &Arc<AppState>,
+    context: &RecipeContext,
     dispatcher: &dyn crate::recipe_dispatch::RecipeStepDispatcher,
     run: &store::RecipeRun,
     task_id: &str,
@@ -662,7 +665,7 @@ pub(super) async fn execute_step(
     routine_id: Option<&str>,
 ) -> AppResult<()> {
     store::update_run(
-        &state.db,
+        &context.pool,
         &run.id,
         "RUNNING_STEP",
         Some(&step.id),
@@ -685,7 +688,7 @@ pub(super) async fn execute_step(
     }
 
     let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
-        &state.db,
+        &context.pool,
         Some(&run.workspace_id),
     )
     .await
@@ -714,7 +717,7 @@ pub(super) async fn execute_step(
             prompt.push_str(block);
         }
         tasks::update(
-            &state.db,
+            &context.pool,
             task_id,
             tasks::UpdateTaskInput {
                 description: Some(prompt.clone()),
@@ -739,9 +742,10 @@ pub(super) async fn execute_step(
             session_id.as_deref(),
         )
         .await?;
-        let run_result = wait_for_run(state, &run.workspace_id, task_id, &started, &run.id).await?;
+        let run_result =
+            wait_for_run(context, &run.workspace_id, task_id, &started, &run.id).await?;
         if let Some(routine_id) = routine_id {
-            let _ = db::runs::set_schedule_id(&state.db, &run_result.id, routine_id).await;
+            let _ = db::runs::set_schedule_id(&context.pool, &run_result.id, routine_id).await;
         }
         ensure_step_finished(&step.id, &run_result.status)?;
         *session_id = run_result.session_id.clone();
@@ -759,7 +763,7 @@ pub(super) async fn execute_step(
             },
             None => None,
         };
-        let artifacts = db::artifacts::list_by_run(&state.db, &run_result.id, 200)
+        let artifacts = db::artifacts::list_by_run(&context.pool, &run_result.id, 200)
             .await
             .unwrap_or_default()
             .into_iter()
@@ -773,7 +777,7 @@ pub(super) async fn execute_step(
             "attempts": attempt,
         });
         store::update_run(
-            &state.db,
+            &context.pool,
             &run.id,
             "RUNNING_STEP",
             Some(&step.id),
@@ -787,7 +791,7 @@ pub(super) async fn execute_step(
 }
 
 async fn wait_for_run(
-    state: &Arc<AppState>,
+    context: &RecipeContext,
     workspace_id: &str,
     task_id: &str,
     started_after: &str,
@@ -795,10 +799,11 @@ async fn wait_for_run(
 ) -> AppResult<db::runs::TaskRun> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(2 * 60 * 60);
     loop {
-        if store::is_cancel_requested(&state.db, recipe_run_id).await? {
+        if store::is_cancel_requested(&context.pool, recipe_run_id).await? {
             return Err(AppError::BadRequest("cancelado pelo usuário".into()));
         }
-        if let Ok(runs) = db::runs::list_with_limit(&state.db, workspace_id, Some(task_id), 5).await
+        if let Ok(runs) =
+            db::runs::list_with_limit(&context.pool, workspace_id, Some(task_id), 5).await
             && let Some(run) = runs
                 .into_iter()
                 .find(|run| run.started_at.as_str() >= started_after)
@@ -828,22 +833,32 @@ pub(super) fn replace_attachment(source: &str, targets: &[String]) -> AppResult<
 }
 
 pub(super) async fn finish(
-    state: &Arc<AppState>,
+    context: &RecipeContext,
     run: &store::RecipeRun,
     status: &str,
     message: &str,
     routine_id: Option<&str>,
 ) -> AppResult<()> {
-    let _ = store::fail_running_nodes(&state.db, &run.id, message).await;
-    store::update_run(&state.db, &run.id, status, None, None, Some(message), true).await?;
+    let _ = store::fail_running_nodes(&context.pool, &run.id, message).await;
+    store::update_run(
+        &context.pool,
+        &run.id,
+        status,
+        None,
+        None,
+        Some(message),
+        true,
+    )
+    .await?;
     if let Some(task_id) = &run.task_id {
-        let _ = tasks::set_phase_status(&state.db, task_id, Some("failed"), Some("BLOCKED")).await;
-        let _ = tasks::set_blocked_reason(&state.db, task_id, Some(message)).await;
+        let _ =
+            tasks::set_phase_status(&context.pool, task_id, Some("failed"), Some("BLOCKED")).await;
+        let _ = tasks::set_blocked_reason(&context.pool, task_id, Some(message)).await;
     }
     if let Some(routine_id) = routine_id {
-        mark_routine_by_id(state, routine_id, status).await;
+        mark_routine_by_id(context, routine_id, status).await;
     }
-    state.events.publish(OpenDeskWsEvent::RecipeRunUpdated {
+    context.events.publish(OpenDeskWsEvent::RecipeRunUpdated {
         run_id: run.id.clone(),
         recipe_id: run.recipe_id.clone(),
         workspace_id: run.workspace_id.clone(),
@@ -852,26 +867,30 @@ pub(super) async fn finish(
     Ok(())
 }
 
-pub(super) async fn mark_routine(state: &Arc<AppState>, trigger: &serde_json::Value, status: &str) {
+pub(super) async fn mark_routine(
+    context: &RecipeContext,
+    trigger: &serde_json::Value,
+    status: &str,
+) {
     if let Some(routine_id) = trigger
         .get("routine_id")
         .or_else(|| trigger.get("schedule_id"))
         .and_then(serde_json::Value::as_str)
     {
-        mark_routine_by_id(state, routine_id, status).await;
+        mark_routine_by_id(context, routine_id, status).await;
     }
 }
 
-async fn mark_routine_by_id(state: &Arc<AppState>, routine_id: &str, status: &str) {
-    if let Ok(schedule) = crate::db::schedules::get(&state.db, routine_id).await {
+async fn mark_routine_by_id(context: &RecipeContext, routine_id: &str, status: &str) {
+    if let Ok(schedule) = crate::db::schedules::get(&context.pool, routine_id).await {
         let _ = crate::db::schedules::mark_run(
-            &state.db,
+            &context.pool,
             &schedule.id,
             status,
             &Utc::now().to_rfc3339(),
         )
         .await;
-        state.events.publish(OpenDeskWsEvent::ScheduleUpdated {
+        context.events.publish(OpenDeskWsEvent::ScheduleUpdated {
             schedule_id: schedule.id,
             workspace_id: schedule.workspace_id,
         });
@@ -920,64 +939,36 @@ mod tests {
 
     #[tokio::test]
     async fn dry_run_completes_without_dispatch() {
-        use crate::paths::AppPaths;
-        let temp = tempfile::TempDir::new().expect("temp");
-        let root = temp.path();
-        let paths = AppPaths {
-            data_dir: root.join("data"),
-            config_dir: root.join("config"),
-            cache_dir: root.join("cache"),
-            log_dir: root.join("logs"),
-            db_path: root.join("data").join("opendesk.db"),
-            backups_dir: root.join("backups"),
-            artifacts_dir: root.join("artifacts"),
-            run_logs_dir: root.join("runs"),
-            daemon_lock_path: root.join("daemon.json"),
-            api_lock_path: root.join("api.json"),
-            allow_temp_workspaces: true,
-        };
-        for dir in [
-            &paths.data_dir,
-            &paths.config_dir,
-            &paths.cache_dir,
-            &paths.log_dir,
-            &paths.backups_dir,
-            &paths.artifacts_dir,
-            &paths.run_logs_dir,
-        ] {
-            std::fs::create_dir_all(dir).expect("dir");
-        }
-        let state = Arc::new(
-            crate::app_state::AppState::initialize(paths)
-                .await
-                .expect("state"),
+        let test = crate::test_support::context().await;
+        let context = RecipeContext::new(
+            test.db.clone(),
+            test.paths.clone(),
+            crate::events::EventBus::new(32),
+            std::sync::Arc::new(crate::secrets::SecretStore::new(&test.paths)),
         );
-        sqlx::query("INSERT INTO workspaces (id, name, root_path) VALUES ('ws-1', 'WS', ?)")
-            .bind(root.to_string_lossy().to_string())
-            .execute(&state.db)
-            .await
-            .expect("ws");
-        let yaml = "id: dry
-name: Dry\ntrigger:\n  type: MANUAL\n  config: {}\nsteps:\n  - id: s1\n    name: Um\n    prompt: oi\n";
-        store::save_yaml(&state.db, "ws-1", "dry", yaml)
+        let yaml = "id: dry\nname: Dry\ntrigger:\n  type: MANUAL\n  config: {}\nsteps:\n  - id: s1\n    name: Um\n    prompt: oi\n";
+        store::save_yaml(&test.db, &test.workspace_id, "dry", yaml)
             .await
             .expect("save");
         // New recipes start disabled; this test exercises the run path, so it
         // performs the explicit activation a human would do after review.
-        store::set_enabled(&state.db, "ws-1", "dry", true)
+        store::set_enabled(&test.db, &test.workspace_id, "dry", true)
             .await
             .expect("enable");
         let recipe = crate::recipes::parser::parse(yaml).expect("parse");
-        let run = start(state.clone(), "ws-1", recipe, serde_json::json!({}), true)
-            .await
-            .expect("run");
+        let run = start(
+            context.clone(),
+            &test.workspace_id,
+            recipe,
+            serde_json::json!({}),
+            true,
+        )
+        .await
+        .expect("run");
         let mut status = run.status;
         for _ in 0..20 {
             tokio::time::sleep(Duration::from_millis(50)).await;
-            status = store::get_run(&state.db, &run.id)
-                .await
-                .expect("get")
-                .status;
+            status = store::get_run(&test.db, &run.id).await.expect("get").status;
             if status == "COMPLETED" {
                 break;
             }

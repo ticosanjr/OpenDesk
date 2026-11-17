@@ -438,9 +438,14 @@ impl CronEngine {
             "routine_name": schedule.name,
             "scheduled_for": scheduled_for,
         });
-        let run =
-            crate::recipes::engine::start(state, &schedule.workspace_id, recipe, trigger, false)
-                .await?;
+        let run = crate::recipes::engine::start(
+            crate::app_state::recipe_context(&state),
+            &schedule.workspace_id,
+            recipe,
+            trigger,
+            false,
+        )
+        .await?;
         Ok(serde_json::json!({
             "run_id": run.id,
             "recipe_id": recipe_id,

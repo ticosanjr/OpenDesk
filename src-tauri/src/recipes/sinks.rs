@@ -2,12 +2,30 @@ use crate::{
     db,
     error::{AppError, AppResult},
     io_bus::{IoContext, RunArtifact, RunOutput, outbound},
-    recipe_context::RecipeContext,
+    recipe_context::{RecipeContext, RecipeSinkExecutor},
     recipes::{
         parser::{self, FlowSink},
         store::RecipeRun,
     },
 };
+use async_trait::async_trait;
+
+/// Shell adapter used by the core recipe engine.
+pub struct ShellRecipeSinks;
+
+#[async_trait]
+impl RecipeSinkExecutor for ShellRecipeSinks {
+    async fn execute(
+        &self,
+        context: &RecipeContext,
+        sink: &FlowSink,
+        run: &RecipeRun,
+        trigger: &serde_json::Value,
+        outputs: &serde_json::Value,
+    ) -> AppResult<Vec<String>> {
+        execute_one(context, sink, run, trigger, outputs).await
+    }
+}
 
 /// Executes one sink from the unified recipe flow at its configured position.
 pub async fn execute_one(

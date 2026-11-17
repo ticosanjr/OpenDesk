@@ -101,7 +101,14 @@ pub async fn run(
         body.trigger_context
     };
     Ok(Json(
-        engine::start(state.clone(), &workspace_id, recipe, trigger, body.dry_run).await?,
+        engine::start(
+            crate::app_state::recipe_context(&state),
+            &workspace_id,
+            recipe,
+            trigger,
+            body.dry_run,
+        )
+        .await?,
     ))
 }
 
@@ -493,7 +500,12 @@ pub async fn retry_run(
     let recipe = parser::parse(&yaml)?;
     store::reset_for_retry(&state.db, &id).await?;
     let refreshed = store::get_run(&state.db, &id).await?;
-    engine::resume(state.clone(), recipe, refreshed.clone()).await?;
+    engine::resume(
+        crate::app_state::recipe_context(&state),
+        recipe,
+        refreshed.clone(),
+    )
+    .await?;
     Ok(Json(refreshed))
 }
 

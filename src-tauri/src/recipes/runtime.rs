@@ -82,7 +82,7 @@ pub async fn resume_runs(state: &Arc<AppState>) -> AppResult<usize> {
         let Ok(recipe) = parser::parse(&yaml) else {
             continue;
         };
-        engine::resume(state.clone(), recipe, run).await?;
+        engine::resume(crate::app_state::recipe_context(state), recipe, run).await?;
         resumed += 1;
     }
     Ok(resumed)
@@ -381,7 +381,7 @@ async fn scan_folder_triggers(
                     "recipe_id": recipe.id,
                 });
                 match engine::start(
-                    state.clone(),
+                    crate::app_state::recipe_context(state),
                     &index.workspace_id,
                     recipe.clone(),
                     trigger,
@@ -559,7 +559,7 @@ async fn scan_calendar_triggers(state: &Arc<AppState>) -> AppResult<()> {
                     "recipe_id": recipe.id,
                 });
                 if let Err(error) = engine::start(
-                    state.clone(),
+                    crate::app_state::recipe_context(state),
                     &index.workspace_id,
                     recipe.clone(),
                     trigger,
@@ -617,7 +617,7 @@ async fn scan_cron_triggers(state: &Arc<AppState>) -> AppResult<()> {
                 "recipe_id": recipe.id,
             });
             let _ = engine::start(
-                state.clone(),
+                crate::app_state::recipe_context(state),
                 &index.workspace_id,
                 recipe.clone(),
                 trigger,

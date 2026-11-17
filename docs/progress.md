@@ -3283,3 +3283,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - HITL e sinks não dependem mais de AppState.
 - Core 235 testes, shell 357 (592).
 - ADR 0137.
+
+## 2026-11-17 — A3 engine/DAG no core
+
+- Engine, DAG e protocolo HITL no `opendesk-core`.
+- Canais e sinks entram por portas; shell só adapta.
+- Core 249 testes, shell 343 (592).
+- ADR 0138.

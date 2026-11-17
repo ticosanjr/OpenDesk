@@ -544,6 +544,10 @@ pendências manuais continuam listadas abaixo.
 
 - HITL e sinks recebem `&RecipeContext`; dispatcher e portas no-op testados.
 
+## Fase A3 — engine/DAG no core
+
+- `cargo tree -p opendesk-core` sem Tauri; engine, DAG e HITL testados no core.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:
