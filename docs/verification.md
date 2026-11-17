@@ -568,6 +568,13 @@ pendências manuais continuam listadas abaixo.
 - Regressão bloqueia promoção; rollback restaura o SKILL.md anterior.
 - Loop/switch executam com caminhos duráveis; árvore de nós na UI.
 
+## Onda 5 — multi-node
+
+- TLS mútuo gera/configura/recarrega CA, cert e chave sem reiniciar o listener.
+- Sync por job baixa bundle delta, aplica em workdir e devolve conteúdo alterado.
+- Dois nós: lease expirada é reclamada pelo segundo nó sem duplicar o job.
+- Validação em duas máquinas/containers reais permanece manual.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

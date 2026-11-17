@@ -61,6 +61,7 @@ pub mod task_watchers;
 pub mod tasks;
 pub mod telegram;
 pub mod tickets;
+pub mod tls;
 pub mod updates;
 pub mod voice;
 pub mod worktrees;
@@ -85,6 +86,12 @@ pub async fn spawn_server(state: Arc<AppState>) -> anyhow::Result<()> {
     let listener = state
         .take_listener()
         .ok_or_else(|| anyhow::anyhow!("OpenDesk API listener was already taken"))?;
+    if crate::api::tls::TlsEnv::from_env()?.is_some() {
+        let address = listener.local_addr()?;
+        tracing::info!(%address, "OpenDesk local API listening with mTLS");
+        crate::api::tls::start_if_configured(listener, state).await?;
+        return Ok(());
+    }
     let listener = tokio::net::TcpListener::from_std(listener)?;
     let address = listener.local_addr()?;
     let app = router(state);
@@ -279,6 +286,11 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/nodes/heartbeat", post(nodes::heartbeat))
         .route("/api/nodes/next-job", get(nodes::next_job))
         .route("/api/nodes/jobs/{id}/heartbeat", post(nodes::job_heartbeat))
+        .route("/api/nodes/jobs/{id}/sync", post(nodes::sync_bundle))
+        .route(
+            "/api/nodes/jobs/{id}/sync/{bundle_id}",
+            get(nodes::download_sync),
+        )
         .route("/api/nodes/jobs/{id}/complete", post(nodes::complete_job))
         .route("/api/onboarding", get(onboarding::status))
         .route(

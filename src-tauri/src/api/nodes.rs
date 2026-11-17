@@ -7,12 +7,14 @@ use crate::{
 };
 use axum::{
     Json,
+    body::Bytes,
     extract::{Path, State},
-    http::{HeaderMap, header::AUTHORIZATION},
+    http::{HeaderMap, StatusCode, header::AUTHORIZATION},
+    response::IntoResponse,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 async fn node_from_headers(state: &AppState, headers: &HeaderMap) -> AppResult<nodes::Worker> {
     let token = headers
@@ -93,6 +95,7 @@ pub async fn next_job(
     headers: HeaderMap,
 ) -> AppResult<Json<Value>> {
     let worker = node_from_headers(&state, &headers).await?;
+    let _ = queue::requeue_expired(&state.db).await?;
     let Some(job) = queue::claim_for_node(&state.db, &worker.id, 120).await? else {
         return Ok(Json(json!({ "job": null })));
     };
@@ -144,6 +147,94 @@ pub async fn next_job(
     })))
 }
 
+#[derive(Debug, Default, Deserialize)]
+pub struct NodeSyncBody {
+    #[serde(default)]
+    pub base: Vec<crate::workspace_sync::FileEntry>,
+}
+
+async fn assigned_job(
+    state: &AppState,
+    headers: &HeaderMap,
+    id: &str,
+) -> AppResult<(nodes::Worker, queue::QueueJob, workspaces::Workspace)> {
+    let worker = node_from_headers(state, headers).await?;
+    let job = queue::get(&state.db, id).await?;
+    if job.assigned_node_id.as_deref() != Some(worker.id.as_str()) {
+        return Err(AppError::Conflict("job pertence a outro nó".into()));
+    }
+    let workspace = workspaces::get(&state.db, &job.workspace_id).await?;
+    Ok((worker, job, workspace))
+}
+
+/// Builds a delta bundle for a node work directory. The node sends its local
+/// manifest; the controller returns only added/changed files.
+pub async fn sync_bundle(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    Json(body): Json<NodeSyncBody>,
+) -> AppResult<Json<Value>> {
+    let (_worker, job, workspace) = assigned_job(&state, &headers, &id).await?;
+    let root = PathBuf::from(workspace.root_path);
+    let destination = state
+        .paths
+        .data_dir
+        .join("sync")
+        .join(format!("{}.tar.zst", uuid::Uuid::now_v7()));
+    let base = body.base;
+    let destination_for_task = destination.clone();
+    let (current, delta, report) = tokio::task::spawn_blocking(move || {
+        let current = crate::workspace_sync::manifest(&root)?;
+        let delta = crate::workspace_sync::delta(&base, &current);
+        let files = delta
+            .added
+            .iter()
+            .chain(delta.changed.iter())
+            .cloned()
+            .collect::<Vec<_>>();
+        let report = crate::workspace_sync::bundle(&root, &files, &destination_for_task)?;
+        AppResult::Ok((current, delta, report))
+    })
+    .await
+    .map_err(|error| AppError::Internal(format!("sync task: {error}")))??;
+    let bundle_id = destination
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .ok_or_else(|| AppError::Internal("bundle sem nome".into()))?;
+    Ok(Json(json!({
+        "job_id": job.id,
+        "bundle_id": bundle_id,
+        "delta": delta,
+        "manifest": current,
+        "files": report.files,
+        "bytes": report.bytes,
+    })))
+}
+
+pub async fn download_sync(
+    State(state): State<Arc<AppState>>,
+    Path((id, bundle_id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> AppResult<impl IntoResponse> {
+    let (_worker, _job, _workspace) = assigned_job(&state, &headers, &id).await?;
+    if bundle_id.contains('/') || bundle_id.contains('\\') {
+        return Err(AppError::BadRequest("bundle_id inválido".into()));
+    }
+    let path = state.paths.data_dir.join("sync").join(bundle_id);
+    let path = tokio::task::spawn_blocking(move || {
+        crate::workspace_sync::validate_bundle_path(&path, &state.paths.data_dir)
+    })
+    .await
+    .map_err(|error| AppError::Internal(format!("sync task: {error}")))??;
+    let bytes = tokio::fs::read(path).await?;
+    Ok((
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "application/octet-stream")],
+        Bytes::from(bytes),
+    ))
+}
+
 pub async fn job_heartbeat(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
@@ -181,6 +272,9 @@ pub struct RemoteFile {
     pub status: String,
     #[serde(default)]
     pub patch: String,
+    /// Optional full content for a node without a shared mount.
+    #[serde(default)]
+    pub content_base64: Option<String>,
 }
 
 fn default_file_status() -> String {
@@ -287,6 +381,39 @@ pub async fn complete_job(
                 "deleted" => "DELETED",
                 _ => "MODIFIED",
             };
+            if file.status == "deleted" {
+                let target = workspace_root.join(path);
+                if target.is_file() {
+                    let _ = std::fs::remove_file(target);
+                }
+            } else if let Some(content) = file.content_base64.as_deref()
+                && let Ok(bytes) =
+                    base64::Engine::decode(&base64::engine::general_purpose::STANDARD, content)
+            {
+                let target = workspace_root.join(path);
+                if let Some(parent) = target.parent() {
+                    std::fs::create_dir_all(parent)?;
+                    let canonical_parent = std::fs::canonicalize(parent)?;
+                    let canonical_root = std::fs::canonicalize(workspace_root)?;
+                    if !canonical_parent.starts_with(&canonical_root) {
+                        return Err(AppError::BadRequest(format!(
+                            "recusa escrever fora do workspace: {}",
+                            file.path
+                        )));
+                    }
+                }
+                if target
+                    .symlink_metadata()
+                    .map(|meta| meta.file_type().is_symlink())
+                    .unwrap_or(false)
+                {
+                    return Err(AppError::BadRequest(format!(
+                        "recusa escrever em symlink: {}",
+                        file.path
+                    )));
+                }
+                std::fs::write(&target, bytes)?;
+            }
             crate::queue_scheduler::run_execution::record_artifact(
                 &state.db,
                 &state.events,

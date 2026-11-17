@@ -3316,3 +3316,11 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - G4: loop limitado com caminhos duráveis, switch e árvore na UI.
 - Rust 357 shell + 259 core (616); Vitest 256.
 - ADR 0146–0148.
+
+## 2026-11-17 — Onda 5: multi-node
+
+- D1.2: TLS mútuo com client cert, reload a cada 5s e conexões em voo preservadas.
+- D2: sync delta por job, workdir sem mount e upload de conteúdo no complete.
+- D3: lease expirada volta para a fila sem duplicar o job; teste com dois nós.
+- Rust 360 shell + 259 core (619).
+- ADR 0149–0151.

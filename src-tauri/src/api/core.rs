@@ -433,7 +433,9 @@ pub(crate) async fn auth_middleware(
     let node_endpoint = path == "/api/nodes/heartbeat"
         || path == "/api/nodes/next-job"
         || (path.starts_with("/api/nodes/jobs/")
-            && (path.ends_with("/heartbeat") || path.ends_with("/complete")));
+            && (path.ends_with("/heartbeat")
+                || path.ends_with("/complete")
+                || path.contains("/sync")));
     if node_endpoint
         && let Some(token) = header_token
         && crate::nodes::authenticate(&state.db, token)

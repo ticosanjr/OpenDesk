@@ -227,3 +227,172 @@ async fn node_claims_leases_and_completes_a_job() {
     assert_eq!(status, StatusCode::OK, "{empty}");
     assert!(empty["job"].is_null());
 }
+
+#[tokio::test]
+async fn node_sync_downloads_a_bundle_and_uploads_changed_content() {
+    let ctx = test_support::context().await;
+    std::fs::write(ctx.workspace_root.join("base.txt"), "base\n").expect("base");
+    let (_, created) = call(
+        &ctx,
+        Method::POST,
+        "/api/nodes",
+        Some(json!({ "name": "sync-worker" })),
+    )
+    .await;
+    let token = created["token"].as_str().expect("token").to_string();
+    let job = crate::db::queue::enqueue(
+        &ctx.state.db,
+        crate::db::queue::EnqueueInput {
+            workspace_id: ctx.workspace_id.clone(),
+            task_id: None,
+            schedule_id: None,
+            session_id: None,
+            concurrency_group: Some("light_api".into()),
+            prompt_payload: "sync test".into(),
+            resolved_mode: "BUILD_DIRECT".into(),
+            resolved_agent: "build".into(),
+            resolved_model: "model/test".into(),
+            resolved_effort: "medium".into(),
+            resolved_harness: "opencode".into(),
+            job_kind: "task".into(),
+            scheduled_for: None,
+            output_dir: None,
+            priority: 2,
+            max_retries: 0,
+        },
+    )
+    .await
+    .expect("job");
+    let (status, claim) =
+        call_with_token(&ctx, Method::GET, "/api/nodes/next-job", &token, None).await;
+    assert_eq!(status, StatusCode::OK, "{claim}");
+    assert_eq!(claim["job"]["id"], job.id);
+    let run_id = claim["run_id"].as_str().expect("run").to_string();
+
+    let (status, sync) = call_with_token(
+        &ctx,
+        Method::POST,
+        &format!("/api/nodes/jobs/{}/sync", job.id),
+        &token,
+        Some(json!({ "base": [] })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{sync}");
+    let bundle_id = sync["bundle_id"].as_str().expect("bundle").to_string();
+    assert!(sync["files"].as_u64().unwrap_or(0) >= 1, "{sync}");
+
+    let request = Request::builder()
+        .method(Method::GET)
+        .uri(format!("/api/nodes/jobs/{}/sync/{}", job.id, bundle_id))
+        .header(AUTHORIZATION, format!("Bearer {token}"))
+        .body(Body::empty())
+        .expect("request");
+    let response = router(ctx.state.clone())
+        .oneshot(request)
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = to_bytes(response.into_body(), 16 * 1024 * 1024)
+        .await
+        .expect("bytes");
+    let temp = tempfile::TempDir::new().expect("temp");
+    let bundle = temp.path().join("bundle.tar.zst");
+    std::fs::write(&bundle, bytes).expect("bundle");
+    crate::workspace_sync::apply(&bundle, temp.path(), false).expect("apply");
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("base.txt")).expect("base"),
+        "base\n"
+    );
+
+    std::fs::write(temp.path().join("changed.txt"), "novo\n").expect("changed");
+    let content = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, "novo\n");
+    let (status, done) = call_with_token(
+        &ctx,
+        Method::POST,
+        &format!("/api/nodes/jobs/{}/complete", job.id),
+        &token,
+        Some(json!({
+            "status": "completed",
+            "run_id": run_id,
+            "duration_ms": 10,
+            "files": [{
+                "path": "changed.txt",
+                "status": "added",
+                "patch": "",
+                "content_base64": content
+            }]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{done}");
+    assert_eq!(
+        std::fs::read_to_string(ctx.workspace_root.join("changed.txt")).expect("uploaded"),
+        "novo\n"
+    );
+}
+
+#[tokio::test]
+async fn expired_node_lease_is_reclaimed_without_duplicating_the_job() {
+    let ctx = test_support::context().await;
+    let (_, first) = call(
+        &ctx,
+        Method::POST,
+        "/api/nodes",
+        Some(json!({ "name": "node-a" })),
+    )
+    .await;
+    let (_, second) = call(
+        &ctx,
+        Method::POST,
+        "/api/nodes",
+        Some(json!({ "name": "node-b" })),
+    )
+    .await;
+    let token_a = first["token"].as_str().expect("token a");
+    let token_b = second["token"].as_str().expect("token b");
+    let job = crate::db::queue::enqueue(
+        &ctx.state.db,
+        crate::db::queue::EnqueueInput {
+            workspace_id: ctx.workspace_id.clone(),
+            task_id: None,
+            schedule_id: None,
+            session_id: None,
+            concurrency_group: None,
+            prompt_payload: "lease".into(),
+            resolved_mode: "BUILD_DIRECT".into(),
+            resolved_agent: "build".into(),
+            resolved_model: "model/test".into(),
+            resolved_effort: "medium".into(),
+            resolved_harness: "opencode".into(),
+            job_kind: "task".into(),
+            scheduled_for: None,
+            output_dir: None,
+            priority: 2,
+            max_retries: 1,
+        },
+    )
+    .await
+    .expect("job");
+    let (status, claim) =
+        call_with_token(&ctx, Method::GET, "/api/nodes/next-job", token_a, None).await;
+    assert_eq!(status, StatusCode::OK, "{claim}");
+    assert_eq!(claim["job"]["id"], job.id);
+    sqlx::query(
+        "UPDATE execution_queue SET lease_expires_at = datetime('now','-1 minute') WHERE id = ?",
+    )
+    .bind(&job.id)
+    .execute(&ctx.state.db)
+    .await
+    .expect("expire");
+    let (status, reclaim) =
+        call_with_token(&ctx, Method::GET, "/api/nodes/next-job", token_b, None).await;
+    assert_eq!(status, StatusCode::OK, "{reclaim}");
+    assert_eq!(reclaim["job"]["id"], job.id, "{reclaim}");
+    assert_eq!(reclaim["job"]["retry_count"], 1, "{reclaim}");
+    let rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM execution_queue WHERE id = ?")
+        .bind(&job.id)
+        .fetch_one(&ctx.state.db)
+        .await
+        .expect("count");
+    assert_eq!(rows, 1);
+}

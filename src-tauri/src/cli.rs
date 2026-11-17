@@ -9,6 +9,7 @@ use reqwest::{Client, Method};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::io::{self, Write};
+use std::path::PathBuf;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -33,6 +34,7 @@ Uso:
   opendesk tui [--workspace <id>]
   opendesk node run --central <url> --token <token> [--once] [--poll <segundos>]
         [--opencode-url <url>] [--opencode-password <senha>]
+        [--sync] [--workdir <diretório>]
   opendesk runs list [--workspace <id>] [--limit <n>] [--json]
   opendesk runs show <run-id> [--json]
   opendesk queue list [--workspace <id>] [--json]
@@ -187,6 +189,8 @@ async fn execute(args: Args) -> Result<()> {
                 poll,
                 opencode_url,
                 opencode_password,
+                args.flags.contains_key("sync"),
+                args.flags.get("workdir").cloned(),
             )
             .await?;
         }
@@ -1161,6 +1165,7 @@ fn node_harness_command(harness: &str, prompt: &str) -> Option<(String, Vec<Stri
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_node(
     central: &str,
     token: &str,
@@ -1168,6 +1173,8 @@ async fn run_node(
     poll_secs: u64,
     opencode_url: Option<String>,
     opencode_password: Option<String>,
+    force_sync: bool,
+    workdir: Option<String>,
 ) -> Result<()> {
     let central = central.trim_end_matches('/').to_string();
     let client = Client::builder()
@@ -1228,11 +1235,26 @@ async fn run_node(
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
-        let workspace = claim
+        let controller_workspace = claim
             .get("workspace_root")
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
+        let workspace_id = job
+            .get("workspace_id")
+            .and_then(Value::as_str)
+            .unwrap_or("workspace");
+        let mut base_manifest = Vec::new();
+        let mut synced_root: Option<PathBuf> = None;
+        let workspace = if force_sync || !std::path::Path::new(&controller_workspace).is_dir() {
+            let root = node_workdir(workdir.as_deref(), workspace_id);
+            let manifest = sync_job_workspace(&client, &central, token, &job_id, &root).await?;
+            base_manifest = manifest;
+            synced_root = Some(root.clone());
+            root.to_string_lossy().to_string()
+        } else {
+            controller_workspace
+        };
         let agent = job
             .get("resolved_agent")
             .and_then(Value::as_str)
@@ -1315,13 +1337,17 @@ async fn run_node(
                     .chars()
                     .rev()
                     .collect();
+                let uploaded = match &synced_root {
+                    Some(root) => sync_upload_files(root, &base_manifest)?,
+                    None => files,
+                };
                 json!({
                     "status": if success { "completed" } else { "failed" },
                     "run_id": run_id,
                     "duration_ms": started.elapsed().as_millis() as i64,
                     "summary": summary,
                     "usage": {},
-                    "files": files
+                    "files": uploaded
                 })
             }
             Err(error) => json!({
@@ -1346,6 +1372,107 @@ async fn run_node(
         }
     }
     Ok(())
+}
+
+fn node_workdir(base: Option<&str>, workspace_id: &str) -> PathBuf {
+    let base = base
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir().join("opendesk-node"));
+    let safe: String = workspace_id
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || character == '-' || character == '_' {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    base.join(if safe.is_empty() { "workspace" } else { &safe })
+}
+
+async fn node_call_bytes(client: &Client, url: &str, token: &str) -> Result<Vec<u8>> {
+    let response = client
+        .get(url)
+        .bearer_auth(token)
+        .send()
+        .await
+        .context("control plane indisponível")?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(anyhow!("control plane respondeu {status}"));
+    }
+    Ok(response.bytes().await?.to_vec())
+}
+
+async fn sync_job_workspace(
+    client: &Client,
+    central: &str,
+    token: &str,
+    job_id: &str,
+    root: &std::path::Path,
+) -> Result<Vec<crate::workspace_sync::FileEntry>> {
+    std::fs::create_dir_all(root)?;
+    let local = crate::workspace_sync::manifest(root)?;
+    let response = node_call(
+        client,
+        Method::POST,
+        &format!("{central}/api/nodes/jobs/{job_id}/sync"),
+        token,
+        Some(json!({ "base": local })),
+    )
+    .await?;
+    let manifest: Vec<crate::workspace_sync::FileEntry> =
+        serde_json::from_value(response.get("manifest").cloned().unwrap_or(json!([])))
+            .context("manifest de sync inválido")?;
+    let files = response.get("files").and_then(Value::as_u64).unwrap_or(0);
+    if files > 0 {
+        let bundle_id = response
+            .get("bundle_id")
+            .and_then(Value::as_str)
+            .context("sync sem bundle_id")?;
+        let bytes = node_call_bytes(
+            client,
+            &format!("{central}/api/nodes/jobs/{job_id}/sync/{bundle_id}"),
+            token,
+        )
+        .await?;
+        let bundle = root.join(".opendesk-sync.tar.zst");
+        std::fs::write(&bundle, bytes)?;
+        crate::workspace_sync::apply(&bundle, root, false)?;
+        let _ = std::fs::remove_file(bundle);
+    }
+    Ok(manifest)
+}
+
+fn sync_upload_files(
+    root: &std::path::Path,
+    base: &[crate::workspace_sync::FileEntry],
+) -> Result<Vec<Value>> {
+    let current = crate::workspace_sync::manifest(root)?;
+    let delta = crate::workspace_sync::delta(base, &current);
+    let mut files = Vec::new();
+    for (path, status) in delta
+        .added
+        .iter()
+        .map(|path| (path, "added"))
+        .chain(delta.changed.iter().map(|path| (path, "modified")))
+    {
+        let bytes = std::fs::read(root.join(path))?;
+        files.push(json!({
+            "path": path,
+            "status": status,
+            "patch": "",
+            "content_base64": base64::Engine::encode(
+                &base64::engine::general_purpose::STANDARD,
+                bytes,
+            ),
+        }));
+    }
+    for path in delta.removed {
+        files.push(json!({ "path": path, "status": "deleted", "patch": "" }));
+    }
+    Ok(files)
 }
 
 async fn execute_node_job(

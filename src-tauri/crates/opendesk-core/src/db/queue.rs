@@ -328,6 +328,35 @@ pub async fn expired_leases(pool: &SqlitePool) -> AppResult<Vec<QueueJob>> {
         .await?)
 }
 
+/// Requeues jobs whose node lease expired. A job is only requeued while it
+/// still has retries left; otherwise it becomes FAILED. This is what lets a
+/// second node pick up work after the first one dies, without duplicating rows.
+pub async fn requeue_expired(pool: &SqlitePool) -> AppResult<u64> {
+    let requeued = sqlx::query(
+        "UPDATE execution_queue
+         SET status = 'QUEUED', assigned_node_id = NULL, started_at = NULL,
+             lease_expires_at = NULL, retry_count = retry_count + 1,
+             error_message = 'lease expired; requeued'
+         WHERE status = 'RUNNING' AND lease_expires_at IS NOT NULL
+           AND lease_expires_at < strftime('%Y-%m-%dT%H:%M:%fZ','now')
+           AND retry_count < max_retries",
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+    sqlx::query(
+        "UPDATE execution_queue
+         SET status = 'FAILED', finished_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+             error_message = 'lease expired; retries exhausted'
+         WHERE status = 'RUNNING' AND lease_expires_at IS NOT NULL
+           AND lease_expires_at < strftime('%Y-%m-%dT%H:%M:%fZ','now')
+           AND retry_count >= max_retries",
+    )
+    .execute(pool)
+    .await?;
+    Ok(requeued)
+}
+
 pub async fn finish(
     pool: &SqlitePool,
     id: &str,
