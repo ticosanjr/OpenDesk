@@ -1,28 +1,27 @@
 use crate::{
-    app_state::AppState,
     db,
     error::{AppError, AppResult},
     io_bus::{IoContext, RunArtifact, RunOutput, outbound},
+    recipe_context::RecipeContext,
     recipes::{
         parser::{self, FlowSink},
         store::RecipeRun,
     },
 };
-use std::sync::Arc;
 
 /// Executes one sink from the unified recipe flow at its configured position.
 pub async fn execute_one(
-    state: &Arc<AppState>,
+    context: &RecipeContext,
     sink: &FlowSink,
     run: &RecipeRun,
     trigger: &serde_json::Value,
     outputs: &serde_json::Value,
 ) -> AppResult<Vec<String>> {
-    execute_one_at(state, sink, run, trigger, outputs, 0).await
+    execute_one_at(context, sink, run, trigger, outputs, 0).await
 }
 
 async fn execute_one_at(
-    state: &Arc<AppState>,
+    context: &RecipeContext,
     sink: &FlowSink,
     run: &RecipeRun,
     trigger: &serde_json::Value,
@@ -37,20 +36,27 @@ async fn execute_one_at(
         .as_deref()
         .map(str::to_string)
         .ok_or_else(|| AppError::BadRequest("recipe run sem task para sinks".into()))?;
-    let artifacts = db::artifacts::list(&state.db, &run.workspace_id, None, Some(&task), None, 500)
-        .await
-        .unwrap_or_default();
-    let latest_run = db::runs::list_with_limit(&state.db, &run.workspace_id, Some(&task), 1)
+    let artifacts = db::artifacts::list(
+        &context.pool,
+        &run.workspace_id,
+        None,
+        Some(&task),
+        None,
+        500,
+    )
+    .await
+    .unwrap_or_default();
+    let latest_run = db::runs::list_with_limit(&context.pool, &run.workspace_id, Some(&task), 1)
         .await
         .ok()
         .and_then(|runs| runs.first().cloned());
-    let title = crate::recipes::store::get(&state.db, &run.workspace_id, &run.recipe_id)
+    let title = crate::recipes::store::get(&context.pool, &run.workspace_id, &run.recipe_id)
         .await
         .map(|index| index.name)
         .unwrap_or_else(|_| "Receita".into());
     let output = RunOutput {
         workspace_id: run.workspace_id.clone(),
-        workspace_root: db::workspaces::get(&state.db, &run.workspace_id)
+        workspace_root: db::workspaces::get(&context.pool, &run.workspace_id)
             .await?
             .root_path,
         output_directory: Some(run.output_dir_path.clone()),
@@ -73,8 +79,8 @@ async fn execute_one_at(
             .collect(),
     };
     let ctx = IoContext {
-        pool: state.db.clone(),
-        paths: state.paths.clone(),
+        pool: context.pool.clone(),
+        paths: context.paths.clone(),
     };
     let run_vars = serde_json::json!({
         "id": run.id,

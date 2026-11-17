@@ -290,8 +290,14 @@ fn run_scope<'a>(
                         false,
                     )
                     .await?;
-                    sinks::execute_one(ctx.state, sink, ctx.run, ctx.trigger, &scope.outputs)
-                        .await?;
+                    sinks::execute_one(
+                        &crate::app_state::recipe_context(ctx.state),
+                        sink,
+                        ctx.run,
+                        ctx.trigger,
+                        &scope.outputs,
+                    )
+                    .await?;
                     store::mark_node_path(
                         &ctx.state.db,
                         &ctx.run.id,
@@ -868,7 +874,7 @@ async fn handle_hitl(
         Some(existing) => existing.token,
         None => {
             hitl::request(
-                ctx.state,
+                &crate::app_state::recipe_context(ctx.state),
                 ctx.run,
                 &checkpoint,
                 &ctx.recipe.name,
@@ -886,7 +892,12 @@ async fn handle_hitl(
         checkpoint_id: checkpoint.id.clone(),
         interaction_type: checkpoint.interaction_type.clone(),
     });
-    let outcome = hitl::wait(ctx.state, &token, checkpoint.timeout_minutes).await?;
+    let outcome = hitl::wait(
+        &crate::app_state::recipe_context(ctx.state),
+        &token,
+        checkpoint.timeout_minutes,
+    )
+    .await?;
     match outcome {
         HitlOutcome::Resolved(HitlResolution::Approved) => {
             ctx.state.events.publish(OpenDeskWsEvent::HitlResolved {

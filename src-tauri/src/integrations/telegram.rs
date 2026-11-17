@@ -138,7 +138,11 @@ pub fn token(secrets: &SecretStore) -> Option<String> {
 }
 
 pub async fn token_for(state: &AppState) -> AppResult<String> {
-    token(&state.secrets).ok_or_else(|| {
+    token_for_parts(&state.secrets)
+}
+
+pub fn token_for_parts(secrets: &crate::secrets::SecretStore) -> AppResult<String> {
+    token(secrets).ok_or_else(|| {
         AppError::BadRequest("Telegram não está configurado: informe o token do bot.".into())
     })
 }
@@ -353,7 +357,14 @@ async fn handle_incoming(
         return Ok(());
     }
 
-    if crate::recipes::hitl::telegram::handle_reply(state, &incoming.chat_id, trimmed, &[]).await? {
+    if crate::recipes::hitl::telegram::handle_reply(
+        &crate::app_state::recipe_context(state),
+        &incoming.chat_id,
+        trimmed,
+        &[],
+    )
+    .await?
+    {
         return Ok(());
     }
     if let Some(rest) = lower
@@ -1423,13 +1434,17 @@ async fn send_chunk(
 }
 
 /// Send to every allowlist target that already has a numeric chat ID.
-pub async fn send_to_allowlist(state: &AppState, text: &str) -> AppResult<usize> {
-    let config = load(&state.db).await?;
+pub async fn send_to_allowlist_parts(
+    pool: &sqlx::SqlitePool,
+    secrets: &crate::secrets::SecretStore,
+    text: &str,
+) -> AppResult<usize> {
+    let config = load(pool).await?;
     if !config.enabled {
         return Err(AppError::BadRequest("Telegram não está habilitado".into()));
     }
-    let token = token_for(state).await?;
-    let targets = resolve_recipients(&state.db, &config.allowlist).await;
+    let token = token_for_parts(secrets)?;
+    let targets = resolve_recipients(pool, &config.allowlist).await;
     if targets.is_empty() {
         return Err(AppError::BadRequest(
             "a allowlist do Telegram não tem chats conhecidos; envie /start para o bot primeiro"

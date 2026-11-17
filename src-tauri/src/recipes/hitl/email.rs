@@ -1,14 +1,13 @@
 use crate::{
-    app_state::AppState,
     error::{AppError, AppResult},
     integrations::smtp_mailer,
+    recipe_context::RecipeContext,
     recipes::hitl::{HitlRequestPayload, parse_reply, resolve},
     recipes::store,
 };
-use std::sync::Arc;
 
-pub async fn dispatch(state: &Arc<AppState>, payload: &HitlRequestPayload) -> AppResult<String> {
-    let workspace = crate::db::workspaces::get(&state.db, &payload.workspace_id).await?;
+pub async fn dispatch(ctx: &RecipeContext, payload: &HitlRequestPayload) -> AppResult<String> {
+    let workspace = crate::db::workspaces::get(&ctx.pool, &payload.workspace_id).await?;
     let to = workspace
         .default_email_recipient
         .as_deref()
@@ -19,7 +18,7 @@ pub async fn dispatch(state: &Arc<AppState>, payload: &HitlRequestPayload) -> Ap
                     .into(),
             )
         })?;
-    let config = smtp_mailer::load_config(&state.db, &state.secrets, &payload.workspace_id)
+    let config = smtp_mailer::load_config(&ctx.pool, &ctx.secrets, &payload.workspace_id)
         .await?
         .ok_or_else(|| AppError::BadRequest("SMTP não configurado".into()))?;
     let instructions =
@@ -62,7 +61,7 @@ pub async fn dispatch(state: &Arc<AppState>, payload: &HitlRequestPayload) -> Ap
 }
 
 pub async fn handle_reply(
-    state: &Arc<AppState>,
+    ctx: &RecipeContext,
     subject: &str,
     from: &str,
     text: &str,
@@ -71,7 +70,7 @@ pub async fn handle_reply(
     let Some(token) = crate::recipes::hitl::extract_token(subject) else {
         return Ok(false);
     };
-    let Ok(request) = store::get_hitl(&state.db, &token).await else {
+    let Ok(request) = store::get_hitl(&ctx.pool, &token).await else {
         return Ok(false);
     };
     if request.status != "PENDING" {
@@ -88,7 +87,7 @@ pub async fn handle_reply(
         (kind, payload)
     };
     resolve(
-        state,
+        ctx,
         &token,
         "EMAIL",
         Some(from),
@@ -101,16 +100,16 @@ pub async fn handle_reply(
 
 #[allow(dead_code)]
 pub async fn send_ack(
-    state: &Arc<AppState>,
+    ctx: &RecipeContext,
     workspace_id: &str,
     subject: &str,
     message: &str,
 ) -> AppResult<()> {
-    let workspace = crate::db::workspaces::get(&state.db, workspace_id).await?;
+    let workspace = crate::db::workspaces::get(&ctx.pool, workspace_id).await?;
     let Some(to) = workspace.default_email_recipient else {
         return Ok(());
     };
-    let Some(config) = smtp_mailer::load_config(&state.db, &state.secrets, workspace_id).await?
+    let Some(config) = smtp_mailer::load_config(&ctx.pool, &ctx.secrets, workspace_id).await?
     else {
         return Ok(());
     };

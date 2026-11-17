@@ -1,7 +1,7 @@
 use crate::{
-    app_state::AppState,
     error::{AppError, AppResult},
     hitl::HitlKind,
+    recipe_context::RecipeContext,
     recipes::{
         parser::HitlCheckpoint,
         store::{self, HitlRequest, RecipeRun},
@@ -10,8 +10,6 @@ use crate::{
 use chrono::{Duration, Utc};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-
 pub mod email;
 pub mod signal;
 pub mod telegram;
@@ -55,7 +53,7 @@ pub enum HitlOutcome {
 }
 
 pub async fn request(
-    state: &Arc<AppState>,
+    ctx: &RecipeContext,
     run: &RecipeRun,
     checkpoint: &HitlCheckpoint,
     title: &str,
@@ -63,7 +61,7 @@ pub async fn request(
     next_step: Option<&str>,
     attachments: &[String],
 ) -> AppResult<String> {
-    let token = unique_token(&state.db).await?;
+    let token = unique_token(&ctx.pool).await?;
     let expires_at =
         (Utc::now() + Duration::minutes(checkpoint.timeout_minutes.clamp(1, 10080))).to_rfc3339();
     let context = serde_json::json!({
@@ -79,7 +77,7 @@ pub async fn request(
         "next_step": next_step,
     });
     store::create_hitl(
-        &state.db,
+        &ctx.pool,
         &token,
         run,
         &checkpoint.id,
@@ -105,16 +103,16 @@ pub async fn request(
     for channel in &checkpoint.channels {
         let result = match channel.as_str() {
             "DESKTOP_UI" => Ok("desktop".to_string()),
-            "EMAIL" => email::dispatch(state, &payload).await,
-            "SIGNAL" => signal::dispatch(state, &payload).await,
-            "TELEGRAM" => telegram::dispatch(state, &payload).await,
+            "EMAIL" => email::dispatch(ctx, &payload).await,
+            "SIGNAL" => signal::dispatch(ctx, &payload).await,
+            "TELEGRAM" => telegram::dispatch(ctx, &payload).await,
             other => Err(AppError::BadRequest(format!(
                 "canal HITL desconhecido: {other}"
             ))),
         };
         match result {
             Ok(external) => {
-                let _ = store::dispatch_channel(&state.db, &token, channel, &external).await;
+                let _ = store::dispatch_channel(&ctx.pool, &token, channel, &external).await;
             }
             Err(error) => {
                 tracing::warn!(token = %token, channel = %channel, error = %error, "HITL dispatch failed");
@@ -125,13 +123,13 @@ pub async fn request(
 }
 
 pub async fn wait(
-    state: &Arc<AppState>,
+    ctx: &RecipeContext,
     token: &str,
     timeout_minutes: i64,
 ) -> AppResult<HitlOutcome> {
     let deadline = Utc::now() + Duration::minutes(timeout_minutes.clamp(1, 10080));
     loop {
-        let request = store::get_hitl(&state.db, token).await?;
+        let request = store::get_hitl(&ctx.pool, token).await?;
         match request.status.as_str() {
             "RESOLVED" => {
                 let resolution = request
@@ -146,7 +144,7 @@ pub async fn wait(
             _ => {}
         }
         if Utc::now() >= deadline {
-            let _ = store::resolve_hitl(&state.db, token, "TIMEOUT", None, "EXPIRED", None).await;
+            let _ = store::resolve_hitl(&ctx.pool, token, "TIMEOUT", None, "EXPIRED", None).await;
             return Ok(HitlOutcome::Expired);
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -154,7 +152,7 @@ pub async fn wait(
 }
 
 pub async fn resolve(
-    state: &Arc<AppState>,
+    ctx: &RecipeContext,
     token: &str,
     channel: &str,
     sender: Option<&str>,
@@ -162,10 +160,9 @@ pub async fn resolve(
     payload: Option<&str>,
 ) -> AppResult<Option<HitlRequest>> {
     let resolved =
-        store::resolve_hitl(&state.db, token, channel, sender, resolution_type, payload).await?;
+        store::resolve_hitl(&ctx.pool, token, channel, sender, resolution_type, payload).await?;
     if resolved.is_some() {
-        state
-            .events
+        ctx.events
             .publish(crate::events::OpenDeskWsEvent::RecipeRunUpdated {
                 run_id: resolved
                     .as_ref()
@@ -489,8 +486,9 @@ mod tests {
     #[tokio::test]
     async fn request_creates_and_dispatches_channels() {
         let (ctx, run) = fixture().await;
+        let recipe_context = crate::app_state::recipe_context(&ctx.state);
         let token = request(
-            &ctx.state,
+            &recipe_context,
             &run,
             &checkpoint(&["DESKTOP_UI", "UNKNOWN"]),
             "Aprovar envio",
@@ -504,17 +502,31 @@ mod tests {
         let stored = store::get_hitl(&ctx.state.db, &token).await.expect("hitl");
         assert_eq!(stored.status, "PENDING");
 
-        resolve(&ctx.state, &token, "DESKTOP_UI", None, "APPROVED", None)
-            .await
-            .expect("resolve");
-        let outcome = wait(&ctx.state, &token, 1).await.expect("wait");
+        resolve(
+            &recipe_context,
+            &token,
+            "DESKTOP_UI",
+            None,
+            "APPROVED",
+            None,
+        )
+        .await
+        .expect("resolve");
+        let outcome = wait(&recipe_context, &token, 1).await.expect("wait");
         assert!(matches!(outcome, HitlOutcome::Resolved(_)));
 
         assert!(
-            resolve(&ctx.state, "missing", "DESKTOP_UI", None, "APPROVED", None)
-                .await
-                .expect("missing")
-                .is_none()
+            resolve(
+                &recipe_context,
+                "missing",
+                "DESKTOP_UI",
+                None,
+                "APPROVED",
+                None
+            )
+            .await
+            .expect("missing")
+            .is_none()
         );
 
         sqlx::query("UPDATE hitl_requests SET status = 'EXPIRED' WHERE token = ?")
@@ -523,7 +535,7 @@ mod tests {
             .await
             .expect("expire");
         assert!(matches!(
-            wait(&ctx.state, &token, 1).await.expect("expired"),
+            wait(&recipe_context, &token, 1).await.expect("expired"),
             HitlOutcome::Expired
         ));
     }
@@ -531,6 +543,7 @@ mod tests {
     #[tokio::test]
     async fn email_and_signal_dispatch_explain_missing_configuration() {
         let (ctx, run) = fixture().await;
+        let recipe_context = crate::app_state::recipe_context(&ctx.state);
         let payload = HitlRequestPayload {
             token: "AB12".into(),
             run_id: run.id.clone(),
@@ -541,11 +554,11 @@ mod tests {
             options: vec![],
             attachments: vec![],
         };
-        let email = email::dispatch(&ctx.state, &payload)
+        let email = email::dispatch(&recipe_context, &payload)
             .await
             .expect_err("email sem destinatário");
         assert!(format!("{email}").contains("e-mail padrão"));
-        let signal = signal::dispatch(&ctx.state, &payload)
+        let signal = signal::dispatch(&recipe_context, &payload)
             .await
             .expect_err("signal desligado");
         assert!(format!("{signal}").contains("Signal"));

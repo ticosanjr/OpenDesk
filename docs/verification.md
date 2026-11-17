@@ -540,6 +540,10 @@ pendências manuais continuam listadas abaixo.
 
 - CRUD de casos e validação de schema no core/API.
 
+## Fase A2 — HITL/sinks no RecipeContext
+
+- HITL e sinks recebem `&RecipeContext`; dispatcher e portas no-op testados.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

@@ -1,14 +1,13 @@
 use crate::{
-    app_state::AppState,
     error::{AppError, AppResult},
     integrations::signal,
+    recipe_context::RecipeContext,
     recipes::hitl::{HitlRequestPayload, parse_reply, resolve},
     recipes::store,
 };
-use std::sync::Arc;
 
-pub async fn dispatch(state: &Arc<AppState>, payload: &HitlRequestPayload) -> AppResult<String> {
-    let config = signal::load(&state.db).await?;
+pub async fn dispatch(ctx: &RecipeContext, payload: &HitlRequestPayload) -> AppResult<String> {
+    let config = signal::load(&ctx.pool).await?;
     if !config.enabled || config.account.trim().is_empty() || config.allowlist.is_empty() {
         return Err(AppError::BadRequest(
             "Signal não está habilitado ou sem allowlist".into(),
@@ -35,7 +34,7 @@ pub async fn dispatch(state: &Arc<AppState>, payload: &HitlRequestPayload) -> Ap
 }
 
 pub async fn handle_reply(
-    state: &Arc<AppState>,
+    ctx: &RecipeContext,
     sender: &str,
     text: &str,
     attachments: &[String],
@@ -43,7 +42,7 @@ pub async fn handle_reply(
     let Some(token) = crate::recipes::hitl::extract_token(text) else {
         return Ok(false);
     };
-    let Ok(request) = store::get_hitl(&state.db, &token).await else {
+    let Ok(request) = store::get_hitl(&ctx.pool, &token).await else {
         return Ok(false);
     };
     if request.status != "PENDING" {
@@ -62,7 +61,7 @@ pub async fn handle_reply(
         }
     };
     resolve(
-        state,
+        ctx,
         &token,
         "SIGNAL",
         Some(sender),
@@ -70,7 +69,7 @@ pub async fn handle_reply(
         payload.as_deref(),
     )
     .await?;
-    let config = signal::load(&state.db).await?;
+    let config = signal::load(&ctx.pool).await?;
     let _ = signal::send_text(
         &config.cli_path,
         &config.account,

@@ -3276,3 +3276,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 
 - tools/call estática não carrega mais tools dinâmicas via API.
 - Removido helper morto do mtls.
+
+## 2026-11-17 — A2 HITL/sinks no RecipeContext
+
+- Contexto ganhou events, dispatcher e portas de canais/sinks.
+- HITL e sinks não dependem mais de AppState.
+- Core 235 testes, shell 357 (592).
+- ADR 0137.

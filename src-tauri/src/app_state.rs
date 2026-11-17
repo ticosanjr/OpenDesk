@@ -291,3 +291,19 @@ impl Drop for AppState {
         let _ = std::fs::remove_file(&self.paths.api_lock_path);
     }
 }
+
+/// Builds the core recipe context for the current shell state.
+///
+/// The context is cheap to clone: the pool and paths are handles, and the
+/// dispatcher reuses the same AppState.
+pub fn recipe_context(state: &Arc<AppState>) -> crate::recipe_context::RecipeContext {
+    crate::recipe_context::RecipeContext::new(
+        state.db.clone(),
+        state.paths.clone(),
+        state.events.clone(),
+        state.secrets.clone(),
+    )
+    .with_dispatcher(Arc::new(crate::recipe_dispatcher::ShellRecipeDispatcher {
+        state: state.clone(),
+    }))
+}

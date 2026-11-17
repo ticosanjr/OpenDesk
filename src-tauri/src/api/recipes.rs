@@ -290,7 +290,7 @@ pub async fn resolve_hitl(
         ),
     };
     let resolved = crate::recipes::hitl::resolve(
-        &state,
+        &crate::app_state::recipe_context(&state),
         &token,
         "DESKTOP_UI",
         None,

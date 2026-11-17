@@ -417,7 +417,7 @@ async fn execute(
                         Some(existing) => existing.token,
                         None => {
                             hitl::request(
-                                state,
+                                &crate::app_state::recipe_context(state),
                                 run,
                                 &checkpoint,
                                 &recipe.name,
@@ -435,7 +435,12 @@ async fn execute(
                     checkpoint_id: checkpoint.id.clone(),
                     interaction_type: checkpoint.interaction_type.clone(),
                 });
-                let outcome = hitl::wait(state, &token, checkpoint.timeout_minutes).await?;
+                let outcome = hitl::wait(
+                    &crate::app_state::recipe_context(state),
+                    &token,
+                    checkpoint.timeout_minutes,
+                )
+                .await?;
                 match outcome {
                     HitlOutcome::Resolved(HitlResolution::Approved) => {
                         state.events.publish(OpenDeskWsEvent::HitlResolved {
@@ -574,7 +579,14 @@ async fn execute(
                     false,
                 )
                 .await?;
-                sinks::execute_one(state, sink, run, trigger, &outputs).await?;
+                sinks::execute_one(
+                    &crate::app_state::recipe_context(state),
+                    sink,
+                    run,
+                    trigger,
+                    &outputs,
+                )
+                .await?;
                 store::mark_node_done(&state.db, &run.id, index, Some(&outputs), None).await?;
                 index += 1;
             }

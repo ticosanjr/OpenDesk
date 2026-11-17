@@ -167,7 +167,7 @@ async fn poll_once(
             }
             if crate::recipes::hitl::extract_token(&subject).is_some()
                 && crate::recipes::hitl::email::handle_reply(
-                    state,
+                    &crate::app_state::recipe_context(state),
                     &subject,
                     &from,
                     &text,

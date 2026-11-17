@@ -297,8 +297,13 @@ async fn handle_incoming(
     config: &SignalConfig,
     incoming: IncomingSignal,
 ) -> AppResult<()> {
-    if crate::recipes::hitl::signal::handle_reply(state, &incoming.source, &incoming.text, &[])
-        .await?
+    if crate::recipes::hitl::signal::handle_reply(
+        &crate::app_state::recipe_context(state),
+        &incoming.source,
+        &incoming.text,
+        &[],
+    )
+    .await?
     {
         return Ok(());
     }
