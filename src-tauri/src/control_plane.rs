@@ -29,7 +29,7 @@ impl Default for StartOptions {
 }
 
 pub async fn start(state: Arc<AppState>, options: StartOptions) -> anyhow::Result<()> {
-    state.cron.attach_state(&state);
+    state.attach_runtime_ports();
 
     if options.daemon {
         state.daemon.spawn_supervisor();

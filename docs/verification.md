@@ -594,6 +594,13 @@ pendências manuais continuam listadas abaixo.
 - Cobertura 54,38% total / 63,24% core; piso 53,8%/62,7%.
 - H1/H3/H4 bloqueados (ADR 0158).
 
+## Onda 1 — A4–A9
+
+- Fila/cron/lease/settlement no core com 25 testes.
+- `opendeskd`, `opendesk-cli` e `opendesk-node` compilam sem a feature desktop.
+- `cargo tree -p opendesk-daemon -e normal` sem Tauri.
+- Reexports do shell permanecem (A9 parcial).
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

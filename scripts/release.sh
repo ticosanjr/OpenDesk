@@ -257,7 +257,7 @@ if [[ "$SKIP_BUILD" != "1" ]]; then
         CARGO_PROFILE_RELEASE_LTO=thin \
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
           CARGO_INCREMENTAL=1 \
-          cargo build --release --bin opendeskd
+          cargo build --release -p opendesk-daemon
     )
   fi
 

@@ -3,12 +3,13 @@ use crate::{
     db::{budget, model_health, queue, router as router_db, runs, tasks, workspaces},
     error::{AppError, AppResult},
     events::{EventBus, OpenDeskWsEvent, QueueJobDto},
-    integrations::{delivery, google_oauth::GoogleOAuth},
+    notifier::RunNotifier,
     opencode_client::{
         daemon_manager::DaemonManager,
         session_runner::{self, RunRequest, RunStatus},
     },
     paths::AppPaths,
+    queue_ports::QueuePorts,
     queue_scheduler::{run_execution, settlement},
     secrets::SecretStore,
 };
@@ -43,7 +44,8 @@ pub struct QueueManager {
     write_buffer: Arc<crate::db::write_buffer::WriteBuffer>,
     daemon: Arc<DaemonManager>,
     adapters: Arc<AdapterService>,
-    google: Arc<GoogleOAuth>,
+    ports: Arc<dyn QueuePorts>,
+    notifier: Arc<dyn RunNotifier>,
     paused: AtomicBool,
     pause_reason: Mutex<Option<String>>,
     concurrency: AtomicUsize,
@@ -87,9 +89,10 @@ pub struct QueueConfig {
     pub events: EventBus,
     pub write_buffer: Arc<crate::db::write_buffer::WriteBuffer>,
     pub daemon: Arc<DaemonManager>,
-    pub google: Arc<GoogleOAuth>,
-    pub concurrency: usize,
     pub adapters: Arc<AdapterService>,
+    pub ports: Arc<dyn QueuePorts>,
+    pub notifier: Arc<dyn RunNotifier>,
+    pub concurrency: usize,
 }
 
 impl QueueManager {
@@ -100,9 +103,10 @@ impl QueueManager {
             events,
             write_buffer,
             daemon,
-            google,
-            concurrency,
             adapters,
+            ports,
+            notifier,
+            concurrency,
         } = config;
         Arc::new(Self {
             pool,
@@ -111,7 +115,8 @@ impl QueueManager {
             write_buffer,
             daemon,
             adapters,
-            google,
+            ports,
+            notifier,
             paused: AtomicBool::new(false),
             pause_reason: Mutex::new(None),
             concurrency: AtomicUsize::new(clamp_concurrency(concurrency)),
@@ -575,9 +580,8 @@ impl QueueManager {
 
         let started = Instant::now();
         let secrets = SecretStore::new(&self.paths);
-        let notifier = crate::run_notifier::ShellRunNotifier;
         let request = RunRequest {
-            notifier: Some(&notifier),
+            notifier: Some(self.notifier.as_ref()),
             pool: &self.pool,
             secrets: &secrets,
             workspace_id: &job.workspace_id,
@@ -748,13 +752,6 @@ impl QueueManager {
 
         // Learning runs after error classification so lessons include the final
         // code/hint. It is best-effort and never blocks settlement.
-        if let Ok(Some(lesson)) = crate::learning::capture_run(&self.pool, &run_id).await {
-            tracing::debug!(lesson_id = %lesson.id, "learning lesson captured");
-            self.events.publish(OpenDeskWsEvent::LearningUpdated {
-                workspace_id: job.workspace_id.clone(),
-            });
-        }
-
         settlement::settle_queue(&self.pool, &self.events, &job, &outcome).await;
 
         if let Some(task) = &task {
@@ -772,45 +769,21 @@ impl QueueManager {
 
         settlement::publish_run_finished(&self.events, &job, &run_id, &outcome);
 
-        let delivery_pool = self.pool.clone();
-        let delivery_paths = self.paths.clone();
-        let delivery_workspace = job.workspace_id.clone();
-        let delivery_task = job.task_id.clone();
-        let delivery_schedule = job.schedule_id.clone();
-        let delivery_run = run_id.clone();
-        let delivery_google = self.google.clone();
-        let io_ctx = crate::io_bus::IoContext {
-            pool: self.pool.clone(),
-            paths: self.paths.clone(),
-        };
         let run_success = outcome.status == RunStatus::Success;
-        tokio::spawn(async move {
-            if let Err(error) = delivery::deliver_run(
-                &delivery_pool,
-                &delivery_paths,
-                &delivery_workspace,
-                delivery_task.as_deref(),
-                delivery_schedule.as_deref(),
-                &delivery_run,
-                delivery_google,
+        if let Err(error) = self
+            .ports
+            .after_run(
+                &self.pool,
+                &self.paths,
+                &self.events,
+                &job,
+                &run_id,
+                run_success,
             )
             .await
-            {
-                tracing::warn!(error = %error, "post-run delivery failed");
-            }
-            if run_success
-                && let Err(error) = crate::io_bus::run_sinks(
-                    &io_ctx,
-                    &delivery_workspace,
-                    delivery_task.as_deref(),
-                    delivery_schedule.as_deref(),
-                    &delivery_run,
-                )
-                .await
-            {
-                tracing::warn!(error = %error, "post-run io sinks failed");
-            }
-        });
+        {
+            tracing::warn!(error = %error, "post-run queue ports failed");
+        }
 
         self.running_jobs
             .lock()
@@ -914,7 +887,7 @@ fn split_model(model: &str) -> (Option<String>, String) {
     }
 }
 
-pub(crate) fn job_dto(job: queue::QueueJob) -> QueueJobDto {
+pub fn job_dto(job: queue::QueueJob) -> QueueJobDto {
     QueueJobDto {
         id: job.id,
         task_id: job.task_id,
@@ -1005,11 +978,11 @@ mod tests {
     #[tokio::test]
     async fn worktree_runs_setting_defaults_off_and_can_be_enabled() {
         let ctx = crate::test_support::context().await;
-        assert!(!worktree_runs_enabled(&ctx.state.db).await);
-        crate::db::settings::set(&ctx.state.db, "worktree_runs", &serde_json::json!(true))
+        assert!(!worktree_runs_enabled(&ctx.db).await);
+        crate::db::settings::set(&ctx.db, "worktree_runs", &serde_json::json!(true))
             .await
             .expect("setting");
-        assert!(worktree_runs_enabled(&ctx.state.db).await);
+        assert!(worktree_runs_enabled(&ctx.db).await);
     }
 
     #[test]

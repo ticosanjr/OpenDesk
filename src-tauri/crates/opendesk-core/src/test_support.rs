@@ -14,6 +14,7 @@ pub struct TestContext {
     pub workspace_id: String,
     pub workspace_root: std::path::PathBuf,
     pub write_buffer: Arc<crate::db::write_buffer::WriteBuffer>,
+    pub events: crate::events::EventBus,
 }
 
 pub async fn context() -> TestContext {
@@ -41,5 +42,6 @@ pub async fn context() -> TestContext {
         workspace_id,
         workspace_root,
         write_buffer,
+        events: crate::events::EventBus::new(64),
     }
 }

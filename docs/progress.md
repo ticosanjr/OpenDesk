@@ -3352,3 +3352,12 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Cobertura 54,38% total / 63,24% core no piso 53,8%/62,7%.
 - H1 bloqueado por permissão do Docker; H3/H4 externos.
 - ADR 0158.
+
+## 2026-11-17 — Onda 1 finalizada (A4–A9)
+
+- A4/A5: fila, cron, lease e settlement no core; portas no shell.
+- A6: feature `desktop` + crate `opendesk-daemon` sem Tauri em runtime.
+- A7/A8: crates `opendesk-cli` e `opendesk-node`.
+- A9: reexports mantidos conscientemente; sem duplicação.
+- Rust 336 shell + 284 core (620).
+- ADR 0159–0161.

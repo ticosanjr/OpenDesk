@@ -43,6 +43,7 @@ pub struct AppState {
     pub daemon: Arc<DaemonManager>,
     pub locator: Arc<OpenCodeLocator>,
     pub queue: Arc<QueueManager>,
+    pub task_dispatcher: Arc<crate::shell_queue_ports::ShellTaskDispatcher>,
     pub cron: Arc<CronEngine>,
     pub secrets: Arc<SecretStore>,
     pub google: Arc<GoogleOAuth>,
@@ -130,15 +131,19 @@ impl AppState {
             .await?
             .and_then(|value| value.as_u64())
             .unwrap_or(1) as usize;
+        let task_dispatcher = Arc::new(crate::shell_queue_ports::ShellTaskDispatcher::new());
         let queue = QueueManager::new(QueueConfig {
             pool: db.clone(),
             paths: paths.clone(),
             events: events.clone(),
             write_buffer: write_buffer.clone(),
             daemon: daemon.clone(),
-            google: google.clone(),
-            concurrency,
             adapters: adapters.clone(),
+            ports: Arc::new(crate::shell_queue_ports::ShellQueuePorts {
+                google: google.clone(),
+            }),
+            notifier: crate::shell_queue_ports::shell_run_notifier(),
+            concurrency,
         });
         let cron = CronEngine::new(
             db.clone(),
@@ -146,6 +151,7 @@ impl AppState {
             events.clone(),
             queue.clone(),
             daemon.clone(),
+            task_dispatcher.clone(),
         );
 
         let state = Self {
@@ -156,6 +162,7 @@ impl AppState {
             daemon,
             locator,
             queue,
+            task_dispatcher,
             cron,
             secrets,
             google,
@@ -179,6 +186,13 @@ impl AppState {
 
         state.write_api_lock()?;
         Ok(state)
+    }
+
+    /// Wires late-bound shell ports after the AppState is inside an Arc.
+    pub fn attach_runtime_ports(self: &Arc<Self>) {
+        self.task_dispatcher.attach(self);
+        self.cron
+            .attach_context(crate::app_state::recipe_context(self));
     }
 
     /// Registers the active turn for a chat thread. The returned token lets the

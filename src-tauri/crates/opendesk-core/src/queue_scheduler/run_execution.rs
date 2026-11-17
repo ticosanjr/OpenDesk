@@ -217,7 +217,7 @@ async fn scan_output_directory(
 /// source=chat and the channel in origin metadata, so the artifact list can
 /// derive the badge by joining task_runs.
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn record_chat_artifacts(
+pub async fn record_chat_artifacts(
     pool: &SqlitePool,
     events: &EventBus,
     workspace_id: &str,
@@ -275,7 +275,7 @@ pub(crate) async fn record_chat_artifacts(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn record_artifact(
+pub async fn record_artifact(
     pool: &SqlitePool,
     events: &EventBus,
     workspace_id: &str,
@@ -439,7 +439,7 @@ mod tests {
 
         let context = crate::test_support::context().await;
         crate::db::runs::create(
-            &context.state.db,
+            &context.db,
             crate::db::runs::CreateRunInput {
                 id: "run-artifacts".into(),
                 queue_job_id: None,
@@ -492,8 +492,8 @@ mod tests {
             permissions: Vec::new(),
         };
         record_artifacts(
-            &context.state.db,
-            &context.state.events,
+            &context.db,
+            &context.events,
             &job,
             "run-artifacts",
             "teste",
@@ -505,7 +505,7 @@ mod tests {
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM artifacts_provenance WHERE run_id = 'run-artifacts'",
         )
-        .fetch_one(&context.state.db)
+        .fetch_one(&context.db)
         .await
         .expect("count");
         assert_eq!(count, 2);
@@ -534,7 +534,7 @@ mod tests {
             permissions: Vec::new(),
         };
         let create_run = |id: &'static str| {
-            let db = context.state.db.clone();
+            let db = context.db.clone();
             let workspace_id = context.workspace_id.clone();
             async move {
                 crate::db::runs::create(
@@ -563,8 +563,8 @@ mod tests {
 
         create_run("run-scan-1").await;
         record_artifacts(
-            &context.state.db,
-            &context.state.events,
+            &context.db,
+            &context.events,
             &job,
             "run-scan-1",
             "teste",
@@ -576,12 +576,12 @@ mod tests {
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM artifacts_provenance WHERE run_id = 'run-scan-1'",
         )
-        .fetch_one(&context.state.db)
+        .fetch_one(&context.db)
         .await
         .expect("count");
         assert_eq!(count, 1);
         let artifact = crate::db::artifacts::latest_for_path(
-            &context.state.db,
+            &context.db,
             &context.workspace_id,
             "output/tarefa/poesia.txt",
         )
@@ -592,8 +592,8 @@ mod tests {
 
         // Re-running the same run must not duplicate rows.
         record_artifacts(
-            &context.state.db,
-            &context.state.events,
+            &context.db,
+            &context.events,
             &job,
             "run-scan-1",
             "teste",
@@ -605,7 +605,7 @@ mod tests {
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM artifacts_provenance WHERE run_id = 'run-scan-1'",
         )
-        .fetch_one(&context.state.db)
+        .fetch_one(&context.db)
         .await
         .expect("count");
         assert_eq!(count, 1);
@@ -613,8 +613,8 @@ mod tests {
         create_run("run-scan-2").await;
         std::fs::write(output.join("poesia.txt"), "v2").expect("file");
         record_artifacts(
-            &context.state.db,
-            &context.state.events,
+            &context.db,
+            &context.events,
             &job,
             "run-scan-2",
             "teste",
@@ -624,7 +624,7 @@ mod tests {
         )
         .await;
         let artifact = crate::db::artifacts::latest_for_path(
-            &context.state.db,
+            &context.db,
             &context.workspace_id,
             "output/tarefa/poesia.txt",
         )
@@ -643,7 +643,7 @@ mod tests {
         let context = crate::test_support::context().await;
         std::fs::write(context.workspace_root.join("chat.md"), "oi").expect("file");
         let run = crate::db::runs::create_chat(
-            &context.state.db,
+            &context.db,
             crate::db::runs::CreateChatRunInput {
                 id: "run-chat-1".into(),
                 workspace_id: context.workspace_id.clone(),
@@ -659,8 +659,8 @@ mod tests {
         .await
         .expect("chat run");
         record_chat_artifacts(
-            &context.state.db,
-            &context.state.events,
+            &context.db,
+            &context.events,
             &context.workspace_id,
             &run.id,
             "build",
@@ -676,14 +676,11 @@ mod tests {
             &[],
         )
         .await;
-        let artifact = crate::db::artifacts::latest_for_path(
-            &context.state.db,
-            &context.workspace_id,
-            "chat.md",
-        )
-        .await
-        .expect("artifact")
-        .expect("artifact row");
+        let artifact =
+            crate::db::artifacts::latest_for_path(&context.db, &context.workspace_id, "chat.md")
+                .await
+                .expect("artifact")
+                .expect("artifact row");
         assert_eq!(artifact.source, "chat");
         assert_eq!(artifact.channel.as_deref(), Some("telegram"));
         assert_eq!(artifact.origin_ref.as_deref(), Some("thread-1"));

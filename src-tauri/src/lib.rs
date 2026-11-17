@@ -23,6 +23,7 @@ mod recipes;
 mod run_notifier;
 #[allow(dead_code)]
 mod session_context;
+mod shell_queue_ports;
 #[cfg(feature = "desktop")]
 mod shell_state;
 mod skill_gate;
@@ -39,9 +40,9 @@ pub use opendesk_core::{
     adapters, api_endpoint, audit, backup, browse, browse_tags, config_sync, daemon_probe, db,
     dedupe, desktop_integration, dsh_router, error, events, hitl, internal_api, mcp_config,
     mcp_pool, mcp_rate, mcp_rbac, mcp_server, media, metrics, mtls, nodes, notifier,
-    opencode_client, passkey, paths, personal_context, push, recipe_context, recipe_dispatch,
-    recurrence, run_export, run_timeline, runtime, sandbox, secrets, server_lock, skill_cases,
-    skill_eval, skill_shadow, text, token_estimate, update_signing, virtual_display,
+    opencode_client, passkey, paths, personal_context, push, queue_ports, recipe_context,
+    recipe_dispatch, recurrence, run_export, run_timeline, runtime, sandbox, secrets, server_lock,
+    skill_cases, skill_eval, skill_shadow, text, token_estimate, update_signing, virtual_display,
     workspace_sync, worktree,
 };
 
@@ -243,7 +244,6 @@ pub fn run() {
 
                         let state =
                             Arc::new(tauri::async_runtime::block_on(AppState::initialize(paths))?);
-                        state.cron.attach_state(&state);
                         tauri::async_runtime::block_on(control_plane::start(
                             state.clone(),
                             control_plane::StartOptions::default(),

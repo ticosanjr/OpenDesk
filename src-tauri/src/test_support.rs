@@ -45,6 +45,7 @@ pub async fn context() -> TestContext {
     let workspace_root = root.join("workspace");
     std::fs::create_dir_all(&workspace_root).expect("workspace root");
     let state = Arc::new(AppState::initialize(paths).await.expect("state"));
+    state.attach_runtime_ports();
     let workspace_id = "ws-test".to_string();
     sqlx::query("INSERT INTO workspaces (id, name, root_path) VALUES (?, 'Test', ?)")
         .bind(&workspace_id)

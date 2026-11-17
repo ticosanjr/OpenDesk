@@ -13,7 +13,9 @@ use crate::{
     events::{EventBus, OpenDeskWsEvent},
     opencode_client::daemon_manager::DaemonManager,
     paths::AppPaths,
+    queue_ports::TaskDispatcher,
     queue_scheduler::QueueManager,
+    recipe_context::RecipeContext,
 };
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use chrono_tz::Tz;
@@ -21,7 +23,7 @@ use serde::Serialize;
 use sqlx::SqlitePool;
 use std::{
     path::{Component, Path, PathBuf},
-    sync::{Arc, OnceLock, Weak},
+    sync::{Arc, OnceLock},
     time::Duration,
 };
 use tokio_util::sync::CancellationToken;
@@ -34,9 +36,9 @@ pub struct CronEngine {
     queue: Arc<QueueManager>,
     daemon: Arc<DaemonManager>,
     shutdown: CancellationToken,
-    /// Set after AppState is wrapped in an Arc. Weak avoids an ownership cycle
-    /// while still letting a CRON routine start the recipe engine.
-    app: OnceLock<Weak<crate::app_state::AppState>>,
+    /// Attached after the shell builds the context; no ownership cycle.
+    context: OnceLock<RecipeContext>,
+    dispatcher: Arc<dyn TaskDispatcher>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -52,6 +54,7 @@ impl CronEngine {
         events: EventBus,
         queue: Arc<QueueManager>,
         daemon: Arc<DaemonManager>,
+        dispatcher: Arc<dyn TaskDispatcher>,
     ) -> Arc<Self> {
         Arc::new(Self {
             pool,
@@ -59,8 +62,9 @@ impl CronEngine {
             events,
             queue,
             daemon,
+            dispatcher,
             shutdown: CancellationToken::new(),
-            app: OnceLock::new(),
+            context: OnceLock::new(),
         })
     }
 
@@ -83,8 +87,8 @@ impl CronEngine {
         self.shutdown.cancel();
     }
 
-    pub fn attach_state(&self, state: &Arc<crate::app_state::AppState>) {
-        let _ = self.app.set(Arc::downgrade(state));
+    pub fn attach_context(&self, context: RecipeContext) {
+        let _ = self.context.set(context);
     }
 
     pub async fn tick_once(&self) -> AppResult<CronTickResult> {
@@ -351,9 +355,6 @@ impl CronEngine {
         if self.queue.is_paused() || !self.daemon.status().await.online {
             return 0;
         }
-        let Some(state) = self.app.get().and_then(Weak::upgrade) else {
-            return 0;
-        };
         let workspaces = workspaces::list(&self.pool).await.unwrap_or_default();
         let mut started = 0;
         for workspace in workspaces {
@@ -370,14 +371,7 @@ impl CronEngine {
                 if task.workflow_state != "READY" || task.origin == "RECIPE" {
                     continue;
                 }
-                match crate::api::tasks::dispatch_task_internal(
-                    &state,
-                    &task.id,
-                    crate::api::tasks::DispatchBody::default(),
-                    None,
-                )
-                .await
-                {
+                match self.dispatcher.dispatch_task(&task.id).await {
                     Ok(_) => started += 1,
                     Err(error) => {
                         tracing::debug!(task = %task.id, error = %error, "autostart postponed");
@@ -426,12 +420,12 @@ impl CronEngine {
             .recipe_id
             .as_deref()
             .ok_or_else(|| AppError::BadRequest("rotina sem receita vinculada".into()))?;
-        let state =
-            self.app.get().and_then(Weak::upgrade).ok_or_else(|| {
-                AppError::Internal("app state indisponível para a receita".into())
-            })?;
+        let context = self.context.get().cloned().ok_or_else(|| {
+            AppError::Internal("recipe context indisponível para a receita".into())
+        })?;
         let yaml =
-            crate::recipes::store::yaml_for(&state.db, &schedule.workspace_id, recipe_id).await?;
+            crate::recipes::store::yaml_for(&context.pool, &schedule.workspace_id, recipe_id)
+                .await?;
         let recipe = crate::recipes::parser::parse(&yaml)?;
         let trigger = serde_json::json!({
             "routine_id": schedule.id,
@@ -439,7 +433,7 @@ impl CronEngine {
             "scheduled_for": scheduled_for,
         });
         let run = crate::recipes::engine::start(
-            crate::app_state::recipe_context(&state),
+            context.clone(),
             &schedule.workspace_id,
             recipe,
             trigger,
@@ -623,10 +617,10 @@ impl CronEngine {
 
         let prompt = self.resolve_prompt(schedule, &workspace_root).await;
         let needs_browser = if crate::browse::needs_browser(&schedule.name, &prompt, &[]) {
-            match self.app.get().and_then(Weak::upgrade) {
-                Some(app) => crate::browse::ensure_for_task(
-                    &app.db,
-                    &app.paths,
+            match self.context.get() {
+                Some(context) => crate::browse::ensure_for_task(
+                    &context.pool,
+                    &context.paths,
                     &schedule.workspace_id,
                     &schedule.name,
                     &prompt,
@@ -771,6 +765,44 @@ pub fn render_output_folder(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        adapters::AdapterService,
+        notifier::NoopNotifier,
+        opencode_client::{binary::OpenCodeLocator, daemon_manager::DaemonManager},
+        queue_ports::{NoopQueuePorts, NoopTaskDispatcher},
+        queue_scheduler::QueueConfig,
+    };
+
+    async fn fixture(
+        ctx: &crate::test_support::TestContext,
+    ) -> (Arc<QueueManager>, Arc<CronEngine>) {
+        let events = EventBus::new(32);
+        let daemon = DaemonManager::new(
+            ctx.paths.clone(),
+            events.clone(),
+            Arc::new(OpenCodeLocator::new(None)),
+        );
+        let queue = QueueManager::new(QueueConfig {
+            pool: ctx.db.clone(),
+            paths: ctx.paths.clone(),
+            events: events.clone(),
+            write_buffer: ctx.write_buffer.clone(),
+            daemon: daemon.clone(),
+            adapters: Arc::new(AdapterService::load(&ctx.db).await.expect("adapters")),
+            ports: Arc::new(NoopQueuePorts),
+            notifier: Arc::new(NoopNotifier),
+            concurrency: 1,
+        });
+        let cron = CronEngine::new(
+            ctx.db.clone(),
+            ctx.paths.clone(),
+            events,
+            queue.clone(),
+            daemon,
+            Arc::new(NoopTaskDispatcher),
+        );
+        (queue, cron)
+    }
 
     fn schedule() -> Schedule {
         Schedule {
@@ -866,6 +898,7 @@ mod tests {
     #[tokio::test]
     async fn tick_skips_offline_and_misfired_schedules() {
         let ctx = crate::test_support::context().await;
+        let (_queue, cron) = fixture(&ctx).await;
         let input: crate::db::schedules::CreateScheduleInput =
             serde_json::from_value(serde_json::json!({
                 "workspace_id": ctx.workspace_id,
@@ -877,31 +910,31 @@ mod tests {
                 "target_kind": "PROMPT"
             }))
             .expect("input");
-        let schedule = crate::db::schedules::create(&ctx.state.db, input)
+        let schedule = crate::db::schedules::create(&ctx.db, input)
             .await
             .expect("schedule");
-        crate::db::schedules::set_active(&ctx.state.db, &schedule.id, true)
+        crate::db::schedules::set_active(&ctx.db, &schedule.id, true)
             .await
             .expect("active");
 
         let recent_past = (Utc::now() - chrono::Duration::seconds(10)).to_rfc3339();
-        crate::db::schedules::set_next_run(&ctx.state.db, &schedule.id, Some(&recent_past))
+        crate::db::schedules::set_next_run(&ctx.db, &schedule.id, Some(&recent_past))
             .await
             .expect("next");
-        let tick = ctx.state.cron.tick_once().await.expect("tick offline");
+        let tick = cron.tick_once().await.expect("tick offline");
         assert_eq!(tick.enqueued, 0);
-        let after = crate::db::schedules::get(&ctx.state.db, &schedule.id)
+        let after = crate::db::schedules::get(&ctx.db, &schedule.id)
             .await
             .expect("after");
         assert_eq!(after.last_run_status.as_deref(), Some("SKIPPED_OFFLINE"));
 
         let old_past = (Utc::now() - chrono::Duration::seconds(120)).to_rfc3339();
-        crate::db::schedules::set_next_run(&ctx.state.db, &schedule.id, Some(&old_past))
+        crate::db::schedules::set_next_run(&ctx.db, &schedule.id, Some(&old_past))
             .await
             .expect("next old");
-        let tick = ctx.state.cron.tick_once().await.expect("tick misfire");
+        let tick = cron.tick_once().await.expect("tick misfire");
         assert_eq!(tick.enqueued, 0);
-        let after = crate::db::schedules::get(&ctx.state.db, &schedule.id)
+        let after = crate::db::schedules::get(&ctx.db, &schedule.id)
             .await
             .expect("after misfire");
         assert_eq!(after.last_run_status.as_deref(), Some("SKIPPED_MISFIRE"));
@@ -910,6 +943,7 @@ mod tests {
     #[tokio::test]
     async fn run_now_enqueues_and_queue_controls_work() {
         let ctx = crate::test_support::context().await;
+        let (queue, cron) = fixture(&ctx).await;
         let input: crate::db::schedules::CreateScheduleInput =
             serde_json::from_value(serde_json::json!({
                 "workspace_id": ctx.workspace_id,
@@ -921,52 +955,37 @@ mod tests {
                 "target_kind": "PROMPT"
             }))
             .expect("input");
-        let schedule = crate::db::schedules::create(&ctx.state.db, input)
+        let schedule = crate::db::schedules::create(&ctx.db, input)
             .await
             .expect("schedule");
 
-        let result = ctx.state.cron.run_now(&schedule.id).await.expect("run now");
+        let result = cron.run_now(&schedule.id).await.expect("run now");
         assert_eq!(result["kind"], "queue");
         let job_id = result["job"]["id"].as_str().expect("job id").to_string();
 
-        let status = ctx
-            .state
-            .queue
-            .status(Some(&ctx.workspace_id))
-            .await
-            .expect("status");
+        let status = queue.status(Some(&ctx.workspace_id)).await.expect("status");
         assert_eq!(status.waiting, 1);
         assert!(!status.paused);
 
-        let listed = ctx
-            .state
-            .queue
-            .list(Some(&ctx.workspace_id))
-            .await
-            .expect("list");
+        let listed = queue.list(Some(&ctx.workspace_id)).await.expect("list");
         assert!(listed.iter().any(|job| job.id == job_id));
 
-        let prioritized = ctx
-            .state
-            .queue
-            .update_priority(&job_id, 4)
-            .await
-            .expect("priority");
+        let prioritized = queue.update_priority(&job_id, 4).await.expect("priority");
         assert_eq!(prioritized.priority, 4);
 
-        ctx.state.queue.pause("manutenção").await;
-        let paused = ctx.state.queue.status(None).await.expect("paused");
+        queue.pause("manutenção").await;
+        let paused = queue.status(None).await.expect("paused");
         assert!(paused.paused);
         assert_eq!(paused.pause_reason.as_deref(), Some("manutenção"));
-        ctx.state.queue.resume().await.expect("resume");
-        assert!(!ctx.state.queue.is_paused());
+        queue.resume().await.expect("resume");
+        assert!(!queue.is_paused());
 
-        let cancelled = ctx.state.queue.cancel(&job_id).await.expect("cancel");
+        let cancelled = queue.cancel(&job_id).await.expect("cancel");
         assert_eq!(cancelled.status, "CANCELLED");
-        let retried = ctx.state.queue.retry(&job_id).await.expect("retry");
+        let retried = queue.retry(&job_id).await.expect("retry");
         assert_eq!(retried.status, "QUEUED");
         assert_eq!(retried.retry_count, 1);
-        let _ = ctx.state.queue.cancel(&job_id).await.expect("cancel again");
+        let _ = queue.cancel(&job_id).await.expect("cancel again");
     }
 
     #[test]

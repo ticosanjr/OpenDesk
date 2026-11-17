@@ -304,7 +304,7 @@ mod tests {
     async fn plan_success_waits_for_approval_and_build_success_completes() {
         let context = crate::test_support::context().await;
         let task = task_store::create(
-            &context.state.db,
+            &context.db,
             &context.workspace_id,
             CreateTaskInput {
                 title: "Plan".into(),
@@ -328,8 +328,8 @@ mod tests {
         .expect("task");
         let success = outcome(RunStatus::Success, Some("plano"));
         settle_task(
-            &context.state.db,
-            &context.state.events,
+            &context.db,
+            &context.events,
             &task,
             "plan",
             &success,
@@ -337,15 +337,15 @@ mod tests {
             false,
         )
         .await;
-        let planned = task_store::get(&context.state.db, &task.id)
+        let planned = task_store::get(&context.db, &task.id)
             .await
             .expect("planned");
         assert_eq!(planned.status, "IN_REVIEW");
         assert_eq!(planned.phase_status.as_deref(), Some("awaiting_approval"));
 
         settle_task(
-            &context.state.db,
-            &context.state.events,
+            &context.db,
+            &context.events,
             &planned,
             "build",
             &success,
@@ -353,9 +353,7 @@ mod tests {
             false,
         )
         .await;
-        let built = task_store::get(&context.state.db, &task.id)
-            .await
-            .expect("built");
+        let built = task_store::get(&context.db, &task.id).await.expect("built");
         assert_eq!(built.status, "DONE");
         assert_eq!(built.phase_status.as_deref(), Some("build_complete"));
     }
@@ -364,7 +362,7 @@ mod tests {
     async fn failed_run_blocks_the_task_with_the_error() {
         let context = crate::test_support::context().await;
         let task = task_store::create(
-            &context.state.db,
+            &context.db,
             &context.workspace_id,
             CreateTaskInput {
                 title: "Falha".into(),
@@ -389,8 +387,8 @@ mod tests {
         let mut failed = outcome(RunStatus::Failed, None);
         failed.error = Some("rate limit".into());
         settle_task(
-            &context.state.db,
-            &context.state.events,
+            &context.db,
+            &context.events,
             &task,
             "build",
             &failed,
@@ -398,7 +396,7 @@ mod tests {
             false,
         )
         .await;
-        let blocked = task_store::get(&context.state.db, &task.id)
+        let blocked = task_store::get(&context.db, &task.id)
             .await
             .expect("blocked");
         assert_eq!(blocked.status, "BLOCKED");
