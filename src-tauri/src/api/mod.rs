@@ -14,6 +14,7 @@ pub mod calendar;
 pub mod capture;
 pub mod channels;
 pub mod chat;
+#[cfg(feature = "desktop")]
 pub mod commands;
 pub mod core;
 pub mod cost;

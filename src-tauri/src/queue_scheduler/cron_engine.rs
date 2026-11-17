@@ -66,7 +66,7 @@ impl CronEngine {
 
     pub fn spawn(self: &Arc<Self>) {
         let engine = Arc::clone(self);
-        tauri::async_runtime::spawn(async move {
+        tokio::spawn(async move {
             loop {
                 tokio::select! {
                     _ = engine.shutdown.cancelled() => break,

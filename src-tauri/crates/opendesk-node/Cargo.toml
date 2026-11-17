@@ -1,0 +1,11 @@
+[package]
+name = "opendesk-node"
+version = "1.2.0"
+edition = "2024"
+
+[[bin]]
+name = "opendesk-node"
+path = "src/main.rs"
+
+[dependencies]
+opendesk = { path = "../..", default-features = false }

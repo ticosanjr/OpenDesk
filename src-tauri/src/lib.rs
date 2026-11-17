@@ -14,6 +14,7 @@ mod mcp_control;
 mod mcp_hub;
 mod mcp_sampling;
 mod mcp_session;
+#[cfg(feature = "desktop")]
 mod open_paths;
 mod proposals;
 mod queue_scheduler;
@@ -22,12 +23,14 @@ mod recipes;
 mod run_notifier;
 #[allow(dead_code)]
 mod session_context;
+#[cfg(feature = "desktop")]
 mod shell_state;
 mod skill_gate;
 mod skill_shadow_exec;
 mod starter_packs;
 #[cfg(test)]
 mod test_support;
+#[cfg(feature = "desktop")]
 mod tray;
 mod updates;
 mod voice;
@@ -46,9 +49,12 @@ use app_state::AppState;
 use daemon_probe::ProbeOutcome;
 use paths::AppPaths;
 use server_lock::ServerLock;
+#[cfg(feature = "desktop")]
 use shell_state::{RemoteShell, ShellState};
 use std::sync::{Arc, OnceLock};
+#[cfg(feature = "desktop")]
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+#[cfg(feature = "desktop")]
 use tauri_plugin_global_shortcut::ShortcutState;
 use tracing_subscriber::EnvFilter;
 
@@ -57,6 +63,7 @@ static LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLo
 /// Tauri does not translate Unix SIGTERM/SIGINT into RunEvent::Exit. Handle
 /// them explicitly so the managed OpenCode child is not orphaned on logout,
 /// IDE restarts or `kill`.
+#[cfg(feature = "desktop")]
 fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
     #[cfg(unix)]
     {
@@ -113,6 +120,7 @@ fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
 
 /// Open (or focus) the floating Quick Capture window. This is the only window
 /// besides the main one and it is intentionally tiny.
+#[cfg(feature = "desktop")]
 fn open_capture(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("capture") {
         let _ = window.show();
@@ -171,6 +179,7 @@ fn init_logging() {
         .try_init();
 }
 
+#[cfg(feature = "desktop")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     init_logging();

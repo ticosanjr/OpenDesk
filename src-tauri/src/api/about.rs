@@ -31,7 +31,7 @@ pub async fn about(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>>
             "api": "OpenCode V2 (/api/*)",
         },
         "runtime": {
-            "tauri": tauri::VERSION,
+            "tauri": option_env!("CARGO_PKG_VERSION").unwrap_or("headless"),
             "rustc": command_version("rustc"),
             "os": std::env::consts::OS,
             "arch": std::env::consts::ARCH,

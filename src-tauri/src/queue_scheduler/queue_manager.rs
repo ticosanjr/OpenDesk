@@ -56,7 +56,7 @@ pub struct QueueManager {
 
 struct HeartbeatGuard {
     stop: CancellationToken,
-    handle: tauri::async_runtime::JoinHandle<()>,
+    handle: tokio::task::JoinHandle<()>,
 }
 
 impl Drop for HeartbeatGuard {
@@ -125,7 +125,7 @@ impl QueueManager {
 
     pub fn spawn_worker(self: &Arc<Self>) {
         let manager = Arc::clone(self);
-        tauri::async_runtime::spawn(async move {
+        tokio::spawn(async move {
             manager.worker_loop().await;
         });
     }
@@ -299,7 +299,7 @@ impl QueueManager {
                 let manager = Arc::clone(&self);
                 let active = self.active.fetch_add(1, Ordering::Relaxed) + 1;
                 self.daemon.set_active_jobs(active).await;
-                tauri::async_runtime::spawn(async move {
+                tokio::spawn(async move {
                     manager.execute_job(job).await;
                     let remaining = manager
                         .active
@@ -382,7 +382,7 @@ impl QueueManager {
             let write_buffer = self.write_buffer.clone();
             let job_id = job.id.clone();
             let stop = heartbeat_stop.clone();
-            tauri::async_runtime::spawn(async move {
+            tokio::spawn(async move {
                 loop {
                     tokio::select! {
                         _ = stop.cancelled() => break,
@@ -784,7 +784,7 @@ impl QueueManager {
             paths: self.paths.clone(),
         };
         let run_success = outcome.status == RunStatus::Success;
-        tauri::async_runtime::spawn(async move {
+        tokio::spawn(async move {
             if let Err(error) = delivery::deliver_run(
                 &delivery_pool,
                 &delivery_paths,

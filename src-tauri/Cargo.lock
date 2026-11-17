@@ -5001,6 +5001,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendesk-cli"
+version = "1.2.0"
+dependencies = [
+ "opendesk",
+]
+
+[[package]]
 name = "opendesk-core"
 version = "1.2.0"
 dependencies = [
@@ -5045,6 +5052,20 @@ dependencies = [
  "webauthn-rs",
  "zip",
  "zstd 0.13.5",
+]
+
+[[package]]
+name = "opendesk-daemon"
+version = "1.2.0"
+dependencies = [
+ "opendesk",
+]
+
+[[package]]
+name = "opendesk-node"
+version = "1.2.0"
+dependencies = [
+ "opendesk",
 ]
 
 [[package]]
