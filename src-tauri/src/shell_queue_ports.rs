@@ -36,35 +36,44 @@ impl QueuePorts for ShellQueuePorts {
                 workspace_id: job.workspace_id.clone(),
             });
         }
-        let io_ctx = crate::io_bus::IoContext {
-            pool: pool.clone(),
-            paths: paths.clone(),
-        };
-        if let Err(error) = delivery::deliver_run(
-            pool,
-            paths,
-            &job.workspace_id,
-            job.task_id.as_deref(),
-            job.schedule_id.as_deref(),
-            run_id,
-            self.google.clone(),
-        )
-        .await
-        {
-            tracing::warn!(error = %error, "post-run delivery failed");
-        }
-        if success
-            && let Err(error) = crate::io_bus::run_sinks(
-                &io_ctx,
+        // Delivery and sinks can be slow (network, rsync, Google). Spawn them
+        // so the queue worker can move to the next job immediately.
+        let pool = pool.clone();
+        let paths = paths.clone();
+        let job = job.clone();
+        let run_id = run_id.to_string();
+        let google = self.google.clone();
+        tokio::spawn(async move {
+            let io_ctx = crate::io_bus::IoContext {
+                pool: pool.clone(),
+                paths: paths.clone(),
+            };
+            if let Err(error) = delivery::deliver_run(
+                &pool,
+                &paths,
                 &job.workspace_id,
                 job.task_id.as_deref(),
                 job.schedule_id.as_deref(),
-                run_id,
+                &run_id,
+                google,
             )
             .await
-        {
-            tracing::warn!(error = %error, "post-run io sinks failed");
-        }
+            {
+                tracing::warn!(error = %error, "post-run delivery failed");
+            }
+            if success
+                && let Err(error) = crate::io_bus::run_sinks(
+                    &io_ctx,
+                    &job.workspace_id,
+                    job.task_id.as_deref(),
+                    job.schedule_id.as_deref(),
+                    &run_id,
+                )
+                .await
+            {
+                tracing::warn!(error = %error, "post-run io sinks failed");
+            }
+        });
         Ok(())
     }
 }
