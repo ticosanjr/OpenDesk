@@ -425,6 +425,8 @@ docs/                       plano, decisões e histórico
 - [ADR 0154 — Limites externos da Onda 6](docs/decisions/0154-wave6-external-limits.md)
 - [ADR 0155 — RPM do daemon](docs/decisions/0155-daemon-rpm.md)
 - [ADR 0156 — Limites Windows/macOS](docs/decisions/0156-platform-bundle-limits.md)
+- [ADR 0157 — Piso de cobertura](docs/decisions/0157-coverage-floor.md)
+- [ADR 0158 — Limites de H1/H3/H4](docs/decisions/0158-h-validation-limits.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

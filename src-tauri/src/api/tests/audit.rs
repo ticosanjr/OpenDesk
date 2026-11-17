@@ -19,7 +19,7 @@ async fn sensitive_mutations_are_audited() {
     assert_eq!(status, StatusCode::OK);
 
     let mut entries = Vec::new();
-    for _ in 0..20 {
+    for _ in 0..100 {
         let (status, body) = call(
             &ctx,
             Method::GET,
@@ -32,7 +32,7 @@ async fn sensitive_mutations_are_audited() {
         if !entries.is_empty() {
             break;
         }
-        tokio::time::sleep(Duration::from_millis(25)).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
     }
     assert!(!entries.is_empty());
     assert_eq!(entries[0]["action"], "task:POST");

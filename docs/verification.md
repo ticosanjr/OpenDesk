@@ -587,6 +587,13 @@ pendências manuais continuam listadas abaixo.
 - RPM `opendeskd` contém `/usr/bin/opendeskd` e `/usr/lib/systemd/user/opendeskd.service`.
 - MSI/NSIS/DMG exigem VM/Mac real; não validados aqui.
 
+## H2 — gate completo
+
+- `scripts/gate.sh` verde em 2026-11-17.
+- 620 testes Rust, 256 Vitest, 103 Playwright.
+- Cobertura 54,38% total / 63,24% core; piso 53,8%/62,7%.
+- H1/H3/H4 bloqueados (ADR 0158).
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

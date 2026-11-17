@@ -189,7 +189,7 @@ export function Topbar() {
       </Button>
 
       <div className="ml-auto flex items-center gap-2">
-        <div className="hidden items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-2.5 py-1.5 xl:flex">
+        <div className="hidden items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-2.5 py-1.5 2xl:flex">
           <span className="font-mono text-[12px] uppercase tracking-wide text-zinc-500">
             hoje
           </span>
@@ -208,7 +208,7 @@ export function Topbar() {
         </div>
 
         <div
-          className="hidden items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-2.5 py-1.5 xl:flex"
+          className="hidden items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-2.5 py-1.5 2xl:flex"
           title={`${running} execução(ões) ativa(s) e ${waiting} job(s) na fila`}
         >
           <span className="font-mono text-[12px] uppercase tracking-wide text-zinc-500">
@@ -252,7 +252,7 @@ export function Topbar() {
           title="Primeiros passos e verificação das integrações"
         >
           <ListChecks size={14} />
-          <span className="hidden text-[12.5px] sm:inline">Primeiros passos</span>
+          <span className="hidden text-[12.5px] 2xl:inline">Primeiros passos</span>
           <span className="sr-only">Primeiros passos</span>
         </Button>
 

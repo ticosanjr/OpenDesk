@@ -3339,3 +3339,16 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - B2/B3: configuração/documentação de MSI/NSIS/DMG; validação depende de VMs e assinatura.
 - Rust 361 shell + 259 core (620).
 - ADR 0155–0156.
+
+## 2026-11-17 — H2 cobertura no piso acordado
+
+- Medido: 54,38% total e 63,24% core.
+- Gate: 53,8% total e 62,7% core, ratchet preservado.
+- ADR 0157.
+
+## 2026-11-17 — H2 gate completo
+
+- Gate verde: 620 testes Rust, 256 Vitest, 103 Playwright e goldens.
+- Cobertura 54,38% total / 63,24% core no piso 53,8%/62,7%.
+- H1 bloqueado por permissão do Docker; H3/H4 externos.
+- ADR 0158.

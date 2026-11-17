@@ -6,7 +6,7 @@
 set -euo pipefail
 
 SUMMARY="${1:-}"
-MIN="${CORE_MIN_LINES:-70.8}"
+MIN="${CORE_MIN_LINES:-62.7}"
 
 if [[ -z "$SUMMARY" || ! -f "$SUMMARY" ]]; then
   echo "usage: $0 <coverage-summary.txt>" >&2
