@@ -161,12 +161,15 @@ async fn load_dynamic_tools(
 
 /// HTTP gateway entry point used by `/api/mcp`. It shares the same tool list,
 /// dynamic recipe/agent tools and dispatch path as the stdio MCP server.
-pub async fn handle_http(
+#[allow(clippy::too_many_arguments)]
+pub async fn handle_http_with(
     workspace_id: &str,
     default_agent: &str,
     phase: &str,
     role: &str,
     policy: Option<&crate::mcp_rbac::ToolPolicy>,
+    pool: Option<&crate::mcp_pool::McpPool>,
+    workspace_root: Option<&std::path::Path>,
     request: Value,
 ) -> Value {
     // A role narrows an "ALL" session to the phase it represents. Explicit
@@ -198,6 +201,14 @@ pub async fn handle_http(
             let mut available = tools::filtered_tools(phase, None);
             let (dynamic, _) = load_dynamic_tools(workspace_id, phase).await;
             available.extend(dynamic);
+            if let (Some(pool), Some(root)) = (pool, workspace_root) {
+                match pool.tools(workspace_id, root).await {
+                    Ok(external) => available.extend(external),
+                    Err(error) => {
+                        tracing::warn!(error = %error, "external MCP tools unavailable")
+                    }
+                }
+            }
             if let Some(policy) = policy {
                 available.retain(|tool| {
                     tool.get("name")
@@ -221,6 +232,25 @@ pub async fn handle_http(
                     Err(anyhow!("agente sem permissão para a tool {name}"))
                 }
                 Some(name) => {
+                    if let (Some(pool), Some(root)) = (pool, workspace_root)
+                        && crate::mcp_pool::split_namespaced(&name).is_some()
+                    {
+                        return match pool.call(workspace_id, root, &name, arguments).await {
+                            Ok(value) => json!({
+                                "jsonrpc": "2.0",
+                                "id": id,
+                                "result": {
+                                    "content": [{ "type": "text", "text": value.to_string() }],
+                                    "isError": false,
+                                }
+                            }),
+                            Err(error) => json!({
+                                "jsonrpc": "2.0",
+                                "id": id,
+                                "error": { "code": -32603, "message": format!("{error:#}") }
+                            }),
+                        };
+                    }
                     // Static tools do not need the two internal API calls used to
                     // discover recipe/agent tools. Only dynamic names pay that cost.
                     let dynamic = name.starts_with("recipe_") || name.starts_with("agent_");
@@ -271,6 +301,32 @@ async fn dispatch(
                 run_dynamic_agent(&client, &endpoint, workspace_id, &target.id, &args).await
             }
         };
+    }
+    // Tool discovery is local; do not require a running local API for it.
+    if tool == "mcp_discover_tools" {
+        let query = optional(&args, "query").unwrap_or_default();
+        let phase = optional(&args, "phase");
+        let mut found = tools::discover(&query, phase.as_deref());
+        let query = query.trim().to_lowercase();
+        for target in dynamic.values() {
+            let name = target
+                .tool
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            let description = target
+                .tool
+                .get("description")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            let matches = query.is_empty()
+                || name.to_lowercase().contains(&query)
+                || description.to_lowercase().contains(&query);
+            if matches {
+                found.push(target.tool.clone());
+            }
+        }
+        return Ok(json!({ "tools": found }));
     }
     let endpoint = endpoint()?;
     let client = client();
@@ -349,31 +405,6 @@ async fn dispatch(
                 path.push_str(&format!("&limit={limit}"));
             }
             call(&client, &endpoint, Method::GET, &path, None).await
-        }
-        "mcp_discover_tools" => {
-            let query = optional(&args, "query").unwrap_or_default();
-            let phase = optional(&args, "phase");
-            let mut found = tools::discover(&query, phase.as_deref());
-            let query = query.trim().to_lowercase();
-            for target in dynamic.values() {
-                let name = target
-                    .tool
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .unwrap_or("");
-                let description = target
-                    .tool
-                    .get("description")
-                    .and_then(Value::as_str)
-                    .unwrap_or("");
-                let matches = query.is_empty()
-                    || name.to_lowercase().contains(&query)
-                    || description.to_lowercase().contains(&query);
-                if matches {
-                    found.push(target.tool.clone());
-                }
-            }
-            Ok(json!({ "tools": found }))
         }
         "recipe_resume" => {
             let id = required(&args, "id")?;
@@ -1196,6 +1227,28 @@ async fn artifact_list(
         path.push_str(&format!("limit={}", limit.max(1)));
     }
     call(client, endpoint, Method::GET, &path, None).await
+}
+
+/// Fallback when the client does not support MCP elicitation: ask through the
+/// HITL 2.0 interaction inbox using the existing `ask_user` path.
+pub async fn elicit_fallback(args: &Value) -> Result<Value> {
+    let task_id = required(args, "task_id")?;
+    let message = required(args, "message")?;
+    let endpoint = endpoint()?;
+    let client = client();
+    let body = json!({
+        "task_id": task_id,
+        "question": message,
+        "kind": optional(args, "kind").unwrap_or_else(|| "TEXT".into()),
+        "context": optional(args, "context"),
+        "options": args.get("options").cloned().unwrap_or_else(|| json!([])),
+        "multiple": false,
+        "allow_custom": true,
+        "timeout_minutes": integer_arg(args, "timeout_seconds")
+            .map(|value| (value / 60).max(1))
+            .unwrap_or(10),
+    });
+    ask_user(&client, &endpoint, &body).await
 }
 
 async fn ask_user(client: &Client, endpoint: &ApiEndpoint, args: &Value) -> Result<Value> {

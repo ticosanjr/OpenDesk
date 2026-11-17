@@ -127,6 +127,37 @@ pub(super) fn tools() -> Vec<Value> {
             }),
         ),
         tool(
+            "elicit",
+            "Pede um dado ao cliente MCP via elicitation/create. Com sessão SSE, a pergunta aparece no cliente; sem sessão, use task_id para cair no HITL 2.0 (ask_user).",
+            json!({
+                "type": "object",
+                "required": ["message"],
+                "properties": {
+                    "message": { "type": "string" },
+                    "schema": {
+                        "type": "object",
+                        "description": "JSON Schema dos campos pedidos; padrão: objeto livre."
+                    },
+                    "task_id": { "type": "string", "description": "Fallback HITL quando não há sessão SSE." },
+                    "timeout_seconds": { "type": "integer", "minimum": 5, "maximum": 300 }
+                }
+            }),
+        ),
+        tool(
+            "sampling",
+            "Pede uma amostra de texto ao cliente MCP (sampling/createMessage). Sem cliente compatível, usa DSH + budget para gerar a resposta.",
+            json!({
+                "type": "object",
+                "required": ["prompt"],
+                "properties": {
+                    "prompt": { "type": "string" },
+                    "model": { "type": "string", "description": "Opcional: força um modelo provider/modelo." },
+                    "max_tokens": { "type": "integer", "minimum": 1 },
+                    "timeout_seconds": { "type": "integer", "minimum": 5, "maximum": 300 }
+                }
+            }),
+        ),
+        tool(
             "chat_send_file",
             "Envia um arquivo do workspace ao usuário no chat atual (Telegram/Signal). Use quando o usuário pedir um arquivo ou quando precisar entregar um resultado. O thread_id está no contexto do canal.",
             json!({
@@ -749,7 +780,13 @@ fn visible_in(name: &str, phase: &str) -> bool {
     }
     if matches!(
         name,
-        "opendesk_status" | "task_list" | "ask_user" | "memory_search" | "mcp_discover_tools"
+        "opendesk_status"
+            | "task_list"
+            | "ask_user"
+            | "elicit"
+            | "sampling"
+            | "memory_search"
+            | "mcp_discover_tools"
     ) {
         return true;
     }
@@ -893,7 +930,7 @@ mod tests {
         ] {
             assert!(names.iter().any(|name| name == expected), "{expected}");
         }
-        assert_eq!(names.len(), 46);
+        assert_eq!(names.len(), 48);
     }
 
     #[test]

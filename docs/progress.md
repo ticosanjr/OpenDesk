@@ -3298,3 +3298,13 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Corrigida colisão de branch de worktrees criadas no mesmo milissegundo.
 - Rust 346 shell + 250 core (596); E2E de worktrees e A/B verde.
 - ADR 0139 e 0140.
+
+## 2026-11-17 — Onda 3: MCP completo
+
+- E1: sessões Streamable HTTP, SSE, replay por Last-Event-ID e DELETE.
+- E2: pool de MCPs externos stdio/HTTP com namespace server__tool.
+- E3: rate limit por agente/tool e auditoria de decisões.
+- E4: elicitation/create com fallback HITL 2.0.
+- E5: sampling/createMessage com fallback DSH + budget.
+- Rust 355 shell + 255 core (610).
+- ADR 0141–0145.

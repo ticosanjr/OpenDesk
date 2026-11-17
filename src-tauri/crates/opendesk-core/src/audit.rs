@@ -295,6 +295,29 @@ pub async fn list(
     .await?)
 }
 
+/// Records one MCP tool decision (`allow`, `deny` or `rate_limited`).
+pub async fn record_mcp_tool(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    actor: &str,
+    tool: &str,
+    status: u16,
+) -> AppResult<()> {
+    sqlx::query(
+        "INSERT INTO api_audit
+            (id, workspace_id, action, method, path, status, duration_ms, actor)
+         VALUES (?, ?, ?, 'POST', '/api/mcp', ?, 0, ?)",
+    )
+    .bind(Uuid::now_v7().to_string())
+    .bind(workspace_id)
+    .bind(format!("mcp:{tool}"))
+    .bind(i64::from(status))
+    .bind(actor)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

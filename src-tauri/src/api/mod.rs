@@ -271,7 +271,10 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/nodes/jobs/{id}/heartbeat", post(nodes::job_heartbeat))
         .route("/api/nodes/jobs/{id}/complete", post(nodes::complete_job))
         .route("/api/onboarding", get(onboarding::status))
-        .route("/api/mcp", post(mcp::rpc))
+        .route(
+            "/api/mcp",
+            get(mcp::stream).post(mcp::rpc).delete(mcp::delete),
+        )
         .route("/api/meta", get(meta))
         .route("/api/about", get(about::about))
         .route(

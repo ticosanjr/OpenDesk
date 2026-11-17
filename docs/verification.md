@@ -554,6 +554,14 @@ pendências manuais continuam listadas abaixo.
 - A/B cria dois slots, compara métricas/diff e só mescla o vencedor aprovado.
 - Rust 346 shell + 250 core (596); Vitest 256; visual e E2E verdes.
 
+## Onda 3 — MCP
+
+- Sessão HTTP, SSE, replay e DELETE cobertos por teste de API.
+- Dois servidores MCP stdio agregados e chamados por namespace.
+- Rate limit e auditoria verificados por teste HTTP.
+- Elicitation resolve uma requisição servidor→cliente; sem sessão retorna erro.
+- Sampling bloqueia por hard stop antes de chamar o motor.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:
