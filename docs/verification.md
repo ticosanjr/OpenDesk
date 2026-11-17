@@ -575,6 +575,13 @@ pendências manuais continuam listadas abaixo.
 - Dois nós: lease expirada é reclamada pelo segundo nó sem duplicar o job.
 - Validação em duas máquinas/containers reais permanece manual.
 
+## Onda 6 — e-mail e voz no Chat
+
+- Modal de resposta por e-mail com anexos; erro acionável sem SMTP no E2E.
+- Inbound IMAP cria/continua thread de Chat e mantém a tarefa.
+- PTT transcreve para o compositor; TTS reproduz respostas.
+- WhatsApp, voz contínua e computer-use Win/mac seguem externos (ADR 0154).
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

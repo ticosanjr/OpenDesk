@@ -179,6 +179,17 @@ async fn poll_once(
                 let _ = session.store(sequence.to_string(), "+FLAGS (\\Seen)").await;
                 continue;
             }
+            save_email_chat(
+                state,
+                source,
+                &message_id,
+                in_reply_to.as_deref().unwrap_or(""),
+                &subject,
+                &from,
+                &text,
+                &attachments,
+            )
+            .await?;
             let event = NormalizedTaskEvent {
                 source_id: source.id.clone(),
                 external_id: message_id.clone(),
@@ -204,10 +215,137 @@ async fn poll_once(
     Ok(())
 }
 
+/// Makes inbound mail visible in Chat. The task ingestion continues below; the
+/// thread keeps the Message-ID so a reply from Chat preserves the mail thread.
+#[allow(clippy::too_many_arguments)]
+async fn save_email_chat(
+    state: &Arc<AppState>,
+    source: &InboundSource,
+    message_id: &str,
+    in_reply_to: &str,
+    subject: &str,
+    from: &str,
+    text: &str,
+    attachments: &[String],
+) -> AppResult<()> {
+    let candidate = in_reply_to
+        .split_whitespace()
+        .next()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(message_id);
+    let mut thread =
+        crate::db::chat::find_external(&state.db, &source.workspace_id, "email", candidate).await?;
+    if thread.is_none() && candidate != message_id {
+        thread =
+            crate::db::chat::find_external(&state.db, &source.workspace_id, "email", message_id)
+                .await?;
+    }
+    let thread = match thread {
+        Some(thread) => thread,
+        None => {
+            crate::db::chat::create_thread(
+                &state.db,
+                crate::db::chat::CreateThreadInput {
+                    workspace_id: source.workspace_id.clone(),
+                    title: Some(format!("E-mail · {subject}")),
+                    agent: "build".into(),
+                    model: None,
+                    source: Some("email".into()),
+                    external_id: Some(message_id.to_string()),
+                },
+            )
+            .await?
+        }
+    };
+    let metadata = serde_json::json!({
+        "from": from,
+        "subject": subject,
+        "message_id": message_id,
+        "in_reply_to": in_reply_to,
+        "attachments": attachments,
+    });
+    crate::db::chat::add_message(
+        &state.db,
+        &thread.id,
+        "user",
+        &format!("De: {from}\nAssunto: {subject}\n\n{text}"),
+        Some(&metadata.to_string()),
+    )
+    .await?;
+    state
+        .events
+        .publish(crate::events::OpenDeskWsEvent::ChatUpdated {
+            thread_id: thread.id,
+            workspace_id: source.workspace_id.clone(),
+        });
+    Ok(())
+}
+
 fn password(state: &Arc<AppState>, config: &ImapConfig) -> AppResult<String> {
     crate::io_bus::secret(
         &state.paths,
         config.password_ref.as_deref(),
         config.password.as_deref(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support;
+
+    #[tokio::test]
+    async fn inbound_email_creates_one_chat_thread_and_keeps_replies_together() {
+        let ctx = test_support::context().await;
+        let source = InboundSource {
+            id: "imap-1".into(),
+            workspace_id: ctx.workspace_id.clone(),
+            name: "IMAP".into(),
+            source_type: "IMAP".into(),
+            config_json: "{}".into(),
+            target_agent: None,
+            target_column: "TODO".into(),
+            auto_execute: false,
+            is_enabled: true,
+            last_triggered_at: None,
+            last_status: None,
+            last_error: None,
+            created_at: "2026-01-01T00:00:00Z".into(),
+        };
+        save_email_chat(
+            &ctx.state,
+            &source,
+            "<root@example.com>",
+            "",
+            "Primeiro",
+            "user@example.com",
+            "olá",
+            &[],
+        )
+        .await
+        .expect("first");
+        save_email_chat(
+            &ctx.state,
+            &source,
+            "<reply@example.com>",
+            "<root@example.com>",
+            "Re: Primeiro",
+            "user@example.com",
+            "resposta",
+            &[],
+        )
+        .await
+        .expect("reply");
+        let threads =
+            crate::db::chat::list_threads(&ctx.state.db, &ctx.workspace_id, Some("email"))
+                .await
+                .expect("threads");
+        assert_eq!(threads.len(), 1);
+        let messages = crate::db::chat::list_messages(&ctx.state.db, &threads[0].id)
+            .await
+            .expect("messages");
+        assert_eq!(messages.len(), 2);
+        assert!(messages[0].content.contains("olá"));
+        assert!(messages[1].content.contains("resposta"));
+    }
 }

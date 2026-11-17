@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowDown,
@@ -6,7 +6,9 @@ import {
   Check,
   Paperclip,
   Loader2,
+  Mail,
   MessageSquare,
+  Mic,
   Pencil,
   Plus,
   RefreshCw,
@@ -15,11 +17,14 @@ import {
   Square,
   Sparkles,
   Trash2,
+  Volume2,
   Wand2,
   X,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, Input } from "@/components/ui/field";
+import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -38,6 +43,26 @@ import { EntityLink } from "@/components/ui/entity-link";
 import { confirmAction } from "@/store/confirm-store";
 import { smallLabelClass as labelClass } from "@/lib/ui-classes";
 import { useStickToBottom } from "@/lib/use-stick-to-bottom";
+
+function base64FromBlob(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      resolve(result.includes(",") ? result.split(",")[1] : result);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 export function ChatPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -63,6 +88,16 @@ export function ChatPage() {
   const [renaming, setRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [emailAttachments, setEmailAttachments] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
   const [params, setParams] = useSearchParams();
   const lastChatEvent = useAppStore((state) => state.lastChatEvent);
 
@@ -244,6 +279,118 @@ export function ChatPage() {
     onScroll: onTranscriptScroll,
     scrollToBottom: scrollTranscript,
   } = useStickToBottom<HTMLDivElement>(`${messages.length}:${sending}`);
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const media = new MediaRecorder(stream);
+      chunksRef.current = [];
+      media.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+      media.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        void transcribeVoice(
+          new Blob(chunksRef.current, { type: media.mimeType || "audio/webm" }),
+        );
+      };
+      media.start();
+      recorderRef.current = media;
+      setRecording(true);
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Microfone indisponível",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  }
+
+  function stopRecording() {
+    recorderRef.current?.stop();
+    recorderRef.current = null;
+    setRecording(false);
+  }
+
+  async function transcribeVoice(blob: Blob) {
+    setVoiceBusy(true);
+    try {
+      const audio_base64 = await base64FromBlob(blob);
+      const result = await apiPost<{ text: string; engine: string }>(
+        "/api/voice/transcribe",
+        { audio_base64, mime: blob.type || "audio/webm" },
+      );
+      setPrompt((current) => (current ? `${current} ${result.text}` : result.text));
+      toast({
+        tone: "success",
+        title: `Transcrito com ${result.engine}`,
+        description: result.text.slice(0, 120),
+      });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Transcrição falhou",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setVoiceBusy(false);
+    }
+  }
+
+  async function speakMessage(text: string) {
+    if (!text.trim()) return;
+    setVoiceBusy(true);
+    try {
+      const result = await apiPost<{ data: string; mime: string }>(
+        "/api/voice/speak",
+        { text, workspace_id: activeWorkspaceId },
+      );
+      const audio = new Audio(`data:${result.mime};base64,${result.data}`);
+      await audio.play();
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Fala indisponível",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setVoiceBusy(false);
+    }
+  }
+
+  async function sendEmailReply() {
+    if (!thread) return;
+    if (!emailTo.trim()) {
+      toast({ tone: "warning", title: "Informe o destinatário" });
+      return;
+    }
+    setEmailSending(true);
+    try {
+      await apiPost(`/api/chat/threads/${encodeURIComponent(thread.id)}/email-reply`, {
+        to: emailTo.trim(),
+        subject: emailSubject.trim() || `Re: ${thread.title}`,
+        body_html: emailBody.trim()
+          ? `<pre style="white-space:pre-wrap">${escapeHtml(emailBody)}</pre>`
+          : undefined,
+        attachments: emailAttachments
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean),
+      });
+      toast({ tone: "success", title: "Resposta enviada" });
+      setEmailOpen(false);
+      setEmailBody("");
+      setEmailAttachments("");
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Envio falhou",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setEmailSending(false);
+    }
+  }
 
   async function createThread() {
     if (!activeWorkspaceId) return;
@@ -558,6 +705,19 @@ export function ChatPage() {
               ) : null}
             </div>
             <div className="flex items-center gap-2">
+              {thread?.source === "email" ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Responder por e-mail"
+                  onClick={() => {
+                    setEmailSubject(`Re: ${thread.title.replace(/^E-mail · /, "")}`);
+                    setEmailOpen(true);
+                  }}
+                >
+                  <Mail size={13} />
+                </Button>
+              ) : null}
               {thread ? (
                 <Button
                   variant="ghost"
@@ -630,10 +790,20 @@ export function ChatPage() {
                     )}
                   >
                     <p className="whitespace-pre-wrap">{message.content}</p>
-                    <p className="mt-1 text-right font-mono text-[11px] text-zinc-500">
+                    <div className="mt-1 flex items-center justify-end gap-1 font-mono text-[11px] text-zinc-500">
+                      {message.role === "assistant" ? (
+                        <button
+                          type="button"
+                          title="Ouvir resposta"
+                          onClick={() => void speakMessage(message.content)}
+                          className="rounded p-0.5 text-zinc-500 hover:text-zinc-200"
+                        >
+                          <Volume2 size={11} />
+                        </button>
+                      ) : null}
                       {message.role === "user" ? "você" : "agente"} ·{" "}
                       {relativeTime(message.created_at)}
-                    </p>
+                    </div>
                   </div>
                 ))
               )}
@@ -734,6 +904,20 @@ export function ChatPage() {
                   className="min-h-[52px] flex-1"
                 />
                 <Button
+                  variant={recording ? "destructive" : "outline"}
+                  size="sm"
+                  className="h-auto min-h-[52px] w-12 shrink-0"
+                  title={recording ? "Parar gravação" : "Push-to-talk"}
+                  onClick={() => (recording ? stopRecording() : void startRecording())}
+                  disabled={!thread || sending || voiceBusy}
+                >
+                  {voiceBusy ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Mic size={14} />
+                  )}
+                </Button>
+                <Button
                   size="sm"
                   className="h-auto min-h-[52px] w-24 shrink-0"
                   onClick={() => void send()}
@@ -751,6 +935,68 @@ export function ChatPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Modal
+        open={emailOpen}
+        onClose={() => setEmailOpen(false)}
+        title="Responder por e-mail"
+        description="A resposta mantém os headers In-Reply-To/References da thread."
+      >
+        <div className="space-y-3">
+          <Field label="Para" htmlFor="email-to">
+            <Input
+              id="email-to"
+              value={emailTo}
+              onChange={(event) => setEmailTo(event.target.value)}
+              placeholder="destinatario@exemplo.com"
+            />
+          </Field>
+          <Field label="Assunto" htmlFor="email-subject">
+            <Input
+              id="email-subject"
+              value={emailSubject}
+              onChange={(event) => setEmailSubject(event.target.value)}
+            />
+          </Field>
+          <Field
+            label="Mensagem"
+            htmlFor="email-body"
+            hint="Deixe vazio para enviar a última resposta do assistente."
+          >
+            <textarea
+              id="email-body"
+              value={emailBody}
+              onChange={(event) => setEmailBody(event.target.value)}
+              className="min-h-[120px] w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-[13px] text-zinc-100 outline-none focus:border-blue-500/60"
+            />
+          </Field>
+          <Field
+            label="Anexos"
+            htmlFor="email-attachments"
+            hint="Caminhos relativos ao workspace, separados por vírgula."
+          >
+            <Input
+              id="email-attachments"
+              value={emailAttachments}
+              onChange={(event) => setEmailAttachments(event.target.value)}
+              placeholder="output/2026-11/relatorio.pdf"
+            />
+          </Field>
+          <div className="flex justify-end gap-2 border-t border-zinc-800/70 pt-3">
+            <Button variant="ghost" size="sm" onClick={() => setEmailOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void sendEmailReply()}
+              disabled={emailSending}
+            >
+              {emailSending ? <Loader2 size={13} className="animate-spin" /> : <Mail size={13} />}
+              Enviar
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Card>
         <CardHeader>

@@ -3324,3 +3324,11 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - D3: lease expirada volta para a fila sem duplicar o job; teste com dois nós.
 - Rust 360 shell + 259 core (619).
 - ADR 0149–0151.
+
+## 2026-11-17 — Onda 6: e-mail e voz no Chat
+
+- F5: reply por e-mail no Chat, anexos do workspace, inbound IMAP criando thread.
+- F3: push-to-talk no compositor e TTS nas respostas.
+- F1/F2/F4/F6 permanecem bloqueados por telefone, áudio e VMs externas.
+- Rust 361 shell + 259 core (620); E2E de e-mail no Chat verde.
+- ADR 0152–0154.

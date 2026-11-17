@@ -452,6 +452,9 @@ pub struct EmailReplyBody {
     pub subject: String,
     #[serde(default)]
     pub body_html: Option<String>,
+    /// Paths relative to the workspace root.
+    #[serde(default)]
+    pub attachments: Vec<String>,
 }
 
 /// Sends the last assistant message (or the supplied HTML) as an email reply in
@@ -493,12 +496,63 @@ pub async fn send_email_reply(
         crate::integrations::smtp_mailer::load_config(&state.db, &secrets, &thread.workspace_id)
             .await?
             .ok_or_else(|| AppError::BadRequest("SMTP não está configurado".into()))?;
+    let workspace = crate::db::workspaces::get(&state.db, &thread.workspace_id).await?;
+    let root = std::path::Path::new(&workspace.root_path);
+    let mut attachments = Vec::new();
+    for path in body.attachments.iter().take(10) {
+        let relative = std::path::Path::new(path);
+        if relative.is_absolute()
+            || relative
+                .components()
+                .any(|component| matches!(component, std::path::Component::ParentDir))
+        {
+            return Err(AppError::BadRequest(format!(
+                "anexo fora do workspace: {path}"
+            )));
+        }
+        let target = root.join(relative);
+        let canonical = std::fs::canonicalize(&target)?;
+        let canonical_root = std::fs::canonicalize(root)?;
+        if !canonical.starts_with(&canonical_root) {
+            return Err(AppError::BadRequest(format!(
+                "anexo fora do workspace: {path}"
+            )));
+        }
+        let bytes = std::fs::read(&canonical)?;
+        if !crate::integrations::smtp_mailer::attachment_limit(bytes.len()) {
+            return Err(AppError::BadRequest(format!("anexo excede 10 MB: {path}")));
+        }
+        let filename = canonical
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| "anexo".into());
+        let mime = match canonical
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("")
+            .to_lowercase()
+            .as_str()
+        {
+            "png" => "image/png",
+            "jpg" | "jpeg" => "image/jpeg",
+            "pdf" => "application/pdf",
+            "txt" | "md" => "text/plain",
+            "csv" => "text/csv",
+            "json" => "application/json",
+            _ => "application/octet-stream",
+        };
+        attachments.push(crate::integrations::smtp_mailer::EmailAttachment {
+            filename,
+            bytes,
+            mime: mime.into(),
+        });
+    }
     crate::integrations::smtp_mailer::send_email_threaded(
         &config,
         &body.to,
         &body.subject,
         html,
-        Vec::new(),
+        attachments,
         Some(&crate::integrations::smtp_mailer::EmailThread {
             in_reply_to: in_reply_to.to_string(),
             references: vec![in_reply_to.to_string()],
