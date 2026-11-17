@@ -46,3 +46,10 @@ scripts/coverage-core.sh /tmp/cov.txt
 
 Enquanto o core não chega a 80%, o gate protege o patamar atual para que novos
 módulos não regridam a cobertura.
+
+## Decisão de escopo (2026-11-17)
+
+O usuário aceitou não bloquear o release final na meta de 80%. O gate continua
+com o ratchet atual e nenhum limite será baixado para "passar". O piso final
+será fixado no início da fase H2, com base na cobertura medida depois de A–G;
+H4 não exige 80% se o piso acordado estiver verde e documentado.
