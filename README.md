@@ -423,6 +423,8 @@ docs/                       plano, decisões e histórico
 - [ADR 0152 — E-mail no Chat](docs/decisions/0152-chat-email-inbound.md)
 - [ADR 0153 — Push-to-talk no Chat](docs/decisions/0153-chat-push-to-talk.md)
 - [ADR 0154 — Limites externos da Onda 6](docs/decisions/0154-wave6-external-limits.md)
+- [ADR 0155 — RPM do daemon](docs/decisions/0155-daemon-rpm.md)
+- [ADR 0156 — Limites Windows/macOS](docs/decisions/0156-platform-bundle-limits.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

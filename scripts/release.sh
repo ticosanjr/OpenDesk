@@ -268,8 +268,7 @@ if [[ "$SKIP_BUILD" != "1" ]]; then
 fi
 
 # Tauri bundles only the desktop binary. Inject the daemon and its systemd user
-# unit into the .deb so a package install is usable headless too. RPM rebuilding
-# needs rpmbuild/rpm2cpio, which are not guaranteed; those stay standalone.
+# unit into the .deb, and build the optional opendeskd RPM when rpmbuild exists.
 inject_daemon_into_deb() {
   command -v dpkg-deb >/dev/null 2>&1 || return 0
   local deb daemon unit tmp
@@ -288,6 +287,13 @@ inject_daemon_into_deb() {
 
 if [[ "$PLATFORM" == linux-* ]]; then
   inject_daemon_into_deb
+  if command -v rpmbuild >/dev/null 2>&1; then
+    echo "==> Building opendeskd RPM"
+    OPENDESK_VERSION="$VERSION" "$ROOT/scripts/build-daemon-rpm.sh" || \
+      echo "release: opendeskd RPM falhou; segue sem ele" >&2
+  else
+    echo "    opendeskd RPM skipped (rpmbuild ausente)"
+  fi
 fi
 
 echo "==> Collecting v${VERSION} artifacts"

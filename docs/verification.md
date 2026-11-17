@@ -582,6 +582,11 @@ pendências manuais continuam listadas abaixo.
 - PTT transcreve para o compositor; TTS reproduz respostas.
 - WhatsApp, voz contínua e computer-use Win/mac seguem externos (ADR 0154).
 
+## Onda 7 — empacotamento
+
+- RPM `opendeskd` contém `/usr/bin/opendeskd` e `/usr/lib/systemd/user/opendeskd.service`.
+- MSI/NSIS/DMG exigem VM/Mac real; não validados aqui.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

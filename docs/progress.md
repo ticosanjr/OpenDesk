@@ -3332,3 +3332,10 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - F1/F2/F4/F6 permanecem bloqueados por telefone, áudio e VMs externas.
 - Rust 361 shell + 259 core (620); E2E de e-mail no Chat verde.
 - ADR 0152–0154.
+
+## 2026-11-17 — Onda 7: empacotamento
+
+- B1: RPM separado do `opendeskd` com systemd user unit; validado com rpm2cpio/cpio.
+- B2/B3: configuração/documentação de MSI/NSIS/DMG; validação depende de VMs e assinatura.
+- Rust 361 shell + 259 core (620).
+- ADR 0155–0156.

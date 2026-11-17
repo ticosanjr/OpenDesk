@@ -49,6 +49,18 @@ usa `releases/<versão>/`. O manifesto registra a plataforma detectada
 (`linux-x86_64`, `macos-aarch64`, `windows-x86_64`, …) e `latest.json` usa o
 mesmo valor, então um cliente só recebe atualização do seu sistema.
 
+## Daemon no Linux
+
+Além do `.deb` (que recebe `opendeskd` e a unit no release), o Linux pode gerar
+um RPM separado do daemon:
+
+```bash
+scripts/build-daemon-rpm.sh src-tauri/target/release/opendeskd
+# saída: src-tauri/target/release/bundle/rpm/opendeskd-<versão>-1.<arch>.rpm
+```
+
+O `scripts/release.sh` chama isso automaticamente quando `rpmbuild` existe.
+
 ## Assinatura
 
 ### macOS
