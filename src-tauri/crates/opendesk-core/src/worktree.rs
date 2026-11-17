@@ -30,6 +30,13 @@ pub struct RunWorktree {
     pub merged_at: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, Default, Serialize)]
+pub struct DiffStat {
+    pub files: usize,
+    pub insertions: usize,
+    pub deletions: usize,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct MergeReport {
     pub id: String,
@@ -52,7 +59,10 @@ pub fn prepare(
 
     let git = is_git_repo(workspace_root);
     let (mode, branch, base_commit) = if git && has_head(workspace_root) {
-        let branch = format!("opendesk/wt-{}", &id[..8]);
+        // The last UUID segment is random; the timestamp prefix is shared by
+        // worktrees created in the same millisecond.
+        let suffix = id.rsplit('-').next().unwrap_or(&id);
+        let branch = format!("opendesk/wt-{suffix}");
         let base = git_output(workspace_root, &["rev-parse", "HEAD"])
             .ok()
             .map(|value| value.trim().to_string());
@@ -94,6 +104,36 @@ pub fn diff(worktree: &RunWorktree, workspace_root: &Path) -> AppResult<String> 
         "git" => git_diff(Path::new(&worktree.path)),
         _ => overlay_diff(Path::new(&worktree.path), workspace_root),
     }
+}
+
+pub fn diff_stat(worktree: &RunWorktree, workspace_root: &Path) -> AppResult<DiffStat> {
+    Ok(stat_from_diff(&diff(worktree, workspace_root)?))
+}
+
+pub fn stat_from_diff(diff: &str) -> DiffStat {
+    let mut stat = DiffStat::default();
+    if diff.trim() == "nenhuma alteração" {
+        return stat;
+    }
+    for line in diff.lines() {
+        if line.starts_with("diff --git ") {
+            stat.files += 1;
+        } else if let Some(rest) = line.strip_prefix("A ") {
+            if !rest.is_empty() {
+                stat.files += 1;
+                stat.insertions += 1;
+            }
+        } else if let Some(rest) = line.strip_prefix("M ") {
+            if !rest.is_empty() {
+                stat.files += 1;
+            }
+        } else if line.starts_with('+') && !line.starts_with("+++") {
+            stat.insertions += 1;
+        } else if line.starts_with('-') && !line.starts_with("---") {
+            stat.deletions += 1;
+        }
+    }
+    stat
 }
 
 pub fn merge(

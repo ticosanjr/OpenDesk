@@ -1,3 +1,4 @@
+pub mod ab;
 pub mod about;
 pub mod adapters;
 pub mod artifacts;
@@ -572,6 +573,9 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
         .route("/api/calendar/sync", post(calendar::sync_calendars))
         .route("/api/calendar/agenda", get(calendar::agenda))
         .route("/api/runs", get(runs::list_runs))
+        .route("/api/runs/ab", get(ab::list).post(ab::create))
+        .route("/api/runs/ab/{id}", get(ab::get))
+        .route("/api/runs/ab/{id}/choose", post(ab::choose))
         .route("/api/runs/{id}", get(runs::get_run))
         .route("/api/runs/{id}/log", get(runs::run_log))
         .route("/api/runs/{id}/timeline", get(runs::run_timeline))

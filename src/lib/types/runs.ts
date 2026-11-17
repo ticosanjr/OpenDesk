@@ -175,3 +175,55 @@ export interface SearchHit {
   updated_at?: string | null;
   link: string;
 }
+
+export interface WorktreeDiffStat {
+  files: number;
+  insertions: number;
+  deletions: number;
+}
+
+export interface WorktreeEntry {
+  id: string;
+  workspace_id: string;
+  run_id?: string | null;
+  path: string;
+  mode: string;
+  branch?: string | null;
+  base_commit?: string | null;
+  status: string;
+  created_at: string;
+  merged_at?: string | null;
+  task_title?: string | null;
+  run_status?: string | null;
+  diff_stat: WorktreeDiffStat;
+}
+
+export interface AbGroup {
+  id: string;
+  workspace_id: string;
+  title: string;
+  prompt: string;
+  status: string;
+  winner_slot?: string | null;
+  created_at: string;
+  decided_at?: string | null;
+}
+
+export interface AbSlot {
+  slot: string;
+  task_id: string;
+  run_id?: string | null;
+  worktree_id?: string | null;
+  status: string;
+  agent: string;
+  model: string;
+  cost_usd: number;
+  tokens: number;
+  duration_ms: number;
+  diff?: string | null;
+  diff_stat: WorktreeDiffStat;
+}
+
+export interface AbDetail extends AbGroup {
+  slots: AbSlot[];
+}

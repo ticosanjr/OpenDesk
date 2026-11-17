@@ -14,6 +14,7 @@ const ROUTES: Array<{ name: string; path: string; widths: number[] }> = [
   { name: "kanban", path: "/#/kanban", widths: [1024, 1440, 1920, 700, 1100] },
   { name: "calendar", path: `/#/calendar?date=${CALENDAR_DATE}`, widths: [1024, 1440, 1920] },
   { name: "runs", path: "/#/runs", widths: [1024, 1440, 1920] },
+  { name: "worktrees", path: "/#/worktrees", widths: [1440] },
   { name: "chat", path: "/#/chat", widths: [1024, 1440] },
   { name: "routines", path: "/#/routines", widths: [1024, 1440] },
   { name: "recipes", path: "/#/recipes", widths: [1024, 1440] },

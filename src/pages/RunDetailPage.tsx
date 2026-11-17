@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, GitBranch, Loader2 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageBody, PageBodyFill, PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,7 @@ import { RunLogView } from "@/components/runs/RunLogView";
 import { apiGet } from "@/lib/api";
 import { downloadRun, type ExportFormat } from "@/lib/download";
 import { links } from "@/lib/links";
-import type { TaskRun } from "@/lib/types";
+import type { TaskRun, WorktreeEntry } from "@/lib/types";
 import { toast } from "@/store/toast-store";
 
 export function RunDetailPage() {
@@ -16,6 +16,7 @@ export function RunDetailPage() {
   const navigate = useNavigate();
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
   const [run, setRun] = useState<TaskRun | null>(null);
+  const [worktree, setWorktree] = useState<WorktreeEntry | null>(null);
 
   useEffect(() => {
     if (!runId) {
@@ -32,6 +33,28 @@ export function RunDetailPage() {
       cancelled = true;
     };
   }, [runId]);
+
+  useEffect(() => {
+    if (!run?.workspace_id || !run.id) {
+      setWorktree(null);
+      return;
+    }
+    let cancelled = false;
+    void apiGet<WorktreeEntry[]>(
+      `/api/worktrees?workspace_id=${encodeURIComponent(run.workspace_id)}`,
+    )
+      .then((entries) => {
+        if (!cancelled) {
+          setWorktree(entries.find((entry) => entry.run_id === run.id) ?? null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setWorktree(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [run?.id, run?.workspace_id]);
 
   async function exportRun(format: ExportFormat) {
     if (!runId) return;
@@ -92,6 +115,21 @@ export function RunDetailPage() {
             </>
           }
         />
+        {worktree ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-zinc-500">
+            <Badge variant="blue">
+              <GitBranch size={11} />
+              worktree isolado · {worktree.diff_stat.files} arq. +{worktree.diff_stat.insertions} −
+              {worktree.diff_stat.deletions}
+            </Badge>
+            <Link
+              to="/worktrees"
+              className="underline decoration-zinc-700 underline-offset-2 hover:text-zinc-300"
+            >
+              revisar e mesclar
+            </Link>
+          </div>
+        ) : null}
         {run?.source === "chat" ? (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-zinc-500">
             <Badge variant="blue">chat · {run.channel ?? "desktop"}</Badge>

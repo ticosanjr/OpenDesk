@@ -548,6 +548,12 @@ pendências manuais continuam listadas abaixo.
 
 - `cargo tree -p opendesk-core` sem Tauri; engine, DAG e HITL testados no core.
 
+## Onda 2 — worktrees e A/B
+
+- Lista/diff/merge/descarte pela UI; E2E com repo Git temporário.
+- A/B cria dois slots, compara métricas/diff e só mescla o vencedor aprovado.
+- Rust 346 shell + 250 core (596); Vitest 256; visual e E2E verdes.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

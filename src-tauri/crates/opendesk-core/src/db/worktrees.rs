@@ -70,6 +70,39 @@ pub async fn get(pool: &SqlitePool, id: &str) -> AppResult<RunWorktree> {
         .ok_or_else(|| AppError::NotFound(format!("worktree {id}")))
 }
 
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct WorktreeListRow {
+    pub id: String,
+    pub workspace_id: String,
+    pub run_id: Option<String>,
+    pub path: String,
+    pub mode: String,
+    pub branch: Option<String>,
+    pub base_commit: Option<String>,
+    pub status: String,
+    pub created_at: String,
+    pub merged_at: Option<String>,
+    pub task_title: Option<String>,
+    pub run_status: Option<String>,
+}
+
+impl WorktreeListRow {
+    pub fn into_model(self) -> RunWorktree {
+        RunWorktree {
+            id: self.id,
+            workspace_id: self.workspace_id,
+            run_id: self.run_id,
+            path: self.path,
+            mode: self.mode,
+            branch: self.branch,
+            base_commit: self.base_commit,
+            status: self.status,
+            created_at: self.created_at,
+            merged_at: self.merged_at,
+        }
+    }
+}
+
 pub async fn list(pool: &SqlitePool, workspace_id: &str) -> AppResult<Vec<RunWorktree>> {
     Ok(sqlx::query_as::<_, WorktreeRow>(
         "SELECT * FROM run_worktrees WHERE workspace_id = ? ORDER BY created_at DESC",
@@ -80,6 +113,35 @@ pub async fn list(pool: &SqlitePool, workspace_id: &str) -> AppResult<Vec<RunWor
     .into_iter()
     .map(WorktreeRow::into_model)
     .collect())
+}
+
+pub async fn list_with_context(
+    pool: &SqlitePool,
+    workspace_id: &str,
+) -> AppResult<Vec<WorktreeListRow>> {
+    Ok(sqlx::query_as::<_, WorktreeListRow>(
+        "SELECT w.id, w.workspace_id, w.run_id, w.path, w.mode, w.branch,
+                w.base_commit, w.status, w.created_at, w.merged_at,
+                t.title AS task_title, r.status AS run_status
+         FROM run_worktrees w
+         LEFT JOIN task_runs r ON r.id = w.run_id
+         LEFT JOIN tasks t ON t.id = r.task_id
+         WHERE w.workspace_id = ?
+         ORDER BY w.created_at DESC",
+    )
+    .bind(workspace_id)
+    .fetch_all(pool)
+    .await?)
+}
+
+pub async fn by_run(pool: &SqlitePool, run_id: &str) -> AppResult<Option<RunWorktree>> {
+    Ok(sqlx::query_as::<_, WorktreeRow>(
+        "SELECT * FROM run_worktrees WHERE run_id = ? ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(run_id)
+    .fetch_optional(pool)
+    .await?
+    .map(WorktreeRow::into_model))
 }
 
 pub async fn set_status(pool: &SqlitePool, id: &str, status: &str) -> AppResult<()> {

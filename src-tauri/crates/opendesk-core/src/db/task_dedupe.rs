@@ -4,7 +4,7 @@ use super::tasks::{COLUMNS, Task};
 use crate::error::{AppError, AppResult};
 use sqlx::SqlitePool;
 
-pub const ORIGINS: [&str; 7] = [
+pub const ORIGINS: [&str; 8] = [
     "MANUAL",
     "RECIPE",
     "IO_BUS",
@@ -12,6 +12,7 @@ pub const ORIGINS: [&str; 7] = [
     "ROUTINE",
     "DELEGATION",
     "CHANNEL",
+    "AB_TEST",
 ];
 
 pub fn validate_origin(value: &str) -> AppResult<String> {

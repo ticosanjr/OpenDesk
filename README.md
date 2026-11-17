@@ -407,6 +407,8 @@ docs/                       plano, decisões e histórico
 - [ADR 0136 — Casos de eval de skill](docs/decisions/0136-skill-eval-cases.md)
 - [ADR 0137 — HITL/sinks no RecipeContext](docs/decisions/0137-recipe-context-hitl-sinks.md)
 - [ADR 0138 — Engine/DAG no core](docs/decisions/0138-engine-dag-core.md)
+- [ADR 0139 — UI de worktrees](docs/decisions/0139-worktrees-ui.md)
+- [ADR 0140 — A/B com worktrees](docs/decisions/0140-ab-worktrees.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

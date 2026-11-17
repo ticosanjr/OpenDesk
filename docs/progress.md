@@ -3290,3 +3290,11 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - Canais e sinks entram por portas; shell só adapta.
 - Core 249 testes, shell 343 (592).
 - ADR 0138.
+
+## 2026-11-17 — Onda 2: worktrees e A/B
+
+- C1: página de worktrees, diff, merge aprovado e descarte; badge no run.
+- C2: grupos A/B, dois worktrees, comparação e merge do vencedor via aprovação.
+- Corrigida colisão de branch de worktrees criadas no mesmo milissegundo.
+- Rust 346 shell + 250 core (596); E2E de worktrees e A/B verde.
+- ADR 0139 e 0140.

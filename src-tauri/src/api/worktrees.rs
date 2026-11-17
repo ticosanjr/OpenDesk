@@ -8,7 +8,7 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{path::PathBuf, sync::Arc};
 
@@ -29,13 +29,44 @@ pub struct MergeBody {
     pub approved: bool,
 }
 
+#[derive(Debug, Serialize)]
+pub struct WorktreeEntry {
+    #[serde(flatten)]
+    pub worktree: worktree::RunWorktree,
+    pub task_title: Option<String>,
+    pub run_status: Option<String>,
+    pub diff_stat: worktree::DiffStat,
+}
+
 pub async fn list(
     State(state): State<Arc<AppState>>,
     Query(query): Query<WorktreeQuery>,
-) -> AppResult<Json<Vec<worktree::RunWorktree>>> {
+) -> AppResult<Json<Vec<WorktreeEntry>>> {
     let workspace_id =
         crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
-    Ok(Json(worktrees::list(&state.db, &workspace_id).await?))
+    let workspace = db::workspaces::get(&state.db, &workspace_id).await?;
+    let root = PathBuf::from(workspace.root_path);
+    let mut entries = Vec::new();
+    for row in worktrees::list_with_context(&state.db, &workspace_id).await? {
+        let stat = if row.status == "ACTIVE" {
+            let worktree = row.clone().into_model();
+            let root = root.clone();
+            tokio::task::spawn_blocking(move || worktree::diff_stat(&worktree, &root))
+                .await
+                .ok()
+                .and_then(Result::ok)
+                .unwrap_or_default()
+        } else {
+            worktree::DiffStat::default()
+        };
+        entries.push(WorktreeEntry {
+            worktree: row.clone().into_model(),
+            task_title: row.task_title,
+            run_status: row.run_status,
+            diff_stat: stat,
+        });
+    }
+    Ok(Json(entries))
 }
 
 pub async fn prepare(

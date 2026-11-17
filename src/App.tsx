@@ -21,6 +21,9 @@ const RunsPage = lazy(() =>
 const RunDetailPage = lazy(() =>
   import("@/pages/RunDetailPage").then((module) => ({ default: module.RunDetailPage })),
 );
+const WorktreesPage = lazy(() =>
+  import("@/pages/WorktreesPage").then((module) => ({ default: module.WorktreesPage })),
+);
 const ChatPage = lazy(() =>
   import("@/pages/ChatPage").then((module) => ({ default: module.ChatPage })),
 );
@@ -85,6 +88,7 @@ export default function App() {
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="runs" element={<RunsPage />} />
           <Route path="runs/:runId" element={<RunDetailPage />} />
+          <Route path="worktrees" element={<WorktreesPage />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="artifacts" element={<ArtifactsPage />} />
           <Route path="files" element={<FilesPage />} />

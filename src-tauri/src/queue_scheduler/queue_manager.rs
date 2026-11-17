@@ -66,6 +66,12 @@ impl Drop for HeartbeatGuard {
     }
 }
 
+fn forces_worktree(tags_json: Option<&str>) -> bool {
+    tags_json
+        .and_then(|tags| serde_json::from_str::<Vec<String>>(tags).ok())
+        .is_some_and(|tags| tags.iter().any(|tag| tag.starts_with("ab:")))
+}
+
 async fn worktree_runs_enabled(pool: &sqlx::SqlitePool) -> bool {
     crate::db::settings::get(pool, "worktree_runs")
         .await
@@ -393,7 +399,8 @@ impl QueueManager {
         };
 
         let workspace_path = PathBuf::from(&workspace.root_path);
-        let worktree_enabled = worktree_runs_enabled(&self.pool).await;
+        let worktree_enabled = worktree_runs_enabled(&self.pool).await
+            || forces_worktree(task.as_ref().map(|task| task.tags_json.as_str()));
         let (plan, worktree) = if worktree_enabled {
             let prepared = match crate::worktree::prepare(
                 &job.workspace_id,
@@ -1003,6 +1010,14 @@ mod tests {
             .await
             .expect("setting");
         assert!(worktree_runs_enabled(&ctx.state.db).await);
+    }
+
+    #[test]
+    fn ab_tasks_force_worktree_even_when_setting_is_off() {
+        assert!(!forces_worktree(Some("[]")));
+        assert!(forces_worktree(Some(r#"["ab:group-1","ab-slot:a"]"#)));
+        assert!(!forces_worktree(Some("not-json")));
+        assert!(!forces_worktree(None));
     }
 
     #[test]
