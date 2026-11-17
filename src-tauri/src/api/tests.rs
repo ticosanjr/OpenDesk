@@ -96,6 +96,7 @@ mod schedules;
 mod seed;
 mod session_context;
 mod skill_gate;
+mod skill_shadow;
 mod studio;
 mod sync;
 mod tasks;

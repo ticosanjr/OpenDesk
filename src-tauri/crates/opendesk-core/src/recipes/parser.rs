@@ -178,6 +178,39 @@ pub struct RecipeCall {
     pub budget_usd: Option<f64>,
 }
 
+/// Bounded loop. Each iteration gets its own durable node path.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoopFlow {
+    pub id: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default = "default_loop_iterations")]
+    pub max_iterations: usize,
+    #[serde(default)]
+    pub until: Option<String>,
+    pub flow: Vec<FlowItem>,
+}
+
+/// Multi-way branch. The first `when` that evaluates true wins; `default` is
+/// used when none matches.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwitchCase {
+    pub when: String,
+    #[serde(default)]
+    pub flow: Vec<FlowItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwitchFlow {
+    pub id: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub cases: Vec<SwitchCase>,
+    #[serde(default, rename = "default")]
+    pub otherwise: Vec<FlowItem>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum FlowItem {
@@ -188,6 +221,8 @@ pub enum FlowItem {
     Parallel(ParallelFlow),
     Map(MapFlow),
     Recipe(RecipeCall),
+    Loop(LoopFlow),
+    Switch(SwitchFlow),
 }
 
 impl From<RecipeSink> for FlowSink {
@@ -205,7 +240,12 @@ impl FlowItem {
     pub fn is_dag(&self) -> bool {
         matches!(
             self,
-            Self::Branch(_) | Self::Parallel(_) | Self::Map(_) | Self::Recipe(_)
+            Self::Branch(_)
+                | Self::Parallel(_)
+                | Self::Map(_)
+                | Self::Recipe(_)
+                | Self::Loop(_)
+                | Self::Switch(_)
         )
     }
 
@@ -231,6 +271,21 @@ impl FlowItem {
                 }
             }
             Self::Recipe(_) => {}
+            Self::Loop(loop_flow) => {
+                for item in &loop_flow.flow {
+                    item.collect_steps(steps);
+                }
+            }
+            Self::Switch(switch) => {
+                for case in &switch.cases {
+                    for item in &case.flow {
+                        item.collect_steps(steps);
+                    }
+                }
+                for item in &switch.otherwise {
+                    item.collect_steps(steps);
+                }
+            }
         }
     }
 }
@@ -346,6 +401,9 @@ fn default_item_var() -> String {
 fn default_map_concurrency() -> usize {
     3
 }
+fn default_loop_iterations() -> usize {
+    3
+}
 
 pub fn parse(text: &str) -> AppResult<Recipe> {
     let mut recipe: Recipe = serde_yaml::from_str(text)
@@ -358,6 +416,7 @@ pub fn parse(text: &str) -> AppResult<Recipe> {
 const MAX_DAG_DEPTH: usize = 8;
 const MAX_DAG_NODES: usize = 500;
 const MAX_PARALLEL_BRANCHES: usize = 16;
+const MAX_LOOP_ITERATIONS: usize = 100;
 const MAX_MAP_CONCURRENCY: usize = 8;
 
 struct Validator {
@@ -571,6 +630,41 @@ impl Validator {
                         )));
                     }
                 }
+                FlowItem::Loop(loop_flow) => {
+                    self.group_id(&loop_flow.id, "loop")?;
+                    if !(1..=MAX_LOOP_ITERATIONS).contains(&loop_flow.max_iterations) {
+                        return Err(AppError::BadRequest(format!(
+                            "max_iterations do loop {} deve ficar entre 1 e {MAX_LOOP_ITERATIONS}",
+                            loop_flow.id
+                        )));
+                    }
+                    if loop_flow.flow.is_empty() {
+                        return Err(AppError::BadRequest(format!(
+                            "loop {} precisa de flow",
+                            loop_flow.id
+                        )));
+                    }
+                    self.collect(&loop_flow.flow, depth + 1, group)?;
+                }
+                FlowItem::Switch(switch) => {
+                    self.group_id(&switch.id, "switch")?;
+                    if switch.cases.is_empty() && switch.otherwise.is_empty() {
+                        return Err(AppError::BadRequest(format!(
+                            "switch {} precisa de cases ou default",
+                            switch.id
+                        )));
+                    }
+                    for case in &switch.cases {
+                        if case.when.trim().is_empty() {
+                            return Err(AppError::BadRequest(format!(
+                                "case do switch {} precisa de when",
+                                switch.id
+                            )));
+                        }
+                        self.collect(&case.flow, depth + 1, group)?;
+                    }
+                    self.collect(&switch.otherwise, depth + 1, group)?;
+                }
                 FlowItem::Map(map) => {
                     self.group_id(&map.id, "map")?;
                     if map.items.trim().is_empty() {
@@ -641,6 +735,13 @@ impl Validator {
                     }
                 }
                 FlowItem::Map(map) => self.check_references(&map.flow)?,
+                FlowItem::Loop(loop_flow) => self.check_references(&loop_flow.flow)?,
+                FlowItem::Switch(switch) => {
+                    for case in &switch.cases {
+                        self.check_references(&case.flow)?;
+                    }
+                    self.check_references(&switch.otherwise)?;
+                }
                 FlowItem::Recipe(_) | FlowItem::Step(_) | FlowItem::Sink(_) => {}
             }
         }
@@ -667,6 +768,8 @@ pub fn node_descriptor(item: &FlowItem, index: usize) -> (String, &'static str) 
         FlowItem::Parallel(parallel) => (parallel.id.clone(), "parallel"),
         FlowItem::Map(map) => (map.id.clone(), "map"),
         FlowItem::Recipe(call) => (call.id.clone(), "recipe"),
+        FlowItem::Loop(loop_flow) => (loop_flow.id.clone(), "loop"),
+        FlowItem::Switch(switch) => (switch.id.clone(), "switch"),
     }
 }
 
@@ -1133,5 +1236,43 @@ flow:
     fn rejects_bad_checkpoint() {
         let text = SAMPLE.replace("after_step: s1", "after_step: nope");
         assert!(parse(&text).is_err());
+    }
+    #[test]
+    fn parses_loop_and_switch_groups() {
+        let yaml = r#"
+id: loop-switch
+name: Loop
+flow:
+  - type: switch
+    id: escolher
+    cases:
+      - when: "true"
+        flow:
+          - type: step
+            id: s1
+            name: S1
+            prompt: a
+    default:
+      - type: step
+        id: s2
+        name: S2
+        prompt: b
+  - type: loop
+    id: repetir
+    max_iterations: 2
+    until: "outputs.repetir.iterations >= 2"
+    flow:
+      - type: step
+        id: l1
+        name: L1
+        prompt: c
+"#;
+        let recipe = parse(yaml).expect("recipe");
+        assert!(recipe.has_dag());
+        assert_eq!(recipe.all_steps().len(), 3);
+        assert!(matches!(recipe.flow[0], FlowItem::Switch(_)));
+        assert!(matches!(recipe.flow[1], FlowItem::Loop(_)));
+        let bad = yaml.replace("max_iterations: 2", "max_iterations: 0");
+        assert!(parse(&bad).is_err());
     }
 }

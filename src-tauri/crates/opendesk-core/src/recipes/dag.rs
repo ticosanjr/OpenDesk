@@ -376,10 +376,159 @@ fn run_scope<'a>(
                     }
                     index += 1;
                 }
+                FlowItem::Loop(loop_flow) => {
+                    match run_loop(ctx, loop_flow, parent, scope).await? {
+                        ScopeOutcome::Continue => {}
+                        ScopeOutcome::Cancelled => return Ok(ScopeOutcome::Cancelled),
+                    }
+                    index += 1;
+                }
+                FlowItem::Switch(switch) => {
+                    match run_switch(ctx, switch, parent, scope).await? {
+                        ScopeOutcome::Continue => {}
+                        ScopeOutcome::Cancelled => return Ok(ScopeOutcome::Cancelled),
+                    }
+                    index += 1;
+                }
             }
         }
         Ok(ScopeOutcome::Continue)
     })
+}
+
+async fn run_switch(
+    ctx: &Ctx<'_>,
+    switch: &parser::SwitchFlow,
+    parent: Option<&str>,
+    scope: &mut ScopeState,
+) -> AppResult<ScopeOutcome> {
+    let path = child_path(parent, &switch.id);
+    let node = ensure_node(ctx, &path, parent, &switch.id, "switch", None, None).await?;
+    if finished(&node) {
+        return Ok(ScopeOutcome::Continue);
+    }
+    store::mark_node_path(
+        &ctx.context.pool,
+        &ctx.run.id,
+        &path,
+        "RUNNING",
+        None,
+        None,
+        None,
+    )
+    .await?;
+    let mut selected = None;
+    for (index, case) in switch.cases.iter().enumerate() {
+        if parser::evaluate_when(&case.when, ctx.trigger, ctx.run_vars, &scope.outputs)? {
+            selected = Some(index);
+            break;
+        }
+    }
+    let items = selected
+        .map(|index| switch.cases[index].flow.as_slice())
+        .unwrap_or(switch.otherwise.as_slice());
+    match run_scope(ctx, items, Some(&path), scope).await? {
+        ScopeOutcome::Continue => {}
+        ScopeOutcome::Cancelled => return Ok(ScopeOutcome::Cancelled),
+    }
+    let output = json!({ "case": selected, "steps": items.len() });
+    scope.outputs[&switch.id] = output.clone();
+    store::mark_node_path(
+        &ctx.context.pool,
+        &ctx.run.id,
+        &path,
+        "DONE",
+        Some(&output),
+        None,
+        None,
+    )
+    .await?;
+    Ok(ScopeOutcome::Continue)
+}
+
+async fn run_loop(
+    ctx: &Ctx<'_>,
+    loop_flow: &parser::LoopFlow,
+    parent: Option<&str>,
+    scope: &mut ScopeState,
+) -> AppResult<ScopeOutcome> {
+    let path = child_path(parent, &loop_flow.id);
+    let node = ensure_node(ctx, &path, parent, &loop_flow.id, "loop", None, None).await?;
+    if finished(&node) {
+        return Ok(ScopeOutcome::Continue);
+    }
+    store::mark_node_path(
+        &ctx.context.pool,
+        &ctx.run.id,
+        &path,
+        "RUNNING",
+        None,
+        None,
+        None,
+    )
+    .await?;
+    let mut iterations = 0usize;
+    for index in 0..loop_flow.max_iterations {
+        let iteration_id = index.to_string();
+        let iteration_path = child_path(Some(&path), &iteration_id);
+        let marker = ensure_node(
+            ctx,
+            &iteration_path,
+            Some(&path),
+            &iteration_id,
+            "iteration",
+            None,
+            None,
+        )
+        .await?;
+        if !finished(&marker) {
+            store::mark_node_path(
+                &ctx.context.pool,
+                &ctx.run.id,
+                &iteration_path,
+                "RUNNING",
+                None,
+                None,
+                None,
+            )
+            .await?;
+            match run_scope(ctx, &loop_flow.flow, Some(&iteration_path), scope).await? {
+                ScopeOutcome::Continue => {}
+                ScopeOutcome::Cancelled => return Ok(ScopeOutcome::Cancelled),
+            }
+            store::mark_node_path(
+                &ctx.context.pool,
+                &ctx.run.id,
+                &iteration_path,
+                "DONE",
+                None,
+                None,
+                None,
+            )
+            .await?;
+        }
+        iterations = index + 1;
+        let output = json!({ "iterations": iterations });
+        scope.outputs[&loop_flow.id] = output;
+        if let Some(until) = loop_flow.until.as_deref()
+            && parser::evaluate_when(until, ctx.trigger, ctx.run_vars, &scope.outputs)?
+        {
+            break;
+        }
+    }
+    let output = json!({ "iterations": iterations });
+    scope.outputs[&loop_flow.id] = output.clone();
+    store::mark_node_path(
+        &ctx.context.pool,
+        &ctx.run.id,
+        &path,
+        "DONE",
+        Some(&output),
+        None,
+        None,
+    )
+    .await?;
+    Ok(ScopeOutcome::Continue)
 }
 
 async fn run_parallel(
@@ -1183,6 +1332,8 @@ fn next_item_name(items: &[FlowItem], index: usize) -> Option<&str> {
         FlowItem::Parallel(parallel) => Some(parallel.name.as_deref().unwrap_or(&parallel.id)),
         FlowItem::Map(map) => Some(map.name.as_deref().unwrap_or(&map.id)),
         FlowItem::Recipe(call) => Some(call.name.as_deref().unwrap_or(&call.id)),
+        FlowItem::Loop(loop_flow) => Some(loop_flow.name.as_deref().unwrap_or(&loop_flow.id)),
+        FlowItem::Switch(switch) => Some(switch.name.as_deref().unwrap_or(&switch.id)),
     })
 }
 
@@ -1353,6 +1504,74 @@ flow:
         store::RecipeRun,
     ) {
         fixture_with(YAML, "dag-exec").await
+    }
+
+    #[tokio::test]
+    async fn executes_switch_and_bounded_loop_with_durable_paths() {
+        let yaml = r#"
+id: loop-switch
+name: Loop
+flow:
+  - type: switch
+    id: escolher
+    cases:
+      - when: "true"
+        flow:
+          - type: step
+            id: s1
+            name: S1
+            prompt: a
+            when: "false"
+      - when: "false"
+        flow:
+          - type: step
+            id: s2
+            name: S2
+            prompt: b
+            when: "false"
+    default:
+      - type: step
+        id: s3
+        name: S3
+        prompt: c
+        when: "false"
+  - type: loop
+    id: repetir
+    max_iterations: 2
+    flow:
+      - type: step
+        id: l1
+        name: L1
+        prompt: d
+        when: "false"
+"#;
+        let (ctx, recipe, run) = fixture_with(yaml, "loop-switch").await;
+        execute(
+            &recipe_context(&ctx),
+            &recipe,
+            &run,
+            &json!({}),
+            &crate::recipe_dispatch::NoopRecipeDispatcher,
+        )
+        .await
+        .expect("execute");
+        let completed = store::get_run(&ctx.db, &run.id).await.expect("run");
+        assert_eq!(completed.status, "COMPLETED");
+        for path in [
+            "escolher",
+            "escolher/s1",
+            "repetir",
+            "repetir/0",
+            "repetir/0/l1",
+        ] {
+            assert!(
+                store::node_by_path(&ctx.db, &run.id, path)
+                    .await
+                    .expect("node")
+                    .is_some(),
+                "missing {path}"
+            );
+        }
     }
 
     #[tokio::test]

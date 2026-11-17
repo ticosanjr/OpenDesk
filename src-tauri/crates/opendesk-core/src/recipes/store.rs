@@ -751,7 +751,7 @@ fn collect_node_seeds(
                     collect_node_seeds(branch, Some(&branch_path), seeds);
                 }
             }
-            FlowItem::Map(_) | FlowItem::Recipe(_) => {
+            FlowItem::Map(_) | FlowItem::Recipe(_) | FlowItem::Loop(_) | FlowItem::Switch(_) => {
                 seeds.push(NodeSeed {
                     path,
                     parent: parent.map(str::to_string),

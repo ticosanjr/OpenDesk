@@ -562,6 +562,12 @@ pendências manuais continuam listadas abaixo.
 - Elicitation resolve uma requisição servidor→cliente; sem sessão retorna erro.
 - Sampling bloqueia por hard stop antes de chamar o motor.
 
+## Onda 4 — eval e loops
+
+- Shadow replay valida contains/schema, mede tokens/latência e não toca no workspace.
+- Regressão bloqueia promoção; rollback restaura o SKILL.md anterior.
+- Loop/switch executam com caminhos duráveis; árvore de nós na UI.
+
 ## Verificações manuais pendentes
 
 Estas dependem de credenciais/dispositivos e não podem ser automatizadas aqui:

@@ -3308,3 +3308,11 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - E5: sampling/createMessage com fallback DSH + budget.
 - Rust 355 shell + 255 core (610).
 - ADR 0141–0145.
+
+## 2026-11-17 — Onda 4: eval e loops
+
+- G2: replay sombra sem ferramentas, métricas e persistência.
+- G3: thresholds, promoção aprovada e rollback por backup.
+- G4: loop limitado com caminhos duráveis, switch e árvore na UI.
+- Rust 357 shell + 259 core (616); Vitest 256.
+- ADR 0146–0148.

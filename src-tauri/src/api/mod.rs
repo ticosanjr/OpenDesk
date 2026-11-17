@@ -217,6 +217,16 @@ pub(crate) fn router(state: Arc<AppState>) -> Router {
             "/api/skills/{id}/gate/{gate_id}/decide",
             post(skills::gate_decide),
         )
+        .route(
+            "/api/skills/{id}/shadow",
+            get(skills::shadow_list).post(skills::shadow_run),
+        )
+        .route("/api/skills/{id}/shadow/{run_id}", get(skills::shadow_get))
+        .route(
+            "/api/skills/{id}/shadow/{run_id}/promote",
+            post(skills::shadow_promote),
+        )
+        .route("/api/skills/{id}/rollback", post(skills::rollback))
         .route("/api/mcp-hub/servers", get(mcp_hub::servers))
         .route("/api/mcp-hub/catalog", get(mcp_hub::catalog))
         .route("/api/mcp-hub/install", post(mcp_hub::install))

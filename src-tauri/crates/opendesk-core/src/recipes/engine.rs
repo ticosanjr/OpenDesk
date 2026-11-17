@@ -596,7 +596,9 @@ async fn execute(
             FlowItem::Branch(_)
             | FlowItem::Parallel(_)
             | FlowItem::Map(_)
-            | FlowItem::Recipe(_) => {
+            | FlowItem::Recipe(_)
+            | FlowItem::Loop(_)
+            | FlowItem::Switch(_) => {
                 unreachable!("DAG flows are routed to recipes::dag")
             }
         }

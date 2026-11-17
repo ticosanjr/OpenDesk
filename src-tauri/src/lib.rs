@@ -24,6 +24,7 @@ mod run_notifier;
 mod session_context;
 mod shell_state;
 mod skill_gate;
+mod skill_shadow_exec;
 mod starter_packs;
 #[cfg(test)]
 mod test_support;
@@ -37,7 +38,8 @@ pub use opendesk_core::{
     mcp_pool, mcp_rate, mcp_rbac, mcp_server, media, metrics, mtls, nodes, notifier,
     opencode_client, passkey, paths, personal_context, push, recipe_context, recipe_dispatch,
     recurrence, run_export, run_timeline, runtime, sandbox, secrets, server_lock, skill_cases,
-    skill_eval, text, token_estimate, update_signing, virtual_display, workspace_sync, worktree,
+    skill_eval, skill_shadow, text, token_estimate, update_signing, virtual_display,
+    workspace_sync, worktree,
 };
 
 use app_state::AppState;

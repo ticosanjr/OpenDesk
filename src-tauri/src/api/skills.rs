@@ -132,3 +132,117 @@ pub async fn delete_case(
     let deleted = crate::skill_cases::delete(&state.db, &workspace_id, &skill_id, &case_id).await?;
     Ok(Json(serde_json::json!({ "deleted": deleted })))
 }
+
+#[derive(Debug, Deserialize, Default)]
+pub struct ShadowBody {
+    #[serde(default)]
+    pub case_ids: Option<Vec<String>>,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub thresholds: crate::skill_shadow::ShadowThresholds,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ShadowDecision {
+    pub approved: bool,
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+pub async fn shadow_run(
+    State(state): State<Arc<AppState>>,
+    Path(skill_id): Path<String>,
+    Query(query): Query<SkillQuery>,
+    Json(body): Json<ShadowBody>,
+) -> AppResult<Json<crate::skill_shadow::ShadowRun>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    let workspace = workspaces::get(&state.db, &workspace_id).await?;
+    let executor = crate::skill_shadow_exec::ShellShadowExecutor {
+        state: state.clone(),
+        model: body.model,
+    };
+    Ok(Json(
+        crate::skill_shadow::run(
+            &state.db,
+            &workspace_id,
+            std::path::Path::new(&workspace.root_path),
+            &skill_id,
+            body.case_ids.as_deref(),
+            body.thresholds,
+            &executor,
+        )
+        .await?,
+    ))
+}
+
+pub async fn shadow_list(
+    State(state): State<Arc<AppState>>,
+    Path(skill_id): Path<String>,
+    Query(query): Query<SkillQuery>,
+) -> AppResult<Json<Vec<crate::skill_shadow::ShadowRun>>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    Ok(Json(
+        crate::skill_shadow::list(&state.db, &workspace_id, &skill_id).await?,
+    ))
+}
+
+pub async fn shadow_get(
+    State(state): State<Arc<AppState>>,
+    Path((skill_id, run_id)): Path<(String, String)>,
+) -> AppResult<Json<serde_json::Value>> {
+    let run = crate::skill_shadow::get(&state.db, &run_id).await?;
+    if run.skill_id != skill_id {
+        return Err(crate::error::AppError::NotFound(format!(
+            "shadow run {run_id} da skill {skill_id}"
+        )));
+    }
+    let results = crate::skill_shadow::results(&state.db, &run_id).await?;
+    Ok(Json(serde_json::json!({ "run": run, "results": results })))
+}
+
+pub async fn shadow_promote(
+    State(state): State<Arc<AppState>>,
+    Path((skill_id, run_id)): Path<(String, String)>,
+    Query(query): Query<SkillQuery>,
+    Json(body): Json<ShadowDecision>,
+) -> AppResult<Json<crate::skill_shadow::ShadowRun>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    let run = crate::skill_shadow::get(&state.db, &run_id).await?;
+    if run.skill_id != skill_id {
+        return Err(crate::error::AppError::NotFound(format!(
+            "shadow run {run_id} da skill {skill_id}"
+        )));
+    }
+    Ok(Json(
+        crate::skill_shadow::promote(
+            &state.db,
+            &workspace_id,
+            &run_id,
+            body.approved,
+            body.note.as_deref(),
+        )
+        .await?,
+    ))
+}
+
+pub async fn rollback(
+    State(state): State<Arc<AppState>>,
+    Path(skill_id): Path<String>,
+    Query(query): Query<SkillQuery>,
+) -> AppResult<Json<crate::config_sync::skills::SkillFile>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    let workspace = workspaces::get(&state.db, &workspace_id).await?;
+    Ok(Json(
+        crate::skill_shadow::rollback(
+            std::path::Path::new(&workspace.root_path),
+            &state.paths.backups_dir,
+            &skill_id,
+        )
+        .await?,
+    ))
+}

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { BarChart3, Loader2, RefreshCw } from "lucide-react";
+import { BarChart3, Loader2, RefreshCw, RotateCcw, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 import { relativeTime } from "@/lib/format";
+import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
 
 interface SkillUsage {
@@ -19,10 +20,23 @@ interface SkillUsage {
   last_used_at?: string | null;
 }
 
+interface ShadowRun {
+  id: string;
+  skill_id: string;
+  status: string;
+  total: number;
+  passed: number;
+  success_rate?: number | null;
+  regression?: number | null;
+  tokens: number;
+  latency_ms: number;
+}
+
 export function SkillEvalCard({ workspaceId }: { workspaceId: string }) {
   const [skills, setSkills] = useState<SkillUsage[]>([]);
   const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!workspaceId) return;
@@ -47,6 +61,91 @@ export function SkillEvalCard({ workspaceId }: { workspaceId: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function runShadow(skill: SkillUsage) {
+    setBusy(`shadow:${skill.id}`);
+    try {
+      const run = await apiPost<ShadowRun>(
+        `/api/skills/${encodeURIComponent(skill.id)}/shadow?workspace_id=${encodeURIComponent(workspaceId)}`,
+        {},
+      );
+      toast({
+        tone: run.status === "PASS" ? "success" : "warning",
+        title: `Shadow ${run.status}`,
+        description: `${run.passed}/${run.total} casos · ${run.tokens} tokens · ${Math.round(run.latency_ms / 1000)}s`,
+        action:
+          run.status === "PASS"
+            ? {
+                label: "Promover",
+                onClick: () => {
+                  void promote(skill, run);
+                },
+              }
+            : undefined,
+      });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Replay sombra falhou",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function promote(skill: SkillUsage, run: ShadowRun) {
+    const ok = await confirmAction({
+      title: `Promover ${skill.name}?`,
+      description: "O resultado PASS deste replay será promovido com aprovação explícita.",
+      confirmLabel: "Promover",
+    });
+    if (!ok) return;
+    setBusy(`promote:${skill.id}`);
+    try {
+      await apiPost(
+        `/api/skills/${encodeURIComponent(skill.id)}/shadow/${encodeURIComponent(run.id)}/promote?workspace_id=${encodeURIComponent(workspaceId)}`,
+        { approved: true },
+      );
+      toast({ tone: "success", title: "Skill promovida" });
+      await load();
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Promoção falhou",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function rollback(skill: SkillUsage) {
+    const ok = await confirmAction({
+      title: `Restaurar ${skill.name}?`,
+      description:
+        "O backup mais recente do SKILL.md será restaurado. A versão atual vai para o histórico de backups.",
+      confirmLabel: "Restaurar",
+      tone: "destructive",
+    });
+    if (!ok) return;
+    setBusy(`rollback:${skill.id}`);
+    try {
+      await apiPost(
+        `/api/skills/${encodeURIComponent(skill.id)}/rollback?workspace_id=${encodeURIComponent(workspaceId)}`,
+      );
+      toast({ tone: "success", title: "Skill restaurada" });
+      await load();
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Rollback falhou",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
 
   return (
     <Card>
@@ -104,6 +203,7 @@ export function SkillEvalCard({ workspaceId }: { workspaceId: string }) {
                   <th className="px-3 py-1.5">menções</th>
                   <th className="px-3 py-1.5">sucesso</th>
                   <th className="px-3 py-1.5">último uso</th>
+                  <th className="px-3 py-1.5 text-right">eval</th>
                 </tr>
               </thead>
               <tbody>
@@ -140,6 +240,35 @@ export function SkillEvalCard({ workspaceId }: { workspaceId: string }) {
                     </td>
                     <td className="px-3 py-1.5 text-zinc-500">
                       {skill.last_used_at ? relativeTime(skill.last_used_at) : "—"}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-1.5 text-[11px]"
+                          title="Executar replay sombra"
+                          disabled={busy === `shadow:${skill.id}`}
+                          onClick={() => void runShadow(skill)}
+                        >
+                          {busy === `shadow:${skill.id}` ? (
+                            <Loader2 size={11} className="animate-spin" />
+                          ) : (
+                            <ShieldCheck size={11} />
+                          )}
+                          shadow
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-1.5 text-[11px]"
+                          title="Restaurar o backup mais recente"
+                          disabled={busy === `rollback:${skill.id}`}
+                          onClick={() => void rollback(skill)}
+                        >
+                          <RotateCcw size={11} />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
