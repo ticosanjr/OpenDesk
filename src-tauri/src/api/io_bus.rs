@@ -27,13 +27,20 @@ pub async fn list_inbound(
     })))
 }
 
+fn is_webhook(source_type: &str) -> bool {
+    source_type.trim().eq_ignore_ascii_case("WEBHOOK_HTTP")
+}
+
 pub async fn create_inbound(
     State(state): State<Arc<AppState>>,
     Query(query): Query<WorkspaceQuery>,
-    Json(input): Json<InboundInput>,
+    Json(mut input): Json<InboundInput>,
 ) -> AppResult<Json<io_bus::InboundSource>> {
     let workspace_id =
         crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    if is_webhook(&input.source_type) {
+        crate::io_bus::ensure_webhook_secret(&state.paths, &mut input.config)?;
+    }
     let source = io_bus::create_inbound(&state.db, &workspace_id, input).await?;
     state.io_bus.reload(state.clone()).await?;
     Ok(Json(source))
@@ -42,9 +49,19 @@ pub async fn create_inbound(
 pub async fn update_inbound(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-    Json(input): Json<InboundInput>,
+    Json(mut input): Json<InboundInput>,
 ) -> AppResult<Json<io_bus::InboundSource>> {
+    let previous = io_bus::get_inbound(&state.db, &id).await?;
+    let previous_secret = crate::io_bus::webhook_secret_ref(&previous.config_json);
+    if is_webhook(&input.source_type) {
+        crate::io_bus::ensure_webhook_secret(&state.paths, &mut input.config)?;
+    }
     let source = io_bus::update_inbound(&state.db, &id, input).await?;
+    if let Some(reference) = previous_secret
+        && crate::io_bus::webhook_secret_ref(&source.config_json).as_deref() != Some(&reference)
+    {
+        crate::io_bus::drop_webhook_secret(&state.paths, &reference);
+    }
     state.io_bus.reload(state.clone()).await?;
     Ok(Json(source))
 }

@@ -188,6 +188,7 @@ pub async fn sweep(pool: &SqlitePool, data_dir: &Path) -> AppResult<SweepReport>
         known.insert(std::fs::canonicalize(&path).unwrap_or(path.clone()));
         if row.status == "ACTIVE" && !path.exists() {
             set_status(pool, &row.id, "REMOVED").await?;
+            remove_sidecar(&path);
             report.missing_records += 1;
         }
     }
@@ -202,11 +203,21 @@ pub async fn sweep(pool: &SqlitePool, data_dir: &Path) -> AppResult<SweepReport>
             }
             if path.is_dir() {
                 std::fs::remove_dir_all(&path)?;
+                remove_sidecar(&path);
                 report.removed_dirs += 1;
             }
         }
     }
     Ok(report)
+}
+
+fn remove_sidecar(worktree_path: &Path) {
+    let sidecar = crate::worktree::manifest_path(worktree_path);
+    if sidecar.exists()
+        && let Err(error) = std::fs::remove_file(&sidecar)
+    {
+        tracing::warn!(error = %error, path = %sidecar.display(), "could not remove worktree manifest");
+    }
 }
 
 #[cfg(test)]

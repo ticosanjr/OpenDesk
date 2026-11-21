@@ -360,10 +360,18 @@ async fn sync_recipe_sources_inner(
             "trigger_type".into(),
             serde_json::json!(trigger.trigger_type),
         );
+        let mut config = serde_json::Value::Object(config);
+        if source_type == "WEBHOOK_HTTP" {
+            crate::io_bus::ensure_webhook_secret_with(
+                &state.paths,
+                &mut config,
+                &format!("recipe-{}-{}", recipe.id, index),
+            )?;
+        }
         desired.push((
             source_type.to_string(),
             format!("Receita: {} · {}", recipe.name, trigger.trigger_type),
-            serde_json::Value::Object(config),
+            config,
         ));
     }
 

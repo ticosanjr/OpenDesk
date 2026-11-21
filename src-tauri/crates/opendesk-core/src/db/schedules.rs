@@ -532,6 +532,17 @@ pub async fn set_active(pool: &SqlitePool, id: &str, active: bool) -> AppResult<
     get(pool, id).await
 }
 
+/// Rewrites the trigger config without touching the rest of the routine. Used
+/// to replace a plaintext webhook secret with its `secret_ref`.
+pub async fn set_trigger_config(pool: &SqlitePool, id: &str, config_json: &str) -> AppResult<()> {
+    sqlx::query("UPDATE schedules SET trigger_config_json = ? WHERE id = ?")
+        .bind(config_json)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

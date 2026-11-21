@@ -12,7 +12,7 @@ async fn io_bus_sources_can_be_managed_and_tools_listed() {
         Some(json!({
             "name": "Webhook QA",
             "source_type": "WEBHOOK_HTTP",
-            "config": {},
+            "config": { "secret": "segredo-qa" },
             "auto_execute": false,
             "is_enabled": false
         })),
@@ -20,6 +20,13 @@ async fn io_bus_sources_can_be_managed_and_tools_listed() {
     .await;
     assert_eq!(status, StatusCode::OK);
     let inbound_id = inbound["id"].as_str().expect("inbound").to_string();
+    let stored: Value =
+        serde_json::from_str(inbound["config_json"].as_str().expect("config")).expect("json");
+    assert!(stored["secret_ref"].is_string(), "{stored}");
+    assert!(
+        stored.get("secret").is_none(),
+        "segredo em texto puro: {stored}"
+    );
     let (status, list) = call(&ctx, Method::GET, &format!("/api/io/inbound{query}"), None).await;
     assert_eq!(status, StatusCode::OK);
     assert!(list["sources"].is_array());
@@ -30,7 +37,7 @@ async fn io_bus_sources_can_be_managed_and_tools_listed() {
         Some(json!({
             "name": "Webhook QA 2",
             "source_type": "WEBHOOK_HTTP",
-            "config": {},
+            "config": { "secret": "segredo-qa-2" },
             "auto_execute": false,
             "is_enabled": false
         })),
@@ -152,6 +159,122 @@ async fn io_bus_bindings_secrets_and_schedule_sinks_round_trip() {
         Method::POST,
         "/api/io/secrets",
         Some(json!({ "key": "", "value": "x" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+async fn post_webhook(
+    ctx: &TestContext,
+    id: &str,
+    body: &str,
+    signature: Option<&str>,
+) -> StatusCode {
+    let mut builder = Request::builder()
+        .method(Method::POST)
+        .uri(format!("/api/webhooks/{id}"))
+        .header(AUTHORIZATION, format!("Bearer {}", ctx.state.api_token))
+        .header("content-type", "application/json");
+    if let Some(signature) = signature {
+        builder = builder.header("x-opendesk-signature", signature);
+    }
+    let request = builder.body(Body::from(body.to_string())).expect("request");
+    router(ctx.state.clone())
+        .oneshot(request)
+        .await
+        .expect("response")
+        .status()
+}
+
+fn hmac_hex(secret: &str, body: &str) -> String {
+    use hmac::{Hmac, KeyInit, Mac};
+    use sha2::Sha256;
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("hmac");
+    mac.update(body.as_bytes());
+    mac.finalize()
+        .into_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+#[tokio::test]
+async fn webhook_requires_signature_and_an_enabled_source() {
+    let ctx = test_support::context().await;
+    let query = format!("?workspace_id={}", ctx.workspace_id);
+    let secret = "segredo-webhook-teste";
+    let (status, source) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/io/inbound{query}"),
+        Some(json!({
+            "name": "Webhook assinado",
+            "source_type": "WEBHOOK_HTTP",
+            "config": { "secret": secret },
+            "auto_execute": false,
+            "is_enabled": true
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let id = source["id"].as_str().expect("source").to_string();
+    let body = r#"{"title":"Chamado","body":"Corpo"}"#;
+
+    assert_eq!(
+        post_webhook(&ctx, &id, body, None).await,
+        StatusCode::BAD_REQUEST,
+        "sem assinatura"
+    );
+    assert_eq!(
+        post_webhook(&ctx, &id, body, Some("00")).await,
+        StatusCode::BAD_REQUEST,
+        "assinatura inválida"
+    );
+    let signature = hmac_hex(secret, body);
+    assert_eq!(
+        post_webhook(&ctx, &id, body, Some(&signature)).await,
+        StatusCode::OK,
+        "assinatura válida"
+    );
+
+    let (status, disabled) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/io/inbound{query}"),
+        Some(json!({
+            "name": "Webhook desativado",
+            "source_type": "WEBHOOK_HTTP",
+            "config": { "secret": secret },
+            "auto_execute": false,
+            "is_enabled": false
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let disabled_id = disabled["id"].as_str().expect("source");
+    let signature = hmac_hex(secret, body);
+    assert_eq!(
+        post_webhook(&ctx, disabled_id, body, Some(&signature)).await,
+        StatusCode::BAD_REQUEST,
+        "fonte desativada"
+    );
+}
+
+#[tokio::test]
+async fn webhook_source_without_secret_is_rejected() {
+    let ctx = test_support::context().await;
+    let query = format!("?workspace_id={}", ctx.workspace_id);
+    let (status, _) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/io/inbound{query}"),
+        Some(json!({
+            "name": "Webhook aberto",
+            "source_type": "WEBHOOK_HTTP",
+            "config": {},
+            "auto_execute": false,
+            "is_enabled": true
+        })),
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);

@@ -430,6 +430,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0159 — Fila no core](docs/decisions/0159-queue-ports-core.md)
 - [ADR 0160 — Crates headless](docs/decisions/0160-headless-crates.md)
 - [ADR 0161 — Reexports pendentes](docs/decisions/0161-reexports-pending.md)
+- [ADR 0162 — Webhook, IMAP e integridade de worktree](docs/decisions/0162-webhook-secret-and-worktree-integrity.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

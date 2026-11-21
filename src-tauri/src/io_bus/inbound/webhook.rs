@@ -2,7 +2,7 @@ use crate::{
     app_state::AppState,
     db::io_bus::{self, InboundSource},
     error::{AppError, AppResult},
-    io_bus::{NormalizedTaskEvent, source_config},
+    io_bus::{NormalizedTaskEvent, WEBHOOK_SECRET_NAMESPACE, source_config},
 };
 use axum::http::HeaderMap;
 use hmac::{Hmac, KeyInit, Mac};
@@ -40,28 +40,44 @@ pub async fn handle(
     headers: &HeaderMap,
     body: &str,
 ) -> AppResult<serde_json::Value> {
+    if !source.is_enabled {
+        return Err(AppError::BadRequest(format!(
+            "fonte webhook {} está desativada",
+            source.id
+        )));
+    }
     let config: WebhookConfig = source_config(&source)?;
-    if let Some(secret_ref) = config.secret_ref.as_deref() {
-        let secret = crate::secrets::SecretStore::new(&state.paths)
-            .get("io_bus", secret_ref)?
-            .ok_or_else(|| AppError::BadRequest("segredo do webhook ausente".into()))?;
-        let header = config
-            .signature_header
-            .as_deref()
-            .unwrap_or("x-opendesk-signature");
-        let signature = headers
-            .get(header)
-            .and_then(|value| value.to_str().ok())
-            .ok_or_else(|| AppError::BadRequest("assinatura do webhook ausente".into()))?;
-        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-            .map_err(|_| AppError::Internal("HMAC inválido".into()))?;
-        mac.update(body.as_bytes());
-        let expected = hex(&mac.finalize().into_bytes());
-        if !constant_time_eq(signature.trim(), &expected) {
-            return Err(AppError::BadRequest(
-                "assinatura do webhook inválida".into(),
-            ));
-        }
+    // No secret means no authentication. Refuse instead of accepting anonymous
+    // requests that could create tasks and start agent runs.
+    let secret_ref = config
+        .secret_ref
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            AppError::BadRequest(
+                "webhook sem segredo configurado; defina secret_ref na fonte".into(),
+            )
+        })?;
+    let secret = crate::secrets::SecretStore::new(&state.paths)
+        .get(WEBHOOK_SECRET_NAMESPACE, secret_ref)?
+        .ok_or_else(|| AppError::BadRequest("segredo do webhook ausente".into()))?;
+    let header = config
+        .signature_header
+        .as_deref()
+        .unwrap_or("x-opendesk-signature");
+    let signature = headers
+        .get(header)
+        .and_then(|value| value.to_str().ok())
+        .ok_or_else(|| AppError::BadRequest("assinatura do webhook ausente".into()))?;
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
+        .map_err(|_| AppError::Internal("HMAC inválido".into()))?;
+    mac.update(body.as_bytes());
+    let expected = hex(&mac.finalize().into_bytes());
+    if !constant_time_eq(signature.trim(), &expected) {
+        return Err(AppError::BadRequest(
+            "assinatura do webhook inválida".into(),
+        ));
     }
     let value: serde_json::Value = serde_json::from_str(body)
         .map_err(|error| AppError::BadRequest(format!("JSON inválido: {error}")))?;

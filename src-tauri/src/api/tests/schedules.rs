@@ -220,6 +220,11 @@ async fn schedule_trigger_sources_follow_the_trigger_type() {
     let ctx = test_support::context().await;
     let query = format!("?workspace_id={}", ctx.workspace_id);
     for trigger in ["FOLDER_WATCH", "IMAP_IDLE", "WEBHOOK", "SQL_POLL"] {
+        let trigger_config = if trigger == "WEBHOOK" {
+            json!({ "secret": "rotina-webhook" }).to_string()
+        } else {
+            json!({ "path": "input" }).to_string()
+        };
         let (status, schedule) = call(
             &ctx,
             Method::POST,
@@ -231,7 +236,7 @@ async fn schedule_trigger_sources_follow_the_trigger_type() {
                 "cron_expression": "",
                 "timezone": "UTC",
                 "trigger_type": trigger,
-                "trigger_config_json": "{\"path\":\"input\"}"
+                "trigger_config_json": trigger_config
             })),
         )
         .await;

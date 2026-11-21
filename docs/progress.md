@@ -3361,3 +3361,17 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - A9: reexports mantidos conscientemente; sem duplicação.
 - Rust 336 shell + 284 core (620).
 - ADR 0159–0161.
+
+## 2026-11-21 — Hardening pós-auditoria (S/I/B)
+
+- Webhook HTTP exige `secret_ref`; segredo em texto puro migra para o
+  `SecretStore`; fonte desativada e assinatura ausente/inválida são recusadas.
+- IMAP sempre valida certificado; `tls=false` não desliga mais a validação
+  (escape hatch explícito `allow_invalid_certs`).
+- Merge de overlay usa manifesto sha256: não sobrescreve edição do usuário,
+  aplica deleções da run e devolve `Conflict` sem escrita parcial.
+- Merge git exige índice limpo e deixa o `git merge --no-ff` criar o commit.
+- `cleanup` propaga falha e só marca `REMOVED` quando removeu de fato.
+- `/api/about` com versão correta e `rustc`/`uname` cacheados.
+- Backup pré-migração faz checkpoint do WAL antes de copiar.
+- Rust 339 shell + 289 core (628). ADR 0162.

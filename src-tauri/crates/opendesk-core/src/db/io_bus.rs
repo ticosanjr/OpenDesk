@@ -104,6 +104,26 @@ fn source_type(value: &str) -> AppResult<String> {
     }
 }
 
+fn webhook_secret_ref(config: &serde_json::Value) -> Option<String> {
+    config
+        .get("secret_ref")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+/// A webhook without a shared secret would accept any request, including one
+/// that starts an agent run through `auto_execute`. Refuse to persist one.
+fn ensure_webhook_secret_ref(source_type: &str, config: &serde_json::Value) -> AppResult<()> {
+    if source_type == "WEBHOOK_HTTP" && webhook_secret_ref(config).is_none() {
+        return Err(AppError::BadRequest(
+            "webhook HTTP exige segredo; informe config.secret ou config.secret_ref".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn sink_type(value: &str) -> AppResult<String> {
     let value = value.trim().to_uppercase();
     if value == "RSYNC_FOLDER" {
@@ -192,6 +212,7 @@ pub async fn create_inbound(
     }
     let id = Uuid::now_v7().to_string();
     let source_type = source_type(&input.source_type)?;
+    ensure_webhook_secret_ref(&source_type, &input.config)?;
     let column = target_column(input.target_column.as_deref())?;
     sqlx::query(
         "INSERT INTO io_inbound_sources (
@@ -220,6 +241,7 @@ pub async fn update_inbound(
 ) -> AppResult<InboundSource> {
     let current = get_inbound(pool, id).await?;
     let source_type = source_type(&input.source_type)?;
+    ensure_webhook_secret_ref(&source_type, &input.config)?;
     let column = target_column(input.target_column.as_deref())?;
     sqlx::query(
         "UPDATE io_inbound_sources SET name = ?, source_type = ?, config_json = ?,

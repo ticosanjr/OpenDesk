@@ -227,7 +227,7 @@ export function TriggerEditor({
                 value={String(config.secret ?? "")}
                 onChange={(event) => patchConfig({ secret: event.target.value })}
                 className={inputClass}
-                placeholder="opcional — usa o segredo global quando vazio"
+                placeholder="obrigatório — guardado no cofre local"
               />
             </LabeledField>
             <LabeledField label="Formato esperado">

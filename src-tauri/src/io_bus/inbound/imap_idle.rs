@@ -24,8 +24,20 @@ pub struct ImapConfig {
     pub mailbox: String,
     #[serde(default = "default_interval")]
     pub interval_secs: u64,
+    /// Deprecated: the connection always uses implicit TLS. Kept so old configs
+    /// keep parsing; it never disables certificate validation.
     #[serde(default = "default_true")]
     pub tls: bool,
+    /// Explicit, insecure opt-in for self-signed certificates: the IMAP
+    /// password can be intercepted by anyone able to impersonate the server.
+    #[serde(default)]
+    pub allow_invalid_certs: bool,
+}
+
+/// Certificate validation is the default and cannot be disabled by the legacy
+/// `tls` flag. Only the explicit `allow_invalid_certs` opt-in turns it off.
+fn validate_certificates(config: &ImapConfig) -> bool {
+    !config.allow_invalid_certs
 }
 fn default_port() -> u16 {
     993
@@ -46,6 +58,12 @@ pub async fn run(
     cancel: CancellationToken,
 ) -> AppResult<()> {
     let config: ImapConfig = source_config(&source)?;
+    if !config.tls {
+        tracing::warn!(
+            source = %source.id,
+            "IMAP tls=false ignorado: a conexão usa TLS; a validação de certificado segue ativa"
+        );
+    }
     // We reconnect on every cycle. This keeps IDLE semantics (new mail is
     // picked up promptly) while surviving NAT/proxy idle timeouts; the interval
     // is the reconnect fallback, not a polling-only limitation.
@@ -76,9 +94,16 @@ async fn poll_once(
     let stream = tokio::net::TcpStream::connect((config.host.as_str(), config.port))
         .await
         .map_err(|error| AppError::Daemon(format!("IMAP connect: {error}")))?;
+    let mut builder = native_tls::TlsConnector::builder();
+    if !validate_certificates(config) {
+        tracing::warn!(
+            source = %source.id,
+            "IMAP com validação de certificado desativada (allow_invalid_certs)"
+        );
+        builder.danger_accept_invalid_certs(true);
+    }
     let connector = tokio_native_tls::TlsConnector::from(
-        native_tls::TlsConnector::builder()
-            .danger_accept_invalid_certs(!config.tls)
+        builder
             .build()
             .map_err(|error| AppError::Daemon(format!("IMAP TLS config: {error}")))?,
     );
@@ -293,6 +318,26 @@ fn password(state: &Arc<AppState>, config: &ImapConfig) -> AppResult<String> {
 mod tests {
     use super::*;
     use crate::test_support;
+
+    fn config(json: &str) -> ImapConfig {
+        serde_json::from_str(json).expect("config")
+    }
+
+    #[test]
+    fn legacy_tls_flag_never_disables_certificate_validation() {
+        let legacy = config(r#"{"host":"imap.example","username":"u","tls":false}"#);
+        assert!(!legacy.tls);
+        assert!(validate_certificates(&legacy));
+
+        let insecure =
+            config(r#"{"host":"imap.example","username":"u","allow_invalid_certs":true}"#);
+        assert!(!validate_certificates(&insecure));
+
+        let default = config(r#"{"host":"imap.example","username":"u"}"#);
+        assert!(default.tls);
+        assert!(!default.allow_invalid_certs);
+        assert!(validate_certificates(&default));
+    }
 
     #[tokio::test]
     async fn inbound_email_creates_one_chat_thread_and_keeps_replies_together() {

@@ -216,8 +216,26 @@ pub(crate) async fn sync_trigger_source(
         return Ok(());
     };
 
-    let mut config = serde_json::from_str::<serde_json::Value>(&schedule.trigger_config_json)
+    let original = serde_json::from_str::<serde_json::Value>(&schedule.trigger_config_json)
         .unwrap_or_else(|_| serde_json::json!({}));
+    let mut config = original.clone();
+    if source_type == "WEBHOOK_HTTP" {
+        crate::io_bus::ensure_webhook_secret_with(
+            &state.paths,
+            &mut config,
+            &format!("schedule-{}", schedule.id),
+        )?;
+        // Do not keep the plaintext secret in the schedule row. The source
+        // config carries only `secret_ref`.
+        if config != original {
+            let sanitized = config.to_string();
+            if let Err(error) =
+                crate::db::schedules::set_trigger_config(&state.db, &schedule.id, &sanitized).await
+            {
+                tracing::warn!(schedule = %schedule.id, error = %error, "routine config secret cleanup failed");
+            }
+        }
+    }
     if let Some(object) = config.as_object_mut() {
         object.insert(
             "schedule_id".into(),

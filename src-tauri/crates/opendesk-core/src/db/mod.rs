@@ -47,7 +47,7 @@ pub async fn init(db_path: &Path) -> Result<SqlitePool> {
             .with_context(|| format!("could not create database directory {}", parent.display()))?;
     }
 
-    backup_existing_database(db_path)?;
+    let existed = db_path.exists();
 
     let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path.display()))?
         .create_if_missing(true)
@@ -64,6 +64,13 @@ pub async fn init(db_path: &Path) -> Result<SqlitePool> {
         .await
         .with_context(|| format!("could not open SQLite database {}", db_path.display()))?;
 
+    // Keep the pre-migration rollback point, but copy only after folding the
+    // WAL into the main file. A plain file copy can miss committed pages that
+    // still live in `-wal`.
+    if existed {
+        backup_existing_database(&pool, db_path).await?;
+    }
+
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
@@ -74,14 +81,19 @@ pub async fn init(db_path: &Path) -> Result<SqlitePool> {
 
 /// Keep the last three copies of the database next to the original file. This
 /// runs before migrations, so a failed upgrade always has a rollback point.
-fn backup_existing_database(db_path: &Path) -> Result<()> {
-    if !db_path.exists() {
-        return Ok(());
-    }
+async fn backup_existing_database(pool: &SqlitePool, db_path: &Path) -> Result<()> {
     let metadata = std::fs::metadata(db_path)
         .with_context(|| format!("could not stat database {}", db_path.display()))?;
     if metadata.len() == 0 {
         return Ok(());
+    }
+    // No other connection is open yet, so the checkpoint can drain the WAL and
+    // truncate it before the copy.
+    if let Err(error) = sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
+        .fetch_optional(pool)
+        .await
+    {
+        tracing::warn!(error = %error, "could not checkpoint the WAL before backup");
     }
     let backup = db_path.with_extension("db.bak");
     let second = db_path.with_extension("db.bak.2");
@@ -109,6 +121,43 @@ pub async fn ping(pool: &SqlitePool) -> bool {
 #[cfg(test)]
 mod migration_tests {
     use super::*;
+
+    #[tokio::test]
+    async fn backup_includes_pages_that_still_live_in_the_wal() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let db_path = dir.path().join("opendesk.db");
+        let pool = super::init(&db_path).await.unwrap();
+        sqlx::query(
+            "INSERT INTO workspaces (id, name, root_path) VALUES ('wal-ws', 'WAL', '/tmp/wal')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        // The row is committed but may still sit in the `-wal` file. The second
+        // start must checkpoint before copying, or the backup loses it.
+        let second = super::init(&db_path).await.unwrap();
+
+        let backup_path = db_path.with_extension("db.bak");
+        assert!(backup_path.exists());
+        let backup = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(
+                SqliteConnectOptions::from_str(&format!("sqlite://{}", backup_path.display()))
+                    .unwrap()
+                    .read_only(true),
+            )
+            .await
+            .unwrap();
+        let name: String = sqlx::query_scalar("SELECT name FROM workspaces WHERE id = 'wal-ws'")
+            .fetch_one(&backup)
+            .await
+            .unwrap();
+        assert_eq!(name, "WAL");
+
+        backup.close().await;
+        second.close().await;
+        pool.close().await;
+    }
 
     #[tokio::test]
     async fn upgrades_a_legacy_database_to_the_latest_schema() {

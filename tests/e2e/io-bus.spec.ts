@@ -19,6 +19,9 @@ test("io bus inbound, outbound, bindings and webhook idempotency", async ({
     workspaceId = ((await created.json()) as { id: string }).id;
   }
 
+  const secret = "e2e-io-secret";
+  const signature = (body: string) =>
+    createHmac("sha256", secret).update(body).digest("hex");
   const inbound = await request.post(
     `${auth.baseURL}/api/io/inbound?workspace_id=${workspaceId}`,
     {
@@ -26,7 +29,11 @@ test("io bus inbound, outbound, bindings and webhook idempotency", async ({
       data: {
         name: "Webhook E2E",
         source_type: "WEBHOOK_HTTP",
-        config: { title_path: "$.ticket.subject", body_path: "$.ticket.body" },
+        config: {
+          secret,
+          title_path: "$.ticket.subject",
+          body_path: "$.ticket.body",
+        },
         target_column: "TODO",
         auto_execute: false,
         is_enabled: true,
@@ -70,16 +77,35 @@ test("io bus inbound, outbound, bindings and webhook idempotency", async ({
   });
   expect(((await bindings.json()) as { bindings: unknown[] }).bindings).toHaveLength(1);
 
-  const payload = { ticket: { subject: "Chamado criado", body: "Corpo do chamado" } };
+  const payload = JSON.stringify({
+    ticket: { subject: "Chamado criado", body: "Corpo do chamado" },
+  });
+  const unsigned = await request.post(
+    `${auth.baseURL}/api/webhooks/${source.id}`,
+    { data: payload, headers: { "content-type": "application/json" } },
+  );
+  expect(unsigned.status()).toBe(400);
   const first = await request.post(
     `${auth.baseURL}/api/webhooks/${source.id}`,
-    { data: payload },
+    {
+      data: payload,
+      headers: {
+        "content-type": "application/json",
+        "x-opendesk-signature": signature(payload),
+      },
+    },
   );
   expect(first.ok()).toBeTruthy();
   const firstTask = (await first.json()) as { task_id: string };
   const second = await request.post(
     `${auth.baseURL}/api/webhooks/${source.id}`,
-    { data: payload },
+    {
+      data: payload,
+      headers: {
+        "content-type": "application/json",
+        "x-opendesk-signature": signature(payload),
+      },
+    },
   );
   const secondTask = (await second.json()) as { task_id: string };
   expect(secondTask.task_id).toBe(firstTask.task_id);

@@ -1,7 +1,11 @@
 use crate::{app_state::AppState, error::AppResult, updates};
 use axum::{Json, extract::State};
 use serde_json::{Value, json};
-use std::{path::Path, process::Command, sync::Arc};
+use std::{
+    path::Path,
+    process::Command,
+    sync::{Arc, OnceLock},
+};
 
 pub async fn about(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>> {
     let daemon = state.daemon.status().await;
@@ -31,8 +35,8 @@ pub async fn about(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>>
             "api": "OpenCode V2 (/api/*)",
         },
         "runtime": {
-            "tauri": option_env!("CARGO_PKG_VERSION").unwrap_or("headless"),
-            "rustc": command_version("rustc"),
+            "tauri": tauri_version(),
+            "rustc": rustc_version(),
             "os": std::env::consts::OS,
             "arch": std::env::consts::ARCH,
             "kernel": kernel_version(),
@@ -75,6 +79,17 @@ pub async fn repair_desktop(State(state): State<Arc<AppState>>) -> AppResult<Jso
     Ok(Json(json!({ "desktop": desktop })))
 }
 
+fn tauri_version() -> &'static str {
+    #[cfg(feature = "desktop")]
+    {
+        tauri::VERSION
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        "headless"
+    }
+}
+
 fn command_version(program: &str) -> Option<String> {
     let output = Command::new(program).arg("--version").output().ok()?;
     if !output.status.success() {
@@ -83,19 +98,31 @@ fn command_version(program: &str) -> Option<String> {
     Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+/// `rustc --version` costs a process spawn; the answer never changes while the
+/// app is running, so keep the first result.
+fn rustc_version() -> Option<String> {
+    static CACHE: OnceLock<Option<String>> = OnceLock::new();
+    CACHE.get_or_init(|| command_version("rustc")).clone()
+}
+
 fn kernel_version() -> Option<String> {
-    #[cfg(unix)]
-    {
-        let output = Command::new("uname").arg("-r").output().ok()?;
-        if !output.status.success() {
-            return None;
-        }
-        Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
-    }
-    #[cfg(not(unix))]
-    {
-        None
-    }
+    static CACHE: OnceLock<Option<String>> = OnceLock::new();
+    CACHE
+        .get_or_init(|| {
+            #[cfg(unix)]
+            {
+                let output = Command::new("uname").arg("-r").output().ok()?;
+                if !output.status.success() {
+                    return None;
+                }
+                Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+            }
+            #[cfg(not(unix))]
+            {
+                None
+            }
+        })
+        .clone()
 }
 
 fn log_files(dir: &Path) -> Vec<Value> {

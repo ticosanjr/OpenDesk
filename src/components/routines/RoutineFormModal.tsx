@@ -515,7 +515,7 @@ export function CreateScheduleModal({
 
               {triggerType === "WEBHOOK" ? (
                 <label>
-                  <span className={labelClass}>Segredo do webhook (opcional)</span>
+                  <span className={labelClass}>Segredo do webhook</span>
                   <input
                     value={String(triggerConfig.secret ?? "")}
                     onChange={(event) =>
@@ -525,7 +525,7 @@ export function CreateScheduleModal({
                       }))
                     }
                     className={inputClass}
-                    placeholder="usa o segredo global quando vazio"
+                    placeholder="obrigatório para gatilho WEBHOOK"
                   />
                 </label>
               ) : null}
