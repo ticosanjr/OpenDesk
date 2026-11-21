@@ -13,7 +13,7 @@ OpenCode permanecendo nos arquivos nativos do disco.
 > [docs/progress.md](docs/progress.md), decisões em
 > [docs/decisions](docs/decisions) e notas em
 > [docs/releases/1.0.0.md](docs/releases/1.0.0.md).
-> Repositório privado: <https://github.com/ticosanjr/OpenDesk>.
+> Repositório: <https://github.com/ticosanjr/OpenDesk>.
 
 ## O que já funciona
 
@@ -436,4 +436,4 @@ docs/                       plano, decisões e histórico
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)
 - [Histórico de progresso](docs/progress.md)
-- [Especificação original](OpenDesk%20Requisitos.txt)
+- [Especificação complementar](Especificacao%20Complementar%20OpenDesk.md)

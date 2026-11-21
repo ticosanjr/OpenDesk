@@ -367,7 +367,7 @@ export function WorkspaceDialog() {
                 <input
                   value={existingPath}
                   onChange={(event) => setExistingPath(event.target.value)}
-                  placeholder="/home/rafael/Projetos/minha-empresa"
+                  placeholder="/home/user/Projetos/minha-empresa"
                   className={cn(inputClass, "pl-9 font-mono text-[13px]")}
                 />
               </div>

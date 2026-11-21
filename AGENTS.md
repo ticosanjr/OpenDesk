@@ -173,7 +173,7 @@ Windows/macOS (`docs/platform-builds.md`) e contrato Google com conta dedicada
 (`docs/google-contract.md`).
 
 Releases são locais (`releases/`, máximo 3 versões) e nunca via CI. O remoto é
-`origin` em https://github.com/ticosanjr/OpenDesk (privado); `scripts/release.sh`
+`origin` em https://github.com/ticosanjr/OpenDesk (público); `scripts/release.sh`
 faz verificação proporcional, build com LTO completo (`--fast-build` para thin LTO), empacota
 `.deb`/`.rpm` e reaproveita o AppDir do AppImage (linuxdeploy só quando
 dependências/ícones mudam), depois commit, tag e push, preservando

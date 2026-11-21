@@ -449,7 +449,7 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `npm run build` — ok.
 - `npm run test:e2e` — **4 passed** (inclui card do motor e status offline).
 - Headless com daemon real:
-  - binário encontrado em `/home/rafael/.opencode/bin/opencode` (v2.2.5);
+  - binário encontrado em `/home/user/.opencode/bin/opencode` (v2.2.5);
   - daemon dedicado online na porta 3101;
   - `mode: dedicated`, `binary_path` correto.
 - Headless com `HOME` isolado e sem `opencode` no `PATH`:

@@ -131,7 +131,7 @@ test("adds an existing workspace from another folder without touching it", async
   await page.getByTitle("Novo workspace").click();
   await page.getByRole("button", { name: "Existente" }).click();
   await page
-    .locator('input[placeholder="/home/rafael/Projetos/minha-empresa"]')
+    .locator('input[placeholder="/home/user/Projetos/minha-empresa"]')
     .fill(existing);
   await page
     .locator('input[placeholder="Neuralab, Bernardes AI, Home Lab…"]')
