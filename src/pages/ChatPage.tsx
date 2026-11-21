@@ -83,7 +83,6 @@ export function ChatPage() {
   const [sending, setSending] = useState(false);
   const [latestTurn, setLatestTurn] = useState<ChatTurn | null>(null);
   const [stopping, setStopping] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
   const [threadQuery, setThreadQuery] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -206,24 +205,6 @@ export function ChatPage() {
     }, 2_000);
     return () => window.clearInterval(interval);
   }, [selectedId, sending, turnRunning]);
-
-  const startedAt = latestTurn?.started_at ?? null;
-  useEffect(() => {
-    if (!turnRunning || !startedAt) {
-      setElapsed(0);
-      return;
-    }
-    const started = Date.parse(startedAt);
-    const update = () =>
-      setElapsed(
-        Number.isFinite(started)
-          ? Math.max(0, Math.round((Date.now() - started) / 1000))
-          : 0,
-      );
-    update();
-    const interval = window.setInterval(update, 1_000);
-    return () => window.clearInterval(interval);
-  }, [turnRunning, startedAt]);
 
   const refreshThreads = useCallback(async () => {
     if (!activeWorkspaceId) return null;
@@ -811,7 +792,11 @@ export function ChatPage() {
                 <div className="flex flex-wrap items-center gap-2 rounded-lg border border-sky-500/20 bg-sky-500/[0.05] px-3 py-2 text-[11.5px] text-sky-200/90">
                   <Loader2 size={12} className="animate-spin" />
                   O agente está pensando
-                  {elapsed > 0 ? ` · ${elapsed}s` : ""}…
+                  <ElapsedLabel
+                    startedAt={latestTurn?.started_at ?? null}
+                    running={turnRunning}
+                  />
+                  …
                   {latestTurn?.run_id ? (
                     <Link
                       to={links.run(latestTurn.run_id)}
@@ -1091,3 +1076,31 @@ function MetaBuilder({ workspaceId }: { workspaceId: string }) {
 }
 
 
+
+/** Isolated so the one-second timer does not re-render the whole chat page. */
+function ElapsedLabel({
+  startedAt,
+  running,
+}: {
+  startedAt: string | null;
+  running: boolean;
+}) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!running || !startedAt) {
+      setElapsed(0);
+      return;
+    }
+    const started = Date.parse(startedAt);
+    const update = () =>
+      setElapsed(
+        Number.isFinite(started)
+          ? Math.max(0, Math.round((Date.now() - started) / 1000))
+          : 0,
+      );
+    update();
+    const interval = window.setInterval(update, 1_000);
+    return () => window.clearInterval(interval);
+  }, [running, startedAt]);
+  return elapsed > 0 ? <> · {elapsed}s</> : null;
+}

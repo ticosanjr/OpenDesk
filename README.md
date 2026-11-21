@@ -431,6 +431,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0160 — Crates headless](docs/decisions/0160-headless-crates.md)
 - [ADR 0161 — Reexports pendentes](docs/decisions/0161-reexports-pending.md)
 - [ADR 0162 — Webhook, IMAP e integridade de worktree](docs/decisions/0162-webhook-secret-and-worktree-integrity.md)
+- [ADR 0163 — Fase P de desempenho](docs/decisions/0163-performance-phase.md)
 - [SPEC_RECIPES_HITL](docs/specs/SPEC_RECIPES_HITL.md)
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Releases locais](releases/README.md)

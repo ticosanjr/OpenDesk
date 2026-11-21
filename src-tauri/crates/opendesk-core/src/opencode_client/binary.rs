@@ -5,6 +5,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
     sync::{Arc, Mutex},
+    time::{Duration, Instant, SystemTime},
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -15,20 +16,39 @@ pub struct OpenCodeBinaryInfo {
     pub candidates: Vec<String>,
 }
 
+/// Every probe spawns the binary with `--version`, which is expensive for
+/// endpoints like `/api/about`. Cache the result briefly and invalidate when
+/// the configured path or the binary file changes (auto-update).
+const RESOLVE_TTL: Duration = Duration::from_secs(60);
+
+struct CachedResolution {
+    configured: Option<PathBuf>,
+    path: PathBuf,
+    modified: Option<SystemTime>,
+    resolved_at: Instant,
+    info: OpenCodeBinaryInfo,
+}
+
 #[derive(Clone)]
 pub struct OpenCodeLocator {
     configured: Arc<Mutex<Option<PathBuf>>>,
+    cached: Arc<Mutex<Option<CachedResolution>>>,
 }
 
 impl OpenCodeLocator {
     pub fn new(configured: Option<PathBuf>) -> Self {
         Self {
             configured: Arc::new(Mutex::new(configured)),
+            cached: Arc::new(Mutex::new(None)),
         }
     }
 
     pub fn set_configured(&self, path: Option<PathBuf>) {
         *self.configured.lock().expect("opencode locator mutex") = path;
+        *self
+            .cached
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner()) = None;
     }
 
     pub fn configured(&self) -> Option<PathBuf> {
@@ -93,6 +113,55 @@ impl OpenCodeLocator {
     }
 
     pub fn resolve(&self) -> AppResult<OpenCodeBinaryInfo> {
+        let configured = self.configured();
+        if let Some(info) = self.cached_resolution(configured.as_ref()) {
+            return Ok(info);
+        }
+        let info = self.resolve_uncached()?;
+        self.store_resolution(configured, &info);
+        Ok(info)
+    }
+
+    fn cached_resolution(&self, configured: Option<&PathBuf>) -> Option<OpenCodeBinaryInfo> {
+        let guard = self
+            .cached
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        let cached = guard.as_ref()?;
+        if cached.resolved_at.elapsed() > RESOLVE_TTL {
+            return None;
+        }
+        if cached.configured.as_ref() != configured {
+            return None;
+        }
+        let modified = std::fs::metadata(&cached.path)
+            .ok()
+            .and_then(|meta| meta.modified().ok());
+        if modified != cached.modified {
+            return None;
+        }
+        Some(cached.info.clone())
+    }
+
+    fn store_resolution(&self, configured: Option<PathBuf>, info: &OpenCodeBinaryInfo) {
+        let path = PathBuf::from(&info.path);
+        let modified = std::fs::metadata(&path)
+            .ok()
+            .and_then(|meta| meta.modified().ok());
+        let mut guard = self
+            .cached
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        *guard = Some(CachedResolution {
+            configured,
+            path,
+            modified,
+            resolved_at: Instant::now(),
+            info: info.clone(),
+        });
+    }
+
+    fn resolve_uncached(&self) -> AppResult<OpenCodeBinaryInfo> {
         let candidates = self.candidates();
         let mut rejected = Vec::new();
 
@@ -268,6 +337,47 @@ mod tests {
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).expect("chmod");
         }
         path
+    }
+
+    #[test]
+    fn caches_resolution_until_the_binary_changes() {
+        let dir = tempfile::TempDir::new().expect("temp");
+        let calls = dir.path().join("calls");
+        let binary = |version: &str| {
+            let path = dir.path().join("opencode-cache");
+            let mut file = std::fs::File::create(&path).expect("binary");
+            writeln!(file, "#!/bin/sh").expect("shebang");
+            writeln!(file, "echo call >> {}", calls.display()).expect("call");
+            writeln!(file, "echo \"opencode v{version}\"").expect("version");
+            file.sync_all().expect("sync");
+            drop(file);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+                    .expect("chmod");
+            }
+            path
+        };
+
+        let path = binary("2.3.0");
+        let locator = OpenCodeLocator::new(Some(path.clone()));
+        assert_eq!(locator.resolve().expect("first").version, "2.3.0");
+        assert_eq!(locator.resolve().expect("cached").version, "2.3.0");
+        let once = std::fs::read_to_string(&calls)
+            .expect("calls")
+            .lines()
+            .count();
+        assert_eq!(once, 1, "a segunda resolução deve vir do cache");
+
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        binary("2.4.0");
+        assert_eq!(locator.resolve().expect("changed").version, "2.4.0");
+        let twice = std::fs::read_to_string(&calls)
+            .expect("calls")
+            .lines()
+            .count();
+        assert_eq!(twice, 2, "mudar o binário invalida o cache");
     }
 
     #[test]

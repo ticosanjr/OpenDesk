@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use sqlx::{
     SqlitePool,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
 };
 use std::{path::Path, str::FromStr, time::Duration};
 
@@ -52,6 +52,9 @@ pub async fn init(db_path: &Path) -> Result<SqlitePool> {
     let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path.display()))?
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal)
+        // WAL + NORMAL keeps the database consistent and drops an fsync per
+        // commit. A power loss may lose the last transactions, not corrupt.
+        .synchronous(SqliteSynchronous::Normal)
         .foreign_keys(true)
         // Background workers (watcher, queue, maintenance) share this pool with
         // the API. A 5s budget was short enough to surface `database is locked`

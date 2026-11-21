@@ -405,6 +405,24 @@ pub async fn monthly_spend(
     .await?)
 }
 
+/// Monthly spend per agent for the whole workspace in one query. The dashboard
+/// used to run one `monthly_spend` per profile.
+pub async fn monthly_spend_by_agent(
+    pool: &SqlitePool,
+    workspace_id: &str,
+) -> AppResult<std::collections::HashMap<String, f64>> {
+    let rows = sqlx::query_as::<_, (String, f64)>(
+        "SELECT agent_name, CAST(COALESCE(SUM(estimated_cost_usd), 0) AS REAL) FROM task_runs
+         WHERE workspace_id = ?
+           AND started_at >= strftime('%Y-%m-01T00:00:00Z','now')
+         GROUP BY agent_name",
+    )
+    .bind(workspace_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().collect())
+}
+
 pub async fn check_budget(pool: &SqlitePool, workspace_id: &str, agent_id: &str) -> AppResult<()> {
     let Some(profile) = get_profile(pool, workspace_id, agent_id).await? else {
         return Ok(());
@@ -736,6 +754,11 @@ mod tests {
                 .await
                 .is_err()
         );
+        let spends = monthly_spend_by_agent(&ctx.state.db, &ctx.workspace_id)
+            .await
+            .expect("spends");
+        assert_eq!(spends.len(), 1);
+        assert!((spends.get("build").copied().unwrap_or_default() - 2.0).abs() < f64::EPSILON);
         let rows = performance(&ctx.state.db, &ctx.workspace_id)
             .await
             .expect("performance");

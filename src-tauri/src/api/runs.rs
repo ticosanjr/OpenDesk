@@ -54,11 +54,33 @@ pub async fn run_log(
     let path = run
         .log_path
         .ok_or_else(|| AppError::NotFound("this run has no log file".into()))?;
-    let content = std::fs::read(&path)
+    let body = tokio::task::spawn_blocking(move || read_tail(&path, 256 * 1024))
+        .await
+        .map_err(|error| AppError::Internal(format!("run log task: {error}")))?
         .map_err(|error| AppError::Internal(format!("could not read run log: {error}")))?;
-    let start = content.len().saturating_sub(256 * 1024);
-    let body = String::from_utf8_lossy(&content[start..]).to_string();
     Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], body))
+}
+
+/// Reads at most `max_bytes` from the end of a log file without loading the
+/// whole file first. The first line of a partial read is dropped.
+fn read_tail(path: &str, max_bytes: u64) -> std::io::Result<String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut file = std::fs::File::open(path)?;
+    let len = file.metadata()?.len();
+    let start = len.saturating_sub(max_bytes);
+    if start > 0 {
+        file.seek(SeekFrom::Start(start))?;
+    }
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes)?;
+    let text = String::from_utf8_lossy(&bytes);
+    if start == 0 {
+        return Ok(text.into_owned());
+    }
+    Ok(match text.find('\n') {
+        Some(index) => text[index + 1..].to_string(),
+        None => String::new(),
+    })
 }
 
 pub async fn run_timeline(
@@ -101,4 +123,19 @@ pub async fn export_run(
         ],
         body,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read_tail_starts_at_a_line_boundary() {
+        let dir = tempfile::TempDir::new().expect("temp");
+        let path = dir.path().join("run.log");
+        std::fs::write(&path, "aaa\nbbb\nccc\n").expect("log");
+        let path = path.to_string_lossy().to_string();
+        assert_eq!(read_tail(&path, 1024).expect("all"), "aaa\nbbb\nccc\n");
+        assert_eq!(read_tail(&path, 8).expect("tail"), "ccc\n");
+    }
 }

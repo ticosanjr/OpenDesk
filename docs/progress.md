@@ -3375,3 +3375,17 @@ Reiniciar o OpenCode não resolvia porque o problema era a descoberta do binári
 - `/api/about` com versão correta e `rustc`/`uname` cacheados.
 - Backup pré-migração faz checkpoint do WAL antes de copiar.
 - Rust 339 shell + 289 core (628). ADR 0162.
+
+## 2026-11-21 — Fase P (desempenho)
+
+- Timeline com cache incremental por offset; só linhas completas entram e
+  reescrita/redução reconstrói.
+- `run_log` lê 256 KB do fim com `seek` e roda em `spawn_blocking`.
+- Locator do OpenCode com cache de 60 s invalidado por caminho/mtime; `/about`
+  resolve fora do worker async.
+- `monthly_spend_by_agent` agrega em uma query (fim do N+1 do dashboard).
+- SQLite em WAL + `synchronous=NORMAL`.
+- Contador do chat isolado em `ElapsedLabel`.
+- `scripts/release.sh` passa a usar LTO completo por padrão; `--fast-build`
+  volta ao thin LTO.
+- Rust 340 shell + 291 core (631). ADR 0163.

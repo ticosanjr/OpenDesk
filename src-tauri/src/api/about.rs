@@ -9,7 +9,13 @@ use std::{
 
 pub async fn about(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>> {
     let daemon = state.daemon.status().await;
-    let resolved = state.locator.resolve().ok();
+    let resolved = {
+        let locator = state.locator.clone();
+        tokio::task::spawn_blocking(move || locator.resolve())
+            .await
+            .ok()
+            .and_then(Result::ok)
+    };
     let configured = state
         .locator
         .configured()

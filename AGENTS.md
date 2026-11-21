@@ -56,11 +56,11 @@ scripts/gate-fast.sh --rust  # inclui clippy e testes Rust
 scripts/gate-fast.sh --changed  # equivalente a npm run verify
 cd src-tauri && cargo check
 cd src-tauri && cargo test
-scripts/release.sh     # verify proporcional + build rápido + retenção de 3 releases
+scripts/release.sh     # verify proporcional + LTO completo + retenção de 3 releases
 scripts/release.sh --full-gate  # gate completo antes do build (sob demanda)
 scripts/release.sh --skip-gate  # build já verificado externamente
 scripts/release.sh --reuse-build  # reaproveita o binário se nenhum fonte for mais novo
-scripts/release.sh --quality-build  # LTO completo e codegen-units=1
+scripts/release.sh --fast-build  # thin LTO e codegen-units=16 (mais rápido)
 scripts/release.sh --no-appimage  # só .deb/.rpm (release mais curto)
 scripts/release.sh --refresh-appimage  # refaz o AppImage com linuxdeploy
 scripts/release.sh --clean  # limpeza transitória ao final (preserva target)
@@ -174,10 +174,10 @@ Windows/macOS (`docs/platform-builds.md`) e contrato Google com conta dedicada
 
 Releases são locais (`releases/`, máximo 3 versões) e nunca via CI. O remoto é
 `origin` em https://github.com/ticosanjr/OpenDesk (privado); `scripts/release.sh`
-faz verificação proporcional, build rápido (thin LTO/incremental), empacota
+faz verificação proporcional, build com LTO completo (`--fast-build` para thin LTO), empacota
 `.deb`/`.rpm` e reaproveita o AppDir do AppImage (linuxdeploy só quando
 dependências/ícones mudam), depois commit, tag e push, preservando
-`src-tauri/target` para o próximo release. Use `--quality-build` para o perfil
-completo de LTO e `--refresh-appimage` para refazer o AppImage do zero. `name` e
+`src-tauri/target` para o próximo release. Use `--refresh-appimage` para refazer
+o AppImage do zero e `--fast-build` quando um release descartável bastar. `name` e
 `avatar` de agentes são metadados do OpenDesk no frontmatter; `color` é nativo
 (ADR 0002).

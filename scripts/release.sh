@@ -2,12 +2,12 @@
 # Local release: verify, build, collect artifacts, sign and publish.
 #
 # Usage:
-#   scripts/release.sh                  # changed-only verify + fast build
+#   scripts/release.sh                  # changed-only verify + full LTO build
 #   scripts/release.sh --full-gate      # full gate (coverage, E2E, goldens) first
 #   scripts/release.sh --skip-gate      # trust an external verification
 #   scripts/release.sh --skip-build     # reuse the current release binary
 #   scripts/release.sh --reuse-build    # reuse binary only if sources are older
-#   scripts/release.sh --quality-build  # full LTO, codegen-units=1
+#   scripts/release.sh --fast-build     # thin LTO + codegen-units=16 (faster)
 #   scripts/release.sh --no-appimage    # skip the AppImage (deb/rpm only)
 #   scripts/release.sh --refresh-appimage  # rebuild the AppImage from scratch
 #   scripts/release.sh --clean          # prune transient artifacts afterwards
@@ -51,7 +51,7 @@ case "$PLATFORM" in
 esac
 SKIP_GATE=0
 FULL_GATE=0
-QUALITY_BUILD=0
+QUALITY_BUILD=1
 REUSE_BUILD=0
 BUNDLE_APPIMAGE=1
 REFRESH_APPIMAGE=0
@@ -64,6 +64,7 @@ for argument in "$@"; do
     --skip-gate) SKIP_GATE=1 ;;
     --full-gate) FULL_GATE=1 ;;
     --quality-build) QUALITY_BUILD=1 ;;
+    --fast-build) QUALITY_BUILD=0 ;;
     --reuse-build) REUSE_BUILD=1 ;;
     --no-appimage) BUNDLE_APPIMAGE=0 ;;
     --refresh-appimage) REFRESH_APPIMAGE=1 ;;
@@ -74,7 +75,7 @@ for argument in "$@"; do
       ;;
     *)
       echo "unknown argument: $argument" >&2
-      echo "usage: $0 [--skip-build] [--skip-gate] [--full-gate] [--quality-build] [--reuse-build] [--no-appimage] [--refresh-appimage] [--clean]" >&2
+      echo "usage: $0 [--skip-build] [--skip-gate] [--full-gate] [--fast-build] [--quality-build] [--reuse-build] [--no-appimage] [--refresh-appimage] [--clean]" >&2
       exit 2
       ;;
   esac
@@ -252,13 +253,17 @@ if [[ "$SKIP_BUILD" != "1" ]]; then
   # The AppImage bundles the daemon too, so build it before packaging.
   if [[ ! -x "$ROOT/src-tauri/target/release/opendeskd" ]]; then
     echo "==> Building opendeskd"
-    (
-      cd "$ROOT/src-tauri" &&
-        CARGO_PROFILE_RELEASE_LTO=thin \
-          CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
-          CARGO_INCREMENTAL=1 \
-          cargo build --release -p opendesk-daemon
-    )
+    if [[ "$QUALITY_BUILD" == "1" ]]; then
+      ( cd "$ROOT/src-tauri" && cargo build --release -p opendesk-daemon )
+    else
+      (
+        cd "$ROOT/src-tauri" &&
+          CARGO_PROFILE_RELEASE_LTO=thin \
+            CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
+            CARGO_INCREMENTAL=1 \
+            cargo build --release -p opendesk-daemon
+      )
+    fi
   fi
 
   case "$PLATFORM" in

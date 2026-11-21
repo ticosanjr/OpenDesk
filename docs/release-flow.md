@@ -52,7 +52,8 @@ Flags:
 | `--skip-gate` | confia em verificação externa |
 | `--skip-build` | usa os artefatos já presentes em `target/release` |
 | `--reuse-build` | pula a compilação se nenhum fonte/config for mais novo que o binário (ainda empacota) |
-| `--quality-build` | LTO completo e `codegen-units=1` |
+| `--fast-build` | thin LTO + `codegen-units=16` (mais rápido, menos otimizado) |
+| `--quality-build` | alias do padrão: LTO completo e `codegen-units=1` |
 | `--no-appimage` | gera só `.deb`/`.rpm` |
 | `--refresh-appimage` | refaz o AppImage do zero com `linuxdeploy` |
 | `--clean` | limpeza transitória no fim (preserva o cache) |

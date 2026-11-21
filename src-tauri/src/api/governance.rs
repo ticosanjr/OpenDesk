@@ -56,9 +56,10 @@ pub async fn overview(
     );
 
     let profiles = governance::list_profiles(&state.db, &workspace_id).await?;
+    let spends = governance::monthly_spend_by_agent(&state.db, &workspace_id).await?;
     let mut profile_rows = Vec::with_capacity(profiles.len());
     for profile in profiles {
-        let spent = governance::monthly_spend(&state.db, &workspace_id, &profile.agent_id).await?;
+        let spent = spends.get(&profile.agent_id).copied().unwrap_or(0.0);
         let limit = profile.monthly_budget_usd;
         profile_rows.push(json!({
             "profile": profile,
