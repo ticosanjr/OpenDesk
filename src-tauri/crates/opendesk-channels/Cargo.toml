@@ -1,0 +1,18 @@
+[package]
+name = "opendesk-channels"
+version = "1.3.1"
+description = "OpenDesk omni-channel registry and notification routing"
+edition = "2024"
+license = "MIT"
+
+[features]
+default = []
+ch-telegram = []
+ch-whatsapp = []
+ch-email = []
+ch-signal = []
+ch-webpush = []
+
+[dependencies]
+opendesk-domain = { path = "../opendesk-domain" }
+serde = { version = "1", features = ["derive"] }

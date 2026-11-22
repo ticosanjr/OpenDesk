@@ -5001,6 +5001,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendesk-channels"
+version = "1.3.1"
+dependencies = [
+ "opendesk-domain",
+ "serde",
+]
+
+[[package]]
 name = "opendesk-cli"
 version = "1.3.1"
 dependencies = [
@@ -5038,6 +5046,7 @@ dependencies = [
  "notify-debouncer-full",
  "opendesk-domain",
  "opendesk-engine",
+ "opendesk-mcp",
  "opendesk-recipes",
  "opendesk-storage",
  "p256 0.13.2",
@@ -5101,6 +5110,14 @@ dependencies = [
  "thiserror 2.0.21",
  "uuid",
  "walkdir",
+]
+
+[[package]]
+name = "opendesk-mcp"
+version = "1.3.1"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

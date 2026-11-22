@@ -40,6 +40,19 @@ Registro de mudanças de comportamento da refatoração V2. O histórico V1 est�
   event-driven e 75% de cobertura; bloqueado pela extração dos 28 repositórios
   de `db` restantes. ADR 0201.
 
+## 2026-11-22 — Onda 3 (início): domínio de canais e MCP
+
+- Domínio: `ChannelAdapter`/`NormalizedEnvelope` (anexos, thread, dedupe),
+  `CareLevel`/`QuietHours`, ports de elicitation/sampling.
+- `opendesk-mcp`: `rate` e `rbac` movidos do core (puros), lock sem `expect`.
+- `opendesk-channels`: features por canal, registry de descritores e
+  `NotificationRouter` (care level, quiet hours, crítico fura a janela).
+- `grep` de canais em engine/recipes: vazio.
+- Testes: 340 shell + 264 core + 27 domain + 6 engine + 3 mcp + 13 recipes +
+  15 storage + 4 channels (672); clippy limpo.
+- Pendente: pool/server/config do MCP, adaptadores reais, RBAC/rate/auditoria no
+  ponto de chamada e elicitation/sampling. ADR 0202.
+
 ## Próximas ondas
 
 2. `opendesk-engine`/`opendesk-recipes`, god-files e event-driven.

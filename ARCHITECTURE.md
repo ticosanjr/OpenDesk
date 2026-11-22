@@ -52,7 +52,9 @@ Bins: `opendesk` (shell), `opendeskd` (daemon headless), `opendesk-cli`,
 - **Onda 2 (iniciada):** `engine`/`recipes`, recorrência única, `worktree` e
   `parser` decompostos. Fila, runner, telemetria, router, adapters, DAG e store
   aguardam a extração dos repositórios de `db` para o storage.
-- **Onda 3:** `mcp`, `channels`, desacoplamento verificado.
+- **Onda 3 (iniciada):** `opendesk-mcp` com rate/RBAC e `opendesk-channels` com
+  features + `NotificationRouter`; adaptadores de I/O, pool e server do MCP
+  seguem no shell/core até a extração de `db`/`paths`/`secrets`.
 - **Onda 4:** `enterprise`, extinção de `opendesk-core`, shell fino, frontend,
   doctor e gate de limites.
 

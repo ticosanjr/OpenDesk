@@ -56,7 +56,10 @@ impl McpRateLimiter {
         }
         let now = Instant::now();
         let key = format!("{agent}:{tool}");
-        let mut windows = self.windows.lock().expect("mcp rate windows");
+        let mut windows = self
+            .windows
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
         let window = windows.entry(key).or_default();
         while window
             .front()
