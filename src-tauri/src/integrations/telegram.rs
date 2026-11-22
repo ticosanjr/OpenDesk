@@ -125,7 +125,9 @@ pub async fn load(pool: &sqlx::SqlitePool) -> AppResult<TelegramConfig> {
 }
 
 pub async fn save(pool: &sqlx::SqlitePool, config: &TelegramConfig) -> AppResult<()> {
-    settings::set(pool, SETTING_KEY, &serde_json::to_value(config)?).await
+    settings::set(pool, SETTING_KEY, &serde_json::to_value(config)?)
+        .await
+        .map_err(Into::into)
 }
 
 pub fn token(secrets: &SecretStore) -> Option<String> {
@@ -1322,7 +1324,9 @@ async fn record_chat(
             title: title.map(str::to_string),
         });
     }
-    settings::set(pool, CHATS_KEY, &serde_json::to_value(chats)?).await
+    settings::set(pool, CHATS_KEY, &serde_json::to_value(chats)?)
+        .await
+        .map_err(Into::into)
 }
 
 pub async fn known_chats(pool: &sqlx::SqlitePool) -> Vec<KnownChat> {

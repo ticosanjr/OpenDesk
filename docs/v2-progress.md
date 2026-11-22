@@ -66,6 +66,20 @@ Registro de mudanças de comportamento da refatoração V2. O histórico V1 est�
 - Pendente: extinção do core, sandbox/nodes/workspace_sync/skill_*, shell fino,
   frontend, doctor e 75%. ADR 0203.
 
+## 2026-11-22 — Consolidação total do storage
+
+- 26 repositórios de `db` + `paths`/`secrets`/`events`/`server_lock`/`dedupe`
+  movidos para `opendesk-storage`; core virou fachada por reexports.
+- `tasks`/`schedules`/`calendar`/`memory` divididos via `include!`; `queue` e
+  `io_bus` com testes separados. Nenhum `.rs` do storage >500.
+- Zero `expect` de produção nos crates (locks, reqwest, test helpers).
+- Baseline de limites: 31 → **19** entradas (só god-files de engine/recipes/mcp).
+- Core ~43.4k → **29.3k** linhas; storage ~12.3k.
+- Testes: **672** (340 shell + 194 core + 27 domain + 6 engine + 3 mcp + 13
+  recipes + 15 storage + 4 channels + 6 enterprise + repos no storage);
+  clippy limpo. ADR 0204.
+- Engine desbloqueado: pode depender do storage sem depender do core.
+
 ## Próximas ondas
 
 2. `opendesk-engine`/`opendesk-recipes`, god-files e event-driven.

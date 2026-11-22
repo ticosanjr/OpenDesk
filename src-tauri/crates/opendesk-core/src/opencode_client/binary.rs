@@ -44,7 +44,10 @@ impl OpenCodeLocator {
     }
 
     pub fn set_configured(&self, path: Option<PathBuf>) {
-        *self.configured.lock().expect("opencode locator mutex") = path;
+        *self
+            .configured
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner()) = path;
         *self
             .cached
             .lock()
@@ -54,7 +57,7 @@ impl OpenCodeLocator {
     pub fn configured(&self) -> Option<PathBuf> {
         self.configured
             .lock()
-            .expect("opencode locator mutex")
+            .unwrap_or_else(|poison| poison.into_inner())
             .clone()
     }
 

@@ -648,7 +648,7 @@ pub async fn run_heartbeat(
             "heartbeat task created without dispatch"
         );
     }
-    tasks::get(&state.db, &task.id).await
+    tasks::get(&state.db, &task.id).await.map_err(Into::into)
 }
 
 pub fn start_heartbeat(state: Arc<AppState>) {

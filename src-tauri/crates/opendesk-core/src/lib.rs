@@ -15,11 +15,11 @@ pub mod browse_tags;
 pub mod config_sync;
 pub mod daemon_probe;
 pub mod db;
-pub mod dedupe;
+pub use opendesk_storage::dedupe;
 pub mod desktop_integration;
 pub mod dsh_router;
 pub mod error;
-pub mod events;
+pub use opendesk_storage::events;
 pub mod hitl;
 pub mod internal_api;
 pub mod mcp_config;
@@ -34,7 +34,7 @@ pub mod nodes;
 pub mod notifier;
 pub mod opencode_client;
 pub mod passkey;
-pub mod paths;
+pub use opendesk_storage::paths;
 pub mod personal_context;
 pub mod push;
 pub mod queue_ports;
@@ -47,8 +47,8 @@ pub mod run_export;
 pub mod run_timeline;
 pub mod runtime;
 pub mod sandbox;
-pub mod secrets;
-pub mod server_lock;
+pub use opendesk_storage::secrets;
+pub use opendesk_storage::server_lock;
 pub mod skill_cases;
 pub mod skill_eval;
 pub mod skill_shadow;
@@ -59,5 +59,7 @@ pub use opendesk_enterprise::computer::virtual_display;
 pub mod workspace_sync;
 
 #[cfg(test)]
+#[cfg(test)]
+#[path = "test_support_tests.rs"]
 pub mod test_support;
 pub use opendesk_engine::worktree;

@@ -47,8 +47,9 @@ Bins: `opendesk` (shell), `opendeskd` (daemon headless), `opendesk-cli`,
 
 ### Estado da migração
 
-- **Onda 1 (feita):** `domain`, `storage`, baseline `0001_v2_baseline.sql`,
-  `conversations`+`messages`, pools, write-buffer, `migrate-v1-export`.
+- **Onda 1 (concluída):** `domain`, `storage`, baseline `0001_v2_baseline.sql`,
+  `conversations`+`messages`, pools, write-buffer, `migrate-v1-export` e **todos
+  os repositórios operacionais + paths/secrets/events no storage**.
 - **Onda 2 (iniciada):** `engine`/`recipes`, recorrência única, `worktree` e
   `parser` decompostos. Fila, runner, telemetria, router, adapters, DAG e store
   aguardam a extração dos repositórios de `db` para o storage.

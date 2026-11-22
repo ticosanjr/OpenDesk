@@ -32,7 +32,9 @@ fn expectations() -> &'static Mutex<HashMap<PathBuf, ExpectedWrite>> {
 /// Register an internal write so the watcher does not echo it back to the UI.
 pub fn expect_write(path: &Path, sha256: Option<String>) {
     let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    let mut map = expectations().lock().expect("watcher expectations");
+    let mut map = expectations()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
     let now = Instant::now();
     map.retain(|_, value| value.expires_at > now);
     if map.len() >= MAX_EXPECTATIONS {
@@ -63,7 +65,9 @@ fn is_transient(path: &Path) -> bool {
 
 fn should_suppress(path: &Path) -> bool {
     let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    let mut map = expectations().lock().expect("watcher expectations");
+    let mut map = expectations()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
     let now = Instant::now();
     map.retain(|_, value| value.expires_at > now);
     let Some(expected) = map.get(&canonical).cloned() else {

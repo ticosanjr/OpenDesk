@@ -75,7 +75,7 @@ pub fn start(session_id: &str) -> AppResult<String> {
         }
         registry()
             .lock()
-            .expect("display registry")
+            .unwrap_or_else(|poison| poison.into_inner())
             .insert(session_id.to_string(), child);
         return Ok(display);
     }
@@ -87,7 +87,7 @@ pub fn start(session_id: &str) -> AppResult<String> {
 pub fn stop(session_id: &str) {
     let child = registry()
         .lock()
-        .expect("display registry")
+        .unwrap_or_else(|poison| poison.into_inner())
         .remove(session_id);
     if let Some(mut child) = child {
         let _ = child.kill();

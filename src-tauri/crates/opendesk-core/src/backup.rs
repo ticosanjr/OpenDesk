@@ -430,7 +430,7 @@ pub async fn restore_as_new(
     if created.is_err() && !target_existed {
         let _ = std::fs::remove_dir_all(&target);
     }
-    created
+    created.map_err(Into::into)
 }
 
 #[cfg(test)]

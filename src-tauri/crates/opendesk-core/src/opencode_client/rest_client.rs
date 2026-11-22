@@ -158,11 +158,11 @@ impl RestClient {
             .timeout(Duration::from_secs(120))
             .connect_timeout(Duration::from_secs(5))
             .build()
-            .expect("reqwest client configuration is valid");
+            .unwrap_or_else(|_| reqwest::Client::new());
         let stream_client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
             .build()
-            .expect("reqwest stream client configuration is valid");
+            .unwrap_or_else(|_| reqwest::Client::new());
 
         Self {
             client,

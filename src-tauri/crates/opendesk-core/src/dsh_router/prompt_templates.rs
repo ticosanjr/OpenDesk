@@ -434,13 +434,15 @@ pub async fn save(
     let key = workspace_id
         .map(workspace_key)
         .unwrap_or_else(|| GLOBAL_KEY.to_string());
-    settings::set(pool, &key, &value).await
+    settings::set(pool, &key, &value).await.map_err(Into::into)
 }
 
 pub async fn reset(pool: &sqlx::SqlitePool, workspace_id: Option<&str>) -> AppResult<()> {
     match workspace_id {
-        Some(id) => settings::delete(pool, &workspace_key(id)).await,
-        None => settings::delete(pool, GLOBAL_KEY).await,
+        Some(id) => settings::delete(pool, &workspace_key(id))
+            .await
+            .map_err(Into::into),
+        None => settings::delete(pool, GLOBAL_KEY).await.map_err(Into::into),
     }
 }
 

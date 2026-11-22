@@ -112,7 +112,6 @@ pub fn default_workspaces_root() -> PathBuf {
         .join("OpenDesk Workareas")
 }
 
-#[cfg(test)]
 pub fn test_paths(root: &std::path::Path) -> AppPaths {
     let paths = AppPaths {
         data_dir: root.join("data"),
@@ -136,7 +135,7 @@ pub fn test_paths(root: &std::path::Path) -> AppPaths {
         &paths.artifacts_dir,
         &paths.run_logs_dir,
     ] {
-        std::fs::create_dir_all(dir).expect("test dir");
+        let _ = std::fs::create_dir_all(dir);
     }
     paths
 }

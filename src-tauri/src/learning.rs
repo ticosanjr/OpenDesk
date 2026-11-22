@@ -576,7 +576,7 @@ pub async fn promote(
 ) -> AppResult<ConfigProposal> {
     let lesson = get_lesson(pool, workspace_id, id).await?;
     if let Some(proposal_id) = &lesson.proposal_id {
-        return proposals::get(pool, proposal_id).await;
+        return proposals::get(pool, proposal_id).await.map_err(Into::into);
     }
     if lesson.status == "DISMISSED" {
         return Err(AppError::Conflict(

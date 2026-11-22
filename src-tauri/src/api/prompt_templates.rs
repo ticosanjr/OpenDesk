@@ -36,7 +36,9 @@ async fn resolve_workspace(state: &AppState, requested: Option<&str>) -> AppResu
     if let Some(id) = requested.map(str::trim).filter(|value| !value.is_empty()) {
         return Ok(Some(id.to_string()));
     }
-    crate::db::settings::active_workspace_id(&state.db).await
+    crate::db::settings::active_workspace_id(&state.db)
+        .await
+        .map_err(Into::into)
 }
 
 async fn response(state: &AppState, workspace_id: Option<String>) -> AppResult<TemplatesResponse> {

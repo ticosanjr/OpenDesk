@@ -103,7 +103,7 @@ pub async fn next_job(
         Ok(workspace) => workspace,
         Err(error) => {
             let _ = queue::finish(&state.db, &job.id, "FAILED", Some(&error.to_string())).await;
-            return Err(error);
+            return Err(error.into());
         }
     };
     let (provider_id, model_id) = job
@@ -134,7 +134,7 @@ pub async fn next_job(
     .await
     {
         let _ = queue::finish(&state.db, &job.id, "FAILED", Some(&error.to_string())).await;
-        return Err(error);
+        return Err(error.into());
     }
     let sandbox = crate::sandbox::get_for(&state.db, Some(&job.workspace_id))
         .await

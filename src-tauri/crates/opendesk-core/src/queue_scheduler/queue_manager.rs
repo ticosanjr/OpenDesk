@@ -140,7 +140,7 @@ impl QueueManager {
         let tokens = self
             .running_jobs
             .lock()
-            .expect("running jobs mutex")
+            .unwrap_or_else(|poison| poison.into_inner())
             .values()
             .cloned()
             .collect::<Vec<_>>();
@@ -171,7 +171,7 @@ impl QueueManager {
             pause_reason: self
                 .pause_reason
                 .lock()
-                .expect("pause reason mutex")
+                .unwrap_or_else(|poison| poison.into_inner())
                 .clone(),
             active_jobs: self.active.load(Ordering::Relaxed),
             concurrency: self.concurrency(),
@@ -182,13 +182,19 @@ impl QueueManager {
 
     pub async fn pause(&self, reason: impl Into<String>) {
         self.paused.store(true, Ordering::Relaxed);
-        *self.pause_reason.lock().expect("pause reason mutex") = Some(reason.into());
+        *self
+            .pause_reason
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner()) = Some(reason.into());
         self.publish_status_for_all().await;
     }
 
     pub async fn resume(&self) -> AppResult<()> {
         self.paused.store(false, Ordering::Relaxed);
-        *self.pause_reason.lock().expect("pause reason mutex") = None;
+        *self
+            .pause_reason
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner()) = None;
         self.notify.notify_waiters();
         self.publish_status_for_all().await;
         Ok(())
@@ -213,7 +219,7 @@ impl QueueManager {
             let token = self
                 .running_jobs
                 .lock()
-                .expect("running jobs mutex")
+                .unwrap_or_else(|poison| poison.into_inner())
                 .get(id)
                 .cloned();
             if let Some(token) = token {
@@ -325,12 +331,12 @@ impl QueueManager {
         for job in jobs {
             self.lease_expired
                 .lock()
-                .expect("lease set mutex")
+                .unwrap_or_else(|poison| poison.into_inner())
                 .insert(job.id.clone());
             if let Some(token) = self
                 .running_jobs
                 .lock()
-                .expect("running jobs mutex")
+                .unwrap_or_else(|poison| poison.into_inner())
                 .get(&job.id)
             {
                 token.cancel();
@@ -575,7 +581,7 @@ impl QueueManager {
         let cancel = CancellationToken::new();
         self.running_jobs
             .lock()
-            .expect("running jobs mutex")
+            .unwrap_or_else(|poison| poison.into_inner())
             .insert(job.id.clone(), cancel.clone());
 
         let started = Instant::now();
@@ -617,7 +623,7 @@ impl QueueManager {
         if self
             .lease_expired
             .lock()
-            .expect("lease set mutex")
+            .unwrap_or_else(|poison| poison.into_inner())
             .remove(&job.id)
         {
             outcome.status = session_runner::RunStatus::Failed;
@@ -787,7 +793,7 @@ impl QueueManager {
 
         self.running_jobs
             .lock()
-            .expect("running jobs mutex")
+            .unwrap_or_else(|poison| poison.into_inner())
             .remove(&job.id);
         self.publish_queue(&job.workspace_id).await;
 

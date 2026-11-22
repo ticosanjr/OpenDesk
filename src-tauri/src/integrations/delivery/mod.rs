@@ -504,7 +504,7 @@ pub async fn retry_one(state: &AppState, id: &str) -> AppResult<deliveries::Deli
         ));
     }
     retry_delivery(state, &delivery).await?;
-    deliveries::get(&state.db, id).await
+    deliveries::get(&state.db, id).await.map_err(Into::into)
 }
 
 fn retry_delay(attempts: i64) -> i64 {

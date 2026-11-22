@@ -76,7 +76,9 @@ pub async fn load(pool: &sqlx::SqlitePool) -> AppResult<SignalConfig> {
 }
 
 pub async fn save(pool: &sqlx::SqlitePool, config: &SignalConfig) -> AppResult<()> {
-    settings::set(pool, SETTING_KEY, &serde_json::to_value(config)?).await
+    settings::set(pool, SETTING_KEY, &serde_json::to_value(config)?)
+        .await
+        .map_err(Into::into)
 }
 
 pub async fn detect_cli(path: &str) -> Option<String> {
