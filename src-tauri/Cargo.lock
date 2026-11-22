@@ -4922,7 +4922,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "aes-gcm 0.10.3",
  "anyhow",
@@ -4953,6 +4953,7 @@ dependencies = [
  "notify-debouncer-full",
  "open",
  "opendesk-core",
+ "opendesk-storage",
  "p256 0.13.2",
  "pdf-extract",
  "pulldown-cmark",
@@ -5002,7 +5003,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-channels"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "opendesk-domain",
  "serde",
@@ -5010,22 +5011,16 @@ dependencies = [
 
 [[package]]
 name = "opendesk-cli"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
- "chrono",
  "opendesk",
- "serde",
- "serde_json",
- "serde_yaml",
- "sha2 0.11.1",
- "sqlx",
- "tempfile",
+ "opendesk-storage",
  "tokio",
 ]
 
 [[package]]
 name = "opendesk-core"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "aes-gcm 0.10.3",
  "anyhow",
@@ -5078,14 +5073,14 @@ dependencies = [
 
 [[package]]
 name = "opendesk-daemon"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "opendesk",
 ]
 
 [[package]]
 name = "opendesk-domain"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -5097,7 +5092,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-engine"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -5115,7 +5110,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-enterprise"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -5131,7 +5126,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-mcp"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -5139,14 +5134,14 @@ dependencies = [
 
 [[package]]
 name = "opendesk-node"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "opendesk",
 ]
 
 [[package]]
 name = "opendesk-recipes"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "jsonschema",
  "opendesk-domain",
@@ -5158,7 +5153,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-storage"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "aes-gcm 0.10.3",
  "anyhow",
@@ -5170,6 +5165,7 @@ dependencies = [
  "rand 0.8.8",
  "serde",
  "serde_json",
+ "serde_yaml",
  "sha2 0.11.1",
  "sqlx",
  "tempfile",

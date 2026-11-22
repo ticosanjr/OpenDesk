@@ -10,6 +10,7 @@ pub mod db;
 pub mod dedupe;
 pub mod error;
 pub mod events;
+pub mod legacy;
 pub mod paths;
 pub mod pool;
 pub mod repos;

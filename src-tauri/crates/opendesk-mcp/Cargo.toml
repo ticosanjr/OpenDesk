@@ -1,6 +1,6 @@
 [package]
 name = "opendesk-mcp"
-version = "1.4.0"
+version = "1.4.1"
 description = "OpenDesk MCP gateway: rate limiting and RBAC"
 edition = "2024"
 license = "MIT"

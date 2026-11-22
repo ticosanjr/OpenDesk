@@ -34,6 +34,7 @@ mod test_support;
 #[cfg(feature = "desktop")]
 mod tray;
 mod updates;
+mod v1_export;
 mod voice;
 
 pub use opendesk_core::{
@@ -55,6 +56,8 @@ use shell_state::{RemoteShell, ShellState};
 use std::sync::{Arc, OnceLock};
 #[cfg(feature = "desktop")]
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+#[cfg(feature = "desktop")]
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 #[cfg(feature = "desktop")]
 use tauri_plugin_global_shortcut::ShortcutState;
 use tracing_subscriber::EnvFilter;
@@ -181,6 +184,99 @@ fn init_logging() {
 }
 
 #[cfg(feature = "desktop")]
+/// Restart through the outer AppImage when applicable. Re-executing the inner
+/// binary while the AppImage runtime unmounts can kill the new process.
+fn relaunch(app: &tauri::AppHandle) {
+    let executable = std::env::var_os("APPIMAGE")
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::current_exe().ok());
+    if let Some(executable) = executable {
+        #[cfg(target_os = "linux")]
+        {
+            let _ = std::process::Command::new("setsid")
+                .arg(&executable)
+                .spawn();
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = std::process::Command::new(&executable).spawn();
+        }
+    }
+    app.exit(0);
+}
+
+#[cfg(feature = "desktop")]
+fn offer_v1_migration(app: tauri::AppHandle, paths: AppPaths, version: i64) {
+    let out = paths.data_dir.join(format!(
+        "v1-export-{}",
+        chrono::Utc::now().format("%Y%m%d-%H%M%S")
+    ));
+    let message = format!(
+        "Banco OpenDesk V1 detectado (schema {version}).\n\n\
+         Os dados serão exportados para:\n{}\n\n\
+         O arquivo antigo será preservado como opendesk.db.v1-<data> e o OpenDesk \
+         iniciará com um banco V2 novo.",
+        out.display()
+    );
+    let app_for_dialog = app.clone();
+    app.dialog()
+        .message(message)
+        .title("OpenDesk — banco V1")
+        .kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Exportar e continuar".into(),
+            "Sair".into(),
+        ))
+        .show(move |accepted| {
+            if !accepted {
+                let app = app_for_dialog.clone();
+                let handle = app.clone();
+                let _ = app.run_on_main_thread(move || handle.exit(0));
+                return;
+            }
+            let app = app_for_dialog.clone();
+            std::thread::spawn(move || {
+                let result = tauri::async_runtime::block_on(opendesk_storage::legacy::migrate_v1(
+                    &paths, &out,
+                ));
+                match result {
+                    Ok(summary) => {
+                        tracing::info!(
+                            export = %summary.out.display(),
+                            workspaces = summary.workspaces,
+                            recipes = summary.recipes,
+                            settings = summary.settings,
+                            "V1 database exported; restarting with a fresh V2 database"
+                        );
+                        let app = app.clone();
+                        let handle = app.clone();
+                        let _ = app.run_on_main_thread(move || relaunch(&handle));
+                    }
+                    Err(error) => {
+                        tracing::error!(error = %error, "V1 database migration failed");
+                        let app = app.clone();
+                        let handle = app.clone();
+                        let _ = app.run_on_main_thread(move || {
+                            let exit_handle = handle.clone();
+                            handle
+                                .dialog()
+                                .message(format!(
+                                    "Falha ao exportar/migrar o banco V1:\n\n{error:#}"
+                                ))
+                                .title("OpenDesk")
+                                .kind(MessageDialogKind::Error)
+                                .buttons(MessageDialogButtons::Ok)
+                                .show(move |_| {
+                                    exit_handle.exit(1);
+                                });
+                        });
+                    }
+                }
+            });
+        });
+}
+
+#[cfg(feature = "desktop")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     init_logging();
@@ -211,64 +307,88 @@ pub fn run() {
 
     let app = builder
         .setup(|app| {
-            let paths = AppPaths::discover()?;
-            if let Err(error) = desktop_integration::ensure(&paths, env!("CARGO_PKG_VERSION")) {
-                tracing::warn!(error = %error, "desktop shortcut integration failed");
+            let result: Result<(), Box<dyn std::error::Error>> = (|| {
+                let paths = AppPaths::discover()?;
+                if let Err(error) = desktop_integration::ensure(&paths, env!("CARGO_PKG_VERSION")) {
+                    tracing::warn!(error = %error, "desktop shortcut integration failed");
+                }
+
+                // Attach to a healthy daemon before creating any local state. This
+                // keeps `api.json`, the database and the API port owned by exactly
+                // one process even when the desktop starts after `opendeskd`.
+                let shell = Arc::new(
+                    match tauri::async_runtime::block_on(daemon_probe::probe_outcome(&paths)) {
+                        ProbeOutcome::Remote(endpoint) => {
+                            tracing::info!(
+                                host = %endpoint.host,
+                                port = endpoint.port,
+                                "attaching to an external OpenDesk daemon"
+                            );
+                            ShellState::Remote(Arc::new(RemoteShell::new(endpoint, paths)))
+                        }
+                        ProbeOutcome::Embedded => {
+                            // The V2 schema refuses a V1 database. Offer the export
+                            // before acquiring locks, showing the window or the tray.
+                            if let Some(version) = tauri::async_runtime::block_on(
+                                opendesk_storage::legacy::legacy_version(&paths.db_path),
+                            )? {
+                                offer_v1_migration(app.handle().clone(), paths, version);
+                                return Ok(());
+                            }
+                            let Some(lock) = ServerLock::acquire(&paths)? else {
+                                let pid = ServerLock::pid(&paths)
+                                    .map(|pid| pid.to_string())
+                                    .unwrap_or_else(|| "desconhecido".into());
+                                return Err(anyhow::anyhow!(
+                                    "outro processo OpenDesk (pid {pid}) já controla a API local ({})",
+                                    paths.api_lock_path.display()
+                                )
+                                .into());
+                            };
+                            app.manage(lock);
+
+                            let state =
+                                Arc::new(tauri::async_runtime::block_on(AppState::initialize(paths))?);
+                            tauri::async_runtime::block_on(control_plane::start(
+                                state.clone(),
+                                control_plane::StartOptions::default(),
+                            ))?;
+                            tauri::async_runtime::block_on(api::spawn_server(state.clone()))?;
+                            install_shutdown_handlers(app.handle().clone(), state.clone());
+                            ShellState::Embedded(state)
+                        }
+                    },
+                );
+
+                app.manage(shell.clone());
+                tracing::info!(mode = shell.mode(), "desktop shell ready");
+                use tauri_plugin_global_shortcut::GlobalShortcutExt;
+                if let Err(error) = app
+                    .global_shortcut()
+                    .register("CommandOrControl+Shift+Space")
+                {
+                    tracing::warn!(error = %error, "Quick Capture global shortcut unavailable");
+                }
+                tray::setup(app.handle(), shell)?;
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.maximize();
+                }
+                Ok(())
+            })();
+
+            if let Err(error) = result {
+                tracing::error!(error = %error, "OpenDesk startup failed");
+                let handle = app.handle().clone();
+                app.dialog()
+                    .message(format!("Falha ao iniciar o OpenDesk:\n\n{error}"))
+                    .title("OpenDesk")
+                    .kind(MessageDialogKind::Error)
+                    .buttons(MessageDialogButtons::Ok)
+                    .show(move |_| {
+                        handle.exit(1);
+                    });
             }
-
-            // Attach to a healthy daemon before creating any local state. This
-            // keeps `api.json`, the database and the API port owned by exactly
-            // one process even when the desktop starts after `opendeskd`.
-            let shell = Arc::new(
-                match tauri::async_runtime::block_on(daemon_probe::probe_outcome(&paths)) {
-                    ProbeOutcome::Remote(endpoint) => {
-                        tracing::info!(
-                            host = %endpoint.host,
-                            port = endpoint.port,
-                            "attaching to an external OpenDesk daemon"
-                        );
-                        ShellState::Remote(Arc::new(RemoteShell::new(endpoint, paths)))
-                    }
-                    ProbeOutcome::Embedded => {
-                        let Some(lock) = ServerLock::acquire(&paths)? else {
-                            let pid = ServerLock::pid(&paths)
-                                .map(|pid| pid.to_string())
-                                .unwrap_or_else(|| "desconhecido".into());
-                            return Err(anyhow::anyhow!(
-                                "outro processo OpenDesk (pid {pid}) já controla a API local ({})",
-                                paths.api_lock_path.display()
-                            )
-                            .into());
-                        };
-                        app.manage(lock);
-
-                        let state =
-                            Arc::new(tauri::async_runtime::block_on(AppState::initialize(paths))?);
-                        tauri::async_runtime::block_on(control_plane::start(
-                            state.clone(),
-                            control_plane::StartOptions::default(),
-                        ))?;
-                        tauri::async_runtime::block_on(api::spawn_server(state.clone()))?;
-                        install_shutdown_handlers(app.handle().clone(), state.clone());
-                        ShellState::Embedded(state)
-                    }
-                },
-            );
-
-            app.manage(shell.clone());
-            tracing::info!(mode = shell.mode(), "desktop shell ready");
-            use tauri_plugin_global_shortcut::GlobalShortcutExt;
-            if let Err(error) = app
-                .global_shortcut()
-                .register("CommandOrControl+Shift+Space")
-            {
-                tracing::warn!(error = %error, "Quick Capture global shortcut unavailable");
-            }
-            tray::setup(app.handle(), shell)?;
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.maximize();
-            }
-
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -336,6 +456,12 @@ pub fn run() {
 /// window or tray. `OPENDESK_SKIP_DAEMON=1` keeps the OpenCode engine offline.
 pub fn run_cli(args: Vec<String>) {
     cli::run(args);
+}
+
+/// `opendesk migrate-v1-export`: reachable from the AppImage, which does not
+/// ship the separate `opendesk-cli` binary.
+pub fn run_v1_export(args: Vec<String>) {
+    v1_export::run(args);
 }
 
 /// `opendeskd` entry point. Kept as a thin alias so future service packaging

@@ -18,6 +18,11 @@ fn main() {
         )
     }) {
         opendesk_lib::run_cli(cli_args);
+    } else if cli_args
+        .first()
+        .is_some_and(|argument| argument == "migrate-v1-export")
+    {
+        opendesk_lib::run_v1_export(cli_args[1..].to_vec());
     } else if cli_args.first().is_some_and(|argument| {
         argument == "keygen-update" || argument == "sign-update" || argument == "verify-update"
     }) {

@@ -80,6 +80,15 @@ Registro de mudanças de comportamento da refatoração V2. O histórico V1 est�
   clippy limpo. ADR 0204.
 - Engine desbloqueado: pode depender do storage sem depender do core.
 
+## 2026-11-22 — 1.4.1: abertura com banco V1
+
+- Pré-voo detecta V1 antes de janela/tray/locks e oferece "Exportar e continuar".
+- Migração exporta workspaces/receitas/settings, preserva `.db`+WAL/SHM e relança
+  com V2; o binário desktop ganhou `migrate-v1-export`.
+- Janela oculta até o backend subir; erros de startup viram diálogo.
+- Release script sempre reconstrói o daemon; RPM antigo é limpo.
+- ADR 0205.
+
 ## Próximas ondas
 
 2. `opendesk-engine`/`opendesk-recipes`, god-files e event-driven.
