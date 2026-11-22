@@ -55,8 +55,9 @@ Bins: `opendesk` (shell), `opendeskd` (daemon headless), `opendesk-cli`,
 - **Onda 3 (iniciada):** `opendesk-mcp` com rate/RBAC e `opendesk-channels` com
   features + `NotificationRouter`; adaptadores de I/O, pool e server do MCP
   seguem no shell/core até a extração de `db`/`paths`/`secrets`.
-- **Onda 4:** `enterprise`, extinção de `opendesk-core`, shell fino, frontend,
-  doctor e gate de limites.
+- **Onda 4 (iniciada):** `opendesk-enterprise` com auth/computer e gate de
+  limites com ratchet. Extinção do core, cluster/eval, shell fino, frontend e
+  doctor seguem bloqueados pela extração de `db`/engine.
 
 ## 3. Fluxos
 

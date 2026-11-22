@@ -53,6 +53,19 @@ Registro de mudanças de comportamento da refatoração V2. O histórico V1 est�
 - Pendente: pool/server/config do MCP, adaptadores reais, RBAC/rate/auditoria no
   ponto de chamada e elicitation/sampling. ADR 0202.
 
+## 2026-11-22 — Onda 4 (início): enterprise e gate de limites
+
+- `opendesk-enterprise`: `ent-auth` (mtls, update_signing) e `ent-computer`
+  (virtual_display) movidos do core; flags `ent-cluster`/`ent-eval` criadas.
+- Gate `scripts/check-rust-limits.py` + baseline-ratchet: falha em novo arquivo
+  >500 linhas ou `unwrap/expect` fora de testes; dívida legada congelada em 31
+  entradas.
+- Core reexporta os módulos movidos; shell sem mudança.
+- Testes: 340 shell + 258 core + 27 domain + 6 engine + 3 mcp + 13 recipes +
+  15 storage + 4 channels + 6 enterprise (672); clippy e gate verdes.
+- Pendente: extinção do core, sandbox/nodes/workspace_sync/skill_*, shell fino,
+  frontend, doctor e 75%. ADR 0203.
+
 ## Próximas ondas
 
 2. `opendesk-engine`/`opendesk-recipes`, god-files e event-driven.

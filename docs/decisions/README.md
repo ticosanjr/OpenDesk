@@ -6,3 +6,4 @@ congeladas em [`docs/archive/v1/decisions/`](../archive/v1/decisions/).
 - [0200 — Fundação V2](0200-v2-foundation.md)
 - [0201 — Onda 2 (início): engine, recipes e parser](0201-wave2-engine-slice.md)
 - [0202 — Onda 3 (início): canais, MCP e notificações](0202-wave3-mcp-channels-slice.md)
+- [0203 — Onda 4 (início): enterprise e gate de limites](0203-wave4-enterprise-and-limits-gate.md)

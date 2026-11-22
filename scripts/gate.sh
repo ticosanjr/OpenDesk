@@ -25,6 +25,9 @@ echo "==> Rust formatting"
 echo "==> Clippy (-D warnings)"
 (cd src-tauri && cargo clippy --all-targets -- -D warnings)
 
+echo "==> Rust limits (500 lines / no unwrap outside tests)"
+python3 scripts/check-rust-limits.py
+
 echo "==> Rust tests"
 npm run test:rust
 

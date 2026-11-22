@@ -29,7 +29,7 @@ pub use opendesk_mcp::rbac as mcp_rbac;
 pub mod mcp_server;
 pub mod media;
 pub mod metrics;
-pub mod mtls;
+pub use opendesk_enterprise::auth::mtls;
 pub mod nodes;
 pub mod notifier;
 pub mod opencode_client;
@@ -54,8 +54,8 @@ pub mod skill_eval;
 pub mod skill_shadow;
 pub mod text;
 pub mod token_estimate;
-pub mod update_signing;
-pub mod virtual_display;
+pub use opendesk_enterprise::auth::update_signing;
+pub use opendesk_enterprise::computer::virtual_display;
 pub mod workspace_sync;
 
 #[cfg(test)]
