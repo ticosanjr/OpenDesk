@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Loader2, Save, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPut } from "@/lib/api";
-import { slugifyWorkspace } from "@/lib/folder";
 import type {
   AgentFile,
   ModelInfo,
@@ -20,81 +19,9 @@ import {
 } from "@/components/studio/StudioList";
 import { cn } from "@/lib/utils";
 import { confirmAction } from "@/store/confirm-store";
-
-const ACTIONS = [
-  "*",
-  "edit",
-  "shell",
-  "read",
-  "glob",
-  "grep",
-  "webfetch",
-  "websearch",
-  "subagent",
-  "skill",
-];
-
-const EFFECTS = ["allow", "ask", "deny"];
-
-const AVATAR_PRESETS = [
-  "🤖",
-  "🧠",
-  "🛡️",
-  "🧾",
-  "📊",
-  "✍️",
-  "🔍",
-  "⚙️",
-  "🚀",
-  "💡",
-  "🎯",
-  "📚",
-  "🦉",
-  "🧩",
-  "🕵️",
-  "🧑‍💻",
-  "📈",
-  "🧪",
-  "🗂️",
-  "🔧",
-];
-
-const COLOR_PRESETS = [
-  "#60a5fa",
-  "#34d399",
-  "#fbbf24",
-  "#f87171",
-  "#a78bfa",
-  "#22d3ee",
-  "#fb923c",
-  "#f472b6",
-];
-
-function blankAgent(scope: StudioScope): AgentFile {
-  return {
-    id: "",
-    scope,
-    path: "",
-    name: "",
-    avatar: "🤖",
-    description: "",
-    mode: "subagent",
-    model: "",
-    color: "#60a5fa",
-    router_policy: null,
-    hidden: false,
-    steps: null,
-    disabled: false,
-    permissions: [],
-    system: "",
-    sha256: "",
-  };
-}
-
-function initials(value: string): string {
-  const chars = Array.from(value.trim());
-  return chars.slice(0, 2).join("") || "?";
-}
+import { AgentFormFields } from "./agent/AgentFormFields";
+import { AgentPermissionsEditor } from "./agent/AgentPermissionsEditor";
+import { blankAgent, initials, inputClass } from "./agent/agent-presets";
 
 export function AgentPanel({
   scope,
@@ -358,274 +285,21 @@ export function AgentPanel({
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <StudioField label="Nome de exibição" hint="Usado pelo OpenDesk para identificar o agente; o OpenCode ignora este campo.">
-                <input
-                  value={draft.name ?? ""}
-                  onChange={(event) => {
-                    const name = event.target.value;
-                    const next = { ...draft, name };
-                    if (isNew && !idTouched) {
-                      next.id = slugifyWorkspace(name);
-                    }
-                    setDraft(next);
-                  }}
-                  placeholder="Auditor de Qualidade"
-                  className={inputClass}
-                />
-              </StudioField>
-              <StudioField
-                label="ID / slug"
-                hint={
-                  isNew
-                    ? "Gerado automaticamente do nome. Edite apenas se precisar."
-                    : "O ID não é renomeado por esta tela."
-                }
-              >
-                <input
-                  value={draft.id}
-                  disabled={!isNew}
-                  onChange={(event) => {
-                    setIdTouched(true);
-                    setDraft({ ...draft, id: event.target.value });
-                  }}
-                  placeholder="auditor-de-qualidade"
-                  className={cn(inputClass, "font-mono disabled:opacity-60")}
-                />
-              </StudioField>
-              <StudioField label="Avatar" hint="Escolha um preset ou digite outro emoji.">
-                <div className="space-y-2">
-                  <div className="grid grid-cols-10 gap-1">
-                    {AVATAR_PRESETS.map((preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        title={preset}
-                        onClick={() => setDraft({ ...draft, avatar: preset })}
-                        className={cn(
-                          "flex h-7 items-center justify-center rounded-md border text-[14px] transition",
-                          draft.avatar === preset
-                            ? "workspace-selected"
-                            : "border-zinc-800 bg-zinc-900/40 hover:border-zinc-600",
-                        )}
-                      >
-                        {preset}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      value={draft.avatar ?? ""}
-                      onChange={(event) =>
-                        setDraft({ ...draft, avatar: event.target.value })
-                      }
-                      placeholder="🛡️"
-                      maxLength={8}
-                      className={cn(inputClass, "flex-1")}
-                    />
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/50 text-lg">
-                      {draft.avatar || "🤖"}
-                    </span>
-                  </div>
-                </div>
-              </StudioField>
-              <StudioField label="Cor" hint="Presets ou cor personalizada.">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-1.5">
-                    {COLOR_PRESETS.map((preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        title={preset}
-                        onClick={() => setDraft({ ...draft, color: preset })}
-                        className={cn(
-                          "h-6 w-6 rounded-full border-2 transition",
-                          (draft.color || "#60a5fa") === preset
-                            ? "border-white/80"
-                            : "border-transparent hover:border-zinc-500",
-                        )}
-                        style={{ background: preset }}
-                      />
-                    ))}
-                  </div>
-                  <div className="flex h-9 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2">
-                    <input
-                      type="color"
-                      value={draft.color || "#60a5fa"}
-                      onChange={(event) =>
-                        setDraft({ ...draft, color: event.target.value })
-                      }
-                      className="h-5 w-8 cursor-pointer rounded border-0 bg-transparent p-0"
-                    />
-                    <span className="font-mono text-[12px] text-zinc-500">
-                      {draft.color || "#60a5fa"}
-                    </span>
-                  </div>
-                </div>
-              </StudioField>
-              <StudioField
-                label="Política de roteador padrão"
-                hint="Usada como default em rotinas que escolherem este agente."
-              >
-                <select
-                  value={draft.router_policy ?? ""}
-                  onChange={(event) =>
-                    setDraft({
-                      ...draft,
-                      router_policy: event.target.value || null,
-                    })
-                  }
-                  className={inputClass}
-                >
-                  <option value="">herdar do workspace</option>
-                  <option value="COST_BENEFIT">Custo-benefício</option>
-                  <option value="CHEAPEST">Mais barato</option>
-                  <option value="BEST_QUALITY">Máxima qualidade</option>
-                  <option value="MANUAL">Manual</option>
-                  <option value="CUSTOM_RULES">Regras customizadas</option>
-                </select>
-              </StudioField>
-              <StudioField label="Modo">
-                <select
-                  value={draft.mode ?? "subagent"}
-                  onChange={(event) => setDraft({ ...draft, mode: event.target.value })}
-                  className={inputClass}
-                >
-                  <option value="primary">primary</option>
-                  <option value="subagent">subagent</option>
-                  <option value="all">all</option>
-                </select>
-              </StudioField>
-              <StudioField label="Modelo" hint="provider/model ou provider/model#variant.">
-                <input
-                  list="opendesk-models"
-                  value={draft.model ?? ""}
-                  onChange={(event) => setDraft({ ...draft, model: event.target.value })}
-                  placeholder="opencode-go/glm-5.3"
-                  className={cn(inputClass, "font-mono text-[13px]")}
-                />
-                <datalist id="opendesk-models">
-                  {models.map((model) => {
-                    const provider = model.providerID ?? "";
-                    const id = model.modelID ?? model.id;
-                    return (
-                      <option
-                        key={`${provider}/${id}`}
-                        value={`${provider}/${id}`}
-                      />
-                    );
-                  })}
-                </datalist>
-              </StudioField>
-              <StudioField label="Steps" hint="Máximo de passos do modelo; vazio usa o padrão.">
-                <input
-                  type="number"
-                  min={1}
-                  value={draft.steps ?? ""}
-                  onChange={(event) =>
-                    setDraft({
-                      ...draft,
-                      steps: event.target.value ? Number(event.target.value) : null,
-                    })
-                  }
-                  className={inputClass}
-                />
-              </StudioField>
-              <div className="flex items-end gap-4 pb-1">
-                <label className="flex items-center gap-2 text-[13px] text-zinc-400">
-                  <input
-                    type="checkbox"
-                    checked={draft.hidden}
-                    onChange={(event) => setDraft({ ...draft, hidden: event.target.checked })}
-                    className="accent-blue-500"
-                  />
-                  hidden
-                </label>
-                <label className="flex items-center gap-2 text-[13px] text-zinc-400">
-                  <input
-                    type="checkbox"
-                    checked={draft.disabled}
-                    onChange={(event) => setDraft({ ...draft, disabled: event.target.checked })}
-                    className="accent-blue-500"
-                  />
-                  disabled
-                </label>
-              </div>
-            </div>
+            <AgentFormFields
+              draft={draft}
+              onDraftChange={setDraft}
+              isNew={isNew}
+              idTouched={idTouched}
+              setIdTouched={setIdTouched}
+              models={models}
+            />
 
-            <StudioField label="Descrição">
-              <input
-                value={draft.description ?? ""}
-                onChange={(event) => setDraft({ ...draft, description: event.target.value })}
-                placeholder="Especialista em auditoria de qualidade"
-                className={inputClass}
-              />
-            </StudioField>
-
-            <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/25">
-              <div className="flex items-center justify-between border-b border-zinc-800/60 px-3 py-2">
-                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-                  Permissões V2
-                </span>
-                <Button variant="outline" size="sm" className="h-7" onClick={addPermission}>
-                  Adicionar regra
-                </Button>
-              </div>
-              <div className="space-y-2 p-3">
-                {draft.permissions.length === 0 ? (
-                  <p className="text-[12px] text-zinc-500">
-                    Sem regras próprias. O agente herda as permissões globais do OpenCode.
-                  </p>
-                ) : (
-                  draft.permissions.map((permission, index) => (
-                    <div key={index} className="grid grid-cols-[130px_1fr_100px_28px] gap-2">
-                      <select
-                        value={permission.action}
-                        onChange={(event) =>
-                          updatePermission(index, { action: event.target.value })
-                        }
-                        className={cn(inputClass, "font-mono text-[12px]")}
-                      >
-                        {ACTIONS.map((action) => (
-                          <option key={action} value={action}>
-                            {action}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        value={permission.resource}
-                        onChange={(event) =>
-                          updatePermission(index, { resource: event.target.value })
-                        }
-                        placeholder="*"
-                        className={cn(inputClass, "font-mono text-[12px]")}
-                      />
-                      <select
-                        value={permission.effect}
-                        onChange={(event) =>
-                          updatePermission(index, { effect: event.target.value })
-                        }
-                        className={cn(inputClass, "font-mono text-[12px]")}
-                      >
-                        {EFFECTS.map((effect) => (
-                          <option key={effect} value={effect}>
-                            {effect}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => removePermission(index)}
-                        className="rounded-lg text-zinc-500 hover:bg-zinc-800 hover:text-red-300"
-                        title="Remover"
-                      >
-                        <Trash2 size={13} className="mx-auto" />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            <AgentPermissionsEditor
+              permissions={draft.permissions}
+              onAdd={addPermission}
+              onUpdate={updatePermission}
+              onRemove={removePermission}
+            />
 
             <StudioField label="System prompt" hint="O corpo Markdown do arquivo é o system prompt do agente.">
               <textarea
@@ -648,6 +322,3 @@ export function AgentPanel({
     </div>
   );
 }
-
-const inputClass =
-  "h-9 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 text-[13.5px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60 disabled:cursor-not-allowed";

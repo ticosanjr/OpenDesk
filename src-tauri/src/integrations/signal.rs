@@ -182,11 +182,16 @@ impl SignalBridge {
 
     async fn run(self: Arc<Self>, state: Arc<AppState>) -> anyhow::Result<()> {
         let config = load(&state.db).await?;
-        let mut child = Command::new(&config.cli_path)
+        let mut command = Command::new(&config.cli_path);
+        command
             .args(["-a", &config.account, "--output", "json", "daemon"])
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
+            .kill_on_drop(true);
+        #[cfg(unix)]
+        command.process_group(0);
+        let mut child = command
             .spawn()
             .map_err(|error| anyhow::anyhow!("could not start signal-cli: {error}"))?;
 
@@ -222,16 +227,19 @@ impl SignalBridge {
         if let Some(mut child) = link.take() {
             let _ = child.kill().await;
         }
-        let mut child = Command::new(cli_path)
+        let mut command = Command::new(cli_path);
+        command
             .args(["link", "-n", "OpenDesk"])
             .env("PATH", signal_path())
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|error| {
-                AppError::BadRequest(format!("could not run signal-cli link: {error}"))
-            })?;
+            .kill_on_drop(true);
+        #[cfg(unix)]
+        command.process_group(0);
+        let mut child = command.spawn().map_err(|error| {
+            AppError::BadRequest(format!("could not run signal-cli link: {error}"))
+        })?;
 
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
@@ -491,6 +499,9 @@ pub async fn send_with_attachments(
     attachments: &[String],
 ) -> AppResult<()> {
     let mut command = Command::new(cli_path);
+    command.kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
     command.args(["-a", account, "send", recipient, "-m", message]);
     for attachment in attachments {
         command.arg("--attachment").arg(attachment);

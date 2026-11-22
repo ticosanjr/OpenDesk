@@ -317,6 +317,17 @@ pub async fn heartbeat(pool: &SqlitePool, id: &str) -> AppResult<()> {
     Ok(())
 }
 
+/// Earliest lease expiry among running jobs, so the worker can sleep until it
+/// instead of polling. `None` means there is nothing to expire.
+pub async fn next_lease_deadline(pool: &SqlitePool) -> AppResult<Option<String>> {
+    Ok(sqlx::query_scalar(
+        "SELECT MIN(lease_expires_at) FROM execution_queue
+         WHERE status = 'RUNNING' AND lease_expires_at IS NOT NULL",
+    )
+    .fetch_one(pool)
+    .await?)
+}
+
 pub async fn expired_leases(pool: &SqlitePool) -> AppResult<Vec<QueueJob>> {
     let query = format!(
         "SELECT {COLUMNS} FROM execution_queue q

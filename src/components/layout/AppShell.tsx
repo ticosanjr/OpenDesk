@@ -1,59 +1,23 @@
 import { Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { AlertTriangle, RefreshCw, Settings, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { Topbar } from "@/components/layout/Topbar";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { WorkspaceDialog } from "@/components/layout/WorkspaceDialog";
-import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { GlobalHitlModal } from "@/components/interactions/GlobalHitlModal";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { Modal } from "@/components/ui/modal";
 import { Toaster } from "@/components/ui/toaster";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
-import { toast, useToastStore } from "@/store/toast-store";
-import { formatUsd } from "@/lib/format";
-import { links } from "@/lib/links";
 import { isEditableTarget } from "@/lib/keyboard";
-import { apiGet } from "@/lib/api";
-import type { Schedule, Task, TaskRun } from "@/lib/types";
-import { runNotification } from "@/lib/run-notification";
-import {
-  artifactNotificationsEnabled,
-  isTerminalTaskStatus,
-  markNotificationOnce,
-  notificationEnabled,
-  sendNativeNotification,
-} from "@/lib/notification-policy";
+import { AppBanners } from "@/components/layout/app-shell/AppBanners";
+import { ShortcutsModal } from "@/components/layout/app-shell/ShortcutsModal";
+import { routeLabel, safeHexColor } from "@/components/layout/app-shell/helpers";
+import { useAppNotifications } from "@/components/layout/app-shell/use-app-notifications";
 
-const ROUTE_LABELS: Array<[string, string]> = [
-  ["/search", "Buscar"],
-  ["/kanban", "Kanban"],
-  ["/calendar", "Calendário"],
-  ["/runs/", "Execução"],
-  ["/runs", "Execuções"],
-  ["/chat", "Chat"],
-  ["/artifacts", "Artefatos"],
-  ["/files", "Arquivos"],
-  ["/routines", "Rotinas"],
-  ["/recipes", "Receitas"],
-  ["/packs", "Pacotes"],
-  ["/studio", "Studio"],
-  ["/governance", "Governança"],
-  ["/observability", "Observabilidade"],
-  ["/learning", "Aprendizado"],
-  ["/router", "Roteador"],
-  ["/integrations", "Integrações"],
-  ["/settings", "Configurações"],
-];
-
-function routeLabel(pathname: string): string {
-  if (pathname === "/") return "Dashboard";
-  return ROUTE_LABELS.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? "OpenDesk";
-}
+export { safeHexColor } from "@/components/layout/app-shell/helpers";
 
 export function AppShell() {
   const mainRef = useRef<HTMLElement | null>(null);
@@ -71,16 +35,12 @@ export function AppShell() {
   const setTaskDialogOpen = useUiStore((state) => state.setTaskDialogOpen);
   const navigate = useNavigate();
   const budgetAlert = useAppStore((state) => state.budgetAlert);
-  const lastRunEvent = useAppStore((state) => state.lastRunEvent);
-  const lastEngineUpdate = useAppStore((state) => state.lastEngineUpdate);
-  const lastArtifact = useAppStore((state) => state.lastArtifact);
-  const lastTaskEvent = useAppStore((state) => state.lastTaskEvent);
-  const lastGoogleEvent = useAppStore((state) => state.lastGoogleEvent);
-  const lastScheduleEvent = useAppStore((state) => state.lastScheduleEvent);
   const location = useLocation();
   const [dismissedBudget, setDismissedBudget] = useState<string | null>(null);
   const [retryingEngine, setRetryingEngine] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  useAppNotifications();
 
   useEffect(() => {
     setDismissedBudget(null);
@@ -110,214 +70,6 @@ export function AppShell() {
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 });
   }, [location.pathname]);
-
-  useEffect(() => {
-    if (!lastRunEvent) return;
-    // Tasks go through Plan/Build/Audit runs. Only the terminal task status
-    // notifies; runs without a task (schedules) notify once per run.
-    if (lastRunEvent.task_id) return;
-    const status = lastRunEvent.status;
-    const enabled =
-      status === "SUCCESS"
-        ? notificationEnabled("run_finished")
-        : notificationEnabled("run_failed");
-    if (!enabled) return;
-    const key = `run:${lastRunEvent.run_id}:${status}`;
-    if (!markNotificationOnce(key)) return;
-    void (async () => {
-      let run: TaskRun | null = null;
-      try {
-        run = await apiGet<TaskRun>(
-          `/api/runs/${encodeURIComponent(lastRunEvent.run_id)}`,
-        );
-      } catch {
-        // Fall back to the generic message.
-      }
-      const notification = runNotification(
-        status,
-        run?.task_title ?? "Execução",
-        run,
-      );
-      toast({
-        tone: status === "SUCCESS" ? "success" : status === "FAILED" ? "error" : "warning",
-        title: notification.title,
-        description: notification.body,
-        href: links.run(lastRunEvent.run_id),
-        key,
-      });
-      void sendNativeNotification(notification.title, notification.body);
-    })();
-  }, [lastRunEvent]);
-
-  useEffect(() => {
-    const event = lastTaskEvent;
-    if (!event || !isTerminalTaskStatus(event.stage)) return;
-    const enabled =
-      event.stage === "DONE"
-        ? notificationEnabled("run_finished")
-        : notificationEnabled("run_failed");
-    if (!enabled) return;
-    const key = `task:${event.task_id}:${event.stage}`;
-    if (!markNotificationOnce(key)) return;
-    void (async () => {
-      let task: Task | null = null;
-      let run: TaskRun | null = null;
-      try {
-        task = await apiGet<Task>(`/api/tasks/${encodeURIComponent(event.task_id)}`);
-        const runs = await apiGet<TaskRun[]>(
-          `/api/runs?workspace_id=${encodeURIComponent(event.workspace_id)}&task_id=${encodeURIComponent(event.task_id)}&limit=1`,
-        );
-        run = runs[0] ?? null;
-      } catch {
-        // The notification still explains the terminal state.
-      }
-      const notification = runNotification(
-        event.stage,
-        task?.title ?? "Tarefa",
-        run
-          ? { ...run, task_title: task?.title ?? run.task_title }
-          : null,
-      );
-      toast({
-        tone: event.stage === "DONE" ? "success" : event.stage === "BLOCKED" ? "error" : "warning",
-        title: notification.title,
-        description: notification.body,
-        href: links.task(event.task_id),
-        key,
-      });
-      void sendNativeNotification(notification.title, notification.body);
-    })();
-  }, [lastTaskEvent]);
-
-  useEffect(() => {
-    if (!lastEngineUpdate) return;
-    if (!["done", "failed"].includes(lastEngineUpdate.phase)) return;
-    const key = `engine:${lastEngineUpdate.phase}:${lastEngineUpdate.message ?? ""}`;
-    if (!markNotificationOnce(key)) return;
-    const title =
-      lastEngineUpdate.ok === false || lastEngineUpdate.phase === "failed"
-        ? "Atualização falhou"
-        : "Atualização concluída";
-    toast({
-      tone: title.includes("falhou") ? "error" : "success",
-      title,
-      description: lastEngineUpdate.message ?? undefined,
-      href: links.settings("engine"),
-      key,
-    });
-    void sendNativeNotification(title, lastEngineUpdate.message ?? "");
-  }, [lastEngineUpdate]);
-
-  useEffect(() => {
-    if (!lastArtifact || location.pathname === "/artifacts") return;
-    if (!artifactNotificationsEnabled()) return;
-    const key = `artifacts:${lastArtifact.run_id || lastArtifact.id}`;
-    if (!markNotificationOnce(key)) return;
-    toast({
-      tone: "info",
-      title: "Artefato criado",
-      description: lastArtifact.file_path,
-      href: links.artifact(lastArtifact.id),
-      key,
-      duration: 3200,
-    });
-  }, [lastArtifact, location.pathname]);
-
-  useEffect(() => {
-    if (!lastGoogleEvent) return;
-    const key = `google:${lastGoogleEvent.workspace_id}:${lastGoogleEvent.connected}`;
-    if (!markNotificationOnce(key)) return;
-    const title = lastGoogleEvent.connected
-      ? "Google conectado"
-      : "Google desconectado";
-    toast({
-      tone: lastGoogleEvent.connected ? "success" : "warning",
-      title,
-      description: lastGoogleEvent.email ?? undefined,
-      href: links.integration("google"),
-      key,
-    });
-    void sendNativeNotification(title, lastGoogleEvent.email ?? "");
-  }, [lastGoogleEvent]);
-
-  useEffect(() => {
-    if (!lastScheduleEvent) return;
-    if (!notificationEnabled("schedule_skips")) return;
-    let cancelled = false;
-    void apiGet<Schedule[]>(
-      `/api/schedules?workspace_id=${encodeURIComponent(lastScheduleEvent.workspace_id)}`,
-    )
-      .then((list) => {
-        if (cancelled) return;
-        const schedule = list.find(
-          (item) => item.id === lastScheduleEvent.schedule_id,
-        );
-        const status = schedule?.last_run_status ?? "";
-        const stamp = schedule?.last_run_at ?? "";
-        if (
-          !stamp ||
-          !["FAILED", "REJECTED", "TIMED_OUT", "SKIPPED_OFFLINE", "INVALID_CRON"].includes(
-            status,
-          )
-        ) {
-          return;
-        }
-        const key = `schedule:${lastScheduleEvent.schedule_id}:${stamp}:${status}`;
-        if (!markNotificationOnce(key)) return;
-        const title =
-          status === "SKIPPED_OFFLINE"
-            ? "Rotina pulada: engine offline"
-            : status === "REJECTED"
-              ? "Rotina rejeitada no checkpoint"
-              : status === "TIMED_OUT"
-                ? "Rotina expirou no checkpoint"
-                : "Rotina falhou";
-        toast({
-          tone: status === "SKIPPED_OFFLINE" ? "warning" : "error",
-          title,
-          description: schedule?.name,
-          href: links.schedule(lastScheduleEvent.schedule_id),
-          key,
-        });
-        void sendNativeNotification(title, schedule?.name ?? "");
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [lastScheduleEvent]);
-
-  useEffect(() => {
-    if (!budgetAlert) return;
-    const key = `budget:${budgetAlert.level}:${budgetAlert.message}`;
-    if (!markNotificationOnce(key)) return;
-    const title =
-      budgetAlert.level === "hard"
-        ? "Orçamento bloqueado"
-        : "Orçamento próximo do limite";
-    toast({
-      tone: budgetAlert.level === "hard" ? "error" : "warning",
-      title,
-      description: budgetAlert.message,
-      href: "/router",
-      key,
-      duration: budgetAlert.level === "hard" ? 0 : 6000,
-    });
-    void sendNativeNotification(title, budgetAlert.message);
-  }, [budgetAlert]);
-
-  useEffect(() => {
-    const clear = () => useToastStore.getState().clear();
-    const onVisibility = () => {
-      if (document.hidden) clear();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("beforeunload", clear);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("beforeunload", clear);
-    };
-  }, []);
 
   const engineOffline =
     daemon !== null &&
@@ -406,107 +158,28 @@ export function AppShell() {
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
-        {loading ? (
-          <div className="h-0.5 w-full overflow-hidden bg-zinc-900">
-            <div className="h-full w-1/3 animate-[loading_1.2s_ease-in-out_infinite] bg-blue-500/70" />
-          </div>
-        ) : null}
-        {error ? (
-          <div className="flex items-center gap-3 border-b border-red-500/20 bg-red-500/10 px-4 py-2 text-[13px] text-red-300">
-            <AlertTriangle size={14} />
-            <span className="flex-1">{error}</span>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                setRetryingEngine(true);
-                void boot().finally(() => setRetryingEngine(false));
-              }}
-              className="h-7"
-              disabled={retryingEngine}
-            >
-              <RefreshCw
-                size={12}
-                className={retryingEngine ? "animate-spin" : undefined}
-              />
-              Tentar novamente
-            </Button>
-          </div>
-        ) : null}
-        {engineOffline ? (
-          <div className="flex flex-wrap items-center gap-3 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-[13px] text-amber-200">
-            <AlertTriangle size={14} className="shrink-0" />
-            <span className="min-w-0 flex-1">
-              <strong className="font-semibold">OpenCode offline.</strong>{" "}
-              {daemon?.message ??
-                "Nenhum binário foi detectado e nenhum serviço compartilhado respondeu."}{" "}
-              Nada será enfileirado até o motor voltar.
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7"
-              onClick={() => navigate("/settings?section=engine")}
-            >
-              <Settings size={12} />
-              Configurar binário
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7"
-              onClick={() => {
-                setRetryingEngine(true);
-                void restartDaemon()
-                  .finally(() => void refresh())
-                  .finally(() => setRetryingEngine(false));
-              }}
-              disabled={retryingEngine}
-            >
-              <RefreshCw
-                size={12}
-                className={retryingEngine ? "animate-spin" : undefined}
-              />
-              Tentar novamente
-            </Button>
-          </div>
-        ) : null}
-        {budgetAlert && dismissedBudget !== budgetAlert.message ? (
-          <div
-            className={
-              budgetAlert.level === "hard"
-                ? "flex flex-wrap items-center gap-3 border-b border-red-500/25 bg-red-500/10 px-4 py-2 text-[13px] text-red-200"
-                : "flex flex-wrap items-center gap-3 border-b border-amber-500/25 bg-amber-500/10 px-4 py-2 text-[13px] text-amber-200"
-            }
-          >
-            <AlertTriangle size={14} className="shrink-0" />
-            <span className="min-w-0 flex-1">
-              <strong className="font-semibold">
-                {budgetAlert.level === "hard"
-                  ? "Orçamento bloqueado."
-                  : "Orçamento próximo do limite."}{" "}
-              </strong>
-              {budgetAlert.message} ({formatUsd(budgetAlert.daily_spent)} de{" "}
-              {formatUsd(budgetAlert.daily_limit)})
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7"
-              onClick={() => navigate("/router")}
-            >
-              Ajustar limite
-            </Button>
-            <button
-              type="button"
-              aria-label="Fechar aviso de orçamento"
-              className="rounded p-1 opacity-60 hover:opacity-100"
-              onClick={() => setDismissedBudget(budgetAlert.message)}
-            >
-              <X size={13} />
-            </button>
-          </div>
-        ) : null}
+        <AppBanners
+          loading={loading}
+          error={error}
+          engineOffline={engineOffline}
+          daemonMessage={daemon?.message}
+          budgetAlert={budgetAlert}
+          dismissedBudget={dismissedBudget}
+          retryingEngine={retryingEngine}
+          onRetryBoot={() => {
+            setRetryingEngine(true);
+            void boot().finally(() => setRetryingEngine(false));
+          }}
+          onConfigureEngine={() => navigate("/settings?section=engine")}
+          onAdjustBudget={() => navigate("/router")}
+          onRestartDaemon={() => {
+            setRetryingEngine(true);
+            void restartDaemon()
+              .finally(() => void refresh())
+              .finally(() => setRetryingEngine(false));
+          }}
+          onDismissBudget={setDismissedBudget}
+        />
         <main
           ref={mainRef}
           className="app-main min-h-0 flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0"
@@ -534,46 +207,11 @@ export function AppShell() {
       <WorkspaceDialog />
       <ConfirmDialog />
       <GlobalHitlModal />
-      <Modal
+      <ShortcutsModal
         open={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}
-        title="Atalhos do OpenDesk"
-        description="Produtividade sem sair do teclado."
-        size="md"
-      >
-        <div className="space-y-1.5">
-          {[
-            ["Ctrl/Cmd + K", "Abrir busca global / command palette"],
-            ["Ctrl/Cmd + N", "Criar nova tarefa"],
-            ["Ctrl/Cmd + Shift + Space", "Quick Capture (texto, link ou print)"],
-            ["Ctrl/Cmd + Shift + R", "Atualizar dados do workspace"],
-            ["?", "Mostrar ou esconder esta ajuda"],
-            ["Esc", "Fechar modal, drawer ou paleta"],
-            ["Enter", "Abrir tarefa selecionada no Kanban"],
-          ].map(([keys, label]) => (
-            <div
-              key={keys}
-              className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
-            >
-              <span className="text-[13.5px] text-zinc-300">{label}</span>
-              <kbd className="rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 font-mono text-[12px] text-zinc-400">
-                {keys}
-              </kbd>
-            </div>
-          ))}
-        </div>
-      </Modal>
+      />
       <Toaster />
     </div>
   );
-}
-
-const FALLBACK_ACCENT = "#3b82f6";
-
-/** Accept only #rgb/#rrggbb so a bad workspace value cannot break CSS vars. */
-export function safeHexColor(value?: string | null): string {
-  if (typeof value !== "string") return FALLBACK_ACCENT;
-  const trimmed = value.trim();
-  if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) return trimmed;
-  return FALLBACK_ACCENT;
 }

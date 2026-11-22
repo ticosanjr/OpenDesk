@@ -58,7 +58,8 @@ pub fn start(session_id: &str) -> AppResult<String> {
             .spawn()
             .map_err(|error| AppError::Internal(format!("Xvfb: {error}")))?;
         let mut ready = false;
-        for _ in 0..30 {
+        // Cold boots and loaded CI machines can take longer than 1.5 s.
+        for _ in 0..100 {
             if Path::new(&socket).exists() {
                 ready = true;
                 break;

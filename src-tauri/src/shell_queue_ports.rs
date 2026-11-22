@@ -6,7 +6,6 @@
 use crate::{
     app_state::AppState,
     db::queue::QueueJob,
-    error::AppResult,
     integrations::{delivery, google_oauth::GoogleOAuth},
     queue_ports::{QueuePorts, TaskDispatcher},
     run_notifier::ShellRunNotifier,
@@ -29,7 +28,7 @@ impl QueuePorts for ShellQueuePorts {
         job: &QueueJob,
         run_id: &str,
         success: bool,
-    ) -> AppResult<()> {
+    ) -> opendesk_engine::error::AppResult<()> {
         if let Ok(Some(lesson)) = crate::learning::capture_run(pool, run_id).await {
             tracing::debug!(lesson_id = %lesson.id, "learning lesson captured");
             events.publish(crate::events::OpenDeskWsEvent::LearningUpdated {
@@ -102,7 +101,7 @@ impl ShellTaskDispatcher {
 
 #[async_trait]
 impl TaskDispatcher for ShellTaskDispatcher {
-    async fn dispatch_task(&self, task_id: &str) -> AppResult<()> {
+    async fn dispatch_task(&self, task_id: &str) -> opendesk_engine::error::AppResult<()> {
         let state = self
             .state
             .get()
@@ -116,6 +115,7 @@ impl TaskDispatcher for ShellTaskDispatcher {
         )
         .await
         .map(|_| ())
+        .map_err(Into::into)
     }
 }
 

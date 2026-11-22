@@ -108,7 +108,7 @@ impl GoogleOAuth {
             http: reqwest::Client::builder()
                 .timeout(StdDuration::from_secs(60))
                 .build()
-                .expect("Google HTTP client"),
+                .unwrap_or_else(|_| reqwest::Client::new()),
             pending: Mutex::new(HashMap::new()),
             cache: Mutex::new(HashMap::new()),
             refresh_lock: tokio::sync::Mutex::new(()),
@@ -178,7 +178,10 @@ impl GoogleOAuth {
         let redirect_uri = self.callback_url();
 
         {
-            let mut pending = self.pending.lock().expect("oauth pending mutex");
+            let mut pending = self
+                .pending
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
             pending.retain(|_, flow| Utc::now() - flow.created_at < Duration::minutes(15));
             pending.insert(
                 state.clone(),
@@ -238,7 +241,7 @@ impl GoogleOAuth {
         self.secrets.delete("google", &refresh_key(workspace_id))?;
         self.cache
             .lock()
-            .expect("google token cache")
+            .unwrap_or_else(|poison| poison.into_inner())
             .remove(workspace_id);
         integrations::clear_google(&self.pool, workspace_id).await?;
         self.events
@@ -325,7 +328,10 @@ impl GoogleOAuth {
 
     async fn ensure_callback_server(self: &Arc<Self>) -> AppResult<()> {
         let already_running = {
-            let task = self.callback_task.lock().expect("oauth callback task");
+            let task = self
+                .callback_task
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
             task.as_ref()
                 .map(|handle| !handle.is_finished())
                 .unwrap_or(false)
@@ -351,7 +357,10 @@ impl GoogleOAuth {
                 tracing::warn!(error = %error, "Google OAuth callback server stopped");
             }
         });
-        *self.callback_task.lock().expect("oauth callback task") = Some(handle);
+        *self
+            .callback_task
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner()) = Some(handle);
         Ok(())
     }
 
@@ -428,7 +437,10 @@ impl GoogleOAuth {
     }
 
     fn cached_token(&self, workspace_id: &str) -> Option<String> {
-        let cache = self.cache.lock().expect("google token cache");
+        let cache = self
+            .cache
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
         cache
             .get(workspace_id)
             .filter(|token| token.expires_at > Utc::now() + Duration::seconds(30))
@@ -437,13 +449,16 @@ impl GoogleOAuth {
 
     fn cache_token(&self, workspace_id: &str, access_token: String, expires_in: Option<i64>) {
         let expires_at = Utc::now() + Duration::seconds(expires_in.unwrap_or(3300));
-        self.cache.lock().expect("google token cache").insert(
-            workspace_id.to_string(),
-            CachedToken {
-                access_token,
-                expires_at,
-            },
-        );
+        self.cache
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .insert(
+                workspace_id.to_string(),
+                CachedToken {
+                    access_token,
+                    expires_at,
+                },
+            );
     }
 }
 
@@ -483,7 +498,7 @@ async fn callback(
     let flow = oauth
         .pending
         .lock()
-        .expect("oauth pending mutex")
+        .unwrap_or_else(|poison| poison.into_inner())
         .remove(&state);
     let Some(flow) = flow else {
         return Html(page(

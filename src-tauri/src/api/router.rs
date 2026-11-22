@@ -325,12 +325,9 @@ pub async fn analyze(
     let router_model = crate::db::settings::get(&state.db, "router_model")
         .await?
         .and_then(|value| value.as_str().map(str::to_string));
-    let recommendation = if rows.is_empty() {
-        "Nenhum modelo com preço disponível. Verifique se o OpenCode está online e expõe custos por modelo.".to_string()
-    } else {
-        let cheapest = rows.first().expect("non-empty");
-        let priciest = rows.last().expect("non-empty");
-        let spread = if cheapest.blended_cost > 0.0 {
+    let recommendation = match rows.first().zip(rows.last()) {
+        Some((cheapest, priciest)) => {
+            let spread = if cheapest.blended_cost > 0.0 {
             priciest.blended_cost / cheapest.blended_cost
         } else {
             1.0
@@ -350,7 +347,9 @@ pub async fn analyze(
                     " Modelo roteador configurado: {model} (parecer local, sem chamada ao modelo)."
                 ))
                 .unwrap_or_default()
-        )
+            )
+        }
+        None => "Nenhum modelo com preço disponível. Verifique se o OpenCode está online e expõe custos por modelo.".to_string(),
     };
     Ok(Json(serde_json::json!({
         "workspace_id": workspace_id,

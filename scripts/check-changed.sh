@@ -40,7 +40,8 @@ if [[ "$rust" == "1" ]]; then
 fi
 
 if [[ "$frontend" == "1" ]]; then
-  echo "==> Frontend changed: lint, TypeScript and Vitest"
+  echo "==> Frontend changed: size limits, lint, TypeScript and Vitest"
+  python3 scripts/check-frontend-limits.py
   npm run lint
   npm run check
   npm run test:ui

@@ -1,5 +1,4 @@
 use crate::{
-    error::AppResult,
     integrations,
     notifier::{PermissionNotice, RunNotifier},
 };
@@ -11,7 +10,10 @@ pub struct ShellRunNotifier;
 
 #[async_trait]
 impl RunNotifier for ShellRunNotifier {
-    async fn permission_requested(&self, notice: PermissionNotice<'_>) -> AppResult<()> {
+    async fn permission_requested(
+        &self,
+        notice: PermissionNotice<'_>,
+    ) -> opendesk_engine::error::AppResult<()> {
         let PermissionNotice {
             pool,
             secrets,

@@ -206,7 +206,7 @@ impl AppState {
         let cancel = CancellationToken::new();
         self.chat_turns
             .lock()
-            .expect("chat turn mutex is not poisoned")
+            .unwrap_or_else(|poison| poison.into_inner())
             .insert(
                 thread_id.to_string(),
                 ActiveChatTurn {
@@ -222,7 +222,7 @@ impl AppState {
         let mut turns = self
             .chat_turns
             .lock()
-            .expect("chat turn mutex is not poisoned");
+            .unwrap_or_else(|poison| poison.into_inner());
         if turns
             .get(thread_id)
             .is_some_and(|turn| turn.turn_id == turn_id)
@@ -234,7 +234,7 @@ impl AppState {
     pub fn active_chat_turn(&self, thread_id: &str) -> Option<String> {
         self.chat_turns
             .lock()
-            .expect("chat turn mutex is not poisoned")
+            .unwrap_or_else(|poison| poison.into_inner())
             .get(thread_id)
             .map(|turn| turn.turn_id.clone())
     }
@@ -245,7 +245,7 @@ impl AppState {
         let turns = self
             .chat_turns
             .lock()
-            .expect("chat turn mutex is not poisoned");
+            .unwrap_or_else(|poison| poison.into_inner());
         let turn = turns.get(thread_id)?;
         turn.cancel.cancel();
         Some((turn.turn_id.clone(), turn.session_id.clone()))
@@ -254,7 +254,7 @@ impl AppState {
     pub fn take_listener(&self) -> Option<TcpListener> {
         self.listener
             .lock()
-            .expect("OpenDesk listener mutex is not poisoned")
+            .unwrap_or_else(|poison| poison.into_inner())
             .take()
     }
 
@@ -284,7 +284,7 @@ impl AppState {
         let mut watcher = self
             .studio_watcher
             .lock()
-            .expect("OpenDesk watcher mutex is not poisoned");
+            .unwrap_or_else(|poison| poison.into_inner());
         watcher.watch(&paths, &workspace_id, self.events.clone())?;
         Ok(())
     }

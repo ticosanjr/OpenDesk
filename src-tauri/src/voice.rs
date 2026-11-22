@@ -188,12 +188,13 @@ pub async fn transcribe(
             ("voice", &settings.voice),
         ],
     );
-    let output = tokio::time::timeout(
-        Duration::from_secs(10 * 60),
-        tokio::process::Command::new(&engine).args(&args).output(),
-    )
-    .await
-    .map_err(|_| AppError::Internal("transcrição expirou".into()))??;
+    let mut command = tokio::process::Command::new(&engine);
+    command.args(&args).kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
+    let output = tokio::time::timeout(Duration::from_secs(10 * 60), command.output())
+        .await
+        .map_err(|_| AppError::Internal("transcrição expirou".into()))??;
     let _ = tokio::fs::remove_file(&audio).await;
     if !output.status.success() {
         return Err(AppError::Internal(format!(
@@ -281,7 +282,10 @@ pub async fn speak(
         .args(&args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
     if !settings.voice.trim().is_empty() && engine != "piper" {
         command.arg("-v").arg(settings.voice.trim());
     }

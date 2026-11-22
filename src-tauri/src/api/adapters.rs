@@ -100,7 +100,7 @@ async fn check(
             error: Some("daemon OpenCode offline".into()),
         });
     }
-    adapters.health(&state.db, id).await
+    adapters.health(&state.db, id).await.map_err(Into::into)
 }
 
 #[derive(Debug, Deserialize)]

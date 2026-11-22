@@ -19,7 +19,8 @@ import sys
 
 summary, minimum = sys.argv[1], float(sys.argv[2])
 core = re.compile(
-    r"^(db/|api/|recipes/|queue_scheduler/|io_bus/|config_sync/|dsh_router/"
+    r"^(crates/opendesk-(domain|storage|engine|recipes)/"
+    r"|db/|api/|recipes/|queue_scheduler/|io_bus/|config_sync/|dsh_router/"
     r"|starter_packs\.rs|run_timeline\.rs|events\.rs|proposals\.rs|secrets\.rs"
     r"|paths\.rs|error\.rs)"
 )

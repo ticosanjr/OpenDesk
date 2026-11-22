@@ -80,7 +80,7 @@ export function GlobalHitlModal() {
   }, [load, lastTaskEvent, lastRecipeEvent, lastPermissionEvent]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => void load(), 20_000);
+    const timer = window.setInterval(() => void load(), 60_000);
     return () => window.clearInterval(timer);
   }, [load]);
 

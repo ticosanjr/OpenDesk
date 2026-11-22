@@ -1,6 +1,6 @@
 [package]
 name = "opendesk"
-version = "1.4.1"
+version = "1.4.2"
 description = "OpenDesk — visual governance, automation and observability for OpenCode"
 authors = ["OpenDesk"]
 edition = "2024"
@@ -36,6 +36,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 opendesk-core = { path = "crates/opendesk-core" }
+opendesk-engine = { path = "crates/opendesk-engine" }
 opendesk-storage = { path = "crates/opendesk-storage" }
 tauri = { version = "2", features = ["tray-icon", "image-png"], optional = true }
 tauri-plugin-opener = { version = "2", optional = true }

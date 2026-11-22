@@ -100,7 +100,7 @@ export function ExecutionModal({
   useEffect(() => {
     if (!open || !taskId) return;
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 4_000);
+    const timer = window.setInterval(() => void refresh(), 15_000);
     return () => window.clearInterval(timer);
   }, [open, taskId, lastTaskEvent, lastRunEvent, refresh]);
 

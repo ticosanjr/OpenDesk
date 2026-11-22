@@ -587,8 +587,9 @@ fn build_gmail_raw(
     let mut body = MultiPart::mixed()
         .multipart(MultiPart::alternative().singlepart(SinglePart::html(html_body.to_string())));
     for (filename, bytes, mime) in attachments {
-        let content_type = ContentType::parse(&mime)
-            .unwrap_or(ContentType::parse("application/octet-stream").expect("content type"));
+        let content_type = ContentType::parse(&mime).unwrap_or_else(|_| {
+            ContentType::parse("application/octet-stream").unwrap_or(ContentType::TEXT_PLAIN)
+        });
         body = body.singlepart(Attachment::new(filename).body(bytes, content_type));
     }
 

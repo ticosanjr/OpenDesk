@@ -267,7 +267,7 @@ fn load_skill(workspace_root: &Path, skill_id: &str) -> AppResult<skills::SkillF
         Ok(skill) => Ok(skill),
         Err(_) => {
             let global = StudioPaths::new(None);
-            skills::get(&global, "global", skill_id)
+            skills::get(&global, "global", skill_id).map_err(Into::into)
         }
     }
 }
@@ -387,6 +387,7 @@ pub async fn rollback(
     crate::config_sync::file_ops::restore_backup(&latest.id, &path, backups_dir)?;
     skills::get(&workspace, "workspace", skill_id)
         .or_else(|_| skills::get(&StudioPaths::new(None), "global", skill_id))
+        .map_err(Into::into)
 }
 
 /// Small helper for callers that want a plain success/failure list.

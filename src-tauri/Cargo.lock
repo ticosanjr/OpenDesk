@@ -4922,7 +4922,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "aes-gcm 0.10.3",
  "anyhow",
@@ -4953,6 +4953,7 @@ dependencies = [
  "notify-debouncer-full",
  "open",
  "opendesk-core",
+ "opendesk-engine",
  "opendesk-storage",
  "p256 0.13.2",
  "pdf-extract",
@@ -5003,7 +5004,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-channels"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "opendesk-domain",
  "serde",
@@ -5011,7 +5012,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-cli"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "opendesk",
  "opendesk-storage",
@@ -5020,7 +5021,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-core"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "aes-gcm 0.10.3",
  "anyhow",
@@ -5073,14 +5074,14 @@ dependencies = [
 
 [[package]]
 name = "opendesk-daemon"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "opendesk",
 ]
 
 [[package]]
 name = "opendesk-domain"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "async-trait",
  "chrono",
@@ -5092,25 +5093,41 @@ dependencies = [
 
 [[package]]
 name = "opendesk-engine"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
  "chrono",
  "chrono-tz",
  "croner",
+ "futures-util",
+ "jsonc-parser",
+ "libc",
+ "notify",
+ "notify-debouncer-full",
  "opendesk-domain",
  "opendesk-storage",
+ "reqwest 0.12.28",
+ "semver",
  "serde",
  "serde_json",
+ "serde_yaml",
  "sha2 0.11.1",
+ "sqlx",
  "tempfile",
  "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "unicode-normalization",
  "uuid",
  "walkdir",
 ]
 
 [[package]]
 name = "opendesk-enterprise"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -5126,7 +5143,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-mcp"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -5134,14 +5151,14 @@ dependencies = [
 
 [[package]]
 name = "opendesk-node"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "opendesk",
 ]
 
 [[package]]
 name = "opendesk-recipes"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "jsonschema",
  "opendesk-domain",
@@ -5153,7 +5170,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-storage"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "aes-gcm 0.10.3",
  "anyhow",

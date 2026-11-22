@@ -89,6 +89,18 @@ Registro de mudanças de comportamento da refatoração V2. O histórico V1 est�
 - Release script sempre reconstrói o daemon; RPM antigo é limpo.
 - ADR 0205.
 
+## 2026-11-22 — 1.4.2: hardening
+
+- Zero `unwrap/expect` de produção no shell; baseline vazia.
+- Limite de 500 linhas aplicado ao shell e ao frontend; 20 arquivos divididos.
+- Cobertura medida com `--workspace`; piso 64,0% total / 80,5% no escopo de negócio.
+- Spawns longos com `kill_on_drop` + process group.
+- Fila e cron event-driven com `Notify`, sono até o lease e fallback de relógio.
+- Shutdown drena jobs; TERM→KILL com testes de processo.
+- ADR 0206.
+- Primeiro corte do engine: sandbox/runtime/browse/config_sync/dsh_router/adapters/
+  opencode_client e portas movidos para `opendesk-engine` com reexports (ADR 0207).
+
 ## Próximas ondas
 
 2. `opendesk-engine`/`opendesk-recipes`, god-files e event-driven.

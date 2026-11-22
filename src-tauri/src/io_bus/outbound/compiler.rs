@@ -234,14 +234,19 @@ async fn compile_pdf(source: &Path, destination: &Path) -> AppResult<()> {
         ));
     };
 
-    let result = tokio::process::Command::new(crate::io_bus::tools::command("typst"))
+    let mut command = tokio::process::Command::new(crate::io_bus::tools::command("typst"));
+    command
         .args([
             "compile",
             &typst_source.to_string_lossy(),
             &destination.to_string_lossy(),
         ])
-        .output()
+        .kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
+    let result = tokio::time::timeout(std::time::Duration::from_secs(120), command.output())
         .await
+        .map_err(|_| AppError::Internal("typst timeout".into()))?
         .map_err(|error| {
             AppError::BadRequest(format!(
                 "typst não encontrado; instale em Configurações → Ferramentas: {error}"

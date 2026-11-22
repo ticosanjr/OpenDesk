@@ -1,25 +1,10 @@
 import { useEffect, useState } from "react";
-import {
-  AlertTriangle,
-  Check,
-  Clipboard,
-  Cpu,
-  Download,
-  FileSearch,
-  Loader2,
-  RefreshCw,
-  Search,
-  Terminal,
-  Undo2,
-} from "lucide-react";
+import { Cpu } from "lucide-react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { InfoTile } from "@/components/ui/info-row";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiGet, apiPost } from "@/lib/api";
 import { pickFile } from "@/lib/folder";
-import { shortPath } from "@/lib/format";
 import type {
   DetectResult,
   EngineStatus,
@@ -27,6 +12,12 @@ import type {
   ModelHealth,
   OpenCodeUpdateCheck,
 } from "@/lib/types";
+import { EngineFeedback } from "./engine/EngineFeedback";
+import { EngineModelHealth } from "./engine/EngineModelHealth";
+import { EngineOverview } from "./engine/EngineOverview";
+import { EnginePathRow } from "./engine/EnginePathRow";
+import { EngineToolbar } from "./engine/EngineToolbar";
+import { EngineUpdateBox } from "./engine/EngineUpdateBox";
 
 export function EngineCard() {
   const [engine, setEngine] = useState<EngineStatus | null>(null);
@@ -301,275 +292,47 @@ export function EngineCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid gap-2 md:grid-cols-4">
-          <InfoTile label="Versão" value={daemon?.version ?? "—"} />
-          <InfoTile label="Porta" value={daemon?.port ? String(daemon.port) : "—"} />
-          <InfoTile
-            label="Binário"
-            value={
-              daemon?.binary_path
-                ? shortPath(daemon.binary_path, 48)
-                : engine?.resolved?.path
-                  ? shortPath(engine.resolved.path, 48)
-                  : "não detectado"
-            }
-          />
-          <InfoTile
-            label="Método"
-            value={engine?.resolved?.method ?? "desconhecido"}
-          />
-        </div>
+        <EngineOverview engine={engine} daemon={daemon} online={online} />
 
-        {!online && (daemon?.message || engine?.resolve_error) ? (
-          <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] leading-relaxed text-amber-200">
-            {daemon?.message ?? engine?.resolve_error}
-          </p>
-        ) : null}
+        <EnginePathRow
+          manualPath={manualPath}
+          onManualPathChange={setManualPath}
+          busy={busy}
+          onChoose={() => void chooseBinary()}
+          onApply={() => void applyPath()}
+        />
 
-        <div className="flex flex-col gap-2 md:flex-row">
-          <input
-            value={manualPath}
-            onChange={(event) => setManualPath(event.target.value)}
-            placeholder="/home/usuario/.opencode/bin/opencode"
-            className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 font-mono text-[13px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
-          />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9"
-              onClick={() => void chooseBinary()}
-            >
-              <FileSearch size={13} />
-              Escolher
-            </Button>
-            <Button
-              size="sm"
-              className="h-9"
-              onClick={() => void applyPath()}
-              disabled={busy !== null}
-            >
-              {busy === "apply" ? (
-                <Loader2 size={13} className="animate-spin" />
-              ) : (
-                <Check size={13} />
-              )}
-              Aplicar caminho
-            </Button>
-          </div>
-        </div>
+        <EngineToolbar
+          busy={busy}
+          hasDiagnostics={diagnosticsData !== null}
+          onDetect={() => void detect()}
+          onRestart={() => void restart()}
+          onRollback={() => void rollbackEngine()}
+          onDiagnostics={() => void diagnostics()}
+          onRevealLogs={() => void revealLogs()}
+        />
 
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void detect()}
-            disabled={busy !== null}
-          >
-            {busy === "detect" ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <Search size={13} />
-            )}
-            Detectar novamente
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void restart()}
-            disabled={busy !== null}
-          >
-            {busy === "restart" ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <RefreshCw size={13} />
-            )}
-            Reiniciar motor
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void rollbackEngine()}
-            disabled={busy !== null}
-          >
-            {busy === "rollback" ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <Undo2 size={13} />
-            )}
-            Reverter OpenCode
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void diagnostics()}
-            disabled={busy !== null}
-          >
-            {busy === "diagnostics" ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <Clipboard size={13} />
-            )}
-            Copiar diagnóstico
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void revealLogs()}
-            disabled={diagnosticsData === null}
-          >
-            <Terminal size={13} />
-            Abrir logs
-          </Button>
-        </div>
+        <EngineModelHealth
+          modelHealth={modelHealth}
+          onClear={(provider, model) => void clearModelHealth(provider, model)}
+        />
 
-        <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="flex-1 text-[12px] uppercase tracking-wide text-zinc-500">
-              modelos em cooldown (24h)
-            </p>
-            {modelHealth.length > 0 ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void clearModelHealth()}
-              >
-                limpar todos
-              </Button>
-            ) : null}
-          </div>
-          {modelHealth.length === 0 ? (
-            <p className="mt-1 text-[12px] text-zinc-500">
-              Nenhum modelo bloqueado por região/auth recentemente.
-            </p>
-          ) : (
-            <div className="mt-1 space-y-1">
-              {modelHealth.map((item) => (
-                <div
-                  key={`${item.provider_id}/${item.model_id}`}
-                  className="flex items-center gap-2 text-[12px]"
-                >
-                  <span className="min-w-0 flex-1 truncate font-mono text-zinc-300">
-                    {item.provider_id}/{item.model_id}
-                  </span>
-                  <Badge variant="red">{item.code}</Badge>
-                  <span className="text-zinc-500">{item.failures}x</span>
-                  <button
-                    type="button"
-                    className="text-[11.5px] text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline"
-                    onClick={() =>
-                      void clearModelHealth(item.provider_id, item.model_id)
-                    }
-                  >
-                    limpar
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <EngineUpdateBox
+          check={check}
+          daemonVersion={daemon?.version}
+          method={method}
+          onMethodChange={setMethod}
+          busy={busy}
+          onCheckUpdate={() => void checkUpdate()}
+          onUpdate={() => void updateOpenCode()}
+          updateOutput={updateOutput}
+        />
 
-        <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="flex-1 text-[13px] text-zinc-300">
-              OpenCode instalado:{" "}
-              <span className="font-mono text-zinc-100">
-                {check?.current ?? daemon?.version ?? "desconhecido"}
-              </span>
-              {check?.latest ? (
-                <>
-                  {" "}
-                  · última V2:{" "}
-                  <span className="font-mono text-zinc-100">
-                    {check.latest}
-                  </span>
-                </>
-              ) : null}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void checkUpdate()}
-              disabled={busy !== null}
-            >
-              {busy === "check" ? (
-                <Loader2 size={13} className="animate-spin" />
-              ) : (
-                <Search size={13} />
-              )}
-              Verificar atualização
-            </Button>
-            {check?.update_available ? (
-              <>
-                <label className="flex items-center gap-1 text-[11.5px] text-zinc-500">
-                  método
-                  <select
-                    value={method}
-                    onChange={(event) => setMethod(event.target.value)}
-                    className="h-7 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 text-[12px] text-zinc-200 outline-none focus:border-blue-500/60"
-                  >
-                    {["curl", "npm", "pnpm", "bun", "yarn", "brew", "winget"].map(
-                      (value) => (
-                        <option key={value} value={value}>
-                          {value}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                </label>
-                <Button
-                  size="sm"
-                  onClick={() => void updateOpenCode()}
-                  disabled={busy !== null}
-                >
-                  {busy === "update" ? (
-                    <Loader2 size={13} className="animate-spin" />
-                  ) : (
-                    <Download size={13} />
-                  )}
-                  Atualizar OpenCode
-                </Button>
-              </>
-            ) : null}
-          </div>
-          {check?.release?.notes ? (
-            <p className="mt-2 max-h-24 overflow-y-auto whitespace-pre-wrap text-[11.5px] leading-relaxed text-zinc-500">
-              {check.release.notes}
-            </p>
-          ) : null}
-          {updateOutput ? (
-            <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-black/40 p-2 font-mono text-[11.5px] text-zinc-400">
-              {updateOutput}
-            </pre>
-          ) : null}
-        </div>
-
-        {message ? (
-          <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[12px] leading-relaxed text-emerald-300">
-            {message}
-          </p>
-        ) : null}
-        {error ? (
-          <p className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] leading-relaxed text-red-300">
-            <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-            {error}
-          </p>
-        ) : null}
-
-        {engine && engine.candidates.length > 0 ? (
-          <details className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2 text-[11.5px] text-zinc-500">
-            <summary className="cursor-pointer text-zinc-400">
-              Caminhos testados ({engine.candidates.length})
-            </summary>
-            <ul className="mt-2 space-y-0.5 font-mono">
-              {engine.candidates.slice(0, 24).map((candidate) => (
-                <li key={candidate} className="truncate">
-                  {candidate}
-                </li>
-              ))}
-            </ul>
-          </details>
-        ) : null}
+        <EngineFeedback
+          message={message}
+          error={error}
+          candidates={engine?.candidates}
+        />
       </CardContent>
     </Card>
   );

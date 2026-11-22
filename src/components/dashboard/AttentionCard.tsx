@@ -1,26 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
-  Ban,
   ChevronDown,
   ChevronUp,
-  ExternalLink,
-  FileCheck2,
   RefreshCw,
-  ShieldAlert,
-  Sparkles,
-  Trash2,
 } from "lucide-react";
-import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CountPill } from "@/components/ui/count-pill";
 import { IconLabel } from "@/components/ui/icon-label";
-import { Tooltip } from "@/components/ui/tooltip";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { links } from "@/lib/links";
-import { HitlCard } from "@/components/dashboard/attention/HitlCard";
-import { DismissButton, Row } from "@/components/dashboard/attention/Row";
+import { ApprovalsSection } from "@/components/dashboard/attention/ApprovalsSection";
+import { BlockedSection } from "@/components/dashboard/attention/BlockedSection";
+import { FailedRunsSection } from "@/components/dashboard/attention/FailedRunsSection";
+import { HitlSection } from "@/components/dashboard/attention/HitlSection";
+import { MissedRunsSection } from "@/components/dashboard/attention/MissedRunsSection";
+import { PermissionsSection } from "@/components/dashboard/attention/PermissionsSection";
+import { ProposalsSection } from "@/components/dashboard/attention/ProposalsSection";
 import { Section } from "@/components/dashboard/attention/Section";
 import { EMPTY_ATTENTION, type Attention, type HitlRequest, type PermissionRequest, type Proposal } from "@/components/dashboard/attention/types";
 import { useAppStore } from "@/store/app-store";
@@ -331,107 +328,20 @@ export function AttentionCard() {
             expanded ? "" : "max-h-[280px] overflow-y-auto",
           )}
         >
-          {data.proposals.length > 0 ? (
-            <Section title="Propostas de configuração" count={data.proposals.length} tone="violet">
-              {data.proposals.map((proposal) => (
-                <Row
-                  key={`proposal-${proposal.id}`}
-                  tone="violet"
-                  icon={<Sparkles size={13} />}
-                  title={proposal.title}
-                  meta={`${proposal.kind} · ${proposal.action}${
-                    proposal.requested_by ? ` · @${proposal.requested_by}` : ""
-                  }`}
-                  detail={proposal.apply_error ?? proposal.description}
-                  actions={
-                    <>
-                      <Button
-                        size="xs"
-                        disabled={busy === `proposal-${proposal.id}`}
-                        onClick={() => resolveProposal(proposal, true)}
-                      >
-                        Aprovar
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        className="border-red-500/30 text-red-300"
-                        disabled={busy === `proposal-${proposal.id}`}
-                        onClick={() => resolveProposal(proposal, false)}
-                      >
-                        Negar
-                      </Button>
-                    </>
-                  }
-                />
-              ))}
-            </Section>
-          ) : null}
+          <ProposalsSection
+            proposals={data.proposals}
+            busy={busy}
+            onResolve={resolveProposal}
+          />
 
-          {data.missed_runs.length > 0 ? (
-            <Section
-              title="Execuções perdidas"
-              count={data.missed_runs.length}
-              tone="amber"
-            >
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-3 py-2">
-                  <p className="text-[11.5px] text-amber-100">
-                    O app/engine estava offline ou o horário passou. Escolha o
-                    que fazer; o padrão é perguntar.
-                  </p>
-                  <div className="flex gap-1.5">
-                    <Button
-                      size="xs"
-                      disabled={busy === "missed-all"}
-                      onClick={runAllMissed}
-                    >
-                      Executar todas
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      disabled={busy === "missed-all"}
-                      onClick={ignoreAllMissed}
-                    >
-                      Ignorar todas
-                    </Button>
-                  </div>
-                </div>
-                {data.missed_runs.map((missed) => (
-                  <div
-                    key={missed.id}
-                    className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[12.5px] font-medium text-zinc-200">
-                        {missed.schedule_name ?? missed.schedule_id}
-                      </p>
-                      <p className="font-mono text-[13px] text-zinc-500">
-                        {new Date(missed.scheduled_for).toLocaleString("pt-BR")} ·{" "}
-                        {missed.reason === "OFFLINE" ? "offline" : "atraso"}
-                      </p>
-                    </div>
-                    <Button
-                      size="xs"
-                      disabled={busy === `missed-${missed.id}`}
-                      onClick={() => runMissed(missed.id)}
-                    >
-                      Executar
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      disabled={busy === `missed-${missed.id}`}
-                      onClick={() => ignoreMissed(missed.id)}
-                    >
-                      Ignorar
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </Section>
-          ) : null}
+          <MissedRunsSection
+            runs={data.missed_runs}
+            busy={busy}
+            onRunAll={runAllMissed}
+            onIgnoreAll={ignoreAllMissed}
+            onRun={runMissed}
+            onIgnore={ignoreMissed}
+          />
 
           {data.task_interactions.length > 0 ? (
             <Section
@@ -451,255 +361,63 @@ export function AttentionCard() {
             </Section>
           ) : null}
 
-          {data.hitl.length > 0 ? (
-            <Section title="Checkpoints de receita" count={data.hitl.length} tone="amber">
-              <div className="space-y-2">
-                {data.hitl.map((request) => (
-                  <HitlCard
-                    key={`hitl-${request.token}`}
-                    request={request}
-                    busy={busy === `hitl-${request.token}`}
-                    feedbackOpen={feedbackToken === request.token}
-                    feedbackText={feedbackText}
-                    onFeedbackText={setFeedbackText}
-                    onToggleFeedback={() => {
-                      setFeedbackToken((current) =>
-                        current === request.token ? null : request.token,
-                      );
-                      setFeedbackText("");
-                    }}
-                    onApprove={() => resolveHitl(request, "APPROVED")}
-                    onReject={() => resolveHitl(request, "REJECTED")}
-                    onChoose={(index, value) =>
-                      resolveHitl(request, "CHOICE", {
-                        text: value,
-                        optionIndex: index,
-                      })
-                    }
-                    onFeedback={() => {
-                      const text = feedbackText.trim();
-                      if (text) {
-                        resolveHitl(request, "FEEDBACK", { text });
-                      }
-                    }}
-                  />
-                ))}
-              </div>
-            </Section>
-          ) : null}
+          <HitlSection
+            requests={data.hitl}
+            busy={busy}
+            feedbackToken={feedbackToken}
+            feedbackText={feedbackText}
+            onFeedbackText={setFeedbackText}
+            onToggleFeedback={(token) => {
+              setFeedbackToken((current) =>
+                current === token ? null : token,
+              );
+              setFeedbackText("");
+            }}
+            onApprove={(request) => resolveHitl(request, "APPROVED")}
+            onReject={(request) => resolveHitl(request, "REJECTED")}
+            onChoose={(request, index, value) =>
+              resolveHitl(request, "CHOICE", {
+                text: value,
+                optionIndex: index,
+              })
+            }
+            onFeedback={(request) => {
+              const text = feedbackText.trim();
+              if (text) {
+                resolveHitl(request, "FEEDBACK", { text });
+              }
+            }}
+          />
 
-          {data.requests.length > 0 ? (
-            <Section title="Permissões" count={data.requests.length} tone="amber">
-              {data.requests.map((request) => (
-                <Row
-                  key={`permission-${request.request_id}`}
-                  tone="amber"
-                  icon={<ShieldAlert size={13} />}
-                  title={
-                    <span>
-                      <span className="font-mono text-[13px] uppercase text-amber-300">
-                        {request.permission_action}
-                      </span>{" "}
-                      {request.resources || "ação do agente"}
-                    </span>
-                  }
-                  meta={request.task_id ? "tarefa vinculada" : "sem tarefa"}
-                  detail="O agente pediu esta permissão para continuar. Permitir uma vez vale só para esta ação; permitir nesta tarefa cobre as próximas ações iguais; negar bloqueia o run."
-                  actions={
-                    <>
-                      <Button
-                        size="xs"
-                        title="Liberar apenas esta solicitação"
-                        disabled={busy === `permission-${request.request_id}`}
-                        onClick={() => decide(request, "once")}
-                      >
-                        Permitir uma vez
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        title="Liberar ações iguais nesta tarefa"
-                        disabled={busy === `permission-${request.request_id}`}
-                        onClick={() => decide(request, "always")}
-                      >
-                        Nesta tarefa
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        className="border-red-500/30 text-red-300"
-                        title="Bloquear a ação e interromper o run"
-                        disabled={busy === `permission-${request.request_id}`}
-                        onClick={() => decide(request, "reject")}
-                      >
-                        Negar
-                      </Button>
-                      {request.task_id ? (
-                        <Link
-                          to={links.task(request.task_id)}
-                          className="inline-flex items-center gap-1 text-[13px] text-zinc-400 hover:text-zinc-200"
-                        >
-                          <ExternalLink size={10} />
-                          abrir
-                        </Link>
-                      ) : null}
-                    </>
-                  }
-                />
-              ))}
-            </Section>
-          ) : null}
+          <PermissionsSection
+            requests={data.requests}
+            busy={busy}
+            onDecide={decide}
+          />
 
-          {data.awaiting_approval.length > 0 ? (
-            <Section
-              title="Planos aguardando aprovação"
-              count={data.awaiting_approval.length}
-              tone="amber"
-            >
-              {data.awaiting_approval.map((task) => (
-                <Row
-                  key={`approval-${task.id}`}
-                  tone="amber"
-                  icon={<FileCheck2 size={13} />}
-                  title={task.title}
-                  meta="plano pronto para revisão"
-                  detail={task.plan_excerpt}
-                  actions={
-                    <>
-                      <Button
-                        size="xs"
-                        title="Aprovar o plano e iniciar a fase de Build"
-                        disabled={busy === `approve-${task.id}`}
-                        onClick={() => approve(task.id)}
-                      >
-                        Aprovar e iniciar Build
-                      </Button>
-                      <Link
-                        to={links.task(task.id)}
-                        className="inline-flex items-center gap-1 text-[13px] text-zinc-400 hover:text-zinc-200"
-                      >
-                        <ExternalLink size={10} />
-                        abrir
-                      </Link>
-                      <DismissButton
-                        label="Dispensar alerta de aprovação"
-                        onClick={() => dismiss("APPROVAL", task.id, task.version)}
-                      />
-                    </>
-                  }
-                />
-              ))}
-            </Section>
-          ) : null}
+          <ApprovalsSection
+            tasks={data.awaiting_approval}
+            busy={busy}
+            onApprove={approve}
+            onDismiss={(taskId, version) =>
+              dismiss("APPROVAL", taskId, version)
+            }
+          />
 
-          {data.blocked.length > 0 ? (
-            <Section title="Tarefas bloqueadas" count={data.blocked.length} tone="red">
-              {data.blocked.map((task) => (
-                <Row
-                  key={`blocked-${task.id}`}
-                  tone="red"
-                  icon={<Ban size={13} />}
-                  title={task.title}
-                  meta="bloqueada"
-                  detail={task.reason}
-                  actions={
-                    <>
-                      <Link
-                        to={links.task(task.id)}
-                        className="inline-flex items-center gap-1 text-[13px] text-zinc-400 hover:text-zinc-200"
-                      >
-                        <ExternalLink size={10} />
-                        resolver
-                      </Link>
-                      <Tooltip content="Remover tarefa">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 border-red-500/30 px-2 text-red-300"
-                          aria-label="Remover tarefa"
-                          disabled={busy === `remove-${task.id}`}
-                          onClick={() => void removeTask(task.id, task.title)}
-                        >
-                          <Trash2 size={12} />
-                        </Button>
-                      </Tooltip>
-                      <DismissButton
-                        label="Dispensar alerta de bloqueio"
-                        onClick={() => dismiss("BLOCKED", task.id, task.version)}
-                      />
-                    </>
-                  }
-                />
-              ))}
-            </Section>
-          ) : null}
+          <BlockedSection
+            tasks={data.blocked}
+            busy={busy}
+            onDismiss={(taskId, version) => dismiss("BLOCKED", taskId, version)}
+            onRemoveTask={(taskId, title) => void removeTask(taskId, title)}
+          />
 
-          {data.failed_runs.length > 0 ? (
-            <Section title="Falhas nas últimas 24h" count={data.failed_runs.length} tone="red">
-              {data.failed_runs.map((run) => (
-                <Row
-                  key={`failed-${run.id}`}
-                  tone="red"
-                  icon={<AlertTriangle size={13} />}
-                  title={run.title ?? "Execução"}
-                  meta="falhou"
-                  detail={run.error}
-                  actions={
-                    <>
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        disabled={busy === `retry-${run.id}`}
-                        onClick={() => retryOther(run.id)}
-                      >
-                        <IconLabel
-                          icon={
-                            <RefreshCw
-                              size={11}
-                              className={
-                                busy === `retry-${run.id}`
-                                  ? "animate-spin"
-                                  : undefined
-                              }
-                            />
-                          }
-                        >
-                          Retry com outro modelo
-                        </IconLabel>
-                      </Button>
-                      <Link
-                        to={links.run(run.id)}
-                        className="inline-flex items-center gap-1 text-[13px] text-zinc-400 hover:text-zinc-200"
-                      >
-                        <ExternalLink size={10} />
-                        logs
-                      </Link>
-                      {run.task_id ? (
-                        <Tooltip content="Remover tarefa">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 border-red-500/30 px-2 text-red-300"
-                            aria-label="Remover tarefa"
-                            disabled={busy === `remove-${run.task_id}`}
-                            onClick={() =>
-                              void removeTask(run.task_id as string, run.title ?? "Execução")
-                            }
-                          >
-                            <Trash2 size={12} />
-                          </Button>
-                        </Tooltip>
-                      ) : null}
-                      <DismissButton
-                        label="Dispensar alerta de falha"
-                        onClick={() => dismiss("FAILED_RUN", run.id, run.version)}
-                      />
-                    </>
-                  }
-                />
-              ))}
-            </Section>
-          ) : null}
+          <FailedRunsSection
+            runs={data.failed_runs}
+            busy={busy}
+            onRetry={retryOther}
+            onRemoveTask={(taskId, title) => void removeTask(taskId, title)}
+            onDismiss={(runId, version) => dismiss("FAILED_RUN", runId, version)}
+          />
         </div>
       </CardContent>
     </Card>

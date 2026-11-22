@@ -10,7 +10,7 @@ use crate::{
     },
     paths::AppPaths,
     queue_ports::QueuePorts,
-    queue_scheduler::{run_execution, settlement},
+    queue_scheduler::{job_dto, leases, run_execution, settlement},
     secrets::SecretStore,
 };
 use serde::{Deserialize, Serialize};
@@ -148,6 +148,8 @@ impl QueueManager {
             token.cancel();
         }
         self.notify.notify_waiters();
+
+        leases::drain_running(&self.running_jobs).await;
     }
 
     pub fn is_paused(&self) -> bool {
@@ -258,7 +260,8 @@ impl QueueManager {
             tokio::select! {
                 _ = self.shutdown.cancelled() => break,
                 _ = self.notify.notified() => {}
-                _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {}
+                // Wake at the nearest lease; 30 s is only a safety net.
+                _ = leases::next_wake(&self.pool) => {}
             }
 
             self.expire_leases().await;
@@ -893,36 +896,10 @@ fn split_model(model: &str) -> (Option<String>, String) {
     }
 }
 
-pub fn job_dto(job: queue::QueueJob) -> QueueJobDto {
-    QueueJobDto {
-        id: job.id,
-        task_id: job.task_id,
-        title: job.task_title,
-        status: job.status,
-        priority: job.priority as i32,
-        concurrency_group: job.concurrency_group,
-        lease_expires_at: job.lease_expires_at,
-        last_heartbeat_at: job.last_heartbeat_at,
-        resolved_mode: job.resolved_mode,
-        resolved_agent: job.resolved_agent,
-        resolved_model: job.resolved_model,
-        resolved_effort: job.resolved_effort,
-        job_kind: job.job_kind,
-        output_dir: job.output_dir,
-        scheduled_for: job.scheduled_for,
-        enqueued_at: job.enqueued_at,
-        started_at: job.started_at,
-        finished_at: job.finished_at,
-        retry_count: job.retry_count,
-        max_retries: job.max_retries,
-        error_message: job.error_message,
-        task_origin: job.task_origin,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::queue_scheduler::job_dto;
 
     #[test]
     fn split_model_handles_provider_and_variant() {

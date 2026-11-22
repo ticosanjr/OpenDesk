@@ -96,16 +96,17 @@ fn extract_docx(path: &Path) -> AppResult<ExtractedDocument> {
 }
 
 pub async fn ocr(path: &Path, languages: &str) -> AppResult<String> {
-    let output = tokio::time::timeout(
-        Duration::from_secs(120),
-        tokio::process::Command::new(tools::command("tesseract"))
-            .arg(path)
-            .args(["stdout", "-l", languages])
-            .output(),
-    )
-    .await
-    .map_err(|_| AppError::Internal("OCR timeout".into()))?
-    .map_err(|error| AppError::BadRequest(format!("tesseract indisponível: {error}")))?;
+    let mut command = tokio::process::Command::new(tools::command("tesseract"));
+    command
+        .arg(path)
+        .args(["stdout", "-l", languages])
+        .kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
+    let output = tokio::time::timeout(Duration::from_secs(120), command.output())
+        .await
+        .map_err(|_| AppError::Internal("OCR timeout".into()))?
+        .map_err(|error| AppError::BadRequest(format!("tesseract indisponível: {error}")))?;
     if !output.status.success() {
         return Err(AppError::Internal(format!(
             "tesseract falhou: {}",
@@ -117,6 +118,9 @@ pub async fn ocr(path: &Path, languages: &str) -> AppResult<String> {
 
 pub async fn transcribe(path: &Path, model: Option<&Path>) -> AppResult<String> {
     let mut command = tokio::process::Command::new(tools::command("whisper-cli"));
+    command.kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
     command.arg("-f").arg(path).args(["-otxt", "-of"]);
     let output_base = path.with_extension("transcript");
     command.arg(&output_base);

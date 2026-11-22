@@ -277,14 +277,14 @@ pub async fn update(
         ok: None,
     });
 
-    let result = tokio::time::timeout(
-        UPDATE_TIMEOUT,
-        tokio::process::Command::new(&binary.path)
-            .args(["upgrade", "--method", &method, &version])
-            .env("PATH", std::env::var("PATH").unwrap_or_default())
-            .output(),
-    )
-    .await;
+    let mut command = tokio::process::Command::new(&binary.path);
+    command
+        .args(["upgrade", "--method", &method, &version])
+        .env("PATH", std::env::var("PATH").unwrap_or_default())
+        .kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
+    let result = tokio::time::timeout(UPDATE_TIMEOUT, command.output()).await;
 
     let (ok, output) = match result {
         Ok(Ok(output)) => {

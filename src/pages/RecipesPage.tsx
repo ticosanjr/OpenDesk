@@ -1,84 +1,28 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
-import {
-  ChevronDown,
-  ChevronRight,
-  GitBranch,
-  Loader2,
-  Play,
-  Plus,
-  RefreshCw,
-  Save,
-  Sparkles,
-  Trash2,
-  Workflow,
-} from "lucide-react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Plus, RefreshCw, Workflow } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Modal } from "@/components/ui/modal";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CountPill } from "@/components/ui/count-pill";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FieldHint } from "@/components/ui/field-hint";
 import { IconLabel } from "@/components/ui/icon-label";
-import { LoadingState } from "@/components/ui/loading-state";
-import { Switch } from "@/components/ui/switch";
-import { PromptAttachments } from "@/components/ui/prompt-attachments";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { useAppStore } from "@/store/app-store";
 import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
-import { relativeTime } from "@/lib/format";
-import { links } from "@/lib/links";
-import { cn } from "@/lib/utils";
+import type { Dictionary } from "@/components/recipes/recipe-editors";
+import { RecipeListCard } from "./recipes/RecipeListCard";
+import { RecipeFlowCard } from "./recipes/RecipeFlowCard";
+import { YamlPanel } from "./recipes/YamlPanel";
+import { RecipeRunsCard } from "./recipes/RecipeRunsCard";
+import { RecipeRunModal } from "./recipes/RecipeRunModal";
 import {
-  recipeRunStatusLabel,
-  recipeRunStatusTone,
-} from "@/lib/status";
-import {
-  LocalYamlEditor,
-  RecipeStepper,
-  type Dictionary,
-} from "@/components/recipes/recipe-editors";
-
-interface RecipeIndex {
-  id: string;
-  name: string;
-  trigger_type: string;
-  is_enabled: boolean;
-  last_error?: string | null;
-  last_run_at?: string | null;
-  total_runs: number;
-}
-
-interface RecipeRun {
-  id: string;
-  recipe_id: string;
-  status: string;
-  current_step_id?: string | null;
-  started_at: string;
-  completed_at?: string | null;
-  error_message?: string | null;
-}
-
-const DEFAULT_YAML = `id: nova-receita
-name: Nova receita
-enabled: false
-triggers: []
-flow:
-  - type: step
-    id: passo-1
-    name: Primeiro passo
-    mode: build
-    agent: build
-    effort: low
-    prompt: |
-      Execute o primeiro passo e salve o resultado em {{run.output_dir}}.
-`;
-
+  DEFAULT_YAML,
+  type RecipeIndex,
+  type RecipeRun,
+} from "./recipes/recipe-shared";
 
 export function RecipesPage() {
   const workspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -374,69 +318,14 @@ export function RecipesPage() {
       ) : null}
 
       <div className="grid min-h-0 gap-3 lg:grid-cols-[260px_1fr]">
-        <Card className="min-h-0">
-          <CardHeader className="py-3">
-            <CardTitle className="flex items-center gap-2">
-              <Workflow size={15} className="text-zinc-400" />
-              Receitas
-            </CardTitle>
-            <CountPill value={recipes.length} />
-          </CardHeader>
-          <CardContent className="max-h-[70dvh] space-y-1 overflow-y-auto p-2">
-            {loading && recipes.length === 0 ? (
-              <LoadingState rows={4} compact />
-            ) : recipes.length === 0 ? (
-              <EmptyState
-                icon={Workflow}
-                title="Nenhuma receita"
-                description="Crie a primeira receita YAML."
-                compact
-                className="border-0 bg-transparent"
-              />
-            ) : (
-              recipes.map((item) => (
-                <div
-                  key={item.id}
-                  className={cn(
-                    "flex items-start gap-2 rounded-lg px-3 py-2.5 transition-colors",
-                    selected === item.id
-                      ? "workspace-nav-active"
-                      : "hover:bg-zinc-900",
-                    item.is_enabled ? undefined : "bg-zinc-950/20",
-                  )}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setSelected(item.id)}
-                    className={cn(
-                      "min-w-0 flex-1 text-left",
-                      selected === item.id ? "text-zinc-100" : "text-zinc-400",
-                    )}
-                  >
-                    <p className="truncate text-[13.5px] font-medium">{item.name}</p>
-                    <p className="truncate font-mono text-[13px] text-zinc-400">
-                      {item.trigger_type} · {item.total_runs} execuções
-                    </p>
-                    {item.last_error ? (
-                      <p className="truncate text-[13px] text-red-300">{item.last_error}</p>
-                    ) : null}
-                  </button>
-                  <Switch
-                    checked={item.is_enabled}
-                    onCheckedChange={() => void toggleRecipe(item)}
-                    disabled={toggling === item.id}
-                    label={
-                      item.is_enabled
-                        ? `Desativar receita ${item.name}`
-                        : `Ativar receita ${item.name}`
-                    }
-                    className="mt-0.5"
-                  />
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+        <RecipeListCard
+          recipes={recipes}
+          selected={selected}
+          loading={loading}
+          toggling={toggling}
+          onSelect={setSelected}
+          onToggle={(item) => void toggleRecipe(item)}
+        />
 
         {!selected ? (
           <Card className="min-h-[320px]">
@@ -459,208 +348,51 @@ export function RecipesPage() {
           className="flex min-h-0 flex-col gap-3 xl:flex-row"
           style={{ "--yaml-width": `${yamlWidth}px` } as CSSProperties}
         >
-          <Card className="min-h-0 min-w-0 flex-1">
-            <CardHeader className="py-3">
-              <CardTitle className="flex items-center gap-2">
-                <GitBranch size={15} className="text-zinc-400" />
-                Fluxo visual
-              </CardTitle>
-              <div className="flex flex-wrap gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "text-zinc-400",
-                    deleteConfirm === selected &&
-                      "border border-red-500/40 bg-red-500/10 text-red-300",
-                  )}
-                  onClick={() => {
-                    if (selectedRecipe) void removeRecipe(selectedRecipe);
-                  }}
-                  disabled={!selectedRecipe}
-                >
-                  <Trash2 size={12} />
-                  {deleteConfirm === selected ? "Tem certeza?" : "Excluir"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setRunMode("dry")}
-                  disabled={!selected}
-                >
-                  <IconLabel icon={<Sparkles size={12} />}>Dry-run</IconLabel>
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => setRunMode("run")}
-                  disabled={!selected}
-                >
-                  <IconLabel icon={<Play size={12} />}>Executar</IconLabel>
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="max-h-[70dvh] space-y-2 overflow-y-auto">
-              {editorLoading ? (
-                <LoadingState label="Carregando receita…" rows={5} />
-              ) : recipe ? (
-                <RecipeStepper
-                  recipe={recipe}
-                  workspaceId={workspaceId}
-                  onChange={update}
-                />
-              ) : (
-                <p className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-[13px] text-red-300">
-                  YAML inválido. Corrija no editor ao lado.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          <RecipeFlowCard
+            recipe={recipe}
+            workspaceId={workspaceId}
+            editorLoading={editorLoading}
+            deleteConfirm={deleteConfirm}
+            selected={selected}
+            canDelete={!!selectedRecipe}
+            onChange={update}
+            onDelete={() => {
+              if (selectedRecipe) void removeRecipe(selectedRecipe);
+            }}
+            onDryRun={() => setRunMode("dry")}
+            onRun={() => setRunMode("run")}
+          />
 
-          {yamlOpen ? (
-            <div
-              role="separator"
-              aria-orientation="vertical"
-              aria-label="Redimensionar editor YAML"
-              onPointerDown={() => setResizing(true)}
-              onDoubleClick={() => setYamlWidth(460)}
-              className="hidden w-2 shrink-0 cursor-col-resize items-center justify-center rounded-full bg-zinc-800/40 transition-colors hover:bg-blue-500/30 xl:flex"
-              title="Arraste para redimensionar; clique duplo restaura"
-            >
-              <span className="h-8 w-0.5 rounded-full bg-zinc-600" />
-            </div>
-          ) : null}
-
-          {yamlOpen ? (
-            <Card className="flex min-h-0 w-full flex-col overflow-hidden xl:w-[var(--yaml-width)]">
-              <CardHeader className="py-3">
-                <div className="flex min-w-0 items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setYamlOpen(false)}
-                    aria-expanded={true}
-                    aria-label="Recolher editor YAML"
-                    className="flex items-center gap-2 text-left"
-                    title="Recolher editor YAML"
-                  >
-                    <ChevronDown size={15} />
-                    <CardTitle>YAML</CardTitle>
-                  </button>
-                  <FieldHint hint="Editor local. Arraste a divisória para redimensionar." />
-                </div>
-                <Button size="sm" onClick={() => void save()} disabled={!selected || saving}>
-                  <IconLabel icon={saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}>
-                    Salvar
-                  </IconLabel>
-                </Button>
-              </CardHeader>
-              <CardContent className="h-[70dvh] p-0">
-                <LocalYamlEditor value={yaml} onChange={setYaml} />
-              </CardContent>
-            </Card>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setYamlOpen(true)}
-              aria-label="Expandir editor YAML"
-              className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/30 px-3 py-2 text-[12.5px] text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200 xl:h-[70dvh] xl:w-11 xl:flex-col xl:px-0"
-              title="Abrir editor YAML"
-            >
-              <ChevronRight size={13} className="xl:rotate-0" />
-              <span className="xl:[writing-mode:vertical-rl]">YAML</span>
-            </button>
-          )}
+          <YamlPanel
+            open={yamlOpen}
+            yaml={yaml}
+            canSave={!!selected}
+            saving={saving}
+            onChange={setYaml}
+            onSave={() => void save()}
+            onOpen={() => setYamlOpen(true)}
+            onClose={() => setYamlOpen(false)}
+            onResizeStart={() => setResizing(true)}
+            onResetWidth={() => setYamlWidth(460)}
+          />
         </div>
         )}
       </div>
 
-      <Card>
-        <CardHeader className="py-3">
-          <CardTitle>Execuções de receitas</CardTitle>
-          <CountPill value={runs.length} />
-        </CardHeader>
-        <CardContent className="space-y-1">
-          {runs.length === 0 ? (
-            <p className="p-2 text-[13px] text-zinc-500">Nenhuma execução ainda.</p>
-          ) : (
-            runs.map((run) => (
-              <Link
-                key={run.id}
-                to={links.recipeRun(run.id)}
-                className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2 transition-colors hover:border-blue-500/30 hover:bg-zinc-900/40"
-              >
-                <Badge variant={recipeRunStatusTone(run.status)}>
-                  {recipeRunStatusLabel(run.status)}
-                </Badge>
-                <span className="font-mono text-[13px] text-zinc-400">{run.recipe_id}</span>
-                <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-zinc-500">{run.current_step_id ?? "—"}</span>
-                <span className="text-[13px] text-zinc-500">{relativeTime(run.started_at)}</span>
-                <ChevronRight size={13} className="text-zinc-600" />
-              </Link>
-            ))
-          )}
-        </CardContent>
-      </Card>
+      <RecipeRunsCard runs={runs} />
 
-      <Modal
+      <RecipeRunModal
         open={runMode !== null}
+        mode={runMode}
+        context={runContext}
+        workspaceId={workspaceId}
+        attachments={runAttachments}
+        running={running}
+        onContextChange={setRunContext}
+        onAttachmentsChange={setRunAttachments}
         onClose={closeRun}
-        title={runMode === "dry" ? "Dry-run da receita" : "Executar receita"}
-        description="O contexto abaixo fica disponível como {{trigger.context}}, {{trigger.prompt}} e {{trigger.question}} nos prompts."
-        size="md"
-      >
-        <div className="space-y-3">
-          <label className="block">
-            <span className="mb-1.5 block text-[12px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-              Contexto / pergunta (opcional)
-            </span>
-            <textarea
-              value={runContext}
-              onChange={(event) => setRunContext(event.target.value)}
-              rows={6}
-              placeholder="Ex.: analise o contrato em juridico/contratos/atual.pdf"
-              className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 p-2.5 font-mono text-[13px] text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
-            />
-            <PromptAttachments
-              workspaceId={workspaceId}
-              value={runAttachments}
-              onChange={setRunAttachments}
-              className="mt-2"
-            />
-          </label>
-          <p className="text-[12px] leading-snug text-zinc-500">
-            Para anexar arquivos, coloque-os na pasta de entrada do pacote e
-            referencie o caminho no contexto. O dry-run não executa ferramentas
-            externas.
-          </p>
-          <div className="flex justify-end gap-2 border-t border-zinc-800/70 pt-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={closeRun}
-              disabled={running}
-            >
-              Cancelar
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => void run(runMode === "dry", runContext)}
-              disabled={running}
-            >
-              <IconLabel
-                icon={
-                  running ? (
-                    <Loader2 size={13} className="animate-spin" />
-                  ) : (
-                    <Play size={13} />
-                  )
-                }
-              >
-                {runMode === "dry" ? "Iniciar dry-run" : "Executar agora"}
-              </IconLabel>
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        onRun={() => void run(runMode === "dry", runContext)}
+      />
     </PageBody>
   );
 }

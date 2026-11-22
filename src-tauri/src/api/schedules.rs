@@ -98,6 +98,8 @@ pub async fn create_schedule(
         schedule_id: schedule.id.clone(),
         workspace_id: schedule.workspace_id.clone(),
     });
+    state.cron.wake();
+    state.cron.wake();
     Ok(Json(schedule))
 }
 
@@ -158,6 +160,8 @@ pub async fn update_schedule(
         schedule_id: schedule.id.clone(),
         workspace_id: schedule.workspace_id.clone(),
     });
+    state.cron.wake();
+    state.cron.wake();
     Ok(Json(schedule))
 }
 
@@ -168,6 +172,7 @@ pub async fn delete_schedule(
     remove_trigger_sources(&state, &id).await?;
     schedules::delete(&state.db, &id).await?;
     state.io_bus.reload(state.clone()).await?;
+    state.cron.wake();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -350,6 +355,7 @@ pub(crate) async fn execute_schedule_from_source(
         schedule_id: schedule.id.clone(),
         workspace_id: schedule.workspace_id.clone(),
     });
+    state.cron.wake();
     Ok(None)
 }
 
@@ -483,6 +489,8 @@ pub async fn set_schedule_active(
         schedule_id: schedule.id.clone(),
         workspace_id: schedule.workspace_id.clone(),
     });
+    state.cron.wake();
+    state.cron.wake();
     Ok(Json(schedule))
 }
 

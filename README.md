@@ -4,7 +4,7 @@ Sistema operacional visual de governança, automação e observabilidade sobre o
 OpenCode. Desktop nativo em Rust/Tauri v2 + React, com toda a configuração do
 OpenCode permanecendo nos arquivos nativos do disco.
 
-> **Status:** release 1.4.1, fundação V2 (Ondas 1 e consolidação do storage concluídas; Ondas 2–4 em andamento). O desktop
+> **Status:** release 1.4.2, fundação V2 (Ondas 1 e consolidação do storage concluídas; Ondas 2–4 em andamento). O desktop
 > continua sendo a interface principal; `opendeskd`, PWA e CLI operam o mesmo
 > estado sem duplicar regra. Produto e requisitos em [SPEC.md](SPEC.md),
 > arquitetura em [ARCHITECTURE.md](ARCHITECTURE.md); histórico V1 congelado em

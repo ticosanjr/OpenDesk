@@ -41,7 +41,7 @@ impl IoBus {
             });
             self.tasks
                 .lock()
-                .expect("io bus tasks mutex")
+                .unwrap_or_else(|poison| poison.into_inner())
                 .insert(id, (token, handle));
         }
         Ok(())
@@ -53,7 +53,10 @@ impl IoBus {
 
     pub async fn stop(&self) {
         let tasks = {
-            let mut guard = self.tasks.lock().expect("io bus tasks mutex");
+            let mut guard = self
+                .tasks
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
             std::mem::take(&mut *guard)
         };
         for (_, (token, handle)) in tasks {

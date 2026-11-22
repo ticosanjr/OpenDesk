@@ -162,8 +162,9 @@ pub fn build_message(
     let mut body =
         MultiPart::mixed().multipart(MultiPart::alternative().singlepart(SinglePart::html(html)));
     for attachment in attachments {
-        let content_type = ContentType::parse(&attachment.mime)
-            .unwrap_or(ContentType::parse("application/octet-stream").expect("content type"));
+        let content_type = ContentType::parse(&attachment.mime).unwrap_or_else(|_| {
+            ContentType::parse("application/octet-stream").unwrap_or(ContentType::TEXT_PLAIN)
+        });
         body = body
             .singlepart(Attachment::new(attachment.filename).body(attachment.bytes, content_type));
     }

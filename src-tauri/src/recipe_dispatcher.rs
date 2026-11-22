@@ -1,7 +1,6 @@
 use crate::{
     api::tasks::{self, DispatchBody},
     app_state::AppState,
-    error::AppResult,
     recipe_dispatch::{RecipeStepDispatcher, RecipeStepRequest},
 };
 use async_trait::async_trait;
@@ -18,7 +17,7 @@ impl RecipeStepDispatcher for ShellRecipeDispatcher {
         task_id: &str,
         request: RecipeStepRequest,
         session_id: Option<&str>,
-    ) -> AppResult<()> {
+    ) -> opendesk_engine::error::AppResult<()> {
         tasks::dispatch_task_with_session(
             &self.state,
             task_id,
@@ -35,5 +34,6 @@ impl RecipeStepDispatcher for ShellRecipeDispatcher {
         )
         .await
         .map(|_| ())
+        .map_err(Into::into)
     }
 }

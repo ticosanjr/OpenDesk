@@ -1,22 +1,9 @@
 import { useEffect, useState } from "react";
-import {
-  ArrowRightLeft,
-  Globe,
-  Loader2,
-  Plus,
-} from "lucide-react";
-import { AgentCombobox } from "@/components/ui/agent-combobox";
-import { HARNESS_OPTIONS } from "@/lib/harnesses";
-import { Button } from "@/components/ui/button";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { Modal } from "@/components/ui/modal";
-import { ModelCombobox } from "@/components/ui/model-combobox";
 import { PromptAttachments } from "@/components/ui/prompt-attachments";
 import { SlashTextarea } from "@/components/ui/slash-textarea";
-import { Switch } from "@/components/ui/switch";
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
 import { links } from "@/lib/links";
-import { PRIORITY_LABEL } from "@/lib/task-ui";
 import { isTaskRunning } from "@/lib/task-state";
 import type { Task, TaskWatcher } from "@/lib/types";
 import { toast } from "@/store/toast-store";
@@ -24,6 +11,9 @@ import {
   fieldInputClass as inputClass,
   fieldLabelClass as labelClass,
 } from "@/lib/ui-classes";
+import { TaskFormActions } from "./form/task-form-actions";
+import { TaskFormAdvanced } from "./form/task-form-advanced";
+import { buildTaskPayload } from "./form/task-form-payload";
 
 export function CreateTaskModal({
   open,
@@ -249,44 +239,23 @@ export function TaskFormModal({
     setSaving(rerun ? "rerun" : "save");
     setError(null);
     try {
-      const attachmentBlock =
-        attachments.length > 0
-          ? `\n\nArquivos anexados:\n${attachments
-              .map((path) => `- ${path}`)
-              .join("\n")}`
-          : "";
-      const parsedTags = tags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(
-          (tag) =>
-            Boolean(tag) &&
-            tag !== "needs-browser" &&
-            !tag.startsWith("browse-allowlist:"),
-        );
-      if (needsBrowser) {
-        parsedTags.push("needs-browser");
-        const allowlist = browseAllowlist
-          .split(",")
-          .map((domain) => domain.trim())
-          .filter(Boolean)
-          .join(",");
-        if (allowlist) parsedTags.push(`browse-allowlist:${allowlist}`);
-      }
-      const payload = {
-        title: title.trim(),
-        description: `${description.trim()}${attachmentBlock}`,
-        execution_mode: executionMode,
+      const payload = buildTaskPayload({
+        title,
+        description,
+        attachments,
+        tags,
+        needsBrowser,
+        browseAllowlist,
+        executionMode,
         priority,
-        assigned_agent: agent.trim() || null,
-        preferred_model: model,
-        preferred_harness: harness.trim() || null,
-        effort_level: effort,
-        care_level: careLevel,
-        notify_email: email.trim() || null,
-        export_to_gdocs: exportToGdocs,
-        tags: parsedTags,
-      };
+        agent,
+        model,
+        harness,
+        effort,
+        careLevel,
+        email,
+        exportToGdocs,
+      });
       if (mode === "fork") {
         if (!forkSource && !forkRunId) {
           throw new Error("fork sem tarefa ou execução de origem");
@@ -364,21 +333,6 @@ export function TaskFormModal({
     onClose();
   }
 
-  const advancedSummary = [
-    model ? `modelo: ${model}` : "roteador automático",
-    `prioridade ${priority}`,
-    agent ? `@${agent}` : null,
-    careLevel !== "standard" ? `cuidado: ${careLevel}` : null,
-    tags.trim() ? "tags" : null,
-    email.trim() ? "e-mail" : null,
-    watchChannels.length > 0
-      ? `avisos: ${watchChannels.join(", ")}`
-      : null,
-    exportToGdocs ? "Google Docs" : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
   return (
     <Modal
       open={open}
@@ -431,185 +385,35 @@ export function TaskFormModal({
           />
         </div>
       </div>
-        <CollapsibleSection title="Mais opções" summary={advancedSummary}>
-          <div className="grid gap-3 md:grid-cols-2">
-        <label>
-          <span className={labelClass}>Modo</span>
-          <select
-            value={executionMode}
-            onChange={(event) => setExecutionMode(event.target.value)}
-            className={inputClass}
-          >
-            <option value="AUTO_DSH">AUTO_DSH — roteador decide</option>
-            <option value="PLAN_ONLY">PLAN_ONLY — só plano</option>
-            <option value="PLAN_THEN_BUILD">PLAN_THEN_BUILD — aprovar plano</option>
-            <option value="BUILD_DIRECT">BUILD_DIRECT — executar direto</option>
-          </select>
-        </label>
-        <label>
-          <span className={labelClass}>Prioridade</span>
-          <select
-            value={priority}
-            onChange={(event) => setPriority(Number(event.target.value))}
-            className={inputClass}
-          >
-            {[4, 3, 2, 1].map((value) => (
-              <option key={value} value={value}>
-                {value} — {PRIORITY_LABEL[value]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div>
-          <span className={labelClass}>Agente (opcional)</span>
-          <AgentCombobox
-            value={agent}
-            onChange={(value) => setAgent(value)}
-            workspaceId={workspaceId}
-            placeholder="automático (router)"
-          />
-        </div>
-        <div>
-          <span className={labelClass}>Modelo (opcional)</span>
-          <ModelCombobox
-            value={model}
-            onChange={setModel}
-            placeholder="digite para filtrar (ex.: deepseek, glm, opencode-go/…)"
-          />
-        </div>
-        <label>
-          <span className={labelClass}>Harness (opcional)</span>
-          <select
-            value={harness}
-            onChange={(event) => setHarness(event.target.value)}
-            className={inputClass}
-          >
-            <option value="">automático (padrão do workspace)</option>
-            {HARNESS_OPTIONS.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label} — {option.description}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className={labelClass}>Effort</span>
-          <select
-            value={effort}
-            onChange={(event) => setEffort(event.target.value)}
-            className={inputClass}
-          >
-            <option value="low">low</option>
-            <option value="medium">medium</option>
-            <option value="high">high</option>
-          </select>
-        </label>
-        <label>
-          <span className={labelClass}>Cuidado</span>
-          <select
-            value={careLevel}
-            onChange={(event) =>
-              setCareLevel(event.target.value as "quick" | "standard" | "careful")
-            }
-            className={inputClass}
-          >
-            <option value="quick">rápido (menos passos)</option>
-            <option value="standard">padrão (checklist curto)</option>
-            <option value="careful">cuidadoso (revisão completa)</option>
-          </select>
-        </label>
-        <label>
-          <span className={labelClass}>Tags (vírgula)</span>
-          <input
-            value={tags}
-            onChange={(event) => setTags(event.target.value)}
-            placeholder="roteiro, code, auditoria"
-            className={inputClass}
-          />
-        </label>
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2 sm:col-span-2">
-          <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-[13px] text-zinc-300">
-              <Globe size={12} className="text-sky-300" />
-              Precisa navegar na internet
-            </p>
-            <p className="mt-0.5 text-[11.5px] leading-snug text-zinc-500">
-              Ativa o OpenCode Browse automaticamente e inclui a skill de navegação
-              no prompt. Login, 2FA e captcha são entregues a você.
-            </p>
-          </div>
-          <Switch
-            checked={needsBrowser}
-            onCheckedChange={setNeedsBrowser}
-            label="Precisa navegar na internet"
-          />
-        </div>
-        {needsBrowser ? (
-          <label className="sm:col-span-2">
-            <span className={labelClass}>Domínios permitidos (opcional)</span>
-            <input
-              value={browseAllowlist}
-              onChange={(event) => setBrowseAllowlist(event.target.value)}
-              placeholder="example.com, docs.example.com"
-              className={inputClass}
-            />
-            <span className="mt-1 block text-[11.5px] leading-snug text-zinc-500">
-              Limita a sessão do Browse a estes domínios. Tarefas marcadas com
-              browse-high-risk, browse-login, browse-payment, browse-banking ou
-              browse-2fa exigem allowlist.
-            </span>
-          </label>
-        ) : null}
-        <label>
-          <span className={labelClass}>E-mail de notificação</span>
-          <input
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="ops@empresa.com"
-            className={inputClass}
-          />
-        </label>
-        <div className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2 sm:col-span-2">
-          <p className="text-[13px] text-zinc-300">Avisar quando concluir</p>
-          <p className="mt-0.5 text-[11.5px] leading-snug text-zinc-500">
-            Sem escolha aqui, a tarefa não avisa ninguém. Ao marcar um canal, o
-            resultado, o status e o artefato principal são enviados ao terminar
-            cada execução, inclusive em falhas.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-4">
-            {(["telegram", "signal"] as const).map((channel) => (
-              <label
-                key={channel}
-                className="flex items-center gap-2 text-[12.5px] text-zinc-400"
-              >
-                <input
-                  type="checkbox"
-                  checked={watchChannels.includes(channel)}
-                  onChange={(event) =>
-                    setWatchChannels((current) =>
-                      event.target.checked
-                        ? [...current.filter((item) => item !== channel), channel]
-                        : current.filter((item) => item !== channel),
-                    )
-                  }
-                  className="accent-blue-500"
-                />
-                {channel === "telegram" ? "Telegram" : "Signal"}
-              </label>
-            ))}
-          </div>
-        </div>
-        <label className="flex items-end gap-2 pb-2 text-[13px] text-zinc-400">
-          <input
-            type="checkbox"
-            checked={exportToGdocs}
-            onChange={(event) => setExportToGdocs(event.target.checked)}
-            className="accent-blue-500"
-          />
-          exportar para Google Docs
-        </label>
-          </div>
-        </CollapsibleSection>
+        <TaskFormAdvanced
+          workspaceId={workspaceId}
+          executionMode={executionMode}
+          setExecutionMode={setExecutionMode}
+          priority={priority}
+          setPriority={setPriority}
+          agent={agent}
+          setAgent={setAgent}
+          model={model}
+          setModel={setModel}
+          harness={harness}
+          setHarness={setHarness}
+          effort={effort}
+          setEffort={setEffort}
+          careLevel={careLevel}
+          setCareLevel={setCareLevel}
+          tags={tags}
+          setTags={setTags}
+          needsBrowser={needsBrowser}
+          setNeedsBrowser={setNeedsBrowser}
+          browseAllowlist={browseAllowlist}
+          setBrowseAllowlist={setBrowseAllowlist}
+          email={email}
+          setEmail={setEmail}
+          watchChannels={watchChannels}
+          setWatchChannels={setWatchChannels}
+          exportToGdocs={exportToGdocs}
+          setExportToGdocs={setExportToGdocs}
+        />
       </div>
       {running ? (
         <p className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
@@ -621,41 +425,13 @@ export function TaskFormModal({
           {error}
         </p>
       ) : null}
-      <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-zinc-800/70 pt-4">
-        <Button variant="ghost" size="sm" onClick={cancel}>
-          Cancelar
-        </Button>
-        {mode === "create" || mode === "fork" ? (
-          <Button size="sm" onClick={() => void submit(false)} disabled={saving !== null}>
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-            {mode === "fork" ? "Criar fork" : "Criar tarefa"}
-          </Button>
-        ) : (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void submit(false)}
-              disabled={saving !== null || running}
-            >
-              {saving === "save" ? <Loader2 size={14} className="animate-spin" /> : null}
-              Salvar
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => void submit(true)}
-              disabled={saving !== null || running}
-            >
-              {saving === "rerun" ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <ArrowRightLeft size={14} />
-              )}
-              Salvar e reexecutar
-            </Button>
-          </>
-        )}
-      </div>
+      <TaskFormActions
+        mode={mode}
+        saving={saving}
+        running={running}
+        onSubmit={(rerun) => void submit(rerun)}
+        onCancel={cancel}
+      />
     </Modal>
   );
 }

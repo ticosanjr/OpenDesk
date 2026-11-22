@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { ArrowDown, Loader2, RefreshCw } from "lucide-react";
 import { openWorkspacePath } from "@/lib/open-path";
 import { apiDelete, apiGet, apiPost, apiText } from "@/lib/api";
 import type {
@@ -8,24 +7,21 @@ import type {
   TaskInteraction,
   TaskMessage,
 } from "@/lib/types";
-import { Button } from "@/components/ui/button";
 import { ForkTaskModal } from "@/components/kanban/task-form-modal";
-import {
-  InteractionCard,
-  PermissionRequestCard,
-} from "@/components/interactions/InteractionCard";
 import { links } from "@/lib/links";
 import { toast } from "@/store/toast-store";
 import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
 import { RunLogHeader } from "@/components/runs/RunLogHeader";
-import {
-  StreamView,
-  type RunEventFilter,
-} from "@/components/runs/run-log-parts";
-import { RunLogBands } from "@/components/runs/RunLogBands";
+import { type RunEventFilter } from "@/components/runs/run-log-parts";
 import { RunLogComposer } from "@/components/runs/RunLogComposer";
 import { RunInputsStrip } from "@/components/runs/RunInputsStrip";
+import { RawLogPanel } from "@/components/runs/run-log-view/RawLogPanel";
+import { RunLogErrorState } from "@/components/runs/run-log-view/RunLogErrorState";
+import { RunLogLoading } from "@/components/runs/run-log-view/RunLogLoading";
+import { TranscriptPane } from "@/components/runs/run-log-view/TranscriptPane";
+import { executionTranscript } from "@/components/runs/run-log-view/executionTranscript";
+import { runLogTotals } from "@/components/runs/run-log-view/runTotals";
 import { useStickToBottom } from "@/lib/use-stick-to-bottom";
 
 export function RunLogView({
@@ -175,7 +171,7 @@ export function RunLogView({
 
   useEffect(() => {
     if (!running && !follow) return;
-    const handle = window.setInterval(() => void load(), 1000);
+    const handle = window.setInterval(() => void load(), 10_000);
     return () => window.clearInterval(handle);
   }, [follow, load, running]);
 
@@ -328,22 +324,7 @@ export function RunLogView({
   }
 
   function copyExecution() {
-    const lines: string[] = [];
-    for (const message of messages) {
-      lines.push(`Você: ${message.content}`);
-    }
-    for (const event of timeline?.events ?? []) {
-      if (event.kind === "comment" && event.text.trim()) {
-        lines.push(`Assistente: ${event.text.trim()}`);
-      } else if (event.kind === "tool" && event.tool) {
-        lines.push(
-          `[ferramenta] ${event.tool.summary} (${event.tool.status})`,
-        );
-      }
-    }
-    const result = timeline?.result.text?.trim() || summary;
-    if (result) lines.push(`Resultado: ${result}`);
-    void copy(lines.join("\n\n"));
+    void copy(executionTranscript(messages, timeline, summary));
   }
 
   async function copy(text: string) {
@@ -360,51 +341,19 @@ export function RunLogView({
   const failedRun = status === "FAILED" || status === "CANCELLED";
   const summary = run?.summary_response?.trim() || timeline?.result.text;
   const attempts = timeline?.attempts ?? [];
-  const totalTokens = attempts.length
-    ? attempts.reduce(
-        (total, attempt) =>
-          total + attempt.tokens_input + attempt.tokens_output,
-        0,
-      )
-    : (run?.tokens_input ?? 0) + (run?.tokens_output ?? 0);
-  const totalInput = attempts.length
-    ? attempts.reduce((total, attempt) => total + attempt.tokens_input, 0)
-    : run?.tokens_input ?? 0;
-  const totalOutput = attempts.length
-    ? attempts.reduce((total, attempt) => total + attempt.tokens_output, 0)
-    : run?.tokens_output ?? 0;
-  const totalCost = attempts.length
-    ? attempts.reduce((total, attempt) => total + attempt.cost_usd, 0)
-    : run?.estimated_cost_usd ?? 0;
+  const totals = runLogTotals(attempts, run);
 
   if (loading && !timeline) {
-    return (
-      <div className="flex items-center gap-2 p-6 text-[13px] text-zinc-500">
-        <Loader2 size={14} className="animate-spin" />
-        Carregando execução…
-      </div>
-    );
+    return <RunLogLoading />;
   }
 
   if (error && !timeline) {
     return (
-      <div className="space-y-3 p-4">
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
-          {error}
-        </p>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => void refresh()}
-          disabled={refreshing}
-        >
-          <RefreshCw
-            size={13}
-            className={refreshing ? "animate-spin" : undefined}
-          />
-          Tentar novamente
-        </Button>
-      </div>
+      <RunLogErrorState
+        error={error}
+        refreshing={refreshing}
+        onRetry={() => void refresh()}
+      />
     );
   }
 
@@ -414,12 +363,7 @@ export function RunLogView({
         runId={runId}
         timeline={timeline}
         status={status}
-        totals={{
-          input: totalInput,
-          output: totalOutput,
-          tokens: totalTokens,
-          cost: totalCost,
-        }}
+        totals={totals}
         attemptsCount={attempts.length}
         stepsCount={timeline?.steps.length ?? 0}
         view={view}
@@ -449,81 +393,28 @@ export function RunLogView({
       <RunInputsStrip inputs={timeline?.inputs ?? []} />
 
       {showRaw ? (
-        <div className="min-h-0 flex-1 overflow-auto p-4">
-          {rawLoading ? (
-            <p className="flex items-center gap-2 text-[12px] text-zinc-500">
-              <Loader2 size={12} className="animate-spin" />
-              Carregando log bruto…
-            </p>
-          ) : (
-            <pre className="whitespace-pre-wrap break-words font-mono text-[11.5px] leading-relaxed text-zinc-400">
-              {raw || "Log bruto indisponível."}
-            </pre>
-          )}
-        </div>
+        <RawLogPanel raw={raw} rawLoading={rawLoading} />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="relative min-h-0 flex-1">
-          <div
-            ref={transcriptRef}
-            onScroll={onTranscriptScroll}
-            className="h-full space-y-2 overflow-auto p-3"
-          >
-            {view === "bands" ? (
-              <>
-                {interactions.map((interaction) => (
-                  <InteractionCard
-                    key={interaction.id}
-                    interaction={interaction}
-                    onResolved={() => void loadInteractions()}
-                  />
-                ))}
-                {permissions.map((request) => (
-                  <PermissionRequestCard
-                    key={request.request_id}
-                    request={request}
-                    onDecided={() => void loadInteractions()}
-                  />
-                ))}
-              </>
-            ) : null}
-            {view === "stream" ? (
-              <StreamView
-                timeline={timeline}
-                messages={messages}
-                workspaceRoot={timeline?.workspace_root}
-                summary={summary}
-                failedRun={failedRun}
-                copy={copy}
-                interactions={interactions}
-                permissions={permissions}
-                onInteractionsChanged={() => void loadInteractions()}
-                filter={filter}
-                bandForce={{ signal: bandSignal, open: bandsOpen }}
-              />
-            ) : (
-              <RunLogBands
-                timeline={timeline}
-                failedRun={failedRun}
-                summary={summary}
-                error={error}
-                onCopy={(value) => void copy(value)}
-              />
-            )}
-          </div>
-          {!transcriptAtBottom ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="absolute bottom-3 right-4 h-8 gap-1.5 rounded-full bg-zinc-950/95 shadow-lg"
-              onClick={() => scrollTranscript()}
-              title="Ir para as ações mais recentes"
-            >
-              <ArrowDown size={13} />
-              ir para o fim
-            </Button>
-          ) : null}
-          </div>
+        <TranscriptPane
+          transcriptRef={transcriptRef}
+          onScroll={onTranscriptScroll}
+          atBottom={transcriptAtBottom}
+          onScrollToBottom={scrollTranscript}
+          view={view}
+          filter={filter}
+          bandSignal={bandSignal}
+          bandsOpen={bandsOpen}
+          interactions={interactions}
+          permissions={permissions}
+          timeline={timeline}
+          messages={messages}
+          summary={summary}
+          failedRun={failedRun}
+          error={error}
+          copy={copy}
+          onInteractionsChanged={() => void loadInteractions()}
+          onCopy={(value) => void copy(value)}
+        >
           {timeline?.run?.task_id ? (
             <RunLogComposer
               workspaceId={timeline.run.workspace_id}
@@ -541,7 +432,7 @@ export function RunLogView({
               onSend={() => void sendComment()}
             />
           ) : null}
-        </div>
+        </TranscriptPane>
       )}
 
       <ForkTaskModal

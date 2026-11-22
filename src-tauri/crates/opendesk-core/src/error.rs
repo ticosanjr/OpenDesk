@@ -49,6 +49,38 @@ impl From<opendesk_storage::error::AppError> for AppError {
     }
 }
 
+impl From<opendesk_engine::error::AppError> for AppError {
+    fn from(error: opendesk_engine::error::AppError) -> Self {
+        use opendesk_engine::error::AppError as Engine;
+        match error {
+            Engine::Io(error) => Self::Io(error),
+            Engine::Db(error) => Self::Db(error),
+            Engine::Http(error) => Self::Http(error),
+            Engine::BadRequest(message) => Self::BadRequest(message),
+            Engine::NotFound(message) => Self::NotFound(message),
+            Engine::Conflict(message) => Self::Conflict(message),
+            Engine::Daemon(message) => Self::Daemon(message),
+            Engine::Internal(message) => Self::Internal(message),
+        }
+    }
+}
+
+impl From<AppError> for opendesk_engine::error::AppError {
+    fn from(error: AppError) -> Self {
+        use opendesk_engine::error::AppError as Engine;
+        match error {
+            AppError::Io(error) => Engine::Io(error),
+            AppError::Db(error) => Engine::Db(error),
+            AppError::Http(error) => Engine::Http(error),
+            AppError::BadRequest(message) => Engine::BadRequest(message),
+            AppError::NotFound(message) => Engine::NotFound(message),
+            AppError::Conflict(message) => Engine::Conflict(message),
+            AppError::Daemon(message) => Engine::Daemon(message),
+            AppError::Internal(message) => Engine::Internal(message),
+        }
+    }
+}
+
 impl From<opendesk_domain::DomainError> for AppError {
     fn from(error: opendesk_domain::DomainError) -> Self {
         use opendesk_domain::DomainError as Domain;

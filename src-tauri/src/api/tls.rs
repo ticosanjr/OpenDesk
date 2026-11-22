@@ -118,19 +118,33 @@ impl Reloader {
     }
 
     pub fn current(&self) -> Arc<ServerConfig> {
-        self.current.read().expect("tls config").clone()
+        self.current
+            .read()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .clone()
     }
 
     /// Rebuilds the config when any file changed. A failure keeps the previous
     /// material alive and is returned for logging.
     pub fn reload_if_changed(&self) -> AppResult<bool> {
         let next = stamp(&[&self.env.ca, &self.env.cert, &self.env.key]);
-        if *self.stamps.read().expect("tls stamps") == next {
+        if *self
+            .stamps
+            .read()
+            .unwrap_or_else(|poison| poison.into_inner())
+            == next
+        {
             return Ok(false);
         }
         let config = build_server_config(&self.env)?;
-        *self.current.write().expect("tls config") = config;
-        *self.stamps.write().expect("tls stamps") = next;
+        *self
+            .current
+            .write()
+            .unwrap_or_else(|poison| poison.into_inner()) = config;
+        *self
+            .stamps
+            .write()
+            .unwrap_or_else(|poison| poison.into_inner()) = next;
         Ok(true)
     }
 }

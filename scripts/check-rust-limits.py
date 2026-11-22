@@ -25,6 +25,7 @@ def is_test_file(path: pathlib.Path) -> bool:
     return (
         name == "tests.rs"
         or name.endswith("_tests.rs")
+        or name.startswith("test_support")
         or "tests" in path.parts
     )
 
@@ -38,7 +39,7 @@ def production_text(text: str) -> str:
     return "\n".join(lines[:cut])
 
 
-def scan(roots: list[pathlib.Path]) -> dict[str, tuple[str, int]]:
+def scan(roots: list[pathlib.Path], check_lines: bool = True) -> dict[str, tuple[str, int]]:
     issues: dict[str, tuple[str, int]] = {}
     for root in roots:
         for path in sorted(root.rglob("*.rs")):
@@ -47,7 +48,7 @@ def scan(roots: list[pathlib.Path]) -> dict[str, tuple[str, int]]:
             except OSError:
                 continue
             lines = len(text.splitlines())
-            if lines > MAX_LINES:
+            if check_lines and lines > MAX_LINES:
                 issues[str(path)] = ("lines", lines)
             if is_test_file(path):
                 continue
@@ -90,12 +91,13 @@ def write_baseline(path: pathlib.Path, issues: dict[str, tuple[str, int]]) -> No
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", action="append", default=None)
+    parser.add_argument("--no-line-limit", action="store_true")
     parser.add_argument("--baseline", default="scripts/rust-limits-baseline.txt")
     parser.add_argument("--write-baseline", action="store_true")
     args = parser.parse_args()
 
     roots = [pathlib.Path(root) for root in (args.root or ["src-tauri/crates"])]
-    issues = scan(roots)
+    issues = scan(roots, check_lines=not args.no_line_limit)
     baseline_path = pathlib.Path(args.baseline)
 
     if args.write_baseline:

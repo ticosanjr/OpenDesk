@@ -98,7 +98,9 @@ describe("RecipesPage", () => {
         },
       ),
     );
-  });
+    // The coverage run executes this page alongside 70 other jsdom files;
+    // 5s is too tight for the stepper plus the dry-run round-trip.
+  }, 15_000);
 
   it("deletes only on the second click of the same button", async () => {
     render(

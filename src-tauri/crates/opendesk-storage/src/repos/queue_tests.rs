@@ -96,6 +96,11 @@ mod tests {
         assert!(claim(&pool, &job.id).await.expect("claim"));
         heartbeat(&pool, &job.id).await.expect("heartbeat");
         assert!(expired_leases(&pool).await.expect("leases").is_empty());
+        let deadline = next_lease_deadline(&pool)
+            .await
+            .expect("deadline")
+            .expect("running lease has a deadline");
+        assert!(!deadline.is_empty());
         sqlx::query(
             "UPDATE execution_queue SET lease_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 second') WHERE id = ?",
         )
@@ -106,6 +111,14 @@ mod tests {
         let expired = expired_leases(&pool).await.expect("expired");
         assert_eq!(expired.len(), 1);
         assert_eq!(expired[0].id, job.id);
+        assert!(next_lease_deadline(&pool)
+            .await
+            .expect("deadline")
+            .is_some());
+        finish(&pool, &job.id, "FAILED", Some("expired"))
+            .await
+            .expect("finish");
+        assert!(next_lease_deadline(&pool).await.expect("deadline").is_none());
     }
 
     #[tokio::test]

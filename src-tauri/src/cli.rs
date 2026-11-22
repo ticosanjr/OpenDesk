@@ -1507,6 +1507,9 @@ async fn execute_node_job(
         30
     };
     let mut command = tokio::process::Command::new(&program);
+    command.kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
     crate::sandbox::scrub_environment(&mut command, sandbox);
     let output = tokio::time::timeout(
         Duration::from_secs(timeout_minutes * 60),

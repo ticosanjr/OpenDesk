@@ -7,8 +7,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-MIN_LINES="${OPENDESK_MIN_LINES:-53.8}"
-CORE_MIN_LINES="${OPENDESK_CORE_MIN_LINES:-62.7}"
+MIN_LINES="${OPENDESK_MIN_LINES:-64.0}"
+CORE_MIN_LINES="${OPENDESK_CORE_MIN_LINES:-80.5}"
 
 echo "==> TypeScript"
 npm run check
@@ -27,6 +27,10 @@ echo "==> Clippy (-D warnings)"
 
 echo "==> Rust limits (500 lines / no unwrap outside tests)"
 python3 scripts/check-rust-limits.py
+python3 scripts/check-rust-limits.py --root src-tauri/src --no-line-limit --baseline scripts/shell-limits-baseline.txt
+
+echo "==> Frontend limits (500 lines per source file)"
+python3 scripts/check-frontend-limits.py
 
 echo "==> Rust tests"
 npm run test:rust
@@ -37,7 +41,7 @@ npm run build
 if command -v cargo-llvm-cov >/dev/null 2>&1; then
   echo "==> Rust coverage (fail under ${MIN_LINES}% lines)"
   COVERAGE_SUMMARY="$(mktemp)"
-  (cd src-tauri && cargo llvm-cov --summary-only --fail-under-lines "$MIN_LINES") | tee "$COVERAGE_SUMMARY"
+  (cd src-tauri && cargo llvm-cov --workspace --summary-only --fail-under-lines "$MIN_LINES") | tee "$COVERAGE_SUMMARY"
   echo "==> Core Rust coverage (fail under ${CORE_MIN_LINES}% lines)"
   CORE_MIN_LINES="$CORE_MIN_LINES" "$ROOT/scripts/coverage-core.sh" "$COVERAGE_SUMMARY"
   rm -f "$COVERAGE_SUMMARY"

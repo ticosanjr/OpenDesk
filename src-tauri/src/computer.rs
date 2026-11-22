@@ -328,6 +328,9 @@ pub async fn screenshot(
     tokio::fs::create_dir_all(&dir).await?;
     let file = dir.join(format!("{id}.png"));
     let mut command = tokio::process::Command::new(tool);
+    command.kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
     if tool == "import" {
         command.args(["-window", "root"]);
     }
@@ -397,7 +400,9 @@ pub async fn act(
     };
     let (program, args, summary) = build_action(&capabilities, &tool, &action)?;
     let mut command = tokio::process::Command::new(&program);
-    command.args(&args);
+    command.args(&args).kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
     if let Some(display) = session.display.as_deref() {
         command.env("DISPLAY", display);
     }
@@ -444,7 +449,9 @@ async fn ensure_window_allowed(
 
 async fn active_window(display: Option<&str>) -> AppResult<ActiveWindow> {
     let mut title_command = tokio::process::Command::new("xdotool");
-    title_command.args(["getactivewindow", "getwindowname"]);
+    title_command
+        .args(["getactivewindow", "getwindowname"])
+        .kill_on_drop(true);
     if let Some(display) = display {
         title_command.env("DISPLAY", display);
     }
@@ -459,7 +466,9 @@ async fn active_window(display: Option<&str>) -> AppResult<ActiveWindow> {
     let title = String::from_utf8_lossy(&title.stdout).trim().to_string();
 
     let mut pid_command = tokio::process::Command::new("xdotool");
-    pid_command.args(["getactivewindow", "getwindowpid"]);
+    pid_command
+        .args(["getactivewindow", "getwindowpid"])
+        .kill_on_drop(true);
     if let Some(display) = display {
         pid_command.env("DISPLAY", display);
     }

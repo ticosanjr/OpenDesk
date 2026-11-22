@@ -1,197 +1,71 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import {
-  ArrowDown,
-  Bot,
-  Check,
-  Paperclip,
-  Loader2,
-  Mail,
-  MessageSquare,
-  Mic,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Search,
-  Send,
-  Square,
-  Sparkles,
-  Trash2,
-  Volume2,
-  Wand2,
-  X,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { MessageSquare, RefreshCw, Wand2 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, Input } from "@/components/ui/field";
-import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
-import type { ChatMessage, ChatReply, ChatThread, ChatTurn } from "@/lib/types";
-import { cn } from "@/lib/utils";
-import { relativeTime } from "@/lib/format";
-import { AgentCombobox } from "@/components/ui/agent-combobox";
-import { ModelCombobox } from "@/components/ui/model-combobox";
-import { SlashTextarea } from "@/components/ui/slash-textarea";
+import type { ChatReply, ChatThread, ChatTurn } from "@/lib/types";
 import { toast } from "@/store/toast-store";
-import { links } from "@/lib/links";
-import { EntityLink } from "@/components/ui/entity-link";
 import { confirmAction } from "@/store/confirm-store";
-import { smallLabelClass as labelClass } from "@/lib/ui-classes";
 import { useStickToBottom } from "@/lib/use-stick-to-bottom";
-
-function base64FromBlob(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result ?? "");
-      resolve(result.includes(",") ? result.split(",")[1] : result);
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+import { ChatComposer, type ChatAttachment } from "./chat/ChatComposer";
+import { EmailReplyModal } from "./chat/EmailReplyModal";
+import { MetaBuilder } from "./chat/MetaBuilder";
+import { ThreadHeader } from "./chat/ThreadHeader";
+import { ThreadListCard } from "./chat/ThreadListCard";
+import { Transcript } from "./chat/Transcript";
+import { useChatThreadData } from "./chat/useChatThreadData";
+import { useVoiceInput } from "./chat/useVoiceInput";
 
 export function ChatPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const workspaces = useAppStore((state) => state.workspaces);
+  const lastChatEvent = useAppStore((state) => state.lastChatEvent);
   const setWorkspaceDialogOpen = useUiStore(
     (state) => state.setWorkspaceDialogOpen,
   );
 
-  const [threads, setThreads] = useState<ChatThread[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [thread, setThread] = useState<ChatThread | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [agent, setAgent] = useState("build");
   const [model, setModel] = useState<string | null>(null);
-  const [attachments, setAttachments] = useState<Array<{ name: string; data: string }>>([]);
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [prompt, setPrompt] = useState("");
-  const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  const [latestTurn, setLatestTurn] = useState<ChatTurn | null>(null);
   const [stopping, setStopping] = useState(false);
   const [threadQuery, setThreadQuery] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [voiceBusy, setVoiceBusy] = useState(false);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const [emailOpen, setEmailOpen] = useState(false);
-  const [emailTo, setEmailTo] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
-  const [emailBody, setEmailBody] = useState("");
-  const [emailAttachments, setEmailAttachments] = useState("");
-  const [emailSending, setEmailSending] = useState(false);
-  const [params, setParams] = useSearchParams();
-  const lastChatEvent = useAppStore((state) => state.lastChatEvent);
-
-  const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
-  const filteredThreads = threads.filter((item) => {
-    const needle = threadQuery.trim().toLowerCase();
-    if (!needle) return true;
-    return `${item.title} ${item.agent}`.toLowerCase().includes(needle);
+  const { recording, voiceBusy, startRecording, stopRecording, speakMessage } =
+    useVoiceInput({ workspaceId: activeWorkspaceId, setPrompt });
+  const {
+    threads,
+    selectedId,
+    setSelectedId,
+    thread,
+    setThread,
+    messages,
+    setMessages,
+    loading,
+    setLoading,
+    latestTurn,
+    setLatestTurn,
+    error,
+    setError,
+    turnRunning,
+    loadThreads,
+  } = useChatThreadData({
+    activeWorkspaceId,
+    lastChatEvent,
+    setAgent,
+    setModel,
   });
 
-  const loadThreads = useCallback(async () => {
-    if (!activeWorkspaceId) {
-      setThreads([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const list = await apiGet<ChatThread[]>(
-        `/api/chat/threads?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
-      );
-      setThreads(list);
-      setSelectedId((current) =>
-        current && list.some((item) => item.id === current)
-          ? current
-          : list[0]?.id ?? null,
-      );
-      setError(null);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setLoading(false);
-    }
-  }, [activeWorkspaceId]);
-
-  useEffect(() => {
-    void loadThreads();
-  }, [loadThreads]);
-
-  useEffect(() => {
-    const requested = params.get("thread");
-    if (!requested || threads.length === 0) return;
-    if (threads.some((item) => item.id === requested)) {
-      setSelectedId(requested);
-      setParams({}, { replace: true });
-    }
-  }, [params, setParams, threads]);
-
-  useEffect(() => {
-    if (!selectedId) {
-      setThread(null);
-      setMessages([]);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    apiGet<{ thread: ChatThread; messages: ChatMessage[] }>(
-      `/api/chat/threads/${selectedId}`,
-    )
-      .then((value) => {
-        if (cancelled) return;
-        setThread(value.thread);
-        setMessages(value.messages);
-        setAgent(value.thread.agent);
-        setModel(value.thread.model ?? null);
-      })
-      .catch((cause) =>
-        setError(cause instanceof Error ? cause.message : String(cause)),
-      )
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedId]);
-
-  useEffect(() => {
-    if (!selectedId) {
-      setLatestTurn(null);
-      return;
-    }
-    let cancelled = false;
-    void apiGet<ChatTurn | null>(
-      `/api/chat/threads/${encodeURIComponent(selectedId)}/turns/latest`,
-    )
-      .then((value) => {
-        if (!cancelled) setLatestTurn(value);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedId]);
-
-  const turnRunning = latestTurn?.status === "RUNNING";
+  const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
   const thinking = sending || turnRunning;
 
   useEffect(() => {
@@ -202,57 +76,9 @@ export function ChatPage() {
       )
         .then((value) => setLatestTurn(value))
         .catch(() => {});
-    }, 2_000);
+    }, 15_000);
     return () => window.clearInterval(interval);
-  }, [selectedId, sending, turnRunning]);
-
-  const refreshThreads = useCallback(async () => {
-    if (!activeWorkspaceId) return null;
-    try {
-      const list = await apiGet<ChatThread[]>(
-        `/api/chat/threads?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
-      );
-      setThreads(list);
-      return list;
-    } catch {
-      // Live refresh is best-effort; the manual Atualizar button remains.
-      return null;
-    }
-  }, [activeWorkspaceId]);
-
-  const reloadSelected = useCallback(async (id: string) => {
-    try {
-      const value = await apiGet<{ thread: ChatThread; messages: ChatMessage[] }>(
-        `/api/chat/threads/${id}`,
-      );
-      setThread(value.thread);
-      setMessages(value.messages);
-    } catch {
-      // Keep the current view; the thread may have been deleted elsewhere.
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!lastChatEvent || !activeWorkspaceId) return;
-    if (lastChatEvent.workspace_id !== activeWorkspaceId) return;
-    void (async () => {
-      const list = await refreshThreads();
-      if (!list) return;
-      if (!selectedId) {
-        if (list.some((item) => item.id === lastChatEvent.thread_id)) {
-          setSelectedId(lastChatEvent.thread_id);
-        }
-        return;
-      }
-      if (!list.some((item) => item.id === selectedId)) {
-        setSelectedId(null);
-        return;
-      }
-      if (lastChatEvent.thread_id === selectedId) {
-        void reloadSelected(selectedId);
-      }
-    })();
-  }, [lastChatEvent, activeWorkspaceId, selectedId, refreshThreads, reloadSelected]);
+  }, [selectedId, sending, turnRunning, setLatestTurn]);
 
   const {
     ref: transcriptRef,
@@ -260,118 +86,6 @@ export function ChatPage() {
     onScroll: onTranscriptScroll,
     scrollToBottom: scrollTranscript,
   } = useStickToBottom<HTMLDivElement>(`${messages.length}:${sending}`);
-
-  async function startRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const media = new MediaRecorder(stream);
-      chunksRef.current = [];
-      media.ondataavailable = (event) => {
-        if (event.data.size > 0) chunksRef.current.push(event.data);
-      };
-      media.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop());
-        void transcribeVoice(
-          new Blob(chunksRef.current, { type: media.mimeType || "audio/webm" }),
-        );
-      };
-      media.start();
-      recorderRef.current = media;
-      setRecording(true);
-    } catch (cause) {
-      toast({
-        tone: "error",
-        title: "Microfone indisponível",
-        description: cause instanceof Error ? cause.message : String(cause),
-      });
-    }
-  }
-
-  function stopRecording() {
-    recorderRef.current?.stop();
-    recorderRef.current = null;
-    setRecording(false);
-  }
-
-  async function transcribeVoice(blob: Blob) {
-    setVoiceBusy(true);
-    try {
-      const audio_base64 = await base64FromBlob(blob);
-      const result = await apiPost<{ text: string; engine: string }>(
-        "/api/voice/transcribe",
-        { audio_base64, mime: blob.type || "audio/webm" },
-      );
-      setPrompt((current) => (current ? `${current} ${result.text}` : result.text));
-      toast({
-        tone: "success",
-        title: `Transcrito com ${result.engine}`,
-        description: result.text.slice(0, 120),
-      });
-    } catch (cause) {
-      toast({
-        tone: "error",
-        title: "Transcrição falhou",
-        description: cause instanceof Error ? cause.message : String(cause),
-      });
-    } finally {
-      setVoiceBusy(false);
-    }
-  }
-
-  async function speakMessage(text: string) {
-    if (!text.trim()) return;
-    setVoiceBusy(true);
-    try {
-      const result = await apiPost<{ data: string; mime: string }>(
-        "/api/voice/speak",
-        { text, workspace_id: activeWorkspaceId },
-      );
-      const audio = new Audio(`data:${result.mime};base64,${result.data}`);
-      await audio.play();
-    } catch (cause) {
-      toast({
-        tone: "error",
-        title: "Fala indisponível",
-        description: cause instanceof Error ? cause.message : String(cause),
-      });
-    } finally {
-      setVoiceBusy(false);
-    }
-  }
-
-  async function sendEmailReply() {
-    if (!thread) return;
-    if (!emailTo.trim()) {
-      toast({ tone: "warning", title: "Informe o destinatário" });
-      return;
-    }
-    setEmailSending(true);
-    try {
-      await apiPost(`/api/chat/threads/${encodeURIComponent(thread.id)}/email-reply`, {
-        to: emailTo.trim(),
-        subject: emailSubject.trim() || `Re: ${thread.title}`,
-        body_html: emailBody.trim()
-          ? `<pre style="white-space:pre-wrap">${escapeHtml(emailBody)}</pre>`
-          : undefined,
-        attachments: emailAttachments
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean),
-      });
-      toast({ tone: "success", title: "Resposta enviada" });
-      setEmailOpen(false);
-      setEmailBody("");
-      setEmailAttachments("");
-    } catch (cause) {
-      toast({
-        tone: "error",
-        title: "Envio falhou",
-        description: cause instanceof Error ? cause.message : String(cause),
-      });
-    } finally {
-      setEmailSending(false);
-    }
-  }
 
   async function createThread() {
     if (!activeWorkspaceId) return;
@@ -520,6 +234,28 @@ export function ChatPage() {
     }
   }
 
+  function startRename() {
+    if (!thread) return;
+    setTitleDraft(thread.title);
+    setRenaming(true);
+  }
+
+  function replyEmail() {
+    if (!thread) return;
+    setEmailSubject(`Re: ${thread.title.replace(/^E-mail · /, "")}`);
+    setEmailOpen(true);
+  }
+
+  function removeSelectedThread() {
+    if (thread) void removeThread(thread.id);
+  }
+
+  function removeAttachment(index: number) {
+    setAttachments((current) =>
+      current.filter((_, itemIndex) => itemIndex !== index),
+    );
+  }
+
   if (!activeWorkspaceId) {
     return (
       <PageBody>
@@ -558,430 +294,77 @@ export function ChatPage() {
       ) : null}
 
       <div className="grid gap-3 lg:grid-cols-[320px_1fr]">
-        <Card className="flex h-[680px] max-h-[calc(100dvh-190px)] min-h-[460px] flex-col overflow-hidden">
-          <CardHeader className="px-4 py-3.5">
-            <div>
-              <CardTitle>Conversas</CardTitle>
-              <p className="mt-0.5 text-[13.5px] text-zinc-500">
-                {threads.length} conversa{threads.length === 1 ? "" : "s"}
-              </p>
-            </div>
-            <Button size="xs" onClick={() => void createThread()} disabled={loading}>
-              <Plus size={13} />
-              Nova
-            </Button>
-          </CardHeader>
-          <div className="border-b border-zinc-800/70 p-2.5">
-            <div className="flex h-9 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5 focus-within:border-zinc-600">
-              <Search size={13} className="text-zinc-500" />
-              <input
-                value={threadQuery}
-                onChange={(event) => setThreadQuery(event.target.value)}
-                placeholder="Buscar conversa ou agente"
-                className="h-full flex-1 bg-transparent text-[14px] outline-none placeholder:text-zinc-500"
-                aria-label="Buscar conversa ou agente"
-              />
-            </div>
-          </div>
-          <CardContent className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-            {filteredThreads.length === 0 ? (
-              <p className="p-4 text-center text-[13.5px] text-zinc-500">
-                {threads.length === 0
-                  ? "Nenhuma conversa. Escolha um agente e crie a primeira."
-                  : "Nenhuma conversa encontrada."}
-              </p>
-            ) : (
-              filteredThreads.map((item) => (
-                <button
-                  type="button"
-                  key={item.id}
-                  onClick={() => setSelectedId(item.id)}
-                  className={cn(
-                    "w-full rounded-lg px-3 py-2.5 text-left transition-colors",
-                    selectedId === item.id
-                      ? "bg-zinc-800 text-zinc-100"
-                      : "text-zinc-400 hover:bg-zinc-900",
-                  )}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <p className="min-w-0 flex-1 truncate text-[13.5px]">{item.title}</p>
-                    {item.source !== "desktop" ? (
-                      <Badge variant="purple">{item.source}</Badge>
-                    ) : null}
-                  </div>
-                  <p className="mt-0.5 truncate font-mono text-[11.5px] text-zinc-500">
-                    @{item.agent} · {relativeTime(item.last_message_at ?? item.updated_at)}
-                  </p>
-                </button>
-              ))
-            )}
-          </CardContent>
-          <div className="space-y-2 border-t border-zinc-800/70 p-3">
-            <div className="block">
-              <span className={labelClass}>Agente para novas conversas</span>
-              <AgentCombobox
-                value={agent}
-                onChange={(value) => setAgent(value)}
-                workspaceId={activeWorkspaceId}
-                placeholder="build"
-                allowEmpty={false}
-              />
-            </div>
-            <div className="block">
-              <span className={labelClass}>Modelo (opcional)</span>
-              <ModelCombobox
-                value={model}
-                onChange={setModel}
-                routerLabel="Automático"
-                routerHint="Sem modelo fixo, a conversa usa o modelo padrão do agente no OpenCode; o roteador DSH não interfere."
-              />
-            </div>
-            <Button size="sm" className="w-full" onClick={() => void createThread()} disabled={loading}>
-              {loading ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
-              Criar conversa com @{agent}
-            </Button>
-          </div>
-        </Card>
+        <ThreadListCard
+          threads={threads}
+          threadQuery={threadQuery}
+          onThreadQueryChange={setThreadQuery}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          agent={agent}
+          onAgentChange={setAgent}
+          model={model}
+          onModelChange={setModel}
+          workspaceId={activeWorkspaceId}
+          loading={loading}
+          onCreate={() => void createThread()}
+        />
 
         <Card className="flex h-[680px] max-h-[calc(100dvh-190px)] min-h-[460px] flex-col overflow-hidden">
-          <CardHeader className="px-4 py-3">
-            <div className="min-w-0 flex-1">
-              {renaming && thread ? (
-                <div className="flex items-center gap-1">
-                  <input
-                    autoFocus
-                    value={titleDraft}
-                    onChange={(event) => setTitleDraft(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") void renameThread();
-                      if (event.key === "Escape") setRenaming(false);
-                    }}
-                    className="h-8 min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-2.5 text-[13.5px] text-zinc-100 outline-none"
-                  />
-                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Confirmar novo nome" onClick={() => void renameThread()}>
-                    <Check size={14} />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Cancelar renomeação" onClick={() => setRenaming(false)}>
-                    <X size={14} />
-                  </Button>
-                </div>
-              ) : (
-                <CardTitle className="truncate text-[13.5px]">
-                  {thread?.title ?? "Selecione uma conversa"}
-                </CardTitle>
-              )}
-              {thread ? (
-                <p className="mt-0.5 flex flex-wrap items-center gap-1 font-mono text-[13px] text-zinc-500">
-                  <EntityLink
-                    to={links.agent(thread.agent, "workspace", activeWorkspaceId)}
-                    chip
-                  >
-                    @{thread.agent}
-                  </EntityLink>
-                  {thread.model ? <span>· {thread.model}</span> : null}
-                  {thread.opencode_session_id
-                    ? ` · sessão ${thread.opencode_session_id.slice(0, 12)}`
-                    : " · sessão será criada no primeiro envio"}
-                </p>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-2">
-              {thread?.source === "email" ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  title="Responder por e-mail"
-                  onClick={() => {
-                    setEmailSubject(`Re: ${thread.title.replace(/^E-mail · /, "")}`);
-                    setEmailOpen(true);
-                  }}
-                >
-                  <Mail size={13} />
-                </Button>
-              ) : null}
-              {thread ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  title="Renomear conversa"
-                  onClick={() => {
-                    setTitleDraft(thread.title);
-                    setRenaming(true);
-                  }}
-                >
-                  <Pencil size={13} />
-                </Button>
-              ) : null}
-              {thread ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => void removeThread(thread.id)}
-                >
-                  <Trash2 size={13} />
-                </Button>
-              ) : null}
-              <Badge variant={thinking ? "yellow" : "blue"}>
-                {thinking ? "pensando…" : "pronto"}
-              </Badge>
-              {latestTurn && !thinking ? (
-                <span className="text-[11.5px] text-zinc-500">
-                  última execução: {latestTurn.status}
-                  {latestTurn.run_id ? (
-                    <Link
-                      to={links.run(latestTurn.run_id)}
-                      className="ml-1 underline decoration-zinc-600 underline-offset-2 hover:text-zinc-300"
-                    >
-                      ver
-                    </Link>
-                  ) : null}
-                </span>
-              ) : null}
-            </div>
-          </CardHeader>
+          <ThreadHeader
+            thread={thread}
+            workspaceId={activeWorkspaceId}
+            renaming={renaming}
+            titleDraft={titleDraft}
+            onTitleDraftChange={setTitleDraft}
+            onRename={() => void renameThread()}
+            onCancelRename={() => setRenaming(false)}
+            onStartRename={startRename}
+            onReplyEmail={replyEmail}
+            onRemove={removeSelectedThread}
+            thinking={thinking}
+            latestTurn={latestTurn}
+          />
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-0">
-            <div className="relative min-h-0 flex-1 overflow-hidden">
-            <div
-              ref={transcriptRef}
-              data-testid="chat-transcript"
-              onScroll={onTranscriptScroll}
-              className="h-full min-h-0 space-y-3 overflow-y-auto overscroll-contain px-4 py-3"
-            >
-              {!thread ? (
-                <EmptyState
-                  icon={Bot}
-                  title="Escolha ou crie uma conversa"
-                  description="Cada conversa usa um agente e mantém o histórico no SQLite. O conteúdo é executado pelo OpenCode."
-                />
-              ) : messages.length === 0 ? (
-                <EmptyState
-                  icon={Sparkles}
-                  title="Comece a conversa"
-                  description={`Envie a primeira mensagem para @${thread.agent}.`}
-                />
-              ) : (
-                messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={cn(
-                      "max-w-[85%] rounded-xl px-3.5 py-2.5 text-[13.5px] leading-relaxed",
-                      message.role === "user"
-                        ? "ml-auto bg-blue-500/15 text-blue-100"
-                        : "border border-zinc-800/70 bg-zinc-900/50 text-zinc-300",
-                    )}
-                  >
-                    <p className="whitespace-pre-wrap">{message.content}</p>
-                    <div className="mt-1 flex items-center justify-end gap-1 font-mono text-[11px] text-zinc-500">
-                      {message.role === "assistant" ? (
-                        <button
-                          type="button"
-                          title="Ouvir resposta"
-                          onClick={() => void speakMessage(message.content)}
-                          className="rounded p-0.5 text-zinc-500 hover:text-zinc-200"
-                        >
-                          <Volume2 size={11} />
-                        </button>
-                      ) : null}
-                      {message.role === "user" ? "você" : "agente"} ·{" "}
-                      {relativeTime(message.created_at)}
-                    </div>
-                  </div>
-                ))
-              )}
-              {thinking ? (
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-sky-500/20 bg-sky-500/[0.05] px-3 py-2 text-[11.5px] text-sky-200/90">
-                  <Loader2 size={12} className="animate-spin" />
-                  O agente está pensando
-                  <ElapsedLabel
-                    startedAt={latestTurn?.started_at ?? null}
-                    running={turnRunning}
-                  />
-                  …
-                  {latestTurn?.run_id ? (
-                    <Link
-                      to={links.run(latestTurn.run_id)}
-                      className="underline decoration-sky-400/40 underline-offset-2 hover:text-sky-100"
-                    >
-                      ver execução
-                    </Link>
-                  ) : null}
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    className="ml-auto border-red-500/30 text-red-200"
-                    onClick={() => void stopExecution()}
-                    disabled={stopping}
-                  >
-                    <Square size={10} />
-                    {stopping ? "parando…" : "Parar"}
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-            {!transcriptAtBottom ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="absolute bottom-3 right-4 h-8 gap-1.5 rounded-full bg-zinc-950/95 shadow-lg"
-                onClick={() => scrollTranscript()}
-                title="Ir para a mensagem mais recente"
-              >
-                <ArrowDown size={13} />
-                ir para o fim
-              </Button>
-            ) : null}
-            </div>
-            <div
-              data-testid="chat-composer"
-              className="shrink-0 border-t border-zinc-800/70 p-3"
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                event.preventDefault();
-                attachFiles(Array.from(event.dataTransfer.files));
-              }}
-              onPaste={(event) => {
-                const files = Array.from(event.clipboardData.files);
-                if (files.length > 0) {
-                  event.preventDefault();
-                  attachFiles(files);
-                }
-              }}
-            >
-              {attachments.length > 0 ? (
-                <div className="mb-2 flex flex-wrap gap-1.5">
-                  {attachments.map((file, index) => (
-                    <span
-                      key={`${file.name}-${index}`}
-                      className="inline-flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11.5px] text-zinc-400"
-                    >
-                      <Paperclip size={10} />
-                      <span className="max-w-40 truncate">{file.name}</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setAttachments((current) =>
-                            current.filter((_, itemIndex) => itemIndex !== index),
-                          )
-                        }
-                        className="text-zinc-500 hover:text-zinc-200"
-                      >
-                        <X size={10} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              <div className="flex w-full items-stretch gap-2">
-                <SlashTextarea
-                  containerClassName="min-w-0 flex-1"
-                  value={prompt}
-                  onChange={setPrompt}
-                  workspaceId={activeWorkspaceId}
-                  rows={2}
-                  submitOnEnter
-                  onSubmit={() => void send()}
-                  disabled={!thread || sending}
-                  placeholder={
-                    thread
-                      ? `Mensagem para @${thread.agent}… (Enter envia, Shift+Enter quebra linha, cole/arraste arquivos)`
-                      : "Crie ou selecione uma conversa primeiro"
-                  }
-                  className="min-h-[52px] flex-1"
-                />
-                <Button
-                  variant={recording ? "destructive" : "outline"}
-                  size="sm"
-                  className="h-auto min-h-[52px] w-12 shrink-0"
-                  title={recording ? "Parar gravação" : "Push-to-talk"}
-                  onClick={() => (recording ? stopRecording() : void startRecording())}
-                  disabled={!thread || sending || voiceBusy}
-                >
-                  {voiceBusy ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Mic size={14} />
-                  )}
-                </Button>
-                <Button
-                  size="sm"
-                  className="h-auto min-h-[52px] w-24 shrink-0"
-                  onClick={() => void send()}
-                  disabled={!thread || sending || (!prompt.trim() && attachments.length === 0)}
-                >
-                  {sending ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Send size={14} />
-                  )}
-                  Enviar
-                </Button>
-              </div>
-            </div>
+            <Transcript
+              thread={thread}
+              messages={messages}
+              thinking={thinking}
+              turnRunning={turnRunning}
+              latestTurn={latestTurn}
+              stopping={stopping}
+              transcriptRef={transcriptRef}
+              onTranscriptScroll={onTranscriptScroll}
+              transcriptAtBottom={transcriptAtBottom}
+              onScrollToBottom={() => scrollTranscript()}
+              onSpeak={(text) => void speakMessage(text)}
+              onStop={() => void stopExecution()}
+            />
+            <ChatComposer
+              thread={thread}
+              workspaceId={activeWorkspaceId}
+              prompt={prompt}
+              onPromptChange={setPrompt}
+              attachments={attachments}
+              onFiles={attachFiles}
+              onRemoveAttachment={removeAttachment}
+              sending={sending}
+              recording={recording}
+              voiceBusy={voiceBusy}
+              onSend={() => void send()}
+              onStartRecording={() => void startRecording()}
+              onStopRecording={stopRecording}
+            />
           </CardContent>
         </Card>
       </div>
 
-      <Modal
+      <EmailReplyModal
         open={emailOpen}
         onClose={() => setEmailOpen(false)}
-        title="Responder por e-mail"
-        description="A resposta mantém os headers In-Reply-To/References da thread."
-      >
-        <div className="space-y-3">
-          <Field label="Para" htmlFor="email-to">
-            <Input
-              id="email-to"
-              value={emailTo}
-              onChange={(event) => setEmailTo(event.target.value)}
-              placeholder="destinatario@exemplo.com"
-            />
-          </Field>
-          <Field label="Assunto" htmlFor="email-subject">
-            <Input
-              id="email-subject"
-              value={emailSubject}
-              onChange={(event) => setEmailSubject(event.target.value)}
-            />
-          </Field>
-          <Field
-            label="Mensagem"
-            htmlFor="email-body"
-            hint="Deixe vazio para enviar a última resposta do assistente."
-          >
-            <textarea
-              id="email-body"
-              value={emailBody}
-              onChange={(event) => setEmailBody(event.target.value)}
-              className="min-h-[120px] w-full rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-[13px] text-zinc-100 outline-none focus:border-blue-500/60"
-            />
-          </Field>
-          <Field
-            label="Anexos"
-            htmlFor="email-attachments"
-            hint="Caminhos relativos ao workspace, separados por vírgula."
-          >
-            <Input
-              id="email-attachments"
-              value={emailAttachments}
-              onChange={(event) => setEmailAttachments(event.target.value)}
-              placeholder="output/2026-11/relatorio.pdf"
-            />
-          </Field>
-          <div className="flex justify-end gap-2 border-t border-zinc-800/70 pt-3">
-            <Button variant="ghost" size="sm" onClick={() => setEmailOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => void sendEmailReply()}
-              disabled={emailSending}
-            >
-              {emailSending ? <Loader2 size={13} className="animate-spin" /> : <Mail size={13} />}
-              Enviar
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        thread={thread}
+        subject={emailSubject}
+        onSubjectChange={setEmailSubject}
+      />
 
       <Card>
         <CardHeader>
@@ -1002,105 +385,4 @@ export function ChatPage() {
       </Card>
     </PageBody>
   );
-}
-
-function MetaBuilder({ workspaceId }: { workspaceId: string }) {
-  const [prompt, setPrompt] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{
-    kind: string;
-    id: string;
-    path: string;
-    message: string;
-  } | null>(null);
-
-  async function build() {
-    if (!prompt.trim()) {
-      setError("Descreva o agente, skill ou comando.");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const value = await apiPost<typeof result>(
-        `/api/meta/build?workspace_id=${encodeURIComponent(workspaceId)}&scope=workspace`,
-        { prompt: prompt.trim() },
-      );
-      setResult(value);
-      setPrompt("");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex w-full items-stretch gap-2">
-        <SlashTextarea
-          containerClassName="min-w-0 flex-1"
-          value={prompt}
-          onChange={setPrompt}
-          workspaceId={workspaceId}
-          rows={2}
-          placeholder="Crie um subagente chamado revisor-fiscal focado em contabilidade…"
-          className="min-h-[52px] flex-1"
-        />
-        <Button
-          size="sm"
-          className="h-auto min-h-[52px] w-28 shrink-0"
-          onClick={() => void build()}
-          disabled={busy}
-        >
-          {busy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-          Criar arquivo
-        </Button>
-      </div>
-      {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
-          {error}
-        </p>
-      ) : null}
-      {result ? (
-        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-3 text-[13px] text-emerald-200">
-          <p className="font-medium">{result.message}</p>
-          <p className="mt-1 font-mono text-[11.5px] text-emerald-300/70">
-            {result.kind} · {result.id} · {result.path}
-          </p>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-
-
-/** Isolated so the one-second timer does not re-render the whole chat page. */
-function ElapsedLabel({
-  startedAt,
-  running,
-}: {
-  startedAt: string | null;
-  running: boolean;
-}) {
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => {
-    if (!running || !startedAt) {
-      setElapsed(0);
-      return;
-    }
-    const started = Date.parse(startedAt);
-    const update = () =>
-      setElapsed(
-        Number.isFinite(started)
-          ? Math.max(0, Math.round((Date.now() - started) / 1000))
-          : 0,
-      );
-    update();
-    const interval = window.setInterval(update, 1_000);
-    return () => window.clearInterval(interval);
-  }, [running, startedAt]);
-  return elapsed > 0 ? <> · {elapsed}s</> : null;
 }

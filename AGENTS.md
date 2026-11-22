@@ -155,6 +155,12 @@ observabilidade por origem, templates de prompt em três abas, memória via MCP
 (aprendizado vs contexto pessoal), prévia HTML/JSON e a fundação do control
 plane v1.0 (adapter registry, `opendeskd`, schemas de handoff/ticket/memória),
 além do atalho automático do AppImage no menu/barra de tarefas.
+A 1.4.2 endureceu a verificação: shell sem `unwrap/expect` de produção,
+limite de 500 linhas também no shell/frontend, cobertura `--workspace`
+(64,0% total / 80,5% no escopo de negócio), processos com `kill_on_drop` +
+TERM→KILL, fila dormindo até o lease e cron acordando por evento. O primeiro
+cluster sem ciclo (sandbox, runtime, browse, config_sync, dsh_router, adapters,
+cliente OpenCode e portas) já vive em `opendesk-engine`, com reexports no core.
 Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
 Fábrica de Capacidades default (`meta-forge`). O MCP `opendesk-control` permite
 aos agentes operar tarefas, execuções, rotinas, receitas, fila e artefatos; o

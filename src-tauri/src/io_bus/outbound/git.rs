@@ -93,16 +93,14 @@ pub async fn run(
 }
 
 async fn git(repo: &Path, args: &[&str]) -> AppResult<String> {
-    let output = tokio::time::timeout(
-        Duration::from_secs(60),
-        tokio::process::Command::new("git")
-            .args(args)
-            .current_dir(repo)
-            .output(),
-    )
-    .await
-    .map_err(|_| AppError::Internal("git timeout".into()))?
-    .map_err(|error| AppError::BadRequest(format!("git indisponível: {error}")))?;
+    let mut command = tokio::process::Command::new("git");
+    command.args(args).current_dir(repo).kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
+    let output = tokio::time::timeout(Duration::from_secs(60), command.output())
+        .await
+        .map_err(|_| AppError::Internal("git timeout".into()))?
+        .map_err(|error| AppError::BadRequest(format!("git indisponível: {error}")))?;
     if !output.status.success() {
         return Err(AppError::Internal(format!(
             "git {} falhou: {}",

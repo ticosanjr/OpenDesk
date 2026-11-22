@@ -143,7 +143,7 @@ pub async fn move_item(
     source.copy_to(&destination, body.overwrite, &state.paths.backups_dir)?;
     if let Err(error) = source.delete(&state.paths.backups_dir) {
         let _ = destination.delete(&state.paths.backups_dir);
-        return Err(error);
+        return Err(error.into());
     }
     Ok(Json(json!({
         "ok": true,

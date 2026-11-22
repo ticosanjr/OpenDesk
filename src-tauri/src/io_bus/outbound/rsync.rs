@@ -94,15 +94,14 @@ fn base_args(config: &RsyncConfig) -> Vec<String> {
 }
 
 async fn run(args: &[String]) -> AppResult<()> {
-    let output = tokio::time::timeout(
-        Duration::from_secs(300),
-        tokio::process::Command::new(tools::command("rsync"))
-            .args(args)
-            .output(),
-    )
-    .await
-    .map_err(|_| AppError::Internal("rsync timeout".into()))?
-    .map_err(|error| AppError::BadRequest(format!("rsync indisponível: {error}")))?;
+    let mut command = tokio::process::Command::new(tools::command("rsync"));
+    command.args(args).kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
+    let output = tokio::time::timeout(Duration::from_secs(300), command.output())
+        .await
+        .map_err(|_| AppError::Internal("rsync timeout".into()))?
+        .map_err(|error| AppError::BadRequest(format!("rsync indisponível: {error}")))?;
     if !output.status.success() {
         return Err(AppError::Daemon(format!(
             "rsync falhou: {}",

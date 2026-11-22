@@ -490,23 +490,24 @@ pub async fn media(
     if !path.is_file() {
         return Err(AppError::BadRequest("path is not a file".into()));
     }
-    let output = tokio::time::timeout(
-        std::time::Duration::from_secs(20),
-        tokio::process::Command::new("ffprobe")
-            .args([
-                "-v",
-                "error",
-                "-print_format",
-                "json",
-                "-show_format",
-                "-show_streams",
-            ])
-            .arg(&path)
-            .output(),
-    )
-    .await
-    .map_err(|_| AppError::Internal("ffprobe timed out".into()))?
-    .map_err(|error| AppError::BadRequest(format!("ffprobe indisponível: {error}")))?;
+    let mut command = tokio::process::Command::new("ffprobe");
+    command
+        .kill_on_drop(true)
+        .args([
+            "-v",
+            "error",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+        ])
+        .arg(&path);
+    #[cfg(unix)]
+    command.process_group(0);
+    let output = tokio::time::timeout(std::time::Duration::from_secs(20), command.output())
+        .await
+        .map_err(|_| AppError::Internal("ffprobe timed out".into()))?
+        .map_err(|error| AppError::BadRequest(format!("ffprobe indisponível: {error}")))?;
     if !output.status.success() {
         return Err(AppError::BadRequest(
             String::from_utf8_lossy(&output.stderr).to_string(),

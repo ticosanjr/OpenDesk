@@ -14,7 +14,7 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
-use chrono::{DateTime, Duration, NaiveDate, SecondsFormat, Utc};
+use chrono::{DateTime, Duration, NaiveDate, NaiveTime, SecondsFormat, Utc};
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -83,7 +83,7 @@ pub(super) fn parse_bound(value: &str, field: &str) -> AppResult<DateTime<Utc>> 
         return Ok(value.with_timezone(&Utc));
     }
     if let Ok(date) = NaiveDate::parse_from_str(value, "%Y-%m-%d") {
-        return Ok(date.and_hms_opt(0, 0, 0).expect("midnight").and_utc());
+        return Ok(date.and_time(NaiveTime::MIN).and_utc());
     }
     Err(AppError::BadRequest(format!(
         "{field} inválido; use RFC3339 ou YYYY-MM-DD"

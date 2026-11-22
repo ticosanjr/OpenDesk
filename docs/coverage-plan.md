@@ -2,23 +2,24 @@
 
 O gate usa dois limites de linhas (llvm-cov):
 
-| Medida | Antes da onda 14 | Agora | Meta |
+| Medida | Antes da 1.4.2 | Agora | Meta |
 |---|---:|---:|---:|
-| Total | 62,50% | **54,38%** | piso 53,8% |
-| Core (db, api, recipes, fila, io_bus, dsh_router, …) | 68,67% | **63,24%** | piso 62,7% |
+| Total (`--workspace`) | 54,35% | **64,85%** | piso 64,0% |
+| Negócio (domain, storage, engine, recipes + core, api, fila, io_bus, …) | 64,09% | **81,26%** | piso 80,5% (meta 75% atingida) |
 
 Comandos:
 
 ```bash
 npm run gate:fast -- --rust     # inclui clippy e testes
 scripts/gate.sh                 # inclui cobertura + E2E
-cd src-tauri && cargo llvm-cov --summary-only > /tmp/cov.txt
+cd src-tauri && cargo llvm-cov --workspace --summary-only > /tmp/cov.txt
 scripts/coverage-core.sh /tmp/cov.txt
 ```
 
 ## Regra do ratchet
 
-- `scripts/gate.sh` falha abaixo de **53,8%** totais e **62,7%** core (piso acordado em 2026-11-17).
+- `scripts/gate.sh` falha abaixo de **64,0%** totais e **80,5%** no escopo de
+  negócio (piso fixado em 2026-11-22 depois de medir com `--workspace`).
 - Ao cobrir um módulo, suba o limite até ~0,5 ponto abaixo do medido.
 - Nunca baixe o limite para “passar”; prefira marcar o teste como opt-in.
 
@@ -44,8 +45,10 @@ scripts/coverage-core.sh /tmp/cov.txt
 4. Contratos reais (Google/conta dedicada, OpenCode) continuam opt-in e não
    entram no percentual.
 
-Enquanto o core não chega a 80%, o gate protege o patamar atual para que novos
-módulos não regridam a cobertura.
+O escopo de negócio já passou da meta de 75% (81,26%). O total do workspace
+inclui CLI, tray, updater, doctor, integrações de rede e o registro de handlers
+MCP; o piso de 64,0% protege esse patamar até os testes de integração dessas
+áreas entrarem.
 
 ## Decisão de escopo (2026-11-17)
 

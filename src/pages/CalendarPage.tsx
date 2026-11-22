@@ -4,38 +4,26 @@ import {
   addDays,
   addMonths,
   format,
-  isSameMonth,
-  isToday,
   startOfDay,
   startOfMonth,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  AlertTriangle,
   CalendarDays,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   CloudDownload,
-  Loader2,
   Plus,
   RefreshCw,
-  XCircle,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
 import { IconLabel } from "@/components/ui/icon-label";
 import { EventModal } from "@/components/calendar/event-modal";
 import { ImportGoogleModal } from "@/components/calendar/import-google-modal";
-import { CalendarItemChip, CalendarItemRow } from "@/components/calendar/calendar-item";
 import { apiGet, apiPost } from "@/lib/api";
 import {
-  CALENDAR_CATEGORIES,
-  CALENDAR_VIEWS,
   isVisibleItem,
   itemsForDay,
   loadCalendarView,
@@ -54,12 +42,14 @@ import type {
   CalendarSource,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const WEEKDAYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
-
-function capitalized(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
+import { capitalized } from "./calendar/calendar-utils";
+import { CalendarToolbar } from "./calendar/CalendarToolbar";
+import { MonthGridView } from "./calendar/MonthGridView";
+import {
+  CalendarColumns,
+  CalendarDayView,
+} from "./calendar/CalendarViews";
+import { SelectedDayCard } from "./calendar/SelectedDayCard";
 
 export function CalendarPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -285,76 +275,18 @@ export function CalendarPage() {
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <div className="flex rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5">
-          {CALENDAR_VIEWS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              aria-pressed={view === item.id}
-              onClick={() => setView(item.id)}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-[12px] transition-colors",
-                view === item.id
-                  ? "bg-zinc-800 text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-300",
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <span className="mx-1 h-4 w-px bg-zinc-800" />
-        {CALENDAR_CATEGORIES.map((category) => (
-          <button
-            key={category.id}
-            type="button"
-            aria-pressed={filters[category.id]}
-            onClick={() =>
-              setFilters((current) => ({
-                ...current,
-                [category.id]: !current[category.id],
-              }))
-            }
-            className={cn(
-              "rounded-full border px-2.5 py-1 text-[12px] transition-colors",
-              filters[category.id]
-                ? "workspace-selected workspace-selected-text"
-                : "border-zinc-800 bg-zinc-950/40 text-zinc-500 hover:text-zinc-300",
-            )}
-          >
-            {category.label}
-          </button>
-        ))}
-        <span className="ml-auto font-mono text-[12px] text-zinc-500">
-          {visibleItems.length}{" "}
-          {visibleItems.length === 1 ? "item visível" : "itens visíveis"}
-        </span>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3 px-1 text-[11.5px] text-zinc-500">
-        <span className="inline-flex items-center gap-1">
-          <CheckCircle2 size={10} className="text-emerald-400" />
-          executado
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <XCircle size={10} className="text-red-400" />
-          falhou/cancelado
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <Loader2 size={10} className="text-blue-400" />
-          executando
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <Clock3 size={10} className="text-amber-400" />
-          na fila/agendada
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <AlertTriangle size={10} className="text-amber-400" />
-          perdida
-        </span>
-        <span>Dias passados mostram apenas o que rodou ou precisa de decisão.</span>
-      </div>
+      <CalendarToolbar
+        view={view}
+        filters={filters}
+        visibleCount={visibleItems.length}
+        onViewChange={setView}
+        onToggleFilter={(id) =>
+          setFilters((current) => ({
+            ...current,
+            [id]: !current[id],
+          }))
+        }
+      />
 
       <div
         className={cn(
@@ -399,77 +331,14 @@ export function CalendarPage() {
           </CardHeader>
           <CardContent className={view === "month" ? "p-2" : "p-3"}>
             {view === "month" ? (
-            <div className="grid grid-cols-7 gap-1">
-              {WEEKDAYS.map((weekday) => (
-                <div
-                  key={weekday}
-                  className="px-1 py-1 text-center text-[11.5px] uppercase tracking-[0.12em] text-zinc-500"
-                >
-                  {weekday}
-                </div>
-              ))}
-              {days.map((day) => {
-                const dayItems = itemsForDay(visibleItems, day);
-                const selected = day.toDateString() === selectedDay.toDateString();
-                return (
-                  <div
-                    key={day.toISOString()}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={capitalized(
-                      format(day, "EEEE, d 'de' MMMM", { locale: ptBR }),
-                    )}
-                    onClick={() => setSelectedDay(startOfDay(day))}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        setSelectedDay(startOfDay(day));
-                      }
-                    }}
-                    className={cn(
-                      "min-h-[104px] rounded-lg border p-1.5 text-left transition-colors",
-                      selected
-                        ? "workspace-selected"
-                        : "border-zinc-800/70 bg-zinc-950/30 hover:border-zinc-700",
-                      isSameMonth(day, month)
-                        ? undefined
-                        : "border-zinc-800/40 bg-zinc-950/10",
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={cn(
-                          "flex h-5 w-5 items-center justify-center rounded-full text-[12px]",
-                          isToday(day)
-                            ? "bg-blue-600 font-semibold text-white"
-                            : "text-zinc-400",
-                        )}
-                      >
-                        {format(day, "d")}
-                      </span>
-                      {dayItems.length > 0 ? (
-                        <span className="font-mono text-[11px] text-zinc-500">
-                          {dayItems.length}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="mt-1 space-y-0.5">
-                      {dayItems.slice(0, 3).map((item) => (
-                        <CalendarItemChip
-                          key={item.id}
-                          item={item}
-                          onOpen={openItem}
-                        />
-                      ))}
-                      {dayItems.length > 3 ? (
-                        <p className="px-1 text-[11px] text-zinc-500">
-                          +{dayItems.length - 3} mais
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <MonthGridView
+              days={days}
+              month={month}
+              selectedDay={selectedDay}
+              items={visibleItems}
+              onSelectDay={setSelectedDay}
+              onOpenItem={openItem}
+            />
             ) : view === "day" ? (
               <CalendarDayView
                 items={selectedItems}
@@ -489,32 +358,11 @@ export function CalendarPage() {
         </Card>
 
         {view === "month" ? (
-        <Card className="min-h-0">
-          <CardHeader className="py-3">
-            <CardTitle className="text-[13.5px]">
-              {capitalized(format(selectedDay, "EEEE, d 'de' MMMM", { locale: ptBR }))}
-            </CardTitle>
-            <Badge variant="default">{selectedItems.length}</Badge>
-          </CardHeader>
-          <CardContent className="max-h-[70dvh] space-y-1.5 overflow-y-auto">
-            {selectedItems.length === 0 ? (
-              <EmptyState
-                icon={CalendarDays}
-                title="Nada neste dia"
-                description="Crie um evento ou navegue para outro dia."
-                className="border-0 bg-transparent"
-              />
-            ) : (
-              selectedItems.map((item) => (
-                <CalendarItemRow
-                  key={item.id}
-                  item={item}
-                  onOpen={openItem}
-                />
-              ))
-            )}
-          </CardContent>
-        </Card>
+        <SelectedDayCard
+          selectedDay={selectedDay}
+          selectedItems={selectedItems}
+          onOpenItem={openItem}
+        />
         ) : null}
       </div>
 
@@ -543,110 +391,5 @@ export function CalendarPage() {
         }}
       />
     </PageBody>
-  );
-}
-
-function CalendarColumns({
-  days,
-  items,
-  selectedDay,
-  onSelectDay,
-  onOpenItem,
-}: {
-  days: Date[];
-  items: CalendarItem[];
-  selectedDay: Date;
-  onSelectDay: (day: Date) => void;
-  onOpenItem: (item: CalendarItem) => void;
-}) {
-  return (
-    <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
-      {days.map((day) => {
-        const dayItems = itemsForDay(items, day);
-        const selected = day.toDateString() === selectedDay.toDateString();
-        return (
-          <div
-            key={day.toISOString()}
-            onClick={() => onSelectDay(startOfDay(day))}
-            className={cn(
-              "min-h-[320px] rounded-lg border p-2 transition-colors",
-              selected
-                ? "workspace-selected"
-                : "border-zinc-800/70 bg-zinc-950/30",
-            )}
-          >
-            <div className="flex items-center justify-between border-b border-zinc-800/70 pb-1.5">
-              <div>
-                <p className="text-[11.5px] uppercase tracking-[0.12em] text-zinc-500">
-                  {format(day, "EEE", { locale: ptBR })}
-                </p>
-                <p
-                  className={cn(
-                    "text-[14px] font-medium",
-                    isToday(day) ? "text-blue-300" : "text-zinc-300",
-                  )}
-                >
-                  {format(day, "d MMM", { locale: ptBR })}
-                </p>
-              </div>
-              {dayItems.length > 0 ? (
-                <span className="font-mono text-[11px] text-zinc-500">
-                  {dayItems.length}
-                </span>
-              ) : null}
-            </div>
-            <div className="mt-1.5 space-y-1">
-              {dayItems.length === 0 ? (
-                <p className="px-1 py-2 text-[11.5px] text-zinc-500">—</p>
-              ) : (
-                dayItems.map((item) => (
-                  <CalendarItemChip
-                    key={item.id}
-                    item={item}
-                    onOpen={onOpenItem}
-                    detailed
-                  />
-                ))
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function CalendarDayView({
-  items,
-  day,
-  onOpenItem,
-}: {
-  items: CalendarItem[];
-  day: Date;
-  onOpenItem: (item: CalendarItem) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <p className="text-[13px] font-medium text-zinc-300">
-        {capitalized(format(day, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR }))}
-      </p>
-      {items.length === 0 ? (
-        <EmptyState
-          icon={CalendarDays}
-          title="Nada neste dia"
-          description="Crie um evento ou navegue para outro dia."
-          className="border-0 bg-transparent"
-        />
-      ) : (
-        items.map((item) => (
-          <CalendarItemRow
-            key={item.id}
-            item={item}
-            onOpen={onOpenItem}
-            size="md"
-          />
-        ))
-      )}
-    </div>
   );
 }

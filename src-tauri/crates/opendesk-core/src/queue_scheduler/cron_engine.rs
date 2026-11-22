@@ -26,6 +26,7 @@ use std::{
     sync::{Arc, OnceLock},
     time::Duration,
 };
+use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
 pub struct CronEngine {
@@ -36,6 +37,7 @@ pub struct CronEngine {
     queue: Arc<QueueManager>,
     daemon: Arc<DaemonManager>,
     shutdown: CancellationToken,
+    wake: Notify,
     /// Attached after the shell builds the context; no ownership cycle.
     context: OnceLock<RecipeContext>,
     dispatcher: Arc<dyn TaskDispatcher>,
@@ -64,6 +66,7 @@ impl CronEngine {
             daemon,
             dispatcher,
             shutdown: CancellationToken::new(),
+            wake: Notify::new(),
             context: OnceLock::new(),
         })
     }
@@ -74,7 +77,10 @@ impl CronEngine {
             loop {
                 tokio::select! {
                     _ = engine.shutdown.cancelled() => break,
-                    _ = tokio::time::sleep(Duration::from_secs(15)) => {}
+                    _ = engine.wake.notified() => {}
+                    // Safety net for wall-clock changes; normal wakes come from
+                    // schedule creation/edition through `wake()`.
+                    _ = tokio::time::sleep(Duration::from_secs(60)) => {}
                 }
                 if let Err(error) = engine.tick_once().await {
                     tracing::warn!(error = %error, "cron tick failed");
@@ -85,6 +91,12 @@ impl CronEngine {
 
     pub fn shutdown(&self) {
         self.shutdown.cancel();
+    }
+
+    /// Wakes the scheduler immediately after a schedule is created, edited or
+    /// removed, so ticks are event-driven instead of polling every 15 seconds.
+    pub fn wake(&self) {
+        self.wake.notify_waiters();
     }
 
     pub fn attach_context(&self, context: RecipeContext) {

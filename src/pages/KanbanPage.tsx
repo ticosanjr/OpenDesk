@@ -1,44 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
-import {
-  CheckCircle2,
-  Columns3,
-  LayoutList,
-  ListChecks,
-  Loader2,
-  Plus,
-  SlidersHorizontal,
-  X,
-} from "lucide-react";
-import { PageBody, PageHeader } from "@/components/layout/PageHeader";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Modal } from "@/components/ui/modal";
-import { IconLabel } from "@/components/ui/icon-label";
+import { PageBody } from "@/components/layout/PageHeader";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { KanbanListView } from "@/components/kanban/KanbanListView";
-import { KANBAN_COLUMNS } from "@/components/kanban/kanban-columns";
-import {
-  CreateTaskModal,
-  EditTaskModal,
-  ForkTaskModal,
-  ExecutionModal,
-  LogDrawer,
-  SwarmModal,
-  TaskDetailsModal,
-} from "@/components/kanban/task-modals";
-import { QueueController } from "@/components/queue/QueueController";
-import { PRIORITY_LABEL } from "@/lib/task-ui";
 import { isWorkQueueJob } from "@/lib/queue";
-import { workflowMeta } from "@/lib/workflow";
 import { useDismissable } from "@/lib/use-dismissable";
 import { useKanbanViews } from "@/lib/kanban-views";
-import { EmptyState } from "@/components/ui/empty-state";
-import { FilterSearch } from "@/components/ui/filter-bar";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
-import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
+import { apiGet } from "@/lib/api";
 import type {
   DispatchDecision,
   QueueJob,
@@ -48,15 +19,26 @@ import type {
   TaskInteraction,
 } from "@/lib/types";
 import type { TaskPermissionRequest } from "@/components/kanban/task-attention-modal";
-import { cn } from "@/lib/utils";
 import {
-  applyRetention,
   DEFAULT_VISIBILITY,
   loadVisibility,
-  RETENTION_OPTIONS,
   saveVisibility,
   type TaskVisibility,
 } from "@/lib/task-visibility";
+import { KanbanActiveFilters } from "./kanban/KanbanActiveFilters";
+import { KanbanBlockModal } from "./kanban/KanbanBlockModal";
+import { KanbanModals } from "./kanban/KanbanModals";
+import { KanbanNoWorkspace } from "./kanban/KanbanNoWorkspace";
+import { KanbanPageHeader } from "./kanban/KanbanPageHeader";
+import { KanbanQueueView } from "./kanban/KanbanQueueView";
+import { KanbanSelectionBar } from "./kanban/KanbanSelectionBar";
+import { KanbanToolbar } from "./kanban/KanbanToolbar";
+import { createKanbanActions } from "./kanban/kanban-actions";
+import {
+  buildAttentionByTask,
+  collectBoardAgents,
+  filterKanbanTasks,
+} from "./kanban/kanban-derive";
 
 export function KanbanPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -131,103 +113,39 @@ export function KanbanPage() {
         ? automationQueue
         : queue;
 
-  const attentionByTask = useMemo(() => {
-    const map = new Map<
-      string,
-      { interactions: TaskInteraction[]; permissions: TaskPermissionRequest[] }
-    >();
-    for (const interaction of attention.task_interactions) {
-      const entry = map.get(interaction.task_id) ?? {
-        interactions: [],
-        permissions: [],
-      };
-      entry.interactions.push(interaction);
-      map.set(interaction.task_id, entry);
-    }
-    for (const request of attention.requests) {
-      if (!request.task_id) continue;
-      const entry = map.get(request.task_id) ?? {
-        interactions: [],
-        permissions: [],
-      };
-      entry.permissions.push(request);
-      map.set(request.task_id, entry);
-    }
-    return map;
-  }, [attention]);
+  const attentionByTask = useMemo(() => buildAttentionByTask(attention), [attention]);
 
-  const filteredTasks = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const filtered = tasks.filter((task) => {
-      if (needle) {
-        const haystack = `${task.title} ${task.description} ${task.tags_json} ${task.assigned_agent ?? ""}`.toLowerCase();
-        if (!haystack.includes(needle)) return false;
-      }
-      if (agentFilter && (task.assigned_agent ?? "") !== agentFilter) return false;
-      if (priorityFilter && String(task.priority) !== priorityFilter) return false;
-      if (attentionOnly) {
-        const pending = attentionByTask.get(task.id);
-        const effective =
-          pending && (pending.interactions.length > 0 || pending.permissions.length > 0)
-            ? "WAITING_INPUT"
-            : workflowMeta(task).state;
-        if (!["NEEDS_APPROVAL", "WAITING_INPUT", "BLOCKED"].includes(effective)) {
-          return false;
-        }
-      }
-      return true;
-    });
-    return applyRetention(filtered, visibility)
-      .slice()
-      .sort((left, right) => right.created_at.localeCompare(left.created_at));
-  }, [
-    agentFilter,
-    attentionByTask,
-    attentionOnly,
-    priorityFilter,
-    query,
-    tasks,
-    visibility,
-  ]);
-
+  const filteredTasks = useMemo(
+    () =>
+      filterKanbanTasks({
+        tasks,
+        query,
+        agentFilter,
+        priorityFilter,
+        attentionOnly,
+        attentionByTask,
+        visibility,
+      }),
+    [
+      agentFilter,
+      attentionByTask,
+      attentionOnly,
+      priorityFilter,
+      query,
+      tasks,
+      visibility,
+    ],
+  );
 
   const advancedFilterCount =
     (agentFilter ? 1 : 0) +
     (priorityFilter ? 1 : 0) +
     (attentionOnly ? 1 : 0);
 
-  const boardAgents = useMemo(
-    () =>
-      Array.from(
-        new Set(tasks.map((task) => task.assigned_agent).filter(Boolean)),
-      ).sort() as string[],
-    [tasks],
-  );
-
+  const boardAgents = useMemo(() => collectBoardAgents(tasks), [tasks]);
 
   useDismissable(filtersRef, filtersOpen, () => setFiltersOpen(false));
   useDismissable(visibilityRef, visibilityOpen, () => setVisibilityOpen(false));
-
-  function applySavedView(view: (typeof savedViews)[number]) {
-    setQuery(view.query);
-    setAgentFilter(view.agent);
-    setPriorityFilter(view.priority);
-    setAttentionOnly(view.attentionOnly);
-    setFiltersOpen(false);
-  }
-
-  function saveCurrentView() {
-    const name = viewName.trim();
-    if (!name) return;
-    saveView({
-      name,
-      query,
-      agent: agentFilter,
-      priority: priorityFilter,
-      attentionOnly,
-    });
-    setViewName("");
-  }
 
   const load = useCallback(async () => {
     if (!activeWorkspaceId) {
@@ -343,526 +261,93 @@ export function KanbanPage() {
     };
   }, [tasks, searchParams, setSearchParams]);
 
-  async function approve(task: Task) {
-    setError(null);
-    try {
-      const response = await apiPost<{ decision: DispatchDecision }>(
-        `/api/tasks/${task.id}/approve-plan`,
-        {},
-      );
-      setDecision(response.decision);
-      setSelectedTask(null);
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  }
-
-  async function transitionTask(task: Task, status: string, reason?: string) {
-    if (!status || status === task.status) return;
-    setError(null);
-    if (status !== "IN_PROGRESS") {
-      setTasks((current) =>
-        current.map((item) => (item.id === task.id ? { ...item, status } : item)),
-      );
-    }
-    try {
-      await apiPost(`/api/tasks/${task.id}/transition`, {
-        status,
-        reason: reason ?? null,
-      });
-      // Moving a card is not an outcome: no toast/native notification.
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-      await load();
-    }
-  }
-
-  async function holdTask(task: Task, held: boolean) {
-    setError(null);
-    try {
-      await apiPost(`/api/tasks/${task.id}/hold`, { held });
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-      await load();
-    }
-  }
-
-  async function setWaiting(task: Task) {
-    await holdTask(task, true);
-  }
-
-  async function toggleQueue(pause: boolean) {
-    setError(null);
-    try {
-      await apiPost(
-        pause
-          ? "/api/queue/pause?reason=paused%20from%20Kanban"
-          : "/api/queue/resume",
-      );
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  }
-
-  async function setConcurrency(value: number) {
-    setError(null);
-    try {
-      await apiPut("/api/queue/concurrency", { concurrency: value });
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  }
-
-  async function updateJobPriority(id: string, priority: number) {
-    try {
-      await apiPatch(`/api/queue/${id}/priority`, { priority });
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  }
-
-  async function jobAction(id: string, action: "cancel" | "retry") {
-    try {
-      await apiPost(`/api/queue/${id}/${action}`);
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  }
+  const {
+    approve,
+    transitionTask,
+    holdTask,
+    setWaiting,
+    toggleQueue,
+    setConcurrency,
+    updateJobPriority,
+    jobAction,
+  } = createKanbanActions({
+    load,
+    setError,
+    setTasks,
+    setDecision,
+    setSelectedTask,
+  });
 
   if (!activeWorkspaceId) {
-    return (
-      <PageBody>
-        <PageHeader
-          title="Kanban & Fila"
-          description="Crie um workspace para planejar, executar e auditar tarefas."
-        />
-        <EmptyState
-          icon={ListChecks}
-          title="Nenhum workspace ativo"
-          description="O Kanban opera sobre o workspace selecionado."
-          action={
-            <Button size="sm" onClick={() => setWorkspaceDialogOpen(true)}>
-              <Plus size={14} />
-              Criar workspace
-            </Button>
-          }
-        />
-      </PageBody>
-    );
+    return <KanbanNoWorkspace onCreateWorkspace={() => setWorkspaceDialogOpen(true)} />;
   }
 
   return (
     <PageBody>
-      <PageHeader
-        title="Kanban & Fila"
-        description={`${workspace?.name ?? "Workspace"} · tarefas passam por Plan, Build e Audit; a fila executa no OpenCode com budget guard.`}
-        actions={
-          <>
-            {queueStatus ? (
-              <Badge variant={queueStatus.paused ? "yellow" : "green"}>
-                {queueStatus.paused ? "fila pausada" : "fila ativa"}
-              </Badge>
-            ) : null}
-            {workRunning > 0 ? (
-              <Badge variant="blue" title="Execuções de trabalho em andamento">
-                <Loader2 size={11} className="animate-spin" />
-                {workRunning} executando
-              </Badge>
-            ) : null}
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <Plus size={15} />
-              Nova tarefa
-            </Button>
-          </>
-        }
+      <KanbanPageHeader
+        workspaceName={workspace?.name ?? "Workspace"}
+        queueStatus={queueStatus}
+        workRunning={workRunning}
+        onCreateTask={() => setCreateOpen(true)}
+        error={error}
+        notice={notice}
+        onDismissNotice={() => setNotice(null)}
+        decision={decision}
+        onDismissDecision={() => setDecision(null)}
       />
 
-      {error ? (
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
-          {error}
-        </p>
-      ) : null}
-      {notice ? (
-        <p className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[13px] text-emerald-300">
-          <CheckCircle2 size={13} />
-          {notice}
-          <button
-            type="button"
-            className="ml-auto text-[12px] text-emerald-300/70 hover:text-emerald-200"
-            onClick={() => setNotice(null)}
-          >
-            fechar
-          </button>
-        </p>
-      ) : null}
+      <KanbanToolbar
+        view={view}
+        setView={setView}
+        query={query}
+        setQuery={setQuery}
+        filtersRef={filtersRef}
+        filtersOpen={filtersOpen}
+        setFiltersOpen={setFiltersOpen}
+        advancedFilterCount={advancedFilterCount}
+        agentFilter={agentFilter}
+        setAgentFilter={setAgentFilter}
+        priorityFilter={priorityFilter}
+        setPriorityFilter={setPriorityFilter}
+        attentionOnly={attentionOnly}
+        setAttentionOnly={setAttentionOnly}
+        boardAgents={boardAgents}
+        filteredCount={filteredTasks.length}
+        totalCount={tasks.length}
+        visibilityRef={visibilityRef}
+        visibilityOpen={visibilityOpen}
+        setVisibilityOpen={setVisibilityOpen}
+        visibility={visibility}
+        onVisibilityChange={updateVisibility}
+        savedViews={savedViews}
+        removeView={removeView}
+        viewName={viewName}
+        setViewName={setViewName}
+        saveView={saveView}
+        queueLength={queue.length}
+      />
 
-      {decision ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-500/20 bg-blue-500/[0.06] px-4 py-3 text-[13px] text-blue-200">
-          <Badge variant="blue">{decision.phase}</Badge>
-          <span className="font-medium">
-            {decision.selected_agent} · {decision.selected_model} · {decision.effort}
-          </span>
-          <span className="text-blue-300/70">{decision.rationale}</span>
-          <button
-            type="button"
-            className="ml-auto text-[12px] text-blue-300/60 hover:text-blue-200"
-            onClick={() => setDecision(null)}
-          >
-            fechar
-          </button>
-        </div>
-      ) : null}
-
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/20 px-3 py-2">
-        <div className="flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5">
-          {([
-            ["board", Columns3, "Board"],
-            ["list", LayoutList, "Lista"],
-            ["queue", ListChecks, "Fila"],
-          ] as const).map(([value, Icon, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setView(value)}
-              className={cn(
-                "flex items-center gap-1 rounded-md px-2 py-1 text-[12px] transition-colors",
-                view === value
-                  ? "workspace-tab-active"
-                  : "text-zinc-500 hover:text-zinc-200",
-              )}
-              title={label}
-              aria-pressed={view === value}
-            >
-              <Icon size={12} />
-              {label}
-            </button>
-          ))}
-        </div>
-        {view !== "queue" ? (
-          <>
-            <FilterSearch
-              value={query}
-              onChange={setQuery}
-              placeholder="Buscar por título, descrição, tag ou agente…"
-              ariaLabel="Buscar tarefas"
-            />
-            <div ref={filtersRef} className="relative">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8"
-                onClick={() => setFiltersOpen((current) => !current)}
-                aria-expanded={filtersOpen}
-                title="Filtrar por agente, prioridade ou atenção"
-              >
-                <IconLabel icon={<SlidersHorizontal size={13} />}>
-                  Filtros{advancedFilterCount > 0 ? ` · ${advancedFilterCount}` : ""}
-                </IconLabel>
-              </Button>
-              {filtersOpen ? (
-                <div className="absolute right-0 top-9 z-40 max-h-[min(70dvh,520px)] w-[320px] space-y-3 overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-950 p-3 shadow-2xl">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-[13.5px] font-medium text-zinc-200">Filtros</p>
-                    <button
-                      type="button"
-                      className="text-[13px] text-zinc-500 hover:text-zinc-200 disabled:opacity-40"
-                      disabled={advancedFilterCount === 0}
-                      onClick={() => {
-                        setAgentFilter("");
-                        setPriorityFilter("");
-                        setAttentionOnly(false);
-                      }}
-                    >
-                      limpar
-                    </button>
-                  </div>
-                  <label className="block space-y-1">
-                    <span className="text-[13px] text-zinc-400">Agente</span>
-                    <select
-                      value={agentFilter}
-                      onChange={(event) => setAgentFilter(event.target.value)}
-                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[13.5px] text-zinc-200"
-                      aria-label="Filtrar por agente"
-                    >
-                      <option value="">todos os agentes</option>
-                      {boardAgents.map((agent) => (
-                        <option key={agent} value={agent}>
-                          @{agent}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block space-y-1">
-                    <span className="text-[13px] text-zinc-400">Prioridade</span>
-                    <select
-                      value={priorityFilter}
-                      onChange={(event) => setPriorityFilter(event.target.value)}
-                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[13.5px] text-zinc-200"
-                      aria-label="Filtrar por prioridade"
-                    >
-                      <option value="">todas as prioridades</option>
-                      {[4, 3, 2, 1].map((priority) => (
-                        <option key={priority} value={priority}>
-                          {priority} — {PRIORITY_LABEL[priority]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex items-center justify-between gap-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-2.5 py-2">
-                    <span className="text-[13.5px] text-zinc-300">
-                      Somente atenção
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={attentionOnly}
-                      onChange={(event) => setAttentionOnly(event.target.checked)}
-                      className="h-4 w-4 accent-blue-500"
-                    />
-                  </label>
-                  <p className="text-[13px] leading-snug text-zinc-500">
-                    Aprovação, pergunta, permissão ou falha. Bom para revisar o
-                    que está parado.
-                  </p>
-                  <div className="space-y-2 border-t border-zinc-800/70 pt-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[13px] font-medium uppercase tracking-[0.08em] text-zinc-400">
-                        Visões salvas
-                      </p>
-                      <span className="font-mono text-[13px] text-zinc-500">
-                        {savedViews.length}
-                      </span>
-                    </div>
-                    {savedViews.length === 0 ? (
-                      <p className="text-[13px] leading-snug text-zinc-500">
-                        Salve a combinação atual para reaplicar depois.
-                      </p>
-                    ) : (
-                      <div className="space-y-1">
-                        {savedViews.map((view) => (
-                          <div
-                            key={view.id}
-                            className="flex items-center gap-1 rounded-md border border-zinc-800/70 bg-zinc-900/30"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => applySavedView(view)}
-                              className="min-w-0 flex-1 truncate px-2 py-1.5 text-left text-[13.5px] text-zinc-300 hover:text-zinc-100"
-                            >
-                              {view.name}
-                            </button>
-                            <button
-                              type="button"
-                              aria-label={`Remover visão ${view.name}`}
-                              title="Remover visão"
-                              onClick={() => removeView(view.id)}
-                              className="rounded p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
-                            >
-                              <X size={12} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div className="flex gap-1.5">
-                      <input
-                        value={viewName}
-                        onChange={(event) => setViewName(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            saveCurrentView();
-                          }
-                        }}
-                        placeholder="Nome da visão"
-                        aria-label="Nome da visão"
-                        className="h-8 min-w-0 flex-1 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 text-[13.5px] text-zinc-200 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
-                      />
-                      <Button
-                        size="xs"
-                        onClick={saveCurrentView}
-                        disabled={!viewName.trim()}
-                      >
-                        Salvar
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-            <Badge variant="default">
-              {filteredTasks.length} de {tasks.length}
-            </Badge>
-            <div ref={visibilityRef} className="relative">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8"
-                onClick={() => setVisibilityOpen((current) => !current)}
-                title="Escolher quanto tempo tarefas concluídas permanecem visíveis"
-                aria-expanded={visibilityOpen}
-              >
-                <IconLabel icon={<SlidersHorizontal size={12} />}>
-                  Visibilidade
-                </IconLabel>
-              </Button>
-              {visibilityOpen ? (
-                <div className="absolute right-0 top-9 z-40 w-72 space-y-3 rounded-xl border border-zinc-700 bg-zinc-950 p-3 shadow-2xl">
-                  <div>
-                    <p className="text-[13px] font-semibold text-zinc-200">
-                      Concluídas e canceladas
-                    </p>
-                    <p className="text-[12px] leading-snug text-zinc-500">
-                      Apenas visual. Nada é apagado do workspace.
-                    </p>
-                  </div>
-                  <label className="block space-y-1">
-                    <span className="text-[12px] text-zinc-400">Período</span>
-                    <select
-                      aria-label="Período de retenção"
-                      value={visibility.retention}
-                      onChange={(event) =>
-                        updateVisibility({
-                          ...visibility,
-                          retention: event.target.value as TaskVisibility["retention"],
-                        })
-                      }
-                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[13px] text-zinc-200"
-                    >
-                      {RETENTION_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label} — {option.hint}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block space-y-1">
-                    <span className="text-[12px] text-zinc-400">
-                      Máximo de cards (0 = sem limite)
-                    </span>
-                    <input
-                      aria-label="Máximo de cards concluídos"
-                      type="number"
-                      min={0}
-                      max={200}
-                      value={visibility.maxItems}
-                      onChange={(event) =>
-                        updateVisibility({
-                          ...visibility,
-                          maxItems: Math.max(
-                            0,
-                            Math.min(200, Number(event.target.value) || 0),
-                          ),
-                        })
-                      }
-                      className="h-8 w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 text-[13px] text-zinc-200"
-                    />
-                  </label>
-                  <div className="flex items-center justify-between gap-2 border-t border-zinc-800/70 pt-2">
-                    <button
-                      type="button"
-                      className="text-[12px] text-zinc-500 hover:text-zinc-200"
-                      onClick={() =>
-                        updateVisibility({ retention: "all", maxItems: 0 })
-                      }
-                    >
-                      mostrar tudo
-                    </button>
-                    <button
-                      type="button"
-                      className="text-[12px] text-zinc-500 hover:text-zinc-200"
-                      onClick={() => setVisibilityOpen(false)}
-                    >
-                      fechar
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </>
-        ) : (
-          <span className="ml-auto text-[12px] text-zinc-500">
-            {queue.length > 0
-              ? `${queue.length} job(s) na fila`
-              : "fila vazia"}
-          </span>
-        )}
-      </div>
-
-      {advancedFilterCount > 0 ? (
-        <div className="flex flex-wrap items-center gap-1.5 px-1">
-          <span className="text-[13px] text-zinc-500">Filtros ativos:</span>
-          {agentFilter ? (
-            <button
-              type="button"
-              onClick={() => setAgentFilter("")}
-              aria-label={`Remover filtro do agente @${agentFilter}`}
-              className="inline-flex items-center gap-1 rounded-full border border-zinc-700/70 bg-zinc-900/60 px-2 py-0.5 text-[13px] text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
-            >
-              @{agentFilter}
-              <X size={11} />
-            </button>
-          ) : null}
-          {priorityFilter ? (
-            <button
-              type="button"
-              onClick={() => setPriorityFilter("")}
-              aria-label={`Remover filtro de prioridade ${PRIORITY_LABEL[Number(priorityFilter)] ?? priorityFilter}`}
-              className="inline-flex items-center gap-1 rounded-full border border-zinc-700/70 bg-zinc-900/60 px-2 py-0.5 text-[13px] text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
-            >
-              prioridade {PRIORITY_LABEL[Number(priorityFilter)] ?? priorityFilter}
-              <X size={11} />
-            </button>
-          ) : null}
-          {attentionOnly ? (
-            <button
-              type="button"
-              onClick={() => setAttentionOnly(false)}
-              aria-label="Remover filtro de atenção"
-              className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[13px] text-amber-200 hover:border-amber-500/50"
-            >
-              atenção
-              <X size={11} />
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+      <KanbanActiveFilters
+        advancedFilterCount={advancedFilterCount}
+        agentFilter={agentFilter}
+        priorityFilter={priorityFilter}
+        attentionOnly={attentionOnly}
+        onClearAgent={() => setAgentFilter("")}
+        onClearPriority={() => setPriorityFilter("")}
+        onClearAttention={() => setAttentionOnly(false)}
+      />
 
       {selected.size > 0 ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-500/25 bg-blue-500/[0.06] px-3 py-2">
-          <Badge variant="blue">{selected.size} selecionada(s)</Badge>
-          <span className="text-[13px] text-zinc-400">mover para:</span>
-          {KANBAN_COLUMNS.map((column) => (
-            <Button
-              key={column.id}
-              variant="outline"
-              size="sm"
-              className="h-7 text-[12px]"
-              title={column.description}
-              onClick={async () => {
-                for (const task of tasks.filter((item) => selected.has(item.id))) {
-                  await transitionTask(task, column.dropStatus);
-                }
-                setSelected(new Set());
-              }}
-            >
-              {column.label}
-            </Button>
-          ))}
-          <button
-            type="button"
-            className="ml-auto text-[12px] text-zinc-500 hover:text-zinc-200"
-            onClick={() => setSelected(new Set())}
-          >
-            limpar seleção
-          </button>
-        </div>
+        <KanbanSelectionBar
+          selectedCount={selected.size}
+          onMove={async (dropStatus) => {
+            for (const task of tasks.filter((item) => selected.has(item.id))) {
+              await transitionTask(task, dropStatus);
+            }
+            setSelected(new Set());
+          }}
+          onClear={() => setSelected(new Set())}
+        />
       ) : null}
 
       {view === "board" ? (
@@ -904,32 +389,14 @@ export function KanbanPage() {
           onOpenTask={setSelectedTask}
         />
       ) : (
-        <>
-        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5">
-          {([
-            ["work", `Trabalho · ${workQueue.length}`],
-            ["automations", `Automações · ${automationQueue.length}`],
-            ["all", `Tudo · ${queue.length}`],
-          ] as const).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setQueueScope(value)}
-              aria-pressed={queueScope === value}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-[12.5px] transition-colors",
-                queueScope === value
-                  ? "workspace-tab-active"
-                  : "text-zinc-500 hover:text-zinc-200",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <QueueController
-          queue={displayedQueue}
-          status={queueStatus}
+        <KanbanQueueView
+          queueScope={queueScope}
+          setQueueScope={setQueueScope}
+          workQueueCount={workQueue.length}
+          automationQueueCount={automationQueue.length}
+          queueLength={queue.length}
+          displayedQueue={displayedQueue}
+          queueStatus={queueStatus}
           loading={loading}
           onRefresh={() => void load()}
           onTogglePause={(pause) => void toggleQueue(pause)}
@@ -937,144 +404,46 @@ export function KanbanPage() {
           onJobAction={(id, action) => void jobAction(id, action)}
           onPriority={(id, priority) => void updateJobPriority(id, priority)}
         />
-        </>
       )}
 
-      <Modal
+      <KanbanBlockModal
         open={!!blockingTask}
         onClose={() => setBlockingTask(null)}
-        title="Mover para Atenção"
-        description="Explique por que esta tarefa precisa de intervenção humana."
-        size="md"
-      >
-        <div className="space-y-3">
-          <label className="block">
-            <span className="mb-1.5 block text-[12px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-              Motivo do bloqueio
-            </span>
-            <textarea
-              value={blockReason}
-              onChange={(event) => setBlockReason(event.target.value)}
-              rows={3}
-              autoFocus
-              placeholder="Ex.: falta acesso ao Drive, precisa revisar o escopo..."
-              className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 py-2 text-[13px] text-zinc-200 outline-none placeholder:text-zinc-500 focus:border-blue-500/60"
-            />
-          </label>
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setBlockingTask(null)}>
-              Cancelar
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                if (!blockingTask) return;
-                const reason = blockReason.trim() || "Bloqueada manualmente";
-                setBlockingTask(null);
-                void transitionTask(blockingTask, "BLOCKED", reason);
-              }}
-            >
-              Bloquear tarefa
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        blockReason={blockReason}
+        setBlockReason={setBlockReason}
+        onConfirm={() => {
+          if (!blockingTask) return;
+          const reason = blockReason.trim() || "Bloqueada manualmente";
+          setBlockingTask(null);
+          void transitionTask(blockingTask, "BLOCKED", reason);
+        }}
+      />
 
-      <CreateTaskModal
-        open={createOpen}
+      <KanbanModals
+        createOpen={createOpen}
+        setCreateOpen={setCreateOpen}
         workspaceId={activeWorkspaceId}
-        onClose={() => setCreateOpen(false)}
-        onCreated={async () => {
-          setCreateOpen(false);
-          await load();
-        }}
-      />
-
-      <TaskDetailsModal
-        task={selectedTask}
-        onClose={() => setSelectedTask(null)}
-        onEdit={(task) => {
-          setEditTask(task);
-          setSelectedTask(null);
-        }}
-        onApprove={(task) => void approve(task)}
-        onDispatch={(task) => {
-          setExecuteTask(task);
-          setSelectedTask(null);
-        }}
-        onStatus={(task, status) => void transitionTask(task, status)}
-        onWait={(task) => void setWaiting(task)}
-        onFork={(task) => {
-          setSelectedTask(null);
-          setForkSource(task);
-        }}
-        onSwarm={(task) => {
-          setSwarmTask(task);
-          setSelectedTask(null);
-        }}
-        onLogs={(task) => {
-          setLogTask(task);
-          setInitialRunId(null);
-          setSelectedTask(null);
-        }}
-      />
-
-      <ExecutionModal
-        open={!!executeTask}
-        task={executeTask}
-        onClose={() => setExecuteTask(null)}
-        onChanged={async () => {
-          await load();
-        }}
-      />
-
-      <ForkTaskModal
-        open={!!forkSource}
-        source={forkSource}
-        onClose={() => setForkSource(null)}
-        onSaved={async () => {
-          setForkSource(null);
-          await load();
-        }}
-      />
-
-      <EditTaskModal
-        task={editTask}
-        onClose={() => setEditTask(null)}
-        onSaved={async (task, rerun) => {
-          setEditTask(null);
-          setNotice(
-            rerun
-              ? `Tarefa salva e reenfileirada: ${task.title}`
-              : `Tarefa salva: ${task.title}`,
-          );
-          if (rerun) {
-            try {
-              await apiPost(`/api/tasks/${task.id}/dispatch`, {});
-            } catch (cause) {
-              setError(cause instanceof Error ? cause.message : String(cause));
-            }
-          }
-          await load();
-        }}
-      />
-
-      <SwarmModal
-        task={swarmTask}
-        onClose={() => setSwarmTask(null)}
-        onCreated={async () => {
-          await load();
-        }}
-      />
-
-      <LogDrawer
-        task={logTask}
+        load={load}
+        selectedTask={selectedTask}
+        setSelectedTask={setSelectedTask}
+        editTask={editTask}
+        setEditTask={setEditTask}
+        executeTask={executeTask}
+        setExecuteTask={setExecuteTask}
+        forkSource={forkSource}
+        setForkSource={setForkSource}
+        swarmTask={swarmTask}
+        setSwarmTask={setSwarmTask}
+        logTask={logTask}
+        setLogTask={setLogTask}
         initialRunId={initialRunId}
-        onClose={() => {
-          setLogTask(null);
-          setInitialRunId(null);
-        }}
+        setInitialRunId={setInitialRunId}
         lastRunEvent={lastRunEvent}
+        setNotice={setNotice}
+        setError={setError}
+        approve={approve}
+        transitionTask={transitionTask}
+        setWaiting={setWaiting}
       />
     </PageBody>
   );

@@ -30,6 +30,7 @@ mod skill_gate;
 mod skill_shadow_exec;
 mod starter_packs;
 #[cfg(test)]
+#[path = "test_support_tests.rs"]
 mod test_support;
 #[cfg(feature = "desktop")]
 mod tray;

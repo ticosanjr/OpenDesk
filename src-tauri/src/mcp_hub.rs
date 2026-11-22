@@ -248,7 +248,7 @@ pub async fn config_path(
             )));
         }
     };
-    paths.config_path(scope)
+    paths.config_path(scope).map_err(Into::into)
 }
 
 #[derive(Debug, Deserialize)]

@@ -60,7 +60,10 @@ impl McpSession {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let event = McpEvent { id, payload };
         {
-            let mut buffer = self.buffer.lock().expect("mcp buffer");
+            let mut buffer = self
+                .buffer
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
             buffer.push_back(event.clone());
             while buffer.len() > BUFFER {
                 buffer.pop_front();
@@ -78,7 +81,7 @@ impl McpSession {
         let replay = self
             .buffer
             .lock()
-            .expect("mcp buffer")
+            .unwrap_or_else(|poison| poison.into_inner())
             .iter()
             .filter(|event| last_event_id.is_none_or(|last| event.id > last))
             .cloned()
@@ -93,7 +96,7 @@ impl McpSession {
         let (tx, rx) = oneshot::channel();
         self.pending
             .lock()
-            .expect("mcp pending")
+            .unwrap_or_else(|poison| poison.into_inner())
             .insert(id.clone(), tx);
         self.publish(json!({
             "jsonrpc": "2.0",
@@ -104,7 +107,10 @@ impl McpSession {
         match tokio::time::timeout(timeout, rx).await {
             Ok(Ok(value)) => Some(value),
             _ => {
-                self.pending.lock().expect("mcp pending").remove(&id);
+                self.pending
+                    .lock()
+                    .unwrap_or_else(|poison| poison.into_inner())
+                    .remove(&id);
                 None
             }
         }
@@ -118,17 +124,29 @@ impl McpSession {
                 .or_else(|| value.as_u64().map(|number| number.to_string()))
         });
         let Some(id) = id else { return };
-        if let Some(tx) = self.pending.lock().expect("mcp pending").remove(&id) {
+        if let Some(tx) = self
+            .pending
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .remove(&id)
+        {
             let _ = tx.send(response.clone());
         }
     }
 
     pub fn touch(&self) {
-        *self.last_seen.lock().expect("mcp last seen") = Instant::now();
+        *self
+            .last_seen
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner()) = Instant::now();
     }
 
     fn idle(&self) -> bool {
-        self.last_seen.lock().expect("mcp last seen").elapsed() > IDLE
+        self.last_seen
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .elapsed()
+            > IDLE
     }
 }
 
@@ -160,13 +178,18 @@ impl McpSessionRegistry {
         ));
         self.sessions
             .lock()
-            .expect("mcp sessions")
+            .unwrap_or_else(|poison| poison.into_inner())
             .insert(id, session.clone());
         session
     }
 
     pub fn get(&self, id: &str) -> Option<Arc<McpSession>> {
-        let session = self.sessions.lock().expect("mcp sessions").get(id).cloned();
+        let session = self
+            .sessions
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .get(id)
+            .cloned();
         if let Some(session) = &session {
             session.touch();
         }
@@ -176,7 +199,7 @@ impl McpSessionRegistry {
     pub fn remove(&self, id: &str) -> bool {
         self.sessions
             .lock()
-            .expect("mcp sessions")
+            .unwrap_or_else(|poison| poison.into_inner())
             .remove(id)
             .is_some()
     }
@@ -184,7 +207,7 @@ impl McpSessionRegistry {
     pub fn sweep(&self) {
         self.sessions
             .lock()
-            .expect("mcp sessions")
+            .unwrap_or_else(|poison| poison.into_inner())
             .retain(|_, session| !session.idle());
     }
 

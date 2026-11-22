@@ -453,7 +453,7 @@ pub async fn complete_job(
         workspace_id: job.workspace_id.clone(),
         jobs: jobs
             .into_iter()
-            .map(crate::queue_scheduler::queue_manager::job_dto)
+            .map(crate::queue_scheduler::job_dto)
             .collect(),
     });
     Ok(Json(json!({

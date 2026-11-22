@@ -42,7 +42,7 @@ export default defineConfig({
       command:
         "bash -c 'bash scripts/e2e-seed.sh && exec cargo run --manifest-path src-tauri/Cargo.toml -- --headless'",
       url: "http://127.0.0.1:4317/healthz",
-      timeout: 240_000,
+      timeout: 600_000,
       reuseExistingServer: false,
       env: e2eEnv,
       stdout: "pipe",
