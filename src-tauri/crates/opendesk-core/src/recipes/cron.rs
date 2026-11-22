@@ -42,7 +42,11 @@ impl<'a> CronTrigger<'a> {
     }
 
     pub fn next_occurrence(&self, after: DateTime<Utc>) -> AppResult<DateTime<Utc>> {
-        crate::recurrence::next_occurrence(self.expression, &self.timezone, after)
+        Ok(crate::recurrence::next_occurrence(
+            self.expression,
+            &self.timezone,
+            after,
+        )?)
     }
 }
 

@@ -13,6 +13,8 @@ path = "src/lib.rs"
 aes-gcm = "0.10"
 anyhow = "1"
 opendesk-domain = { path = "../opendesk-domain" }
+opendesk-engine = { path = "../opendesk-engine" }
+opendesk-recipes = { path = "../opendesk-recipes" }
 opendesk-storage = { path = "../opendesk-storage" }
 async-trait = "0.1"
 axum = "0.8"

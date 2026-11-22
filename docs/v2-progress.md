@@ -26,6 +26,20 @@ Registro de mudanças de comportamento da refatoração V2. O histórico V1 est�
   `./scripts/gate.sh` verde (Playwright, goldens, cobertura total 54,61% e core
   64,10%).
 
+## 2026-11-22 — Onda 2 (início): engine, recipes e parser
+
+- Criados `opendesk-engine` e `opendesk-recipes` (deps: domain + storage).
+- Recorrência unificada em `engine/scheduler/recurrence.rs`; `recipes/cron.rs`
+  consome a mesma implementação.
+- `worktree` dividido em `engine/src/worktree/{mod,manifest,git_ops,overlay,sweeper}`.
+- `recipes/parser` dividido em `parser/{mod,schema,expressions}`.
+- Core reexporta os três módulos; shell sem mudança de API.
+- Testes: 340 shell + 267 core + 19 domain + 6 engine + 13 recipes + 15 storage
+  (660); clippy e `scripts/gate.sh` verdes.
+- Pendente: fila/scheduler/runner/telemetria/router/adapters/DAG/store/fachada,
+  event-driven e 75% de cobertura; bloqueado pela extração dos 28 repositórios
+  de `db` restantes. ADR 0201.
+
 ## Próximas ondas
 
 2. `opendesk-engine`/`opendesk-recipes`, god-files e event-driven.

@@ -42,7 +42,7 @@ pub mod queue_scheduler;
 pub mod recipe_context;
 pub mod recipe_dispatch;
 pub mod recipes;
-pub mod recurrence;
+pub use opendesk_engine::scheduler::recurrence;
 pub mod run_export;
 pub mod run_timeline;
 pub mod runtime;
@@ -60,4 +60,4 @@ pub mod workspace_sync;
 
 #[cfg(test)]
 pub mod test_support;
-pub mod worktree;
+pub use opendesk_engine::worktree;

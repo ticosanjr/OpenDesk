@@ -411,7 +411,7 @@ async fn execute(
                     .attach_files
                     .iter()
                     .map(|path| parser::render(path, trigger, &run_vars, &outputs))
-                    .collect::<AppResult<Vec<_>>>()?;
+                    .collect::<Result<Vec<_>, _>>()?;
                 let next_step = flow.get(index + 1).and_then(|item| match item {
                     FlowItem::Step(step) => Some(step.name.as_str()),
                     FlowItem::Hitl(next) => Some(next.id.as_str()),
@@ -761,7 +761,7 @@ pub(super) async fn execute_step(
                     ));
                     continue;
                 }
-                Err(error) => return Err(error),
+                Err(error) => return Err(error.into()),
             },
             None => None,
         };

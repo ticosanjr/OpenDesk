@@ -1011,7 +1011,7 @@ async fn handle_hitl(
         .attach_files
         .iter()
         .map(|path| parser::render(path, ctx.trigger, ctx.run_vars, &scope.outputs))
-        .collect::<AppResult<Vec<_>>>()?;
+        .collect::<Result<Vec<_>, _>>()?;
     let next_step = next_item_name(items, index + 1);
     let token =
         match store::pending_hitl_for_checkpoint(&ctx.context.pool, &ctx.run.id, &checkpoint.id)
