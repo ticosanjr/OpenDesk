@@ -191,8 +191,11 @@ impl AppState {
     /// Wires late-bound shell ports after the AppState is inside an Arc.
     pub fn attach_runtime_ports(self: &Arc<Self>) {
         self.task_dispatcher.attach(self);
-        self.cron
-            .attach_context(crate::app_state::recipe_context(self));
+        self.cron.attach_recipe_runner(Arc::new(
+            opendesk_recipes::runner::ContextRecipeRunner::new(crate::app_state::recipe_context(
+                self,
+            )),
+        ));
     }
 
     /// Registers the active turn for a chat thread. The returned token lets the

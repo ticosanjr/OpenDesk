@@ -1,6 +1,6 @@
 //! Shell implementation of the recipe HITL channel port.
 //!
-//! The protocol, storage and resolution live in `opendesk_core::recipes::hitl`.
+//! The protocol, storage and resolution live in `opendesk_recipes::hitl`.
 //! This module only adapts the concrete channels (email, Signal and Telegram)
 //! owned by the desktop shell.
 
@@ -8,11 +8,11 @@ pub mod email;
 pub mod signal;
 pub mod telegram;
 
-pub use opendesk_core::recipes::hitl::*;
+pub use opendesk_recipes::hitl::*;
 
 use crate::{
     app_state::AppState,
-    error::{AppError, AppResult},
+    error::AppError,
     recipe_context::{HitlChannelDispatcher, HitlChannelRequest, RecipeContext},
 };
 use async_trait::async_trait;
@@ -29,7 +29,7 @@ impl HitlChannelDispatcher for ShellHitlChannels {
         context: &RecipeContext,
         channel: &str,
         request: &HitlChannelRequest,
-    ) -> AppResult<String> {
+    ) -> opendesk_engine::error::AppResult<String> {
         let _ = &self.state;
         match channel {
             "EMAIL" => email::dispatch(context, request).await,
@@ -39,6 +39,7 @@ impl HitlChannelDispatcher for ShellHitlChannels {
                 "canal HITL desconhecido: {other}"
             ))),
         }
+        .map_err(Into::into)
     }
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "opendesk-storage"
-version = "1.4.2"
+version = "1.7.0"
 description = "OpenDesk SQLite storage: V2 baseline, pools and repositories"
 edition = "2024"
 license = "MIT"

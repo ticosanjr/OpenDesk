@@ -19,6 +19,7 @@ pub mod opencode_client;
 pub mod personal_context;
 pub mod process;
 pub mod queue_ports;
+pub mod queue_scheduler;
 pub mod recipe_dispatch;
 pub mod run_timeline;
 pub mod runtime;

@@ -9,7 +9,7 @@ mod tests;
 
 use crate::{
     app_state::AppState,
-    db::{artifacts, deliveries, runs, schedules, task_watchers, tasks, workspaces},
+    db::{artifacts, deliveries, runs, schedules, settings, task_watchers, tasks, workspaces},
     error::{AppError, AppResult},
     integrations::{
         google_api::GoogleApi,
@@ -24,6 +24,7 @@ use crate::{
     text::split_recipients,
 };
 use channel::DeliveryChannel;
+use chrono::{Timelike, Utc};
 use email::{deliver_email, retry_email};
 use google::{export_google, retry_drive, retry_gdocs};
 use html_escape::encode_text;
@@ -105,10 +106,21 @@ pub async fn deliver_run(
     recipients.sort();
     recipients.dedup();
 
-    let workspace_root = workspaces::get(pool, workspace_id)
-        .await
-        .ok()
-        .map(|workspace| PathBuf::from(workspace.root_path));
+    let workspace_row = workspaces::get(pool, workspace_id).await.ok();
+    let workspace_root = workspace_row
+        .as_ref()
+        .map(|workspace| PathBuf::from(&workspace.root_path));
+    let notification_route = notification_route(
+        pool,
+        workspace_row
+            .as_ref()
+            .map(|workspace| workspace.timezone.as_str()),
+    )
+    .await;
+    let allows_channel = |channel: &str| match &notification_route {
+        Some(route) => route.deliver && route.channels.iter().any(|item| item == channel),
+        None => true,
+    };
 
     let artifact_list = artifacts::list(pool, workspace_id, None, task_id, None, 50)
         .await
@@ -168,6 +180,7 @@ pub async fn deliver_run(
 
     if let Some(config) = &smtp_config
         && !unchanged_output
+        && allows_channel("email")
     {
         deliver_email(
             pool,
@@ -187,6 +200,7 @@ pub async fn deliver_run(
     if let Some(schedule) = &schedule
         && schedule.notify_signal
         && !unchanged_output
+        && allows_channel("signal")
     {
         deliver_signal(
             pool,
@@ -203,6 +217,7 @@ pub async fn deliver_run(
     if let Some(schedule) = &schedule
         && schedule.notify_telegram
         && !unchanged_output
+        && allows_channel("telegram")
     {
         deliver_telegram(
             pool,
@@ -404,6 +419,28 @@ async fn notify_watchers(
         }
     }
     Ok(())
+}
+
+/// Applies the channel router to run notifications. Missing settings keep the
+/// historical behavior (every channel explicitly enabled by the task/schedule).
+async fn notification_route(
+    pool: &SqlitePool,
+    timezone: Option<&str>,
+) -> Option<opendesk_channels::NotificationDecision> {
+    let value = settings::get(pool, "channels.notification_router")
+        .await
+        .ok()
+        .flatten()?;
+    let config: opendesk_channels::RouterConfig = serde_json::from_value(value).ok()?;
+    let local_hour = timezone
+        .and_then(|value| value.parse::<chrono_tz::Tz>().ok())
+        .map(|tz| Utc::now().with_timezone(&tz).hour() as u8)
+        .unwrap_or_else(|| Utc::now().hour() as u8);
+    Some(opendesk_channels::NotificationRouter::new(config).route(
+        opendesk_domain::NotificationLevel::Info,
+        opendesk_domain::CareLevel::Normal,
+        local_hour,
+    ))
 }
 
 fn novelty_hash(

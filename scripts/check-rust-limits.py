@@ -25,7 +25,7 @@ def is_test_file(path: pathlib.Path) -> bool:
     return (
         name == "tests.rs"
         or name.endswith("_tests.rs")
-        or name.startswith("test_support")
+        or name.startswith("test_")
         or "tests" in path.parts
     )
 

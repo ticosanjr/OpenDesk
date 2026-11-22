@@ -6,7 +6,6 @@
 
 use crate::{
     app_state::AppState,
-    error::{AppError, AppResult},
     opencode_client::rest_client::ModelRefDto,
     skill_shadow::{ShadowExecutor, ShadowOutput},
 };
@@ -24,13 +23,10 @@ impl ShadowExecutor for ShellShadowExecutor {
         &self,
         skill: &crate::config_sync::skills::SkillFile,
         case: &crate::skill_cases::SkillEvalCase,
-    ) -> AppResult<ShadowOutput> {
-        let client = self
-            .state
-            .daemon
-            .client()
-            .await
-            .ok_or_else(|| AppError::Daemon("OpenCode daemon is not online".into()))?;
+    ) -> opendesk_engine::error::AppResult<ShadowOutput> {
+        let client = self.state.daemon.client().await.ok_or_else(|| {
+            opendesk_engine::error::AppError::Daemon("OpenCode daemon is not online".into())
+        })?;
         let prompt = format!(
             "Você está executando a skill '{}' em modo somente leitura, sem ferramentas e sem \
              alterar arquivos.\n\nDescrição: {}\n\nInstruções da skill:\n{}\n\nTarefa de avaliação:\n{}",
@@ -43,7 +39,7 @@ impl ShadowExecutor for ShellShadowExecutor {
         let output = client
             .generate_text(&prompt, model)
             .await
-            .map_err(|error| AppError::Daemon(format!("{error:#}")))?;
+            .map_err(|error| opendesk_engine::error::AppError::Daemon(format!("{error:#}")))?;
         let usage = crate::token_estimate::estimate_usage(
             self.model.as_deref().unwrap_or("unknown/model"),
             &prompt,

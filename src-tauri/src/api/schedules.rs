@@ -341,7 +341,7 @@ pub(crate) async fn execute_schedule_from_source(
                     &Utc::now().to_rfc3339(),
                 )
                 .await;
-                return Err(error);
+                return Err(error.into());
             }
         };
         if let Some(task_id) = run.task_id {
@@ -408,7 +408,7 @@ pub(crate) async fn execute_signal_routines(
                     &Utc::now().to_rfc3339(),
                 )
                 .await;
-                return Err(error);
+                return Err(error.into());
             }
         } else {
             state.cron.enqueue_now(&schedule).await?;

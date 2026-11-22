@@ -22,8 +22,10 @@ impl RecipeSinkExecutor for ShellRecipeSinks {
         run: &RecipeRun,
         trigger: &serde_json::Value,
         outputs: &serde_json::Value,
-    ) -> AppResult<Vec<String>> {
-        execute_one(context, sink, run, trigger, outputs).await
+    ) -> opendesk_engine::error::AppResult<Vec<String>> {
+        execute_one(context, sink, run, trigger, outputs)
+            .await
+            .map_err(Into::into)
     }
 }
 

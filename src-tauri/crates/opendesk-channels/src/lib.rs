@@ -6,8 +6,21 @@
 //! policy that is already independent: feature-gated channel registry and the
 //! `NotificationRouter`.
 
+pub mod error;
+
+#[cfg(feature = "ch-signal")]
+pub mod signal;
+#[cfg(feature = "ch-telegram")]
+pub mod telegram;
+#[cfg(feature = "ch-whatsapp")]
+pub mod whatsapp;
+
+#[cfg(feature = "ch-email")]
+pub mod email;
 pub mod registry;
 pub mod router;
+#[cfg(feature = "ch-webpush")]
+pub mod webpush;
 
 pub use registry::{ChannelDescriptor, enabled_channels};
 pub use router::{NotificationDecision, NotificationRouter, RouterConfig};

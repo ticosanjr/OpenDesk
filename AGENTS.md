@@ -71,13 +71,20 @@ npm run clean:deep     # remove target e node_modules (build frio depois)
 ## Onde está o quê
 
 - `src-tauri/src/api/` — rotas Axum, `/ws` e comandos Tauri.
-- `src-tauri/src/opencode_client/` — daemon manager e cliente REST V2.
+- `src-tauri/crates/opendesk-engine/` — daemon manager, cliente REST, runner,
+  adapters, fila, cron, router e telemetria.
+- `src-tauri/crates/opendesk-recipes/` — parser, DAG, HITL, store e execução.
+- `src-tauri/crates/opendesk-storage/` — schema, migrações e repositórios.
+- `src-tauri/crates/opendesk-mcp/` — MCP config/pool/server + rate/RBAC.
+- `src-tauri/crates/opendesk-channels/` — Telegram/Signal/WhatsApp/e-mail/WebPush.
+- `src-tauri/crates/opendesk-enterprise/` — auth, cluster, eval e computer-use.
 - `src-tauri/src/mcp_control.rs` — MCP `opendesk-control` (tarefas, rotinas,
   receitas, fila, artefatos e atenção). `mcp_config.rs` continua com propostas.
 - `src-tauri/src/mcp_server.rs` — loop JSON-RPC compartilhado pelos três MCPs.
 - `starter-packs/packs/controle-opendesk/` — skill e comandos do pacote base
   instalado automaticamente em novos workspaces (ADR 0044).
-- `src-tauri/src/db/` — migrações, modelos e repositórios.
+- `src-tauri/src/db/` — fachada do shell sobre `opendesk_storage::repos` e
+  manutenção local.
 - `src-tauri/src/integrations/telegram.rs` — bot Telegram (long polling,
   allowlist, chat, aprovações e avisos).
 - `src-tauri/src/desktop_integration.rs` — atalho e ícone do AppImage no Linux.
@@ -156,11 +163,11 @@ observabilidade por origem, templates de prompt em três abas, memória via MCP
 plane v1.0 (adapter registry, `opendeskd`, schemas de handoff/ticket/memória),
 além do atalho automático do AppImage no menu/barra de tarefas.
 A 1.4.2 endureceu a verificação: shell sem `unwrap/expect` de produção,
-limite de 500 linhas também no shell/frontend, cobertura `--workspace`
-(64,0% total / 80,5% no escopo de negócio), processos com `kill_on_drop` +
-TERM→KILL, fila dormindo até o lease e cron acordando por evento. O primeiro
-cluster sem ciclo (sandbox, runtime, browse, config_sync, dsh_router, adapters,
-cliente OpenCode e portas) já vive em `opendesk-engine`, com reexports no core.
+limite de 500 linhas no frontend, processos com `kill_on_drop` + TERM→KILL e
+fila/cron event-driven. As fases seguintes extraíram engine, receitas, MCP,
+canais e enterprise; a 1.7.0 **extinguiu o `opendesk-core`**, deixou a baseline
+de limites vazia e fixou a cobertura em 63,0% total / 75,5% no escopo de negócio
+(medido 63,05% / 75,98%).
 Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
 Fábrica de Capacidades default (`meta-forge`). O MCP `opendesk-control` permite
 aos agentes operar tarefas, execuções, rotinas, receitas, fila e artefatos; o

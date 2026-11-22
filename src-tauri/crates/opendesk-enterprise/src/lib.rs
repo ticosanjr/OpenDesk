@@ -7,6 +7,12 @@
 
 #[cfg(feature = "ent-auth")]
 pub mod auth;
+pub mod cluster;
 #[cfg(feature = "ent-computer")]
 pub mod computer;
 pub mod error;
+pub mod eval;
+
+#[cfg(test)]
+#[path = "test_support.rs"]
+pub mod test_support;

@@ -30,6 +30,9 @@ mod skill_gate;
 mod skill_shadow_exec;
 mod starter_packs;
 #[cfg(test)]
+#[path = "test_db_support.rs"]
+mod test_db_support;
+#[cfg(test)]
 #[path = "test_support_tests.rs"]
 mod test_support;
 #[cfg(feature = "desktop")]
@@ -38,15 +41,37 @@ mod updates;
 mod v1_export;
 mod voice;
 
-pub use opendesk_core::{
-    adapters, api_endpoint, audit, backup, browse, browse_tags, config_sync, daemon_probe, db,
-    dedupe, desktop_integration, dsh_router, error, events, hitl, internal_api, mcp_config,
-    mcp_pool, mcp_rate, mcp_rbac, mcp_server, media, metrics, mtls, nodes, notifier,
-    opencode_client, passkey, paths, personal_context, push, queue_ports, recipe_context,
-    recipe_dispatch, recurrence, run_export, run_timeline, runtime, sandbox, secrets, server_lock,
-    skill_cases, skill_eval, skill_shadow, text, token_estimate, update_signing, virtual_display,
-    workspace_sync, worktree,
+pub mod audit;
+pub mod backup;
+pub mod db;
+pub mod desktop_integration;
+pub mod error;
+pub mod internal_api;
+pub mod metrics;
+pub mod passkey;
+
+pub use opendesk_channels::webpush as push;
+pub use opendesk_domain::hitl;
+pub use opendesk_engine::scheduler::recurrence;
+pub use opendesk_engine::{
+    adapters, api_endpoint, browse, browse_tags, config_sync, daemon_probe, dsh_router, media,
+    notifier, opencode_client, personal_context, queue_ports, recipe_dispatch, run_timeline,
+    runtime, sandbox, text, token_estimate, worktree,
 };
+pub use opendesk_enterprise::{
+    auth::mtls,
+    auth::update_signing,
+    cluster::{nodes, sync as workspace_sync},
+    computer::virtual_display,
+    eval::{cases as skill_cases, shadow as skill_shadow, skills as skill_eval},
+};
+pub use opendesk_mcp::{
+    config as mcp_config, pool as mcp_pool, rate as mcp_rate, rbac as mcp_rbac,
+    server as mcp_server,
+};
+pub use opendesk_recipes::context as recipe_context;
+pub use opendesk_recipes::export as run_export;
+pub use opendesk_storage::{dedupe, events, paths, secrets, server_lock};
 
 use app_state::AppState;
 use daemon_probe::ProbeOutcome;
@@ -102,6 +127,7 @@ fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
             state.signal.stop().await;
             state.telegram.stop().await;
             state.daemon.shutdown().await;
+            crate::virtual_display::reap_all();
             app.exit(0);
         });
     }
@@ -118,6 +144,7 @@ fn install_shutdown_handlers(app: AppHandle, state: Arc<AppState>) {
             state.signal.stop().await;
             state.telegram.stop().await;
             state.daemon.shutdown().await;
+            crate::virtual_display::reap_all();
             app.exit(0);
         });
     }
@@ -447,6 +474,7 @@ pub fn run() {
                 state.write_buffer.shutdown().await;
                 state.queue.shutdown().await;
                 state.daemon.shutdown().await;
+                crate::virtual_display::reap_all();
             });
         }
     });
@@ -522,6 +550,7 @@ pub fn run_headless() {
         state.write_buffer.shutdown().await;
         state.queue.shutdown().await;
         state.daemon.shutdown().await;
+        crate::virtual_display::reap_all();
     });
 }
 

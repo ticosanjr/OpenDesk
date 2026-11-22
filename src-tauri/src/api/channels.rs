@@ -16,18 +16,17 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
 };
-use hmac::{Hmac, KeyInit, Mac};
+use opendesk_channels::whatsapp::{
+    self, WEBHOOK_HEADER, WEBHOOK_NAMESPACE, WHATSAPP_SECRET_NAMESPACE,
+};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sha2::Sha256;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-const WHATSAPP_SETTING: &str = "channels.whatsapp";
-const WHATSAPP_SECRET_NAMESPACE: &str = "channel_whatsapp";
-const WEBHOOK_NAMESPACE: &str = "channel_webhook";
-const WEBHOOK_HEADER: &str = "x-opendesk-channel-token";
+pub use opendesk_channels::whatsapp::WhatsAppConfig;
+
 const MAX_TEXT: usize = 16_000;
 
 #[derive(Debug, Deserialize, Default)]
@@ -66,56 +65,8 @@ pub async fn delete_route(
     Ok(StatusCode::NO_CONTENT)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct WhatsAppConfig {
-    pub enabled: bool,
-    /// `structure`, `cloud-api` or `baileys`.
-    pub provider: String,
-    pub phone_number: String,
-    /// Meta Cloud API phone number id.
-    pub phone_number_id: String,
-    pub business_account_id: String,
-    pub api_version: String,
-    /// Optional workspace for inbound messages; defaults to the active one.
-    pub workspace_id: Option<String>,
-    pub notes: String,
-}
-
-impl Default for WhatsAppConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            provider: "structure".into(),
-            phone_number: String::new(),
-            phone_number_id: String::new(),
-            business_account_id: String::new(),
-            api_version: "v21.0".into(),
-            workspace_id: None,
-            notes: String::new(),
-        }
-    }
-}
-
-async fn whatsapp_config(state: &AppState) -> AppResult<WhatsAppConfig> {
-    Ok(crate::db::settings::get(&state.db, WHATSAPP_SETTING)
-        .await?
-        .and_then(|value| serde_json::from_value::<WhatsAppConfig>(value).ok())
-        .unwrap_or_default())
-}
-
-fn whatsapp_connected(state: &AppState, config: &WhatsAppConfig) -> AppResult<bool> {
-    Ok(config.enabled
-        && config.provider == "cloud-api"
-        && !config.phone_number_id.trim().is_empty()
-        && state
-            .secrets
-            .get(WHATSAPP_SECRET_NAMESPACE, "access_token")?
-            .is_some())
-}
-
 pub async fn get_whatsapp(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>> {
-    let config = whatsapp_config(&state).await?;
+    let config = whatsapp::load_config(&state.db).await?;
     let token_set = state.secrets.get(WEBHOOK_NAMESPACE, "whatsapp")?.is_some();
     let access_token_set = state
         .secrets
@@ -125,7 +76,7 @@ pub async fn get_whatsapp(State(state): State<Arc<AppState>>) -> AppResult<Json<
         .secrets
         .get(WHATSAPP_SECRET_NAMESPACE, "app_secret")?
         .is_some();
-    let connected = whatsapp_connected(&state, &config)?;
+    let connected = whatsapp::connected(&state.secrets, &config)?;
     Ok(Json(json!({
         "config": config,
         "connected": connected,
@@ -150,34 +101,14 @@ pub async fn put_whatsapp(
     State(state): State<Arc<AppState>>,
     Json(body): Json<WhatsAppUpdate>,
 ) -> AppResult<Json<Value>> {
-    if !["structure", "cloud-api", "baileys"].contains(&body.config.provider.as_str()) {
-        return Err(AppError::BadRequest(
-            "provider de WhatsApp inválido; use structure, cloud-api ou baileys".into(),
-        ));
-    }
-    if body.config.provider == "cloud-api" && body.config.phone_number_id.trim().is_empty() {
-        return Err(AppError::BadRequest(
-            "cloud-api exige phone_number_id (Meta)".into(),
-        ));
-    }
-    for (key, value) in [
-        ("access_token", body.access_token.as_deref()),
-        ("app_secret", body.app_secret.as_deref()),
-    ] {
-        match value.map(str::trim) {
-            Some("") => state.secrets.delete(WHATSAPP_SECRET_NAMESPACE, key)?,
-            Some(value) => state.secrets.set(WHATSAPP_SECRET_NAMESPACE, key, value)?,
-            None => {}
-        }
-    }
-    crate::db::settings::set(
-        &state.db,
-        WHATSAPP_SETTING,
-        &serde_json::to_value(&body.config)
-            .map_err(|error| AppError::Internal(error.to_string()))?,
-    )
-    .await?;
-    let connected = whatsapp_connected(&state, &body.config)?;
+    whatsapp::validate_config(&body.config)?;
+    whatsapp::apply_credentials(
+        &state.secrets,
+        body.access_token.as_deref(),
+        body.app_secret.as_deref(),
+    )?;
+    whatsapp::save_config(&state.db, &body.config).await?;
+    let connected = whatsapp::connected(&state.secrets, &body.config)?;
     Ok(Json(json!({
         "config": body.config,
         "connected": connected,
@@ -197,65 +128,10 @@ pub async fn send_whatsapp(
     State(state): State<Arc<AppState>>,
     Json(body): Json<WhatsAppSend>,
 ) -> AppResult<Json<Value>> {
-    let config = whatsapp_config(&state).await?;
-    if !whatsapp_connected(&state, &config)? {
-        return Err(AppError::Conflict(
-            "WhatsApp Cloud API não está conectado (provider, phone_number_id, token e enabled)"
-                .into(),
-        ));
-    }
-    let to = body.to.trim();
-    let text = body.text.trim();
-    if to.is_empty() || text.is_empty() {
-        return Err(AppError::BadRequest(
-            "destinatário e texto são obrigatórios".into(),
-        ));
-    }
-    let access_token = state
-        .secrets
-        .get(WHATSAPP_SECRET_NAMESPACE, "access_token")?
-        .ok_or_else(|| AppError::Conflict("access token do WhatsApp ausente".into()))?;
-    let base = std::env::var("OPENDESK_WHATSAPP_GRAPH_URL")
-        .unwrap_or_else(|_| "https://graph.facebook.com".into());
-    let version = if config.api_version.trim().is_empty() {
-        "v21.0"
-    } else {
-        config.api_version.trim()
-    };
-    let url = format!(
-        "{}/{}/{}/messages",
-        base.trim_end_matches('/'),
-        version,
-        config.phone_number_id.trim()
-    );
-    let response = reqwest::Client::new()
-        .post(&url)
-        .bearer_auth(access_token)
-        .json(&json!({
-            "messaging_product": "whatsapp",
-            "to": to,
-            "type": "text",
-            "text": { "preview_url": false, "body": text }
-        }))
-        .send()
-        .await
-        .map_err(|error| AppError::Internal(format!("Graph API inacessível: {error}")))?;
-    let status = response.status();
-    let value: Value = response.json().await.unwrap_or(Value::Null);
-    if !status.is_success() {
-        return Err(AppError::Internal(format!(
-            "Graph API recusou ({status}): {}",
-            value
-                .pointer("/error/message")
-                .and_then(Value::as_str)
-                .unwrap_or("erro desconhecido")
-        )));
-    }
+    let sent = whatsapp::send_text(&state.db, &state.secrets, &body.to, &body.text).await?;
     Ok(Json(json!({
-        "message_id": value
-            .pointer("/messages/0/id")
-            .and_then(Value::as_str),
-        "to": to,
+        "message_id": sent.message_id,
+        "to": sent.to,
     })))
 }
 
@@ -275,8 +151,8 @@ pub async fn status(
     let workspace_id =
         crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
     let routes = channels::list(&state.db, &workspace_id).await?;
-    let whatsapp = whatsapp_config(&state).await?;
-    let whatsapp_connected = whatsapp_connected(&state, &whatsapp)?;
+    let whatsapp_config = whatsapp::load_config(&state.db).await?;
+    let whatsapp_connected = whatsapp::connected(&state.secrets, &whatsapp_config)?;
     let list = channels::CHANNELS
         .iter()
         .map(|channel| ChannelStatus {
@@ -295,7 +171,7 @@ pub async fn status(
             connector: if *channel == "whatsapp" {
                 if whatsapp_connected {
                     "cloud-api".into()
-                } else if whatsapp.provider == "cloud-api" {
+                } else if whatsapp_config.provider == "cloud-api" {
                     "cloud-api (incompleto)".into()
                 } else {
                     "structure-only".into()
@@ -380,177 +256,11 @@ pub struct InboundBody {
     pub metadata: Value,
 }
 
-#[derive(Debug, Clone)]
-struct MetaMessage {
-    identity: String,
-    text: String,
-    message_id: Option<String>,
-    name: Option<String>,
-    media_id: Option<String>,
-    media_mime: Option<String>,
-    media_name: Option<String>,
-}
-
-fn extract_meta_messages(value: &Value) -> Vec<MetaMessage> {
-    let mut messages = Vec::new();
-    let Some(entries) = value.get("entry").and_then(Value::as_array) else {
-        return messages;
-    };
-    for entry in entries {
-        let Some(changes) = entry.get("changes").and_then(Value::as_array) else {
-            continue;
-        };
-        for change in changes {
-            let Some(value) = change.get("value") else {
-                continue;
-            };
-            let contacts = value
-                .get("contacts")
-                .and_then(Value::as_array)
-                .map(|contacts| {
-                    contacts
-                        .iter()
-                        .filter_map(|contact| {
-                            let id = contact.get("wa_id").and_then(Value::as_str)?;
-                            let name = contact
-                                .pointer("/profile/name")
-                                .and_then(Value::as_str)
-                                .map(str::to_string);
-                            Some((id.to_string(), name))
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-            let Some(items) = value.get("messages").and_then(Value::as_array) else {
-                continue;
-            };
-            for message in items {
-                let Some(identity) = message.get("from").and_then(Value::as_str) else {
-                    continue;
-                };
-                let kind = message.get("type").and_then(Value::as_str).unwrap_or("");
-                let media = message.get(kind).and_then(Value::as_object);
-                let text = match kind {
-                    "text" => message
-                        .pointer("/text/body")
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                        .to_string(),
-                    "button" => message
-                        .pointer("/button/text")
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                        .to_string(),
-                    "interactive" => message
-                        .pointer("/interactive/button_reply/title")
-                        .or_else(|| message.pointer("/interactive/list_reply/title"))
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                        .to_string(),
-                    "image" | "document" | "video" | "audio" | "voice" | "sticker" => message
-                        .pointer("/image/caption")
-                        .or_else(|| message.pointer("/document/caption"))
-                        .or_else(|| message.pointer("/video/caption"))
-                        .and_then(Value::as_str)
-                        .map(str::to_string)
-                        .unwrap_or_else(|| format!("[{kind} recebido]")),
-                    "" => continue,
-                    other => format!("[{other} recebido]"),
-                };
-                if text.trim().is_empty() {
-                    continue;
-                }
-                let name = contacts
-                    .iter()
-                    .find(|(id, _)| id == identity)
-                    .and_then(|(_, name)| name.clone());
-                messages.push(MetaMessage {
-                    identity: identity.to_string(),
-                    text,
-                    message_id: message
-                        .get("id")
-                        .and_then(Value::as_str)
-                        .map(str::to_string),
-                    name,
-                    media_id: media
-                        .and_then(|media| media.get("id"))
-                        .and_then(Value::as_str)
-                        .map(str::to_string),
-                    media_mime: media
-                        .and_then(|media| media.get("mime_type"))
-                        .and_then(Value::as_str)
-                        .map(str::to_string),
-                    media_name: media
-                        .and_then(|media| media.get("filename"))
-                        .and_then(Value::as_str)
-                        .map(str::to_string),
-                });
-            }
-        }
-    }
-    messages
-}
-
-fn verify_meta_signature(secret: &str, body: &[u8], header: &str) -> bool {
-    let Some(encoded) = header.strip_prefix("sha256=") else {
-        return false;
-    };
-    let Some(expected) = hex_decode(encoded) else {
-        return false;
-    };
-    let Ok(mut mac) = Hmac::<Sha256>::new_from_slice(secret.as_bytes()) else {
-        return false;
-    };
-    mac.update(body);
-    mac.finalize().into_bytes().as_slice() == expected.as_slice()
-}
-
-fn hex_decode(value: &str) -> Option<Vec<u8>> {
-    if !value.len().is_multiple_of(2) {
-        return None;
-    }
-    (0..value.len())
-        .step_by(2)
-        .map(|index| u8::from_str_radix(&value[index..index + 2], 16).ok())
-        .collect()
-}
-
-fn media_extension(mime: Option<&str>, filename: Option<&str>) -> String {
-    if let Some(filename) = filename
-        && let Some(extension) = std::path::Path::new(filename)
-            .extension()
-            .and_then(|value| value.to_str())
-    {
-        let extension = extension
-            .chars()
-            .filter(|character| character.is_ascii_alphanumeric())
-            .take(8)
-            .collect::<String>();
-        if !extension.is_empty() {
-            return extension.to_lowercase();
-        }
-    }
-    match mime.unwrap_or("").split(';').next().unwrap_or("") {
-        "image/jpeg" => "jpg",
-        "image/png" => "png",
-        "image/webp" => "webp",
-        "image/gif" => "gif",
-        "audio/ogg" => "ogg",
-        "audio/mpeg" => "mp3",
-        "audio/mp4" => "m4a",
-        "audio/wav" => "wav",
-        "video/mp4" => "mp4",
-        "application/pdf" => "pdf",
-        _ => "bin",
-    }
-    .to_string()
-}
-
 async fn download_whatsapp_media(
     state: &Arc<AppState>,
     config: &WhatsAppConfig,
     workspace_root: &str,
-    message: &MetaMessage,
+    message: &whatsapp::MetaMessage,
 ) -> AppResult<String> {
     let (Some(media_id), Some(access_token)) = (
         message.media_id.as_deref(),
@@ -619,7 +329,7 @@ async fn download_whatsapp_media(
             message.text
         ));
     }
-    let extension = media_extension(mime, message.media_name.as_deref());
+    let extension = whatsapp::media_extension(mime, message.media_name.as_deref());
     let dir = std::path::Path::new(workspace_root).join("input/whatsapp");
     tokio::fs::create_dir_all(&dir).await?;
     let id = message
@@ -673,16 +383,16 @@ pub async fn inbound(
             .get("x-hub-signature-256")
             .and_then(|value| value.to_str().ok())
             .unwrap_or("");
-        if !verify_meta_signature(&secret, &body, signature) {
+        if !whatsapp::verify_signature(&secret, &body, signature) {
             return Err(AppError::BadRequest(
                 "assinatura do webhook inválida".into(),
             ));
         }
-        let config = whatsapp_config(&state).await?;
+        let config = whatsapp::load_config(&state.db).await?;
         let workspace_id =
             crate::api::tasks::resolve_workspace_id(&state, config.workspace_id.as_deref()).await?;
         let workspace = workspaces::get(&state.db, &workspace_id).await?;
-        let messages = extract_meta_messages(&value);
+        let messages = whatsapp::extract_meta_messages(&value);
         let mut processed = 0;
         let mut failures = 0;
         for message in messages {
@@ -896,74 +606,4 @@ async fn process_inbound(
         "permission_profile": route.permission_profile,
         "agent": route.agent,
     }))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn extracts_meta_text_and_interactive_messages() {
-        let payload = json!({
-            "object": "whatsapp_business_account",
-            "entry": [{
-                "changes": [{
-                    "value": {
-                        "contacts": [{ "wa_id": "5511999", "profile": { "name": "Ana" } }],
-                        "messages": [
-                            { "from": "5511999", "id": "wamid.1", "type": "text", "text": { "body": "Oi" } },
-                            { "from": "5511888", "id": "wamid.2", "type": "button", "button": { "text": "Sim" } },
-                            { "from": "5511777", "id": "wamid.3", "type": "image", "image": { "id": "media-1", "mime_type": "image/jpeg", "caption": "foto" } }
-                        ]
-                    }
-                }]
-            }]
-        });
-        let messages = extract_meta_messages(&payload);
-        assert_eq!(messages.len(), 3);
-        assert_eq!(messages[0].identity, "5511999");
-        assert_eq!(messages[0].name.as_deref(), Some("Ana"));
-        assert_eq!(messages[1].text, "Sim");
-        assert_eq!(messages[2].media_id.as_deref(), Some("media-1"));
-        assert_eq!(messages[2].media_mime.as_deref(), Some("image/jpeg"));
-        assert_eq!(messages[2].text, "foto");
-    }
-
-    #[test]
-    fn derives_safe_media_extensions() {
-        assert_eq!(media_extension(Some("image/jpeg"), None), "jpg");
-        assert_eq!(
-            media_extension(Some("application/pdf"), Some("NF.PDF")),
-            "pdf"
-        );
-        assert_eq!(
-            media_extension(Some("application/octet-stream"), Some("../../x.sh")),
-            "sh"
-        );
-        assert_eq!(media_extension(None, None), "bin");
-    }
-
-    #[test]
-    fn verifies_signature() {
-        let body = br#"{"hello":"world"}"#;
-        let mut mac = Hmac::<Sha256>::new_from_slice(b"secret").expect("mac");
-        mac.update(body);
-        let encoded = mac
-            .finalize()
-            .into_bytes()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
-        assert!(verify_meta_signature(
-            "secret",
-            body,
-            &format!("sha256={encoded}")
-        ));
-        assert!(!verify_meta_signature(
-            "other",
-            body,
-            &format!("sha256={encoded}")
-        ));
-        assert!(!verify_meta_signature("secret", body, "sha1=abc"));
-    }
 }

@@ -410,6 +410,73 @@ async fn probe_live(
         detail: mtls.detail,
     });
 
+    let quick_check = sqlx::query_scalar::<_, String>("PRAGMA quick_check")
+        .fetch_one(pool)
+        .await
+        .unwrap_or_else(|error| format!("error: {error}"));
+    let journal = sqlx::query_scalar::<_, String>("PRAGMA journal_mode")
+        .fetch_one(pool)
+        .await
+        .unwrap_or_else(|error| format!("error: {error}"));
+    probes.push(LiveProbe {
+        name: "sqlite".into(),
+        status: if quick_check.eq_ignore_ascii_case("ok") && journal.eq_ignore_ascii_case("wal") {
+            "ok"
+        } else {
+            "warn"
+        }
+        .into(),
+        detail: Some(format!("quick_check={quick_check}; journal_mode={journal}")),
+    });
+
+    let sandbox_tools = ["bwrap", "docker", "podman"];
+    let found: Vec<&str> = sandbox_tools
+        .into_iter()
+        .filter(|tool| {
+            std::process::Command::new("which")
+                .arg(tool)
+                .output()
+                .map(|output| output.status.success())
+                .unwrap_or(false)
+        })
+        .collect();
+    probes.push(LiveProbe {
+        name: "sandbox".into(),
+        status: if found.is_empty() {
+            "not-configured"
+        } else {
+            "ok"
+        }
+        .into(),
+        detail: if found.is_empty() {
+            Some("bwrap/docker/podman ausentes; use sandbox workspace/off".into())
+        } else {
+            Some(format!("disponível: {}", found.join(", ")))
+        },
+    });
+
+    let display = std::env::var("DISPLAY").ok();
+    let display_ready = display
+        .as_deref()
+        .map(|value| {
+            std::path::Path::new(&format!(
+                "/tmp/.X11-unix/X{}",
+                value.trim_start_matches(':')
+            ))
+            .exists()
+        })
+        .unwrap_or(false);
+    probes.push(LiveProbe {
+        name: "display".into(),
+        status: if display_ready {
+            "ok"
+        } else {
+            "not-configured"
+        }
+        .into(),
+        detail: display,
+    });
+
     let origin = std::env::var("OPENDESK_WEBAUTHN_ORIGIN").ok();
     probes.push(LiveProbe {
         name: "webauthn".into(),

@@ -318,3 +318,6 @@ fn read_tail(path: &Path, max_bytes: usize) -> Option<String> {
     let start = bytes.len().saturating_sub(max_bytes);
     Some(String::from_utf8_lossy(&bytes[start..]).to_string())
 }
+
+#[cfg(test)]
+include!("execution_tests.rs");

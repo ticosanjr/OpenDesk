@@ -366,3 +366,34 @@ flow:
         assert!(parse(&bad).is_err());
     }
 }
+
+#[cfg(test)]
+mod schema_tests {
+    use super::parse;
+
+    #[test]
+    fn rejects_a_recipe_without_steps() {
+        let error = parse("id: vazia\nname: Vazia\nflow: []\n").expect_err("empty flow");
+        assert!(error.to_string().contains("ao menos um step"));
+    }
+
+    #[test]
+    fn rejects_duplicate_step_ids() {
+        let yaml = r#"
+id: dup
+name: Dup
+flow:
+  - type: step
+    id: s1
+    name: Um
+    prompt: a
+  - type: step
+    id: s1
+    name: Dois
+    prompt: b
+"#;
+        let error = parse(yaml).expect_err("duplicate id");
+        assert!(error.to_string().contains("duplicado") || error.to_string().contains("s1"));
+    }
+
+}

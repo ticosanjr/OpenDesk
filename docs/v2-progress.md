@@ -101,6 +101,26 @@ Registro de mudanças de comportamento da refatoração V2. O histórico V1 est�
 - Primeiro corte do engine: sandbox/runtime/browse/config_sync/dsh_router/adapters/
   opencode_client e portas movidos para `opendesk-engine` com reexports (ADR 0207).
 
+## 2026-11-22 — 1.5.0: engine e receitas
+
+- `recipes` (DAG, store, engine, HITL, parser), `RecipeContext` e export movidos
+  para `opendesk-recipes`; core reexporta.
+- `queue_scheduler` inteiro movido para `opendesk-engine`.
+- Cron usa a porta `ScheduledRecipeRunner`, implementada por
+  `ContextRecipeRunner` (sem ciclo).
+- Worktree store no engine; core com ~6,2 mil linhas.
+- God-files de engine/recipes divididos; baseline de limites 19 → 3.
+- ADR 0208.
+
+## 2026-11-22 — 1.7.0: core extinto
+
+- `opendesk-core` removido; módulos restantes no shell/storage.
+- `crate::db` é fachada de `opendesk_storage::repos`.
+- Baseline de limites vazia; nenhum arquivo em `src-tauri/crates` > 500 linhas.
+- `cargo check --workspace --no-default-features` e testes all-features verdes.
+- Canais completos (Telegram/Signal/WhatsApp/e-mail/WebPush) e MCP no crate.
+- ADR 0212.
+
 ## Próximas ondas
 
 2. `opendesk-engine`/`opendesk-recipes`, god-files e event-driven.

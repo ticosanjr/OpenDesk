@@ -1,3 +1,10 @@
+//! Signal host orchestration.
+//!
+//! Transport, protocol parsing and `signal-cli` process management live in
+//! `opendesk-channels::signal`. This module keeps only the callbacks that need
+//! `Arc<AppState>`: status reporting, inbound routing (routines, HITL, chat)
+//! and task interaction notifications.
+
 use crate::{
     app_state::AppState,
     chat,
@@ -5,96 +12,17 @@ use crate::{
     error::{AppError, AppResult},
     hitl::HitlKind,
 };
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::{path::PathBuf, process::Stdio, sync::Arc};
-use tokio::{
-    io::{AsyncBufReadExt, BufReader},
-    process::{Child, Command},
-    sync::Mutex,
+use opendesk_channels::signal::{SignalBridge as SignalBridgeInner, SignalEventHandler};
+use std::{future::Future, pin::Pin, sync::Arc};
+
+// Host code keeps calling `crate::integrations::signal::X`; the modules below
+// re-export the channels implementation verbatim. `allowed`, `parse_incoming`
+// and `signal_path` are only used inside the channels bridge now.
+#[allow(unused_imports)]
+pub use opendesk_channels::signal::{
+    IncomingSignal, SignalConfig, SignalStatus, allowed, default_cli_path, detect_cli, load,
+    parse_incoming, save, send_text, send_with_attachments, signal_path,
 };
-
-const SETTING_KEY: &str = "signal_config";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SignalConfig {
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default)]
-    pub account: String,
-    #[serde(default = "default_cli")]
-    pub cli_path: String,
-    #[serde(default)]
-    pub allowlist: Vec<String>,
-    #[serde(default)]
-    pub workspace_id: Option<String>,
-    #[serde(default = "default_agent")]
-    pub agent: String,
-}
-
-fn default_cli() -> String {
-    default_cli_path()
-}
-
-fn default_agent() -> String {
-    "build".into()
-}
-
-impl Default for SignalConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            account: String::new(),
-            cli_path: default_cli(),
-            allowlist: Vec::new(),
-            workspace_id: None,
-            agent: default_agent(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct SignalStatus {
-    pub config: SignalConfig,
-    pub cli_available: bool,
-    pub cli_version: Option<String>,
-    pub bridge_running: bool,
-    pub link_running: bool,
-}
-
-#[derive(Default)]
-pub struct SignalBridge {
-    handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
-    link_child: Mutex<Option<Child>>,
-}
-
-pub async fn load(pool: &sqlx::SqlitePool) -> AppResult<SignalConfig> {
-    let value = settings::get(pool, SETTING_KEY).await?;
-    Ok(value
-        .and_then(|value| serde_json::from_value::<SignalConfig>(value).ok())
-        .unwrap_or_default())
-}
-
-pub async fn save(pool: &sqlx::SqlitePool, config: &SignalConfig) -> AppResult<()> {
-    settings::set(pool, SETTING_KEY, &serde_json::to_value(config)?)
-        .await
-        .map_err(Into::into)
-}
-
-pub async fn detect_cli(path: &str) -> Option<String> {
-    let output = Command::new(path)
-        .arg("--version")
-        .env("PATH", signal_path())
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .await
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
-}
 
 pub async fn status(state: &AppState) -> SignalStatus {
     let config = load(&state.db).await.unwrap_or_default();
@@ -108,197 +36,58 @@ pub async fn status(state: &AppState) -> SignalStatus {
     }
 }
 
+/// Shell facade over the channels bridge.
+///
+/// It forwards process control to `opendesk-channels` and injects the inbound
+/// callback that routes a message through `AppState`.
+#[derive(Default)]
+pub struct SignalBridge {
+    inner: Arc<SignalBridgeInner>,
+}
+
 impl SignalBridge {
     pub async fn is_running(&self) -> bool {
-        self.handle
-            .lock()
-            .await
-            .as_ref()
-            .map(|handle| !handle.is_finished())
-            .unwrap_or(false)
+        self.inner.is_running().await
     }
 
     pub async fn is_linking(&self) -> bool {
-        let mut child = self.link_child.lock().await;
-        match child.as_mut() {
-            Some(value) => match value.try_wait() {
-                Ok(Some(_)) => {
-                    *child = None;
-                    false
-                }
-                Ok(None) => true,
-                Err(_) => {
-                    *child = None;
-                    false
-                }
-            },
-            None => false,
-        }
+        self.inner.is_linking().await
     }
 
     pub async fn stop(&self) {
-        if let Some(handle) = self.handle.lock().await.take() {
-            handle.abort();
-        }
-        let mut link = self.link_child.lock().await;
-        if let Some(mut child) = link.take() {
-            let _ = child.kill().await;
-        }
+        self.inner.stop().await;
     }
 
     pub async fn start_if_enabled(self: &Arc<Self>, state: Arc<AppState>) -> AppResult<bool> {
-        self.stop().await;
-        let config = load(&state.db).await?;
-        if !config.enabled {
-            return Ok(false);
-        }
-        if config.account.trim().is_empty() {
-            return Err(AppError::BadRequest(
-                "Signal está habilitado, mas a conta (número) não foi configurada.".into(),
-            ));
-        }
-        if config.allowlist.is_empty() {
-            return Err(AppError::BadRequest(
-                "Signal está habilitado, mas a allowlist está vazia. Adicione ao menos um número."
-                    .into(),
-            ));
-        }
-        if detect_cli(&config.cli_path).await.is_none() {
-            return Err(AppError::BadRequest(format!(
-                "signal-cli não encontrado em '{}'. Instale ou informe o caminho.",
-                config.cli_path
-            )));
-        }
-
-        let bridge = Arc::clone(self);
-        let handle = tokio::spawn(async move {
-            if let Err(error) = bridge.run(state).await {
-                tracing::error!(error = %error, "Signal bridge stopped");
-            }
+        let handler: Arc<dyn SignalEventHandler> = Arc::new(AppSignalHandler {
+            state: Arc::clone(&state),
         });
-        *self.handle.lock().await = Some(handle);
-        Ok(true)
+        self.inner
+            .start_if_enabled(&state.db, handler)
+            .await
+            .map_err(Into::into)
     }
 
-    async fn run(self: Arc<Self>, state: Arc<AppState>) -> anyhow::Result<()> {
-        let config = load(&state.db).await?;
-        let mut command = Command::new(&config.cli_path);
-        command
-            .args(["-a", &config.account, "--output", "json", "daemon"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true);
-        #[cfg(unix)]
-        command.process_group(0);
-        let mut child = command
-            .spawn()
-            .map_err(|error| anyhow::anyhow!("could not start signal-cli: {error}"))?;
-
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| anyhow::anyhow!("signal-cli stdout unavailable"))?;
-        let mut lines = BufReader::new(stdout).lines();
-        while let Some(line) = lines.next_line().await? {
-            let Some(incoming) = parse_incoming(&line) else {
-                continue;
-            };
-            let config = load(&state.db).await?;
-            if incoming.source == config.account {
-                continue;
-            }
-            if !allowed(&config.allowlist, &incoming.source) {
-                tracing::warn!(source = %incoming.source, "Signal message rejected by allowlist");
-                continue;
-            }
-            if let Err(error) = handle_incoming(&state, &config, incoming).await {
-                tracing::warn!(error = %error, "Signal message failed");
-            }
-        }
-        let _ = child.wait().await;
-        Ok(())
-    }
-
-    /// Start `signal-cli link` and return the `sgnl://` URI to render as a QR
-    /// code. The process stays alive so the phone can complete the link.
     pub async fn link(&self, cli_path: &str) -> AppResult<String> {
-        let mut link = self.link_child.lock().await;
-        if let Some(mut child) = link.take() {
-            let _ = child.kill().await;
-        }
-        let mut command = Command::new(cli_path);
-        command
-            .args(["link", "-n", "OpenDesk"])
-            .env("PATH", signal_path())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true);
-        #[cfg(unix)]
-        command.process_group(0);
-        let mut child = command.spawn().map_err(|error| {
-            AppError::BadRequest(format!("could not run signal-cli link: {error}"))
-        })?;
+        self.inner.link(cli_path).await.map_err(Into::into)
+    }
+}
 
-        let stdout = child.stdout.take();
-        let stderr = child.stderr.take();
-        if stdout.is_none() && stderr.is_none() {
-            let _ = child.kill().await;
-            return Err(AppError::Internal(
-                "signal-cli link não expôs stdout/stderr".into(),
-            ));
-        }
+struct AppSignalHandler {
+    state: Arc<AppState>,
+}
 
-        // signal-cli versions differ: some print the sgnl:// URI on stdout,
-        // others on stderr. Read both concurrently and keep draining them so
-        // the process can wait for the phone without blocking.
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-        if let Some(stdout) = stdout {
-            let tx = tx.clone();
-            tokio::spawn(async move {
-                let mut lines = BufReader::new(stdout).lines();
-                while let Ok(Some(line)) = lines.next_line().await {
-                    let _ = tx.send(line);
-                }
-            });
-        }
-        if let Some(stderr) = stderr {
-            let tx = tx.clone();
-            tokio::spawn(async move {
-                let mut lines = BufReader::new(stderr).lines();
-                while let Ok(Some(line)) = lines.next_line().await {
-                    let _ = tx.send(line);
-                }
-            });
-        }
-        drop(tx);
-
-        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(15);
-        let mut uri = None;
-        while tokio::time::Instant::now() < deadline {
-            match tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv()).await {
-                Ok(Some(line)) => {
-                    if let Some(index) = line.find("sgnl://") {
-                        uri = Some(line[index..].trim().to_string());
-                        break;
-                    }
-                }
-                Ok(None) => break,
-                Err(_) => {}
-            }
-        }
-
-        let Some(uri) = uri else {
-            let _ = child.kill().await;
-            return Err(AppError::BadRequest(
-                "signal-cli não retornou um URI de vínculo. Execute `signal-cli link -n OpenDesk` no terminal e escaneie o QR."
-                    .into(),
-            ));
-        };
-
-        *link = Some(child);
-        Ok(uri)
+impl SignalEventHandler for AppSignalHandler {
+    fn handle<'a>(
+        &'a self,
+        config: SignalConfig,
+        incoming: IncomingSignal,
+    ) -> Pin<Box<dyn Future<Output = opendesk_channels::error::AppResult<()>> + Send + 'a>> {
+        Box::pin(async move {
+            handle_incoming(&self.state, &config, incoming)
+                .await
+                .map_err(Into::into)
+        })
     }
 }
 
@@ -480,264 +269,4 @@ pub async fn notify_task_interaction(
         send_text(&config.cli_path, &config.account, recipient, &message).await?;
     }
     Ok(config.allowlist.len())
-}
-
-pub async fn send_text(
-    cli_path: &str,
-    account: &str,
-    recipient: &str,
-    message: &str,
-) -> AppResult<()> {
-    send_with_attachments(cli_path, account, recipient, message, &[]).await
-}
-
-pub async fn send_with_attachments(
-    cli_path: &str,
-    account: &str,
-    recipient: &str,
-    message: &str,
-    attachments: &[String],
-) -> AppResult<()> {
-    let mut command = Command::new(cli_path);
-    command.kill_on_drop(true);
-    #[cfg(unix)]
-    command.process_group(0);
-    command.args(["-a", account, "send", recipient, "-m", message]);
-    for attachment in attachments {
-        command.arg("--attachment").arg(attachment);
-    }
-    let output = command
-        .env("PATH", signal_path())
-        .stdin(Stdio::null())
-        .output()
-        .await
-        .map_err(|error| AppError::Daemon(format!("could not run signal-cli send: {error}")))?;
-    if !output.status.success() {
-        return Err(AppError::Daemon(format!(
-            "signal-cli send failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        )));
-    }
-    Ok(())
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IncomingSignal {
-    pub source: String,
-    pub text: String,
-    pub reaction: Option<String>,
-    pub quote: Option<String>,
-    pub attachments: Vec<String>,
-}
-
-pub fn parse_incoming(line: &str) -> Option<IncomingSignal> {
-    let value: Value = serde_json::from_str(line).ok()?;
-    let envelope = value
-        .pointer("/params/envelope")
-        .or_else(|| value.get("envelope"))
-        .unwrap_or(&value);
-    let source = envelope
-        .get("sourceNumber")
-        .or_else(|| envelope.get("source"))
-        .or_else(|| value.pointer("/params/source"))
-        .and_then(Value::as_str)?
-        .to_string();
-    let message = envelope
-        .pointer("/dataMessage/message")
-        .or_else(|| value.pointer("/params/dataMessage/message"))
-        .or_else(|| value.get("message"));
-    let text = message
-        .and_then(|message| {
-            message
-                .get("message")
-                .and_then(Value::as_str)
-                .or_else(|| message.as_str())
-        })
-        .map(str::trim)
-        .unwrap_or_default()
-        .to_string();
-    let reaction = envelope
-        .pointer("/dataMessage/reaction/emoji")
-        .or_else(|| value.pointer("/params/dataMessage/reaction/emoji"))
-        .and_then(Value::as_str)
-        .map(str::to_string);
-    let quote = envelope
-        .pointer("/dataMessage/quote/text")
-        .or_else(|| value.pointer("/params/dataMessage/quote/text"))
-        .and_then(Value::as_str)
-        .map(str::to_string);
-    let attachments = envelope
-        .pointer("/dataMessage/attachments")
-        .or_else(|| value.pointer("/params/dataMessage/attachments"))
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| {
-                    item.get("filename")
-                        .or_else(|| item.get("path"))
-                        .and_then(Value::as_str)
-                        .map(str::to_string)
-                })
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    if text.is_empty() && reaction.is_none() && attachments.is_empty() {
-        return None;
-    }
-    Some(IncomingSignal {
-        source,
-        text,
-        reaction,
-        quote,
-        attachments,
-    })
-}
-
-pub fn allowed(allowlist: &[String], source: &str) -> bool {
-    allowlist
-        .iter()
-        .map(|value| normalize_number(value))
-        .any(|value| value == normalize_number(source))
-}
-
-fn normalize_number(value: &str) -> String {
-    value
-        .chars()
-        .filter(|character| character.is_ascii_digit())
-        .collect()
-}
-
-/// signal-cli 0.14 requires a recent JVM. AppImages often inherit a minimal
-/// PATH, so prepend the common Java installations before spawning it.
-pub fn signal_path() -> String {
-    let mut paths = Vec::new();
-    for candidate in ["/opt/java/current/bin", "/usr/lib/jvm/default-java/bin"] {
-        let path = PathBuf::from(candidate);
-        if path.is_dir() {
-            paths.push(path);
-        }
-    }
-    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
-        let sdkman = home.join(".sdkman/candidates/java/current/bin");
-        if sdkman.is_dir() {
-            paths.push(sdkman);
-        }
-    }
-    if let Some(current) = std::env::var_os("PATH") {
-        paths.extend(std::env::split_paths(&current));
-    }
-    std::env::join_paths(paths)
-        .map(|value| value.to_string_lossy().to_string())
-        .unwrap_or_else(|_| "java".into())
-}
-
-pub fn default_cli_path() -> String {
-    std::env::var("SIGNAL_CLI_PATH")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| {
-            let candidate = PathBuf::from(std::env::var("HOME").unwrap_or_default())
-                .join(".local/bin/signal-cli");
-            if candidate.is_file() {
-                candidate.to_string_lossy().to_string()
-            } else {
-                "signal-cli".into()
-            }
-        })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_json_rpc_and_daemon_envelopes() {
-        let json_rpc = r#"{"jsonrpc":"2.0","method":"receive","params":{"envelope":{"sourceNumber":"+15551234567","dataMessage":{"message":"Olá"}}}}"#;
-        assert_eq!(
-            parse_incoming(json_rpc),
-            Some(IncomingSignal {
-                source: "+15551234567".into(),
-                text: "Olá".into(),
-                reaction: None,
-                quote: None,
-                attachments: vec![]
-            })
-        );
-
-        let daemon =
-            r#"{"envelope":{"source":"+15557654321","dataMessage":{"message":{"message":"Oi"}}}}"#;
-        assert_eq!(
-            parse_incoming(daemon),
-            Some(IncomingSignal {
-                source: "+15557654321".into(),
-                text: "Oi".into(),
-                reaction: None,
-                quote: None,
-                attachments: vec![]
-            })
-        );
-        assert!(parse_incoming("not json").is_none());
-        assert!(parse_incoming(r#"{"envelope":{"sourceNumber":"+1"}}"#).is_none());
-    }
-
-    #[tokio::test]
-    async fn link_extracts_the_signal_uri() {
-        let temp = tempfile::TempDir::new().expect("temp");
-        let script = temp.path().join("signal");
-        std::fs::write(
-            &script,
-            "#!/bin/sh\necho 'sgnl://linkdevice?uuid=abc&id=xyz'\nsleep 5\n",
-        )
-        .expect("script");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755))
-                .expect("chmod");
-        }
-        let bridge = SignalBridge::default();
-        let uri = bridge
-            .link(&script.to_string_lossy())
-            .await
-            .expect("link uri");
-        assert!(uri.starts_with("sgnl://linkdevice"));
-        bridge.stop().await;
-    }
-
-    #[tokio::test]
-    async fn link_reads_the_uri_from_stderr_too() {
-        let temp = tempfile::TempDir::new().expect("temp");
-        let script = temp.path().join("signal-stderr");
-        std::fs::write(
-            &script,
-            "#!/bin/sh\necho 'sgnl://linkdevice?uuid=stderr&id=xyz' 1>&2\nsleep 5\n",
-        )
-        .expect("script");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755))
-                .expect("chmod");
-        }
-        let bridge = SignalBridge::default();
-        let uri = bridge
-            .link(&script.to_string_lossy())
-            .await
-            .expect("link uri");
-        assert!(uri.starts_with("sgnl://linkdevice"));
-        bridge.stop().await;
-    }
-
-    #[test]
-    fn signal_path_is_never_empty() {
-        assert!(!signal_path().is_empty());
-    }
-
-    #[test]
-    fn allowlist_compares_digits_only() {
-        assert!(allowed(&["+55 (11) 99999-0000".into()], "+5511999990000"));
-        assert!(!allowed(&["+5511999990000".into()], "+5511888880000"));
-        assert!(!allowed(&[], "+5511999990000"));
-    }
 }

@@ -4922,7 +4922,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk"
-version = "1.4.2"
+version = "1.7.0"
 dependencies = [
  "aes-gcm 0.10.3",
  "anyhow",
@@ -4952,8 +4952,12 @@ dependencies = [
  "notify",
  "notify-debouncer-full",
  "open",
- "opendesk-core",
+ "opendesk-channels",
+ "opendesk-domain",
  "opendesk-engine",
+ "opendesk-enterprise",
+ "opendesk-mcp",
+ "opendesk-recipes",
  "opendesk-storage",
  "p256 0.13.2",
  "pdf-extract",
@@ -5004,15 +5008,31 @@ dependencies = [
 
 [[package]]
 name = "opendesk-channels"
-version = "1.4.2"
+version = "1.7.0"
 dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "hmac 0.12.1",
+ "lettre",
  "opendesk-domain",
+ "opendesk-engine",
+ "opendesk-storage",
+ "p256 0.13.2",
+ "rand 0.8.8",
+ "reqwest 0.12.28",
  "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "sqlx",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "web-push",
 ]
 
 [[package]]
 name = "opendesk-cli"
-version = "1.4.2"
+version = "1.7.0"
 dependencies = [
  "opendesk",
  "opendesk-storage",
@@ -5020,68 +5040,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "opendesk-core"
-version = "1.4.2"
-dependencies = [
- "aes-gcm 0.10.3",
- "anyhow",
- "async-trait",
- "axum",
- "base64 0.22.1",
- "chrono",
- "chrono-tz",
- "croner",
- "directories",
- "ed25519-dalek",
- "futures-util",
- "html-escape",
- "iana-time-zone",
- "jsonc-parser",
- "jsonschema",
- "notify",
- "notify-debouncer-full",
- "opendesk-domain",
- "opendesk-engine",
- "opendesk-enterprise",
- "opendesk-mcp",
- "opendesk-recipes",
- "opendesk-storage",
- "p256 0.13.2",
- "rand 0.8.8",
- "reqwest 0.12.28",
- "semver",
- "serde",
- "serde_json",
- "serde_yaml",
- "sha2 0.11.1",
- "similar",
- "sqlx",
- "tar",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tokio-util",
- "tracing",
- "unicode-normalization",
- "urlencoding",
- "uuid",
- "walkdir",
- "web-push",
- "webauthn-rs",
- "zip",
- "zstd 0.13.5",
-]
-
-[[package]]
 name = "opendesk-daemon"
-version = "1.4.2"
+version = "1.7.0"
 dependencies = [
  "opendesk",
 ]
 
 [[package]]
 name = "opendesk-domain"
-version = "1.4.2"
+version = "1.7.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -5093,7 +5060,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-engine"
-version = "1.4.2"
+version = "1.7.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5127,50 +5094,81 @@ dependencies = [
 
 [[package]]
 name = "opendesk-enterprise"
-version = "1.4.2"
+version = "1.7.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "base64 0.22.1",
+ "chrono",
  "directories",
  "ed25519-dalek",
+ "jsonschema",
+ "opendesk-engine",
  "opendesk-storage",
  "rand 0.8.8",
  "serde",
  "serde_json",
  "sha2 0.11.1",
+ "sqlx",
+ "tar",
  "tempfile",
+ "tokio",
+ "uuid",
+ "walkdir",
+ "zstd 0.13.5",
 ]
 
 [[package]]
 name = "opendesk-mcp"
-version = "1.4.2"
+version = "1.7.0"
 dependencies = [
+ "anyhow",
+ "opendesk-engine",
+ "opendesk-storage",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "sqlx",
+ "tempfile",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
 name = "opendesk-node"
-version = "1.4.2"
+version = "1.7.0"
 dependencies = [
  "opendesk",
 ]
 
 [[package]]
 name = "opendesk-recipes"
-version = "1.4.2"
+version = "1.7.0"
 dependencies = [
+ "async-trait",
+ "chrono",
+ "futures-util",
+ "html-escape",
  "jsonschema",
  "opendesk-domain",
+ "opendesk-engine",
  "opendesk-storage",
+ "rand 0.8.8",
  "serde",
  "serde_json",
  "serde_yaml",
+ "sha2 0.11.1",
+ "similar",
+ "sqlx",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
 name = "opendesk-storage"
-version = "1.4.2"
+version = "1.7.0"
 dependencies = [
  "aes-gcm 0.10.3",
  "anyhow",

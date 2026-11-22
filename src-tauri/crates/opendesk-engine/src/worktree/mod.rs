@@ -11,6 +11,7 @@ use std::{fs, path::Path, process::Command};
 mod git_ops;
 mod manifest;
 mod overlay;
+pub mod store;
 mod sweeper;
 #[cfg(test)]
 include!("tests.rs");

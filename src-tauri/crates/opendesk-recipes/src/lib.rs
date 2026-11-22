@@ -1,5 +1,16 @@
-//! OpenDesk recipes. Wave 2 starts with the parser; DAG, HITL and the engine
-//! facade follow after the remaining repositories move to `opendesk-storage`.
+//! OpenDesk recipes: parser, DAG, HITL, execution context and run export.
 
+pub mod context;
+pub mod cron;
+pub mod dag;
+pub mod engine;
 pub mod error;
+pub mod export;
+pub mod hitl;
 pub mod parser;
+pub mod runner;
+pub mod store;
+
+#[cfg(test)]
+#[path = "test_support.rs"]
+pub mod test_support;

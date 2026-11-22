@@ -85,6 +85,21 @@ pub fn start(session_id: &str) -> AppResult<String> {
     ))
 }
 
+/// Kills every display started by this process. Called on shutdown so a
+/// crashed/half-closed session never leaves an Xvfb behind.
+pub fn reap_all() {
+    let children: Vec<_> = registry()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner())
+        .drain()
+        .map(|(_, child)| child)
+        .collect();
+    for mut child in children {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+}
+
 pub fn stop(session_id: &str) {
     let child = registry()
         .lock()
