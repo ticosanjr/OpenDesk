@@ -12,6 +12,8 @@ path = "src/lib.rs"
 [dependencies]
 aes-gcm = "0.10"
 anyhow = "1"
+opendesk-domain = { path = "../opendesk-domain" }
+opendesk-storage = { path = "../opendesk-storage" }
 async-trait = "0.1"
 axum = "0.8"
 base64 = "0.22"

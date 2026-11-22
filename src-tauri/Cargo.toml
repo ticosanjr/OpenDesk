@@ -23,8 +23,8 @@ path = "src/main.rs"
 required-features = ["desktop"]
 
 [workspace]
-members = ["crates/opendesk-core", "crates/opendesk-daemon", "crates/opendesk-cli", "crates/opendesk-node"]
-default-members = [".", "crates/opendesk-core"]
+members = ["crates/opendesk-core", "crates/opendesk-domain", "crates/opendesk-storage", "crates/opendesk-daemon", "crates/opendesk-cli", "crates/opendesk-node"]
+default-members = [".", "crates/opendesk-core", "crates/opendesk-domain", "crates/opendesk-storage"]
 resolver = "2"
 
 [lib]

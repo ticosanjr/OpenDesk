@@ -168,11 +168,6 @@ pub struct HeartbeatInput {
     pub status: Option<String>,
 }
 
-pub(crate) const NODE_SEEN_SQL: &str =
-    "UPDATE workers SET last_seen_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
-            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-     WHERE id = ?";
-
 pub async fn heartbeat(
     pool: &SqlitePool,
     buffer: &crate::db::write_buffer::WriteBuffer,

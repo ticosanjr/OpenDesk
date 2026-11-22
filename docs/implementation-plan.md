@@ -256,7 +256,7 @@ com `gh` quando o remoto é GitHub.
 
 1. Leia o ADR 0001 e este plano.
 2. Não grave configuração do OpenCode no SQLite.
-3. Toda alteração de comportamento atualiza `docs/progress.md` e, se mudar uma
+3. Toda alteração de comportamento atualiza `docs/archive/v1/progress.md` e, se mudar uma
    decisão, cria/atualiza um ADR.
 4. Rode `npm run check`, `npm run build`, `cargo test` e `npm run test:e2e`
    antes de concluir.

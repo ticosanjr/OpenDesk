@@ -216,7 +216,7 @@ pendências manuais continuam listadas abaixo.
 
 - 513 testes Rust, 234 Vitest, ESLint/tsc e goldens visuais verdes.
 - Cabeçalhos de segurança, CSP da PWA, `/readyz` e retenção de sessões.
-- Release notes em `docs/releases/1.0.0.md`; ADR 0072.
+- Release notes em `docs/archive/v1/releases/1.0.0.md`; ADR 0072.
 
 ## 1.1.0 — passkeys, bootstrap e TUI
 

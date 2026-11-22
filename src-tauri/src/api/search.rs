@@ -163,9 +163,10 @@ pub async fn search(
     }
 
     let task_messages = sqlx::query_as::<_, (String, String, String, String)>(
-        "SELECT id, task_id, content, created_at FROM task_messages
+        "SELECT id, task_id, body, created_at FROM messages
          WHERE task_id IN (SELECT id FROM tasks WHERE workspace_id = ?)
-           AND content LIKE ? ESCAPE '\\'
+           AND kind NOT IN ('chat', 'turn', 'hitl_request')
+           AND body LIKE ? ESCAPE '\\'
          ORDER BY created_at DESC LIMIT ?",
     )
     .bind(&workspace_id)
@@ -185,8 +186,9 @@ pub async fn search(
     }
 
     let chat_threads = sqlx::query_as::<_, (String, String, String, String)>(
-        "SELECT id, title, agent, updated_at FROM chat_threads
-         WHERE workspace_id = ? AND (title LIKE ? ESCAPE '\\' OR agent LIKE ? ESCAPE '\\')
+        "SELECT id, title, COALESCE(agent, ''), updated_at FROM conversations
+         WHERE workspace_id = ? AND channel = 'chat'
+           AND (title LIKE ? ESCAPE '\\' OR COALESCE(agent, '') LIKE ? ESCAPE '\\')
          ORDER BY updated_at DESC LIMIT ?",
     )
     .bind(&workspace_id)
@@ -207,9 +209,10 @@ pub async fn search(
     }
 
     let chat_messages = sqlx::query_as::<_, (String, String, String, String)>(
-        "SELECT m.id, m.thread_id, m.content, m.created_at
-         FROM chat_messages m JOIN chat_threads t ON t.id = m.thread_id
-         WHERE t.workspace_id = ? AND m.content LIKE ? ESCAPE '\\'
+        "SELECT m.id, m.conversation_id, m.body, m.created_at
+         FROM messages m JOIN conversations c ON c.id = m.conversation_id
+         WHERE c.workspace_id = ? AND c.channel = 'chat' AND m.kind = 'chat'
+           AND m.body LIKE ? ESCAPE '\\'
          ORDER BY m.created_at DESC LIMIT ?",
     )
     .bind(&workspace_id)
@@ -527,9 +530,10 @@ pub async fn recent(
     }
 
     let comments = sqlx::query_as::<_, (String, String, String, String)>(
-        "SELECT m.id, m.task_id, m.content, m.created_at
-         FROM task_messages m JOIN tasks t ON t.id = m.task_id
-         WHERE t.workspace_id = ? ORDER BY m.created_at DESC LIMIT ?",
+        "SELECT m.id, m.task_id, m.body, m.created_at
+         FROM messages m JOIN tasks t ON t.id = m.task_id
+         WHERE t.workspace_id = ? AND m.kind NOT IN ('chat', 'turn', 'hitl_request')
+         ORDER BY m.created_at DESC LIMIT ?",
     )
     .bind(&workspace_id)
     .bind(per_source)
@@ -547,8 +551,8 @@ pub async fn recent(
     }
 
     let chats = sqlx::query_as::<_, (String, String, String, String)>(
-        "SELECT id, title, agent, updated_at FROM chat_threads
-         WHERE workspace_id = ? ORDER BY updated_at DESC LIMIT ?",
+        "SELECT id, title, COALESCE(agent, ''), updated_at FROM conversations
+         WHERE workspace_id = ? AND channel = 'chat' ORDER BY updated_at DESC LIMIT ?",
     )
     .bind(&workspace_id)
     .bind(per_source)

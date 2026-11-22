@@ -305,6 +305,7 @@ pub async fn claim_for_node(
     }
 }
 
+#[cfg(test)]
 pub(crate) const HEARTBEAT_SQL: &str =
     "UPDATE execution_queue SET last_heartbeat_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
         lease_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+60 seconds')

@@ -18,7 +18,7 @@ test("email chat thread exposes the reply composer", async ({ page, request }) =
   const thread = (await created.json()) as { id: string };
 
   await page.goto(`/#/chat?thread=${thread.id}`);
-  await expect(page.getByText("E-mail · Orçamento")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "E-mail · Orçamento" })).toBeVisible();
   await page.getByTitle("Responder por e-mail").click();
   await expect(page.getByText("Responder por e-mail")).toBeVisible();
   await expect(page.getByLabel("Para")).toBeVisible();

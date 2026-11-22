@@ -114,14 +114,20 @@ pub async fn collect(pool: &SqlitePool, workspace_id: &str, days: i64) -> AppRes
            AND started_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now', ?)
            AND COALESCE(source, 'task') != 'chat'
          UNION ALL
-         SELECT 'chat' AS source, source AS channel,
+         SELECT 'chat' AS source,
+                COALESCE(json_extract(payload_json, '$.source'), 'desktop') AS channel,
                 CASE WHEN run_id IS NOT NULL THEN 'execution' ELSE 'message' END AS kind,
-                status, duration_ms, estimated_cost_usd,
-                (tokens_input + tokens_output) AS tokens,
-                agent, error_code, started_at
-         FROM chat_turns
-         WHERE workspace_id = ?
-           AND started_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now', ?)",
+                status,
+                CAST(COALESCE(json_extract(payload_json, '$.duration_ms'), 0) AS INTEGER) AS duration_ms,
+                CAST(COALESCE(json_extract(payload_json, '$.estimated_cost_usd'), 0) AS REAL) AS estimated_cost_usd,
+                (CAST(COALESCE(json_extract(payload_json, '$.tokens_input'), 0) AS INTEGER)
+                 + CAST(COALESCE(json_extract(payload_json, '$.tokens_output'), 0) AS INTEGER)) AS tokens,
+                COALESCE(json_extract(payload_json, '$.agent'), '') AS agent_name,
+                json_extract(payload_json, '$.error_code') AS error_code,
+                created_at AS started_at
+         FROM messages
+         WHERE kind = 'turn' AND workspace_id = ?
+           AND created_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now', ?)",
     )
     .bind(workspace_id)
     .bind(&since)
@@ -394,19 +400,25 @@ mod tests {
         .await
         .expect("thread");
         sqlx::query(
-            "INSERT INTO chat_turns
-                (id, workspace_id, thread_id, run_id, source, status, agent,
-                 tokens_input, tokens_output, user_content, started_at)
+            "INSERT INTO messages
+                (id, conversation_id, workspace_id, role, kind, body, payload_json,
+                 status, run_id, created_at)
              VALUES
-             ('c1', ?, ?, 'r1', 'telegram', 'SUCCESS', 'build', 3, 4, 'oi',
-              strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-             ('c2', ?, ?, NULL, 'telegram', 'SUCCESS', 'build', 1, 2, 'tchau',
-              strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+             ('c1', ?, ?, 'assistant', 'turn', '',
+              json_object('source','telegram','agent','build','tokens_input',3,
+                          'tokens_output',4,'user_content','oi','duration_ms',0,
+                          'estimated_cost_usd',0.0),
+              'SUCCESS', 'r1', strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+             ('c2', ?, ?, 'assistant', 'turn', '',
+              json_object('source','telegram','agent','build','tokens_input',1,
+                          'tokens_output',2,'user_content','tchau','duration_ms',0,
+                          'estimated_cost_usd',0.0),
+              'SUCCESS', NULL, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
         )
-        .bind(&ctx.workspace_id)
         .bind(&thread.id)
         .bind(&ctx.workspace_id)
         .bind(&thread.id)
+        .bind(&ctx.workspace_id)
         .execute(&ctx.db)
         .await
         .expect("chat turns");

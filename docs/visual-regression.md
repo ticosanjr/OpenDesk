@@ -45,7 +45,7 @@ as imagens antes de commitar:
 2. Rode `npm run test:visual:update`.
 3. Inspecione pelo menos um golden por área alterada.
 4. Rode `npm run test:visual` de novo.
-5. Registre a mudança em `docs/progress.md` (e em `DESIGN.md` se for regra).
+5. Registre a mudança em `docs/archive/v1/progress.md` (e em `DESIGN.md` se for regra).
 
 ## Limites
 

@@ -1782,25 +1782,31 @@ mod tests {
         .execute(&ctx.state.db)
         .await
         .expect("task");
-        sqlx::query(
-            "INSERT INTO task_interactions
-                (id, workspace_id, task_id, question, options_json, expires_at)
-             VALUES ('cb-abcdef12-0000-0000-0000-000000000000', ?, 'task-cb', 'Aprovar?', '[\"Aprovar\",\"Rejeitar\"]', '2999-01-01T00:00:00Z')",
+        let created = interactions::create(
+            &ctx.state.db,
+            interactions::CreateInteractionInput {
+                workspace_id: ctx.workspace_id.clone(),
+                task_id: "task-cb".into(),
+                run_id: None,
+                question: "Aprovar?".into(),
+                context_markdown: None,
+                options: vec!["Aprovar".into(), "Rejeitar".into()],
+                kind: "SINGLE_CHOICE".into(),
+                multiple: false,
+                allow_custom: true,
+                expires_at: "2999-01-01T00:00:00Z".into(),
+            },
         )
-        .bind(&ctx.workspace_id)
-        .execute(&ctx.state.db)
         .await
         .expect("interaction");
-
-        let message =
-            resolve_interaction_callback(&ctx.state, "cb-abcdef12-0000-0000-0000-000000000000:0")
-                .await
-                .expect("resolve");
+        let callback = format!("{}:0", created.id);
+        let message = resolve_interaction_callback(&ctx.state, &callback)
+            .await
+            .expect("resolve");
         assert!(message.contains("Resposta registrada"));
-        let interaction =
-            interactions::get(&ctx.state.db, "cb-abcdef12-0000-0000-0000-000000000000")
-                .await
-                .expect("interaction");
+        let interaction = interactions::get(&ctx.state.db, &created.id)
+            .await
+            .expect("interaction");
         assert_eq!(interaction.status, "RESOLVED");
         assert!(
             interaction

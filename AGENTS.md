@@ -3,9 +3,9 @@
 ## Identidade do projeto
 
 OpenDesk é um desktop app Tauri v2 (Rust) + React que governa o OpenCode V2.
-O documento mestre atual é `Especificacao Complementar OpenDesk.md`. A base
+O documento mestre atual é `SPEC.md`. A base
 original foi escrita para o OpenCode V1; **a implementação é V2-only** (ver
-`docs/decisions/0001-opencode-v2-only.md`).
+`docs/archive/v1/decisions/0001-opencode-v2-only.md`).
 
 ## Regras invioláveis
 
@@ -86,7 +86,7 @@ npm run clean:deep     # remove target e node_modules (build frio depois)
 - `src/pages/` — as 20 páginas roteadas.
 - `src/store/app-store.ts` — snapshot + WebSocket + ações.
 - `docs/` — plano, ADRs e histórico.
-- `PRODUCT.md` — verdade de produto e usuários.
+- `SPEC.md` — verdade de produto e usuários.
 - `DESIGN.md` — tokens, escala, componentes e regras visuais (ADR 0046).
 - `scripts/check-changed.sh` — verificação proporcional padrão (`npm run verify`).
 - `scripts/gate-fast.sh` — checagem ampla sem cobertura/E2E; `--changed` delega
@@ -100,8 +100,8 @@ npm run clean:deep     # remove target e node_modules (build frio depois)
 - TypeScript estrito, sem `any` novo; componentes em `src/components`.
 - Eventos WS sempre `{ event_id, event_type, payload }`; ao perder eventos,
   emitir `ResyncRequired` e refazer o snapshot.
-- Toda mudança de comportamento atualiza `docs/progress.md`.
-- Toda decisão arquitetural nova vira um ADR em `docs/decisions/`.
+- Toda mudança de comportamento atualiza `docs/v2-progress.md`.
+- Toda decisão arquitetural nova vira um ADR em `docs/decisions/` (V2 a partir de 0200).
 - Rode `cargo fmt` antes de finalizar.
 
 ## Estado atual
@@ -165,7 +165,7 @@ O programa v1.0 (ondas 0–9) está concluído: control plane, daemon/PWA/auth,
 harnesses plugáveis, canais/trust, handoffs, memória com ACL, MCP Hub,
 sandbox/computer-use, voz e multi-node. A 1.1.0 fechou passkeys WebAuthn,
 bootstrap compartilhado desktop/daemon e TUI. As decisões estão em ADRs
-0062–0075 e as notas em `docs/releases/`. A 1.2.0 adicionou o worker remoto
+0062–0075 e as notas em `docs/archive/v1/releases/`. A 1.2.0 adicionou o worker remoto
 (`opendesk node run`) e passou a publicar `opendeskd` no release.
 
 Próxima frente: cobertura Rust ≥80% (plano em `docs/coverage-plan.md`), builds
