@@ -1,6 +1,6 @@
 [package]
 name = "opendesk-channels"
-version = "1.3.1"
+version = "1.4.0"
 description = "OpenDesk omni-channel registry and notification routing"
 edition = "2024"
 license = "MIT"
