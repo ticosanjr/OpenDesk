@@ -38,5 +38,8 @@ rpmbuild -bb \
 
 OUT="$ROOT/src-tauri/target/release/bundle/rpm"
 mkdir -p "$OUT"
+# Never leave a previous version next to the new one: the release collector
+# globs this directory.
+rm -f "$OUT"/opendeskd-*.rpm
 find "$TOPDIR/RPMS" -type f -name '*.rpm' -exec cp -f {} "$OUT/" \;
-echo "build-daemon-rpm: $(find "$OUT" -maxdepth 1 -type f -name 'opendeskd-*.rpm' | tail -n1)"
+echo "build-daemon-rpm: $(find "$OUT" -maxdepth 1 -type f -name "opendeskd-${VERSION}-*.rpm" | tail -n1)"

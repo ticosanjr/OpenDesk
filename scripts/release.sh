@@ -250,20 +250,20 @@ if [[ "$SKIP_BUILD" != "1" ]]; then
     fi
   fi
 
-  # The AppImage bundles the daemon too, so build it before packaging.
-  if [[ ! -x "$ROOT/src-tauri/target/release/opendeskd" ]]; then
-    echo "==> Building opendeskd"
-    if [[ "$QUALITY_BUILD" == "1" ]]; then
-      ( cd "$ROOT/src-tauri" && cargo build --release -p opendesk-daemon )
-    else
-      (
-        cd "$ROOT/src-tauri" &&
-          CARGO_PROFILE_RELEASE_LTO=thin \
-            CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
-            CARGO_INCREMENTAL=1 \
-            cargo build --release -p opendesk-daemon
-      )
-    fi
+  # The AppImage and the .deb bundle the daemon too. Always rebuild it: an old
+  # target/release/opendeskd from a previous release would otherwise be shipped
+  # with the new desktop and a mismatched database schema.
+  echo "==> Building opendeskd"
+  if [[ "$QUALITY_BUILD" == "1" ]]; then
+    ( cd "$ROOT/src-tauri" && cargo build --release -p opendesk-daemon )
+  else
+    (
+      cd "$ROOT/src-tauri" &&
+        CARGO_PROFILE_RELEASE_LTO=thin \
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
+          CARGO_INCREMENTAL=1 \
+          cargo build --release -p opendesk-daemon
+    )
   fi
 
   case "$PLATFORM" in
@@ -294,6 +294,7 @@ if [[ "$PLATFORM" == linux-* ]]; then
   inject_daemon_into_deb
   if command -v rpmbuild >/dev/null 2>&1; then
     echo "==> Building opendeskd RPM"
+    rm -f "$ROOT"/src-tauri/target/release/bundle/rpm/opendeskd-*.rpm 2>/dev/null || true
     OPENDESK_VERSION="$VERSION" "$ROOT/scripts/build-daemon-rpm.sh" || \
       echo "release: opendeskd RPM falhou; segue sem ele" >&2
   else
