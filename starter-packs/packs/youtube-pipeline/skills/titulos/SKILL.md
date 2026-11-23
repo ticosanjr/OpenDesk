@@ -5,18 +5,18 @@ description: Opções com curiosidade honesta.
 # Títulos
 
 ## Quando usar
-Antes de publicar.
+Antes de publicar ou testar o vídeo.
 
 ## Processo
-1. Liste 20 opções.
-2. Agrupe por ângulo.
-3. Elimine promessa falsa.
-4. Escolha 5 para teste.
+1. Extraia o benefício e o conflito central do roteiro.
+2. Gere dez títulos com ângulos diferentes, todos sustentados pelo conteúdo.
+3. Limite a 60 caracteres quando possível e preserve a palavra-chave.
+4. Descarte títulos que prometem resultado não mostrado.
 
-## Checklist
-- [ ] Título e conteúdo batem.
-- [ ] Não há repetição de fórmula.
+## Saída
+Dez títulos com ângulo, palavra-chave e hipótese de teste.
 
-## Anti-padrões
-- Entregar texto genérico sem adaptar ao contexto recebido.
-- Não esconder incertezas: marque o que é fato, inferência ou recomendação.
+## Critérios de aceite
+- [ ] Nenhum título é clickbait sem entrega.
+- [ ] Há pelo menos três ângulos distintos.
+- [ ] O título escolhido cabe na miniatura.

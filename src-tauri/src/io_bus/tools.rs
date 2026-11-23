@@ -80,6 +80,16 @@ pub const TOOLS: &[ToolSpec] = &[
         manual_hint: "Instale rsync pelo gerenciador de pacotes.",
     },
     ToolSpec {
+        name: "bw",
+        label: "Bitwarden CLI",
+        purpose: "Importar itens selecionados do Bitwarden para o Vault.",
+        version: "system",
+        optional: true,
+        download_url: None,
+        archive: false,
+        manual_hint: "Instale o bw (Bitwarden CLI) no PATH ou informe o caminho manual em Ferramentas.",
+    },
+    ToolSpec {
         name: "ffprobe",
         label: "FFprobe",
         purpose: "Metadados de vídeo e áudio.",

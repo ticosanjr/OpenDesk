@@ -76,3 +76,17 @@ pub(super) fn compare(current: &str, latest: &str) -> bool {
         _ => false,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compares_versions_and_reports_platform() {
+        assert!(compare("1.7.0", "1.7.1"));
+        assert!(!compare("1.7.1", "1.7.1"));
+        assert!(!compare("invalid", "1.7.1"));
+        assert!(!platform_id().is_empty());
+        assert!(!installer_kind().is_empty());
+    }
+}

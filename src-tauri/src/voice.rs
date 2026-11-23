@@ -352,4 +352,22 @@ mod tests {
         assert_eq!(loaded.stt_command, "definitely-missing-stt");
         assert!(!capabilities(&loaded).available);
     }
+
+    #[test]
+    fn capabilities_accepts_existing_commands() {
+        let temp = tempfile::TempDir::new().expect("temp");
+        let stt = temp.path().join("stt");
+        let tts = temp.path().join("tts");
+        std::fs::write(&stt, "").expect("stt");
+        std::fs::write(&tts, "").expect("tts");
+        let settings = VoiceSettings {
+            stt_command: stt.to_string_lossy().to_string(),
+            tts_command: tts.to_string_lossy().to_string(),
+            ..Default::default()
+        };
+        let capabilities = capabilities(&settings);
+        assert!(capabilities.available);
+        assert!(capabilities.stt.is_some());
+        assert!(capabilities.tts.is_some());
+    }
 }

@@ -9,6 +9,8 @@ mod telegram_channel;
 #[cfg(test)]
 mod tests;
 mod watchers;
+mod webpush_channel;
+mod whatsapp_channel;
 
 use crate::{
     app_state::AppState,
@@ -38,6 +40,8 @@ use sqlx::SqlitePool;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use telegram_channel::deliver_telegram;
+use webpush_channel::deliver_webpush;
+use whatsapp_channel::deliver_whatsapp;
 
 pub use run::deliver_run;
 #[cfg(test)]

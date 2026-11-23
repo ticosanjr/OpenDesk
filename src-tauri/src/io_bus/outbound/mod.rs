@@ -8,6 +8,7 @@ use std::path::Path;
 pub mod atomic_fs;
 pub mod compiler;
 pub mod git;
+pub mod http_webhook;
 pub mod messaging;
 pub mod rsync;
 pub mod s3;
@@ -26,9 +27,9 @@ pub async fn execute(
         "MINIO_S3" => s3::run(ctx, sink, output).await,
         "GIT_COMMIT" => git::run(ctx, sink, output).await,
         "SQL_INSERT" => sql_sink::run(ctx, sink, output).await,
-        "SMTP_EMAIL" | "SIGNAL_MSG" | "TELEGRAM_MSG" | "MATRIX_MSG" | "MATTERMOST_MSG" => {
-            messaging::run(ctx, sink, output).await
-        }
+        "HTTP_WEBHOOK" => http_webhook::run(ctx, sink, output).await,
+        "SMTP_EMAIL" | "SIGNAL_MSG" | "TELEGRAM_MSG" | "MATRIX_MSG" | "MATTERMOST_MSG"
+        | "WHATSAPP_MSG" | "WEBPUSH" => messaging::run(ctx, sink, output).await,
         other => Err(AppError::BadRequest(format!("sink não suportado: {other}"))),
     }
 }

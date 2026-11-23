@@ -4,8 +4,8 @@ O gate usa dois limites de linhas (llvm-cov):
 
 | Medida | Antes da 1.4.2 | Agora | Meta |
 |---|---:|---:|---:|
-| Total (`--workspace`) | 54,35% | **64,08%** | piso 63,0% |
-| Negócio (domain, storage, engine, recipes, api, fila, io_bus, …) | 64,09% | **76,40%** | piso 75,5% (meta 75% atingida) |
+| Total (`--workspace`) | 54,35% | **64,60%** | piso 63,0% |
+| Negócio (domain, storage, engine, recipes, api, fila, io_bus, …) | 64,09% | **76,17%** | piso 75,5% (meta 75% atingida) |
 
 Comandos:
 
@@ -21,6 +21,9 @@ scripts/coverage-core.sh /tmp/cov.txt
 - `scripts/gate.sh` falha abaixo de **63,0%** totais e **75,5%** no escopo de
   negócio (rebaseline de 2026-11-22 na extinção do core: fila e receitas agora
   contam em `engine`/`recipes`, o que reduziu a média sem regressão de código).
+- Medição de 2026-11-23 após a Fase 7: **64,60%** total e **76,17%** de
+  negócio, com a lacuna fechada por testes dos módulos novos (Vault/Bitwarden,
+  poller/webhook, Discord/Slack/QR, doctor live e canais).
 - Ao cobrir um módulo, suba o limite até ~0,5 ponto abaixo do medido.
 - Nunca baixe o limite para “passar”; prefira marcar o teste como opt-in.
 
@@ -46,10 +49,10 @@ scripts/coverage-core.sh /tmp/cov.txt
 4. Contratos reais (Google/conta dedicada, OpenCode) continuam opt-in e não
    entram no percentual.
 
-O escopo de negócio está em 76,40%, acima da meta de 75%. O total do workspace
+O escopo de negócio está em 76,17%, acima da meta de 75%. O total do workspace
 inclui CLI, tray, updater, doctor, integrações de rede e o registro de handlers
 MCP; o piso de 63,0% protege esse patamar. `engine`+`recipes` isolados ficam em
-68,2%: a próxima onda deve priorizar worker/lease, cron e DAG para levar esse
+68,0%: a próxima onda deve priorizar worker/lease, cron e DAG para levar esse
 recorte a 75%.
 
 ## Decisão de escopo (2026-11-17)

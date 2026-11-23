@@ -67,6 +67,7 @@ pub mod telegram;
 pub mod tickets;
 pub mod tls;
 pub mod updates;
+pub mod vault;
 pub mod voice;
 pub mod worktrees;
 pub mod ws;

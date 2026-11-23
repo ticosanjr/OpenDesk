@@ -16,6 +16,7 @@ pub(super) async fn dispatch(
     Some(match tool {
         "recipe_list" => recipe_list(client, endpoint, workspace_id, args).await,
         "recipe_save" => recipe_save(client, endpoint, workspace_id, args).await,
+        "recipe_validate" => recipe_validate(client, endpoint, workspace_id, args).await,
         "recipe_set_enabled" => recipe_set_enabled(client, endpoint, workspace_id, args).await,
         "recipe_run" => recipe_run(client, endpoint, workspace_id, args).await,
         "recipe_resume" => recipe_resume(client, endpoint, args).await,
@@ -40,6 +41,23 @@ async fn recipe_save(
         endpoint,
         Method::PUT,
         &ws_path(&format!("/api/recipes/{id}"), workspace_id),
+        Some(json!({ "yaml": yaml })),
+    )
+    .await
+}
+
+async fn recipe_validate(
+    client: &Client,
+    endpoint: &ApiEndpoint,
+    workspace_id: &str,
+    args: &Value,
+) -> Result<Value> {
+    let yaml = required(args, "yaml")?;
+    call(
+        client,
+        endpoint,
+        Method::POST,
+        &ws_path("/api/recipes/validate", workspace_id),
         Some(json!({ "yaml": yaml })),
     )
     .await
@@ -95,7 +113,7 @@ async fn recipe_resume(client: &Client, endpoint: &ApiEndpoint, args: &Value) ->
         client,
         endpoint,
         Method::POST,
-        &format!("/api/recipes/runs/{id}/retry"),
+        &format!("/api/recipes/runs/{id}/resume"),
         None,
     )
     .await

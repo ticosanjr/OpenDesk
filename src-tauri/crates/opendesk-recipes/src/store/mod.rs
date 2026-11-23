@@ -14,7 +14,7 @@ pub use hitl::{
 pub use nodes::{
     ensure_dag_node, fail_running_nodes, list_nodes_under, list_run_nodes, mark_node_done,
     mark_node_path, mark_node_running, mark_node_skipped, mark_node_waiting, mark_pending_skipped,
-    node_by_path, reset_node, reset_node_path, sync_run_nodes,
+    node_by_path, reset_node, reset_node_path, reset_node_subtree, sync_run_nodes,
 };
 pub use recipes::{
     get, list, list_all, save_yaml, set_enabled, set_yaml_enabled, sync_workspace, yaml_for,

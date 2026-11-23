@@ -291,6 +291,9 @@ pub(crate) async fn enqueue_decision_with_session(
             personal_context: &personal_context,
             structured_memory: &memory_context,
             session_packet: &session_packet,
+            harness_id: &decision.harness,
+            untrusted_data: "",
+            output_schema: None,
         },
         &templates,
     );

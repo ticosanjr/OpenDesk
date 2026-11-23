@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { inputClass, LabeledField } from "../recipe-fields";
 import { AgentCombobox } from "@/components/ui/agent-combobox";
 import { ModelCombobox } from "@/components/ui/model-combobox";
 import { PromptAttachments } from "@/components/ui/prompt-attachments";
 import { SlashTextarea } from "@/components/ui/slash-textarea";
 import type { Dictionary } from "../recipe-types";
+import { SchemaContractEditor } from "./SchemaContractEditor";
 
 export function StepEditor({
   step,
@@ -74,16 +75,75 @@ export function StepEditor({
           className={`${inputClass} font-mono text-[12px]`}
         />
       </LabeledField>
-      <SchemaField
-        label="Schema de entrada (JSON, opcional)"
-        value={step.input_schema}
-        onChange={(value) => onChange({ input_schema: value })}
-      />
-      <SchemaField
-        label="Schema de saída (JSON, opcional)"
-        hint="O agente deve responder apenas com JSON válido; falhas geram retry automático."
-        value={step.output_schema}
-        onChange={(value) => onChange({ output_schema: value })}
+      <div className="grid gap-2 sm:grid-cols-2">
+        <LabeledField label="Tentativas extras (retry_max)">
+          <input
+            type="number"
+            min={0}
+            max={5}
+            value={step.retry_max == null ? "" : Number(step.retry_max)}
+            onChange={(event) =>
+              onChange({
+                retry_max: event.target.value ? Number(event.target.value) : null,
+              })
+            }
+            className={inputClass}
+          />
+        </LabeledField>
+        <LabeledField label="Timeout do step (segundos)">
+          <input
+            type="number"
+            min={1}
+            max={7200}
+            value={step.timeout_secs == null ? "" : Number(step.timeout_secs)}
+            onChange={(event) =>
+              onChange({
+                timeout_secs: event.target.value ? Number(event.target.value) : null,
+              })
+            }
+            className={inputClass}
+          />
+        </LabeledField>
+      </div>
+      <LabeledField
+        label="Falha de schema"
+        hint="retry_format tenta de novo; hitl pede decisão humana; fail interrompe."
+      >
+        <select
+          value={String(step.on_schema_error ?? "retry_format")}
+          onChange={(event) =>
+            onChange({ on_schema_error: event.target.value })
+          }
+          className={inputClass}
+        >
+          <option value="retry_format">retry_format</option>
+          <option value="hitl">hitl</option>
+          <option value="fail">fail</option>
+        </select>
+      </LabeledField>
+      <LabeledField
+        label="Vault refs (separados por vírgula)"
+        hint="Ids de credenciais já cadastradas; valide antes de rodar."
+      >
+        <input
+          value={
+            Array.isArray(step.vault_refs) ? step.vault_refs.join(", ") : ""
+          }
+          onChange={(event) => {
+            const refs = event.target.value
+              .split(",")
+              .map((value) => value.trim())
+              .filter(Boolean);
+            onChange({ vault_refs: refs });
+          }}
+          placeholder="stripe-live, portal-fornecedor"
+          className={`${inputClass} font-mono text-[12px]`}
+        />
+      </LabeledField>
+      <SchemaContractEditor
+        input={step.input_schema}
+        output={step.output_schema}
+        onChange={(value) => onChange(value)}
       />
       <LabeledField label="Prompt da etapa">
         <SlashTextarea
@@ -101,57 +161,5 @@ export function StepEditor({
         />
       </LabeledField>
     </div>
-  );
-}
-
-function SchemaField({
-  label,
-  hint,
-  value,
-  onChange,
-}: {
-  label: string;
-  hint?: string;
-  value: unknown;
-  onChange: (value: Dictionary | null) => void;
-}) {
-  const initial =
-    value && typeof value === "object" ? JSON.stringify(value, null, 2) : "";
-  const [text, setText] = useState(initial);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setText(value && typeof value === "object" ? JSON.stringify(value, null, 2) : "");
-  }, [value]);
-
-  function commit() {
-    if (!text.trim()) {
-      setError(null);
-      onChange(null);
-      return;
-    }
-    try {
-      const parsed = JSON.parse(text) as Dictionary;
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("o schema precisa ser um objeto JSON");
-      }
-      setError(null);
-      onChange(parsed);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  }
-
-  return (
-    <LabeledField label={label} hint={error ?? hint}>
-      <textarea
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        onBlur={commit}
-        rows={3}
-        placeholder='{ "type": "object", "required": [] }'
-        className={`${inputClass} font-mono text-[11.5px] ${error ? "border-red-500/60" : ""}`}
-      />
-    </LabeledField>
   );
 }

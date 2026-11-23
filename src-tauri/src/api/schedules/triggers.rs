@@ -74,6 +74,8 @@ pub(crate) async fn sync_trigger_source(
         config,
         target_agent: schedule.agent_name.clone(),
         target_column: Some("TODO".into()),
+        target_kind: Some("SCHEDULE".into()),
+        target_id: Some(schedule.id.clone()),
         auto_execute: true,
         is_enabled: schedule.is_active,
     };

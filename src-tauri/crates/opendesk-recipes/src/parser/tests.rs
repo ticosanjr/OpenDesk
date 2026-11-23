@@ -396,4 +396,18 @@ flow:
         assert!(error.to_string().contains("duplicado") || error.to_string().contains("s1"));
     }
 
+
+    #[test]
+    fn rejects_invalid_step_policies() {
+        let base = |extra: &str| {
+            format!(
+                "id: r\nname: R\nflow:\n  - type: step\n    id: s1\n    name: S\n    prompt: x\n{extra}"
+            )
+        };
+        assert!(parse(&base("    on_schema_error: ignore\n")).is_err());
+        assert!(parse(&base("    retry_max: 9\n")).is_err());
+        assert!(parse(&base("    timeout_secs: 0\n")).is_err());
+        assert!(parse(&base("    vault_refs: [a, a]\n")).is_err());
+        assert!(parse(&base("    retry_max: 2\n    timeout_secs: 30\n    on_schema_error: hitl\n    vault_refs: [stripe]\n")).is_ok());
+    }
 }

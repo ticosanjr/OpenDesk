@@ -3,7 +3,7 @@ use crate::opencode_client::event_stream::session_matches;
 use crate::opencode_client::rest_client::RestClient;
 use opendesk_storage::events::{EventBus, OpenDeskWsEvent};
 use opendesk_storage::repos::{permissions, settings};
-use opendesk_storage::secrets::SecretStore;
+use opendesk_storage::secrets::{SecretScrubber, SecretStore};
 
 use serde_json::Value;
 use sqlx::SqlitePool;
@@ -19,6 +19,7 @@ pub(super) async fn handle_event(
     workspace_id: &str,
     pool: &SqlitePool,
     secrets: &SecretStore,
+    scrubber: &SecretScrubber,
     log_path: &Path,
     events: &EventBus,
     rest: &RestClient,
@@ -30,6 +31,8 @@ pub(super) async fn handle_event(
         return false;
     }
 
+    let scrubbed = scrub_json(event, scrubber);
+    let event = &scrubbed;
     let event_type = event
         .get("type")
         .and_then(Value::as_str)
@@ -221,6 +224,24 @@ pub(crate) fn publish_chunk(
         chunk_type: chunk_type.to_string(),
         content,
     });
+}
+
+fn scrub_json(value: &Value, scrubber: &SecretScrubber) -> Value {
+    match value {
+        Value::String(text) => Value::String(scrubber.scrub(text)),
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|item| scrub_json(item, scrubber))
+                .collect(),
+        ),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(key, item)| (key.clone(), scrub_json(item, scrubber)))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
 }
 
 pub(crate) fn append_log(path: &Path, value: &Value) {

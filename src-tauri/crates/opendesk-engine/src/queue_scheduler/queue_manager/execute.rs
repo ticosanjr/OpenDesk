@@ -241,6 +241,7 @@ impl QueueManager {
             notifier: Some(self.notifier.as_ref()),
             pool: &self.pool,
             secrets: &secrets,
+            scrubber: &self.scrubber,
             workspace_id: &job.workspace_id,
             run_id: &run_id,
             task_id: job.task_id.as_deref(),
@@ -268,6 +269,7 @@ impl QueueManager {
                 Err(error) => crate::adapters::execution::failed_outcome(
                     request.log_path,
                     format!("harness {} indisponível: {error}", job.resolved_harness),
+                    request.scrubber,
                 ),
             },
         };

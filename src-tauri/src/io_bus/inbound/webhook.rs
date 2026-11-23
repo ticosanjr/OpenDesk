@@ -15,6 +15,8 @@ use std::sync::Arc;
 pub struct WebhookConfig {
     #[serde(default)]
     pub secret_ref: Option<String>,
+    #[serde(default)]
+    pub vault_ref: Option<String>,
     #[serde(default = "default_title_path")]
     pub title_path: String,
     #[serde(default = "default_body_path")]
@@ -50,8 +52,9 @@ pub async fn handle(
     // No secret means no authentication. Refuse instead of accepting anonymous
     // requests that could create tasks and start agent runs.
     let secret_ref = config
-        .secret_ref
+        .vault_ref
         .as_deref()
+        .or(config.secret_ref.as_deref())
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| {
@@ -59,9 +62,7 @@ pub async fn handle(
                 "webhook sem segredo configurado; defina secret_ref na fonte".into(),
             )
         })?;
-    let secret = crate::secrets::SecretStore::new(&state.paths)
-        .get(WEBHOOK_SECRET_NAMESPACE, secret_ref)?
-        .ok_or_else(|| AppError::BadRequest("segredo do webhook ausente".into()))?;
+    let secret = resolve_webhook_secret(state, &source, secret_ref).await?;
     let header = config
         .signature_header
         .as_deref()
@@ -163,6 +164,28 @@ fn constant_time_eq(left: &str, right: &str) -> bool {
             .zip(right.bytes())
             .fold(0u8, |accumulator, (a, b)| accumulator | (a ^ b))
             == 0
+}
+
+async fn resolve_webhook_secret(
+    state: &Arc<AppState>,
+    source: &InboundSource,
+    reference: &str,
+) -> AppResult<String> {
+    let secret = match crate::db::vault::resolve_for_edge(
+        &state.db, reference, "sink", &source.id, None, None, false,
+    )
+    .await
+    {
+        Ok(secret) => secret,
+        Err(opendesk_storage::error::AppError::NotFound(_)) => {
+            crate::secrets::SecretStore::new(&state.paths)
+                .get(WEBHOOK_SECRET_NAMESPACE, reference)?
+                .ok_or_else(|| AppError::BadRequest("segredo do webhook ausente".into()))?
+        }
+        Err(error) => return Err(error.into()),
+    };
+    state.scrubber.register(reference, &secret);
+    Ok(secret)
 }
 
 #[cfg(test)]

@@ -28,6 +28,8 @@ pub async fn sync(
 /// Folder and cron triggers are handled by the recipe runtime itself.
 fn recipe_source_type(trigger_type: &str) -> Option<&'static str> {
     match trigger_type {
+        "FOLDER_WATCH" | "RSYNC_FOLDER" => Some("FOLDER_WATCH"),
+        "CRON" => None,
         "IMAP_IDLE" => Some("IMAP_IDLE"),
         "WEBHOOK" => Some("WEBHOOK_HTTP"),
         "SQL_POLL" => Some("SQL_POLLER"),
@@ -103,6 +105,8 @@ async fn sync_recipe_sources_inner(
             config,
             target_agent: None,
             target_column: Some("TODO".into()),
+            target_kind: Some("RECIPE".into()),
+            target_id: Some(recipe.id.clone()),
             auto_execute: true,
             is_enabled: recipe.enabled,
         };

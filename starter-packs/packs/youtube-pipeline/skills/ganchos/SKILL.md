@@ -5,18 +5,18 @@ description: Primeiros segundos.
 # Ganchos
 
 ## Quando usar
-No início do roteiro.
+No início do roteiro, antes de gravar.
 
 ## Processo
-1. Prometa transformação.
-2. Mostre stakes.
-3. Evite clickbait vazio.
-4. Teste 5 aberturas.
+1. Abra com a tensão concreta do vídeo, não com apresentação pessoal.
+2. Prometa um resultado específico e diga o que o espectador vai ver.
+3. Corte qualquer preâmbulo que não aumente a curiosidade.
+4. Escreva cinco aberturas e escolha a que combina com a prova disponível.
 
-## Checklist
-- [ ] O gancho é verdadeiro.
-- [ ] A promessa é cumprida.
+## Saída
+Cinco ganchos de até duas frases e o critério de escolha.
 
-## Anti-padrões
-- Entregar texto genérico sem adaptar ao contexto recebido.
-- Não esconder incertezas: marque o que é fato, inferência ou recomendação.
+## Critérios de aceite
+- [ ] O gancho cabe nos primeiros 5 segundos.
+- [ ] A promessa é cumprida pelo roteiro.
+- [ ] Nenhum clickbait sem entrega.

@@ -24,6 +24,9 @@ pub mod writer;
 #[path = "test_support_tests.rs"]
 pub mod test_support;
 
+#[cfg(test)]
+mod migration_tests;
+
 pub use error::{AppError, AppResult};
 pub use pool::{Storage, StorageOptions, init};
 pub use writer::Writer;

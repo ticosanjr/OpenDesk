@@ -16,6 +16,7 @@ async fn fixture(ctx: &crate::test_support::TestContext) -> (Arc<QueueManager>, 
     );
     let queue = QueueManager::new(QueueConfig {
         pool: ctx.db.clone(),
+        scrubber: Arc::new(opendesk_storage::secrets::SecretScrubber::new()),
         paths: ctx.paths.clone(),
         events: events.clone(),
         write_buffer: ctx.write_buffer.clone(),

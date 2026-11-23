@@ -37,6 +37,8 @@ pub(crate) async fn retry_delivery(
         Some(DeliveryChannel::GoogleDrive) => retry_drive(state, delivery, &payload).await,
         Some(DeliveryChannel::Smtp) => retry_email(state, delivery, &payload).await,
         Some(DeliveryChannel::Signal) | Some(DeliveryChannel::Telegram) => Ok(()),
+        Some(DeliveryChannel::WhatsApp) => retry_whatsapp(state, delivery, &payload).await,
+        Some(DeliveryChannel::WebPush) => retry_webpush(state, delivery, &payload).await,
         Some(DeliveryChannel::Gmail)
         | Some(DeliveryChannel::GoogleCalendar)
         | Some(DeliveryChannel::GoogleTasks) => {
@@ -102,4 +104,60 @@ where
         }
     }
     Err(last_error.unwrap_or_else(|| anyhow::anyhow!("retry operation produced no result")))
+}
+
+async fn retry_whatsapp(
+    state: &AppState,
+    delivery: &deliveries::Delivery,
+    payload: &serde_json::Value,
+) -> AppResult<()> {
+    let to = payload
+        .get("to")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    let message = payload
+        .get("message")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    if to.trim().is_empty() || message.trim().is_empty() {
+        let _ = deliveries::mark_skipped(&state.db, &delivery.id, "payload sem to/message").await;
+        return Ok(());
+    }
+    let secrets = SecretStore::new(&state.paths);
+    match opendesk_channels::whatsapp::send_text(&state.db, &secrets, to, message).await {
+        Ok(sent) => {
+            let _ =
+                deliveries::mark_success(&state.db, &delivery.id, sent.message_id.as_deref(), None)
+                    .await;
+        }
+        Err(error) => {
+            let _ = deliveries::mark_failed(&state.db, &delivery.id, &format!("{error:#}")).await;
+        }
+    }
+    Ok(())
+}
+
+async fn retry_webpush(
+    state: &AppState,
+    delivery: &deliveries::Delivery,
+    payload: &serde_json::Value,
+) -> AppResult<()> {
+    let title = payload
+        .get("title")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("OpenDesk");
+    let body = payload
+        .get("body")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    let payload = opendesk_channels::webpush::PushPayload::new(title, body, "/");
+    match opendesk_channels::webpush::send_to_all(&state.db, &state.paths, &payload).await {
+        Ok(_) => {
+            let _ = deliveries::mark_success(&state.db, &delivery.id, None, None).await;
+        }
+        Err(error) => {
+            let _ = deliveries::mark_failed(&state.db, &delivery.id, &format!("{error:#}")).await;
+        }
+    }
+    Ok(())
 }

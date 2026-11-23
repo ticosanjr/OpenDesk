@@ -102,6 +102,7 @@ async fn streams_plain_stdout_and_finishes() {
             prompt: String::new(),
             env: Default::default(),
             sandbox: Default::default(),
+            scrubber: None,
         })
         .await
         .expect("start");

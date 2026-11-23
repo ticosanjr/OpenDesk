@@ -30,6 +30,10 @@ fn maps_step_mode() {
             when: None,
             input_schema: None,
             output_schema: None,
+            retry_max: None,
+            timeout_secs: None,
+            on_schema_error: None,
+            vault_refs: Vec::new(),
         }),
         "PLAN_ONLY"
     );
@@ -72,6 +76,11 @@ async fn dry_run_completes_without_dispatch() {
         }
     }
     assert_eq!(status, "COMPLETED");
+    let nodes = store::list_run_nodes(&test.db, &run.id)
+        .await
+        .expect("nodes");
+    assert_eq!(nodes.len(), 1);
+    assert_eq!(nodes[0].status, "SKIPPED");
 }
 
 #[test]

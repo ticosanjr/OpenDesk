@@ -346,6 +346,20 @@ pub async fn reset_node_path(pool: &SqlitePool, run_id: &str, path: &str) -> App
     Ok(())
 }
 
+pub async fn reset_node_subtree(pool: &SqlitePool, run_id: &str, path: &str) -> AppResult<()> {
+    sqlx::query(
+        "UPDATE recipe_run_nodes
+         SET status = 'PENDING', error_message = NULL, finished_at = NULL
+         WHERE run_id = ? AND (node_path = ? OR node_path LIKE ?)",
+    )
+    .bind(run_id)
+    .bind(path)
+    .bind(format!("{path}/%"))
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// Marks nodes that were statically planned but never selected (branch side
 /// not taken, map template) as SKIPPED before completing the run.
 pub async fn mark_pending_skipped(pool: &SqlitePool, run_id: &str) -> AppResult<()> {

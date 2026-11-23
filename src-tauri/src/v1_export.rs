@@ -73,3 +73,16 @@ fn execute(args: &[String]) -> Result<(), String> {
     );
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_help_and_rejects_invalid_arguments() {
+        assert!(execute(&["--help".into()]).is_ok());
+        assert!(execute(&["--format".into(), "xml".into()]).is_err());
+        assert!(execute(&["--db".into()]).is_err());
+        assert!(execute(&["--unknown".into()]).is_err());
+    }
+}

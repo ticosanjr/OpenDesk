@@ -5,7 +5,13 @@ use uuid::Uuid;
 
 #[path = "io_bus_migration.rs"]
 mod io_bus_migration;
+#[path = "io_bus_poller.rs"]
+mod io_bus_poller;
+#[path = "io_bus_validation.rs"]
+mod validation;
 pub use io_bus_migration::{all_inbound, all_outbound, set_inbound_config, set_outbound_config};
+pub use io_bus_poller::*;
+use validation::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct InboundSource {
@@ -16,6 +22,8 @@ pub struct InboundSource {
     pub config_json: String,
     pub target_agent: Option<String>,
     pub target_column: String,
+    pub target_kind: String,
+    pub target_id: Option<String>,
     pub auto_execute: bool,
     pub is_enabled: bool,
     pub last_triggered_at: Option<String>,
@@ -56,6 +64,10 @@ pub struct InboundInput {
     pub config: serde_json::Value,
     pub target_agent: Option<String>,
     pub target_column: Option<String>,
+    #[serde(default)]
+    pub target_kind: Option<String>,
+    #[serde(default)]
+    pub target_id: Option<String>,
     #[serde(default = "default_true")]
     pub auto_execute: bool,
     #[serde(default = "default_true")]
@@ -77,105 +89,12 @@ fn default_true() -> bool {
 }
 
 const INBOUND_COLUMNS: &str = "id, workspace_id, name, source_type, config_json, target_agent, \
-    target_column, auto_execute, is_enabled, last_triggered_at, last_status, last_error, created_at";
+    target_column, target_kind, target_id, auto_execute, is_enabled, last_triggered_at, \
+    last_status, last_error, created_at";
 const OUTBOUND_COLUMNS: &str = "id, workspace_id, name, sink_type, config_json, is_enabled, \
     last_run_at, last_status, last_error, created_at";
 const BINDING_COLUMNS: &str =
     "id, task_id, schedule_id, inbound_source_id, sink_id, execution_order";
-
-fn source_type(value: &str) -> AppResult<String> {
-    let value = value.trim().to_uppercase();
-    if value == "RSYNC_FOLDER" {
-        return Ok("FOLDER_WATCH".into());
-    }
-    const TYPES: [&str; 9] = [
-        "FOLDER_WATCH",
-        "OCR_WATCH",
-        "AUDIO_STT_WATCH",
-        "IMAP_IDLE",
-        "WEBHOOK_HTTP",
-        "SQL_POLLER",
-        "TELEGRAM_BOT",
-        "MATRIX_BOT",
-        "MATTERMOST_BOT",
-    ];
-    if TYPES.contains(&value.as_str()) {
-        Ok(value)
-    } else {
-        Err(AppError::BadRequest(format!(
-            "source_type inválido '{value}'"
-        )))
-    }
-}
-
-fn webhook_secret_ref(config: &serde_json::Value) -> Option<String> {
-    config
-        .get("secret_ref")
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
-}
-
-/// A webhook without a shared secret would accept any request, including one
-/// that starts an agent run through `auto_execute`. Refuse to persist one.
-fn ensure_webhook_secret_ref(source_type: &str, config: &serde_json::Value) -> AppResult<()> {
-    if source_type == "WEBHOOK_HTTP" && webhook_secret_ref(config).is_none() {
-        return Err(AppError::BadRequest(
-            "webhook HTTP exige segredo; informe config.secret ou config.secret_ref".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn sink_type(value: &str) -> AppResult<String> {
-    let value = value.trim().to_uppercase();
-    if value == "RSYNC_FOLDER" {
-        return Ok("FOLDER_WATCH".into());
-    }
-    const TYPES: [&str; 9] = [
-        "ATOMIC_FS",
-        "MINIO_S3",
-        "SMTP_EMAIL",
-        "TELEGRAM_MSG",
-        "MATRIX_MSG",
-        "MATTERMOST_MSG",
-        "DOC_COMPILER",
-        "GIT_COMMIT",
-        "SQL_INSERT",
-    ];
-    if TYPES.contains(&value.as_str()) {
-        Ok(value)
-    } else {
-        Err(AppError::BadRequest(format!(
-            "sink_type inválido '{value}'"
-        )))
-    }
-}
-
-fn target_column(value: Option<&str>) -> AppResult<String> {
-    let value = value.unwrap_or("TODO").trim().to_uppercase();
-    let value = if value == "BACKLOG" {
-        "TODO".to_string()
-    } else {
-        value
-    };
-    const STATUSES: [&str; 6] = [
-        "TODO",
-        "IN_PROGRESS",
-        "IN_REVIEW",
-        "DONE",
-        "CANCELLED",
-        "BLOCKED",
-    ];
-    if STATUSES.contains(&value.as_str()) {
-        Ok(value)
-    } else {
-        Err(AppError::BadRequest(format!(
-            "target_column inválida '{value}'"
-        )))
-    }
-}
 
 pub async fn list_inbound(pool: &SqlitePool, workspace_id: &str) -> AppResult<Vec<InboundSource>> {
     let query = format!(
@@ -218,11 +137,12 @@ pub async fn create_inbound(
     let source_type = source_type(&input.source_type)?;
     ensure_webhook_secret_ref(&source_type, &input.config)?;
     let column = target_column(input.target_column.as_deref())?;
+    let (kind, target_id) = resolve_target(&input)?;
     sqlx::query(
         "INSERT INTO io_inbound_sources (
             id, workspace_id, name, source_type, config_json, target_agent,
-            target_column, auto_execute, is_enabled
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            target_column, target_kind, target_id, auto_execute, is_enabled
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(workspace_id)
@@ -231,6 +151,8 @@ pub async fn create_inbound(
     .bind(input.config.to_string())
     .bind(input.target_agent.as_deref())
     .bind(&column)
+    .bind(&kind)
+    .bind(target_id.as_deref())
     .bind(input.auto_execute)
     .bind(input.is_enabled)
     .execute(pool)
@@ -247,9 +169,11 @@ pub async fn update_inbound(
     let source_type = source_type(&input.source_type)?;
     ensure_webhook_secret_ref(&source_type, &input.config)?;
     let column = target_column(input.target_column.as_deref())?;
+    let (kind, target_id) = resolve_target(&input)?;
     sqlx::query(
         "UPDATE io_inbound_sources SET name = ?, source_type = ?, config_json = ?,
-            target_agent = ?, target_column = ?, auto_execute = ?, is_enabled = ?
+            target_agent = ?, target_column = ?, target_kind = ?, target_id = ?,
+            auto_execute = ?, is_enabled = ?
          WHERE id = ?",
     )
     .bind(input.name.trim())
@@ -257,6 +181,8 @@ pub async fn update_inbound(
     .bind(input.config.to_string())
     .bind(input.target_agent.as_deref())
     .bind(&column)
+    .bind(&kind)
+    .bind(target_id.as_deref())
     .bind(input.auto_execute)
     .bind(input.is_enabled)
     .bind(&current.id)

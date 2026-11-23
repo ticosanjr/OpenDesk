@@ -286,6 +286,7 @@ docs/                       plano, decisões e histórico
 - [ADR 0200 — Fundação V2](docs/decisions/0200-v2-foundation.md)
 - [Auditoria de schema V1 → V2](docs/v2-migration-audit.md)
 - [Progresso V2](docs/v2-progress.md)
+- [Plano de fechamento](docs/fechamento-opendesk-plan.md) — Vault, DAG 2.0, prompts e I/O unificado
 - [Histórico V1](docs/archive/v1/) — decisões, progresso e releases congelados
 - [Contrato OpenCode V2](docs/protocol/opencode-v2.md)
 - [Fluxo de release](docs/release-flow.md)

@@ -52,6 +52,8 @@ pub struct RuntimeRequest {
     pub env: HashMap<String, String>,
     #[serde(default)]
     pub sandbox: crate::sandbox::SandboxPolicy,
+    #[serde(skip)]
+    pub scrubber: Option<Arc<opendesk_storage::secrets::SecretScrubber>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -33,4 +33,5 @@ pub mod task_messages;
 pub mod task_watchers;
 pub mod tasks;
 pub mod tickets;
+pub mod vault;
 pub mod workspaces;

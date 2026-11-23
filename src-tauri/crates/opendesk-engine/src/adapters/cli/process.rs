@@ -144,7 +144,11 @@ pub(super) async fn run_process(
                         if line.trim().is_empty() {
                             continue;
                         }
-                        for event in normalize_line(line) {
+                        let line = match request.scrubber.as_deref() {
+                            Some(scrubber) => scrubber.scrub(line),
+                            None => line.to_string(),
+                        };
+                        for event in normalize_line(&line) {
                             if let RuntimeEvent::TextDelta { delta } = &event
                                 && summary.len() < SUMMARY_LIMIT
                             {

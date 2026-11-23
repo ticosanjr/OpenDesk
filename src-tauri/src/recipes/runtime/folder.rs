@@ -120,6 +120,27 @@ pub(super) async fn scan_folder_triggers(
         let Ok(recipe) = parser::parse(&yaml) else {
             continue;
         };
+        // Folder/RSYNC triggers are materialized as io_bus sources and handled
+        // by the dropzone worker. The scanner stays as a fallback for recipes
+        // whose sources were not synced yet.
+        if crate::db::io_bus::list_inbound(&state.db, &index.workspace_id)
+            .await
+            .unwrap_or_default()
+            .iter()
+            .any(|source| {
+                source.source_type == "FOLDER_WATCH"
+                    && serde_json::from_str::<serde_json::Value>(&source.config_json)
+                        .ok()
+                        .and_then(|config| {
+                            (config.get("recipe_id").and_then(|value| value.as_str())
+                                == Some(index.id.as_str()))
+                            .then_some(())
+                        })
+                        .is_some()
+            })
+        {
+            continue;
+        }
         let folder_triggers = recipe
             .triggers()
             .into_iter()

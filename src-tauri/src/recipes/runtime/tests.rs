@@ -196,3 +196,107 @@ fn folder_options_ignore_patterns_and_temporary_files() {
     assert!(options.ignores("meu-rascunho.pdf"));
     assert!(!options.ignores("relatorio.pdf"));
 }
+
+#[tokio::test]
+async fn folder_trigger_scans_existing_file_once() {
+    let ctx = crate::test_support::context().await;
+    let dropzone = ctx.workspace_root.join("input/dropzone");
+    std::fs::create_dir_all(&dropzone).expect("dropzone");
+    std::fs::write(dropzone.join("brief.txt"), "conteudo").expect("file");
+    let yaml = r#"id: folder-test
+name: Folder Test
+enabled: true
+triggers:
+  - type: FOLDER_WATCH
+    config:
+      path: input/dropzone
+      process_existing: true
+      settle_secs: 0
+flow:
+  - type: step
+    id: s1
+    name: Passo
+    mode: build
+    prompt: "Resuma o arquivo"
+"#;
+    crate::recipes::store::save_yaml(&ctx.state.db, &ctx.workspace_id, "folder-test", yaml)
+        .await
+        .expect("save");
+    crate::recipes::store::set_enabled(&ctx.state.db, &ctx.workspace_id, "folder-test", true)
+        .await
+        .expect("enable");
+    let runtime = std::sync::Arc::new(RecipeRuntime::default());
+    scan_folder_triggers(&ctx.state, &runtime)
+        .await
+        .expect("scan");
+    let runs = crate::recipes::store::list_runs(&ctx.state.db, &ctx.workspace_id, 10)
+        .await
+        .expect("runs");
+    assert!(runs.iter().any(|run| run.recipe_id == "folder-test"));
+}
+
+#[tokio::test]
+async fn folder_trigger_is_skipped_when_io_source_is_materialized() {
+    let ctx = crate::test_support::context().await;
+    let yaml = r#"id: folder-materialized
+name: Folder Materialized
+enabled: true
+triggers:
+  - type: FOLDER_WATCH
+    config:
+      path: input/dropzone
+flow:
+  - type: step
+    id: s1
+    name: Passo
+    prompt: "oi"
+"#;
+    crate::recipes::store::save_yaml(
+        &ctx.state.db,
+        &ctx.workspace_id,
+        "folder-materialized",
+        yaml,
+    )
+    .await
+    .expect("save");
+    crate::recipes::store::set_enabled(
+        &ctx.state.db,
+        &ctx.workspace_id,
+        "folder-materialized",
+        true,
+    )
+    .await
+    .expect("enable");
+    crate::db::io_bus::create_inbound(
+        &ctx.state.db,
+        &ctx.workspace_id,
+        crate::db::io_bus::InboundInput {
+            name: "Folder source".into(),
+            source_type: "FOLDER_WATCH".into(),
+            config: serde_json::json!({
+                "recipe_id": "folder-materialized",
+                "path": "input/dropzone"
+            }),
+            target_agent: None,
+            target_column: Some("TODO".into()),
+            target_kind: Some("RECIPE".into()),
+            target_id: Some("folder-materialized".into()),
+            auto_execute: false,
+            is_enabled: true,
+        },
+    )
+    .await
+    .expect("source");
+    let runtime = std::sync::Arc::new(RecipeRuntime::default());
+    scan_folder_triggers(&ctx.state, &runtime)
+        .await
+        .expect("scan");
+    let runs = crate::recipes::store::list_runs(&ctx.state.db, &ctx.workspace_id, 10)
+        .await
+        .expect("runs");
+    assert!(
+        !runs
+            .iter()
+            .any(|run| run.recipe_id == "folder-materialized")
+    );
+}

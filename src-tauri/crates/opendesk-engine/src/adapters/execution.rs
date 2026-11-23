@@ -42,6 +42,7 @@ pub async fn execute(
         prompt: request.prompt.to_string(),
         env: Default::default(),
         sandbox,
+        scrubber: Some(Arc::new(request.scrubber.clone())),
     };
 
     let session_id = match adapter.start(runtime_request).await {
@@ -50,6 +51,7 @@ pub async fn execute(
             return failed_outcome(
                 request.log_path,
                 format!("não foi possível iniciar {}: {error}", adapter.id()),
+                request.scrubber,
             );
         }
     };
@@ -76,6 +78,7 @@ pub async fn execute(
         return failed_outcome(
             request.log_path,
             format!("não foi possível enviar o prompt: {error}"),
+            request.scrubber,
         );
     }
 
@@ -85,6 +88,7 @@ pub async fn execute(
             return failed_outcome(
                 request.log_path,
                 format!("não foi possível ler os eventos: {error}"),
+                request.scrubber,
             );
         }
     };
@@ -292,7 +296,12 @@ pub async fn execute(
 }
 
 /// Builds the failure outcome used when an adapter cannot even start.
-pub fn failed_outcome(log_path: &Path, error: String) -> RunOutcome {
+pub fn failed_outcome(
+    log_path: &Path,
+    error: String,
+    scrubber: &opendesk_storage::secrets::SecretScrubber,
+) -> RunOutcome {
+    let error = scrubber.scrub(&error);
     append_log(
         log_path,
         &serde_json::json!({

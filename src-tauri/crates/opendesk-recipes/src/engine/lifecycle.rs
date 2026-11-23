@@ -8,7 +8,6 @@ use opendesk_storage::events::OpenDeskWsEvent;
 use opendesk_storage::repos::tasks;
 
 use serde_json::json;
-use std::time::Duration;
 
 use super::execute::execute;
 use super::finalize::mark_routine;
@@ -52,23 +51,12 @@ pub async fn start(
             true,
         )
         .await?;
+        store::sync_run_nodes(&context.pool, &run.id, &recipe.flow).await?;
         let context_clone = context.clone();
         let recipe_clone = recipe.clone();
         let run_clone = run.clone();
         tokio::spawn(async move {
-            for step in recipe_clone.all_steps() {
-                let _ = store::update_run(
-                    &context_clone.pool,
-                    &run_clone.id,
-                    "RUNNING_STEP",
-                    Some(&step.id),
-                    None,
-                    None,
-                    false,
-                )
-                .await;
-                tokio::time::sleep(Duration::from_millis(250)).await;
-            }
+            let _ = store::mark_pending_skipped(&context_clone.pool, &run_clone.id).await;
             let _ = store::update_run(
                 &context_clone.pool,
                 &run_clone.id,

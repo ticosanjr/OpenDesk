@@ -16,6 +16,8 @@ export interface InboundSource {
   config_json: string;
   target_agent?: string | null;
   target_column: string;
+  target_kind?: string;
+  target_id?: string | null;
   auto_execute: boolean;
   is_enabled: boolean;
   last_triggered_at?: string | null;
@@ -30,6 +32,7 @@ const TYPES = [
   ["AUDIO_STT_WATCH", "Áudio → texto"],
   ["IMAP_IDLE", "E-mail IMAP"],
   ["WEBHOOK_HTTP", "Webhook / formulário"],
+  ["HTTP_POLLER", "HTTP/RSS Poller"],
   ["SQL_POLLER", "SQL Poller"],
   ["TELEGRAM_BOT", "Telegram Bot"],
   ["MATRIX_BOT", "Matrix Bot"],
@@ -43,6 +46,7 @@ const TEMPLATES: Record<string, string> = {
   AUDIO_STT_WATCH: '{\n  "path": "input/dropzone",\n  "whisper_model": "/caminho/model.bin"\n}',
   IMAP_IDLE: '{\n  "host": "imap.exemplo.com",\n  "port": 993,\n  "username": "tasks@exemplo.com",\n  "password_ref": "imap-password",\n  "mailbox": "INBOX",\n  "tls": true\n}',
   WEBHOOK_HTTP: '{\n  "title_path": "$.title",\n  "body_path": "$.body",\n  "priority_path": "$.priority",\n  "secret_ref": "webhook-secret"\n}',
+  HTTP_POLLER: '{\n  "url": "https://exemplo.com/feed.xml",\n  "format": "rss",\n  "interval_secs": 300,\n  "selector": "article",\n  "vault_ref": null,\n  "emit_mode": "new_items"\n}',
   SQL_POLLER: '{\n  "database_url_ref": "poller-db",\n  "query": "SELECT * FROM fila WHERE status = \'PENDING\' LIMIT 20",\n  "confirm_query": "UPDATE fila SET status = \'QUEUED\' WHERE id = ?",\n  "id_column": "id",\n  "interval_secs": 60\n}',
   TELEGRAM_BOT: '{\n  "token_ref": "telegram-token",\n  "allowed_chats": []\n}',
   MATRIX_BOT: '{\n  "homeserver": "https://matrix.exemplo.com",\n  "access_token_ref": "matrix-token",\n  "rooms": []\n}',
@@ -61,10 +65,29 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
     source_type: "FOLDER_WATCH",
     target_agent: "",
     target_column: "TODO",
+    target_kind: "TASK",
+    target_id: "",
     auto_execute: true,
     is_enabled: true,
     config: TEMPLATES.FOLDER_WATCH,
   });
+
+  function configObject(): Record<string, unknown> {
+    try {
+      const parsed = JSON.parse(form.config);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function patchConfig(key: string, value: unknown) {
+    const current = configObject();
+    current[key] = value;
+    setForm({ ...form, config: JSON.stringify(current, null, 2) });
+  }
 
   const load = useCallback(async () => {
     if (!workspaceId) return;
@@ -96,6 +119,8 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
             source_type: source.source_type,
             target_agent: source.target_agent ?? "",
             target_column: source.target_column,
+            target_kind: source.target_kind ?? "TASK",
+            target_id: source.target_id ?? "",
             auto_execute: source.auto_execute,
             is_enabled: source.is_enabled,
             config: source.config_json,
@@ -105,6 +130,8 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
             source_type: "FOLDER_WATCH",
             target_agent: "",
             target_column: "TODO",
+            target_kind: "TASK",
+            target_id: "",
             auto_execute: true,
             is_enabled: true,
             config: TEMPLATES.FOLDER_WATCH,
@@ -133,6 +160,8 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
         config,
         target_agent: form.target_agent.trim() || null,
         target_column: form.target_column,
+        target_kind: form.target_kind,
+        target_id: form.target_id.trim() || null,
         auto_execute: form.auto_execute,
         is_enabled: form.is_enabled,
       };
@@ -288,6 +317,33 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
               />
             </label>
             <label>
+              <span className={labelClass}>Destino</span>
+              <select
+                value={form.target_kind}
+                onChange={(event) =>
+                  setForm({ ...form, target_kind: event.target.value })
+                }
+                className={inputClass}
+              >
+                <option value="TASK">Tarefa</option>
+                <option value="RECIPE">Receita</option>
+                <option value="TICKET">Ticket</option>
+                <option value="SCHEDULE">Rotina</option>
+              </select>
+            </label>
+            <label>
+              <span className={labelClass}>ID do destino</span>
+              <input
+                value={form.target_id}
+                disabled={form.target_kind === "TASK"}
+                onChange={(event) =>
+                  setForm({ ...form, target_id: event.target.value })
+                }
+                placeholder="recipe-id / schedule-id"
+                className={inputClass}
+              />
+            </label>
+            <label>
               <span className={labelClass}>Coluna de destino</span>
               <select
                 value={form.target_column}
@@ -320,6 +376,90 @@ export function InboundSourcesCard({ workspaceId }: { workspaceId: string }) {
               gatilho ativo
             </label>
           </div>
+          {form.source_type === "HTTP_POLLER" ? (
+            <div className="grid gap-3 rounded-lg border border-blue-500/20 bg-blue-500/[0.03] p-2.5 sm:grid-cols-2">
+              <label className="sm:col-span-2">
+                <span className={labelClass}>URL do feed</span>
+                <input
+                  value={String(configObject().url ?? "")}
+                  onChange={(event) => patchConfig("url", event.target.value)}
+                  placeholder="https://exemplo.com/feed.xml"
+                  className={inputClass}
+                />
+              </label>
+              <label>
+                <span className={labelClass}>Formato</span>
+                <select
+                  value={String(configObject().format ?? "rss")}
+                  onChange={(event) => patchConfig("format", event.target.value)}
+                  className={inputClass}
+                >
+                  <option value="rss">RSS</option>
+                  <option value="atom">Atom</option>
+                  <option value="json">JSON</option>
+                  <option value="html">HTML + selector</option>
+                </select>
+              </label>
+              <label>
+                <span className={labelClass}>Intervalo (s)</span>
+                <input
+                  type="number"
+                  min={60}
+                  value={Number(configObject().interval_secs ?? 300)}
+                  onChange={(event) =>
+                    patchConfig("interval_secs", Number(event.target.value))
+                  }
+                  className={inputClass}
+                />
+              </label>
+              <label>
+                <span className={labelClass}>Selector HTML</span>
+                <input
+                  value={String(configObject().selector ?? "")}
+                  onChange={(event) => patchConfig("selector", event.target.value)}
+                  placeholder="article, .item"
+                  className={inputClass}
+                />
+              </label>
+              <label>
+                <span className={labelClass}>Vault ref</span>
+                <input
+                  value={String(configObject().vault_ref ?? "")}
+                  onChange={(event) =>
+                    patchConfig("vault_ref", event.target.value || null)
+                  }
+                  placeholder="feed-token"
+                  className={inputClass}
+                />
+              </label>
+            </div>
+          ) : null}
+          {form.source_type === "WEBHOOK_HTTP" ? (
+            <div className="grid gap-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.03] p-2.5 sm:grid-cols-2">
+              <label>
+                <span className={labelClass}>Secret ref</span>
+                <input
+                  value={String(configObject().secret_ref ?? "")}
+                  onChange={(event) =>
+                    patchConfig("secret_ref", event.target.value || null)
+                  }
+                  placeholder="webhook-secret"
+                  className={inputClass}
+                />
+              </label>
+              <label>
+                <span className={labelClass}>Header da assinatura</span>
+                <input
+                  value={String(configObject().signature_header ?? "")}
+                  onChange={(event) =>
+                    patchConfig("signature_header", event.target.value || null)
+                  }
+                  placeholder="x-opendesk-signature"
+                  className={inputClass}
+                />
+              </label>
+            </div>
+          ) : null}
           <label className="block">
             <span className={labelClass}>Config JSON</span>
             <textarea

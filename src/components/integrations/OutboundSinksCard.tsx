@@ -31,6 +31,9 @@ const TYPES = [
   ["MATTERMOST_MSG", "Mattermost"],
   ["GIT_COMMIT", "Git commit"],
   ["SQL_INSERT", "SQL insert/upsert"],
+  ["HTTP_WEBHOOK", "HTTP Webhook (n8n/CRM)"],
+  ["WHATSAPP_MSG", "WhatsApp"],
+  ["WEBPUSH", "WebPush"],
 ] as const;
 
 const TEMPLATES: Record<string, string> = {
@@ -44,6 +47,9 @@ const TEMPLATES: Record<string, string> = {
   MATTERMOST_MSG: '{\n  "webhook_url": "https://mattermost/hooks/..."\n}',
   GIT_COMMIT: '{\n  "branch": "opendesk/task",\n  "push": false\n}',
   SQL_INSERT: '{\n  "database_url_ref": "analytics-db",\n  "query": "INSERT INTO resultados (id, resumo) VALUES (?, ?)",\n  "columns": ["id", "resumo"]\n}',
+  HTTP_WEBHOOK: '{\n  "url": "https://n8n.exemplo.com/webhook/opendesk",\n  "method": "POST",\n  "headers": {\n    "x-source": "opendesk"\n  },\n  "body_template": "{\\"run_id\\":\\"{{run.id}}\\",\\"summary\\":\\"{{run.summary}}\\"}",\n  "vault_ref": null,\n  "allow_private_network": false\n}',
+  WHATSAPP_MSG: '{\n  "to": "5511999999999"\n}',
+  WEBPUSH: '{\n  "subject": "OpenDesk"\n}',
 };
 
 export function OutboundSinksCard({ workspaceId }: { workspaceId: string }) {
@@ -59,6 +65,23 @@ export function OutboundSinksCard({ workspaceId }: { workspaceId: string }) {
     is_enabled: true,
     config: TEMPLATES.DOC_COMPILER,
   });
+
+  function configObject(): Record<string, unknown> {
+    try {
+      const parsed = JSON.parse(form.config);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function patchConfig(key: string, value: unknown) {
+    const current = configObject();
+    current[key] = value;
+    setForm({ ...form, config: JSON.stringify(current, null, 2) });
+  }
 
   const load = useCallback(async () => {
     if (!workspaceId) return;
@@ -271,6 +294,88 @@ export function OutboundSinksCard({ workspaceId }: { workspaceId: string }) {
             />
             sink ativo
           </label>
+          {form.sink_type === "HTTP_WEBHOOK" ? (
+            <div className="space-y-3 rounded-lg border border-blue-500/20 bg-blue-500/[0.03] p-2.5">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="sm:col-span-2">
+                  <span className={labelClass}>URL do webhook</span>
+                  <input
+                    value={String(configObject().url ?? "")}
+                    onChange={(event) => patchConfig("url", event.target.value)}
+                    placeholder="https://n8n.exemplo.com/webhook/opendesk"
+                    className={inputClass}
+                  />
+                </label>
+                <label>
+                  <span className={labelClass}>Método</span>
+                  <select
+                    value={String(configObject().method ?? "POST")}
+                    onChange={(event) => patchConfig("method", event.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="PATCH">PATCH</option>
+                  </select>
+                </label>
+                <label>
+                  <span className={labelClass}>Vault ref (bearer)</span>
+                  <input
+                    value={String(configObject().vault_ref ?? "")}
+                    onChange={(event) =>
+                      patchConfig("vault_ref", event.target.value || null)
+                    }
+                    placeholder="n8n-token"
+                    className={inputClass}
+                  />
+                </label>
+              </div>
+              <label className="flex items-center gap-2 text-[12.5px] text-zinc-400">
+                <input
+                  type="checkbox"
+                  checked={Boolean(configObject().allow_private_network)}
+                  onChange={(event) =>
+                    patchConfig("allow_private_network", event.target.checked)
+                  }
+                />
+                permitir rede privada (n8n/local)
+              </label>
+              <label className="block">
+                <span className={labelClass}>Body template</span>
+                <textarea
+                  value={String(configObject().body_template ?? "")}
+                  onChange={(event) =>
+                    patchConfig("body_template", event.target.value)
+                  }
+                  rows={4}
+                  placeholder='{"run_id":"{{run.id}}","summary":"{{run.summary}}"}'
+                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 p-2 font-mono text-[11.5px] text-zinc-200 outline-none focus:border-blue-500/60"
+                />
+              </label>
+            </div>
+          ) : null}
+          {form.sink_type === "WHATSAPP_MSG" ? (
+            <label className="block rounded-lg border border-emerald-500/20 bg-emerald-500/[0.03] p-2.5">
+              <span className={labelClass}>Destinatário (E.164)</span>
+              <input
+                value={String(configObject().to ?? "")}
+                onChange={(event) => patchConfig("to", event.target.value)}
+                placeholder="5511999999999"
+                className={inputClass}
+              />
+            </label>
+          ) : null}
+          {form.sink_type === "WEBPUSH" ? (
+            <label className="block rounded-lg border border-violet-500/20 bg-violet-500/[0.03] p-2.5">
+              <span className={labelClass}>Título da notificação</span>
+              <input
+                value={String(configObject().subject ?? "")}
+                onChange={(event) => patchConfig("subject", event.target.value)}
+                placeholder="OpenDesk"
+                className={inputClass}
+              />
+            </label>
+          ) : null}
           <label className="block">
             <span className={labelClass}>Config JSON</span>
             <textarea

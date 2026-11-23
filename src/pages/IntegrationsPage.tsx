@@ -6,7 +6,9 @@ import {
   Cloud,
   Globe,
   Inbox,
+  KeyRound,
   Mail,
+  MessageSquare,
   Package,
   Plug,
   Radio,
@@ -26,6 +28,8 @@ import { BrowserCard } from "@/components/integrations/BrowserCard";
 import { ChannelsCard } from "@/components/integrations/ChannelsCard";
 import { McpHubCard } from "@/components/integrations/McpHubCard";
 import { TicketInboxCard } from "@/components/integrations/TicketInboxCard";
+import { VaultCard } from "@/components/integrations/VaultCard";
+import { TeamChannelsCard } from "@/components/integrations/channels/TeamChannelsCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { openExternalUrl } from "@/lib/runtime-env";
@@ -70,9 +74,11 @@ export function IntegrationsPage() {
     { id: "signal", label: "Signal", icon: Plug, group: "Mensageria" },
     { id: "telegram", label: "Telegram", icon: Send, group: "Mensageria" },
     { id: "channels", label: "Canais e tickets", icon: Radio, group: "Mensageria" },
+    { id: "team", label: "Discord & Slack", icon: MessageSquare, group: "Mensageria" },
     { id: "browser", label: "Browser", icon: Globe, group: "I/O" },
     { id: "inbound", label: "Entradas", icon: Inbox, group: "I/O" },
     { id: "sinks", label: "Saídas", icon: Package, group: "I/O" },
+    { id: "vault", label: "Credenciais", icon: KeyRound, group: "Sistema" },
     { id: "deliveries", label: "Histórico", icon: Send, group: "Sistema" },
     { id: "hub", label: "MCP Hub", icon: Boxes, group: "Sistema" },
     { id: "mcp", label: "MCP e segurança", icon: ShieldCheck, group: "Sistema" },
@@ -355,6 +361,9 @@ export function IntegrationsPage() {
           <TicketInboxCard workspaceId={activeWorkspaceId} />
         </div>
       ) : null}
+      {activeTab === "team" && activeWorkspaceId ? (
+        <TeamChannelsCard workspaceId={activeWorkspaceId} />
+      ) : null}
       {activeTab === "browser" ? <BrowserCard /> : null}
 
       {activeTab === "inbound" ? (
@@ -363,6 +372,10 @@ export function IntegrationsPage() {
 
       {activeTab === "sinks" ? (
         <OutboundSinksCard workspaceId={activeWorkspaceId ?? ""} />
+      ) : null}
+
+      {activeTab === "vault" ? (
+        <VaultCard workspaceId={activeWorkspaceId ?? ""} />
       ) : null}
 
       {activeTab === "deliveries" ? (

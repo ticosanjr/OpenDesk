@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
-import { Plus, RefreshCw, Workflow } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { History, Plus, RefreshCw, Sparkles, Workflow } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Modal } from "@/components/ui/modal";
 import { IconLabel } from "@/components/ui/icon-label";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { useAppStore } from "@/store/app-store";
@@ -18,6 +19,7 @@ import { RecipeFlowCard } from "./recipes/RecipeFlowCard";
 import { YamlPanel } from "./recipes/YamlPanel";
 import { RecipeRunsCard } from "./recipes/RecipeRunsCard";
 import { RecipeRunModal } from "./recipes/RecipeRunModal";
+import { RecipeVersionsDrawer } from "@/components/recipes/editors/RecipeVersionsDrawer";
 import {
   DEFAULT_YAML,
   type RecipeIndex,
@@ -51,6 +53,11 @@ export function RecipesPage() {
     return Number.isFinite(saved) && saved >= 320 && saved <= 900 ? saved : 460;
   });
   const [resizing, setResizing] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const navigate = useNavigate();
 
   const [recipe, setRecipe] = useState<Dictionary | null>(null);
   const selectedRecipe = recipes.find((item) => item.id === selected) ?? null;
@@ -292,6 +299,40 @@ export function RecipesPage() {
     }
   }
 
+  async function generateWithAi() {
+    if (!workspaceId || !aiPrompt.trim()) return;
+    setAiBusy(true);
+    try {
+      const thread = await apiPost<{ id: string }>("/api/chat/threads", {
+        workspace_id: workspaceId,
+        title: `Receita: ${aiPrompt.trim().slice(0, 48)}`,
+        agent: "build",
+        model: null,
+        source: "desktop",
+      });
+      void apiPost(`/api/chat/threads/${thread.id}/messages`, {
+        content: `/opendesk-receita ${aiPrompt.trim()}`,
+      }).catch((cause) => {
+        toast({
+          tone: "error",
+          title: "A conversa abriu, mas o comando falhou",
+          description: cause instanceof Error ? cause.message : String(cause),
+        });
+      });
+      setAiOpen(false);
+      setAiPrompt("");
+      navigate(`/chat?thread=${thread.id}`);
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível iniciar a receita com IA",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   return (
     <PageBody>
       <PageHeader
@@ -303,6 +344,22 @@ export function RecipesPage() {
               <IconLabel icon={<RefreshCw size={13} className={loading ? "animate-spin" : undefined} />}>
                 Atualizar
               </IconLabel>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!workspaceId}
+              onClick={() => setAiOpen(true)}
+            >
+              <IconLabel icon={<Sparkles size={13} />}>Gerar com IA</IconLabel>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!selected}
+              onClick={() => setVersionsOpen(true)}
+            >
+              <IconLabel icon={<History size={13} />}>Versões</IconLabel>
             </Button>
             <Button size="sm" onClick={() => void create()}>
               <IconLabel icon={<Plus size={13} />}>Nova receita</IconLabel>
@@ -380,6 +437,44 @@ export function RecipesPage() {
       </div>
 
       <RecipeRunsCard runs={runs} />
+
+      <Modal
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        title="Gerar receita com IA"
+        description="Descreva o objetivo. O comando /opendesk-receita abre uma conversa no agente build; revise o YAML antes de ligar."
+        size="md"
+      >
+        <div className="space-y-3">
+          <textarea
+            value={aiPrompt}
+            onChange={(event) => setAiPrompt(event.target.value)}
+            rows={5}
+            placeholder="Ex.: toda segunda, ler o feed de notícias, resumir em 5 itens e enviar no Telegram."
+            className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 p-2 text-[13px] text-zinc-100 outline-none focus:border-blue-500/60"
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setAiOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              disabled={aiBusy || !aiPrompt.trim()}
+              onClick={() => void generateWithAi()}
+            >
+              {aiBusy ? "Abrindo..." : "Abrir conversa"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <RecipeVersionsDrawer
+        recipeId={selected}
+        workspaceId={workspaceId ?? ""}
+        open={versionsOpen}
+        onClose={() => setVersionsOpen(false)}
+        onRestored={() => void load()}
+      />
 
       <RecipeRunModal
         open={runMode !== null}

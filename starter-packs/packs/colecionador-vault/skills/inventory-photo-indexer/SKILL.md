@@ -5,15 +5,18 @@ description: Indexa fotos e itens.
 # Photo Indexer
 
 ## Quando usar
-Indexa fotos e itens.
+Ao receber fotos de itens para o acervo.
 
 ## Processo
-1. Confirme entradas, escopo e critérios de sucesso.
-2. Execute com evidência rastreável.
-3. Marque incertezas e riscos.
-4. Entregue saída estruturada e revisável.
+1. Renomeie cada foto com `categoria-id-sequencial-vista` e preserve o original.
+2. Registre item, ângulo, iluminação, estado de conservação e data.
+3. Detecte duplicatas por hash e fotos sem item legível.
+4. Gere uma lista de pendências para fotos faltantes.
 
-## Checklist
-- [ ] Fontes e premissas explícitas.
-- [ ] Nenhuma ação irreversível sem aprovação.
-- [ ] Resultado salvo no diretório do run.
+## Saída
+CSV/JSON com caminho, item, ângulo, condição e hash; lista de pendências.
+
+## Critérios de aceite
+- [ ] Nenhum original é apagado.
+- [ ] Toda foto tem item e ângulo.
+- [ ] Duplicatas e fotos ilegíveis estão sinalizadas.

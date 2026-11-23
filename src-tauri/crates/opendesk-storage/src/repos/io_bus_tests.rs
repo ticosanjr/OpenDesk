@@ -28,6 +28,8 @@ mod tests {
                 config: serde_json::json!({"path":"input/dropzone"}),
                 target_agent: Some("build".into()),
                 target_column: Some("TODO".into()),
+                target_kind: None,
+                target_id: None,
                 auto_execute: true,
                 is_enabled: true,
             },
@@ -81,5 +83,82 @@ mod tests {
         );
         assert_eq!(list_inbound(&pool, "ws-1").await.expect("list").len(), 1);
         assert_eq!(inbound.source_type, "FOLDER_WATCH");
+    }
+
+    #[tokio::test]
+    async fn resolves_typed_target_and_accepts_new_io_types() {
+        let (_temp, pool) = setup().await;
+        let recipe = create_inbound(
+            &pool,
+            "ws-1",
+            InboundInput {
+                name: "Poller".into(),
+                source_type: "HTTP_POLLER".into(),
+                config: serde_json::json!({"url":"https://example.com/feed","format":"rss"}),
+                target_agent: None,
+                target_column: Some("TODO".into()),
+                target_kind: Some("RECIPE".into()),
+                target_id: Some("rec-1".into()),
+                auto_execute: true,
+                is_enabled: true,
+            },
+        )
+        .await
+        .expect("poller");
+        assert_eq!(recipe.source_type, "HTTP_POLLER");
+        assert_eq!(recipe.target_kind, "RECIPE");
+        assert_eq!(recipe.target_id.as_deref(), Some("rec-1"));
+
+        let inferred = create_inbound(
+            &pool,
+            "ws-1",
+            InboundInput {
+                name: "Inferida".into(),
+                source_type: "FOLDER_WATCH".into(),
+                config: serde_json::json!({"recipe_id":"rec-2"}),
+                target_agent: None,
+                target_column: Some("TODO".into()),
+                target_kind: None,
+                target_id: None,
+                auto_execute: true,
+                is_enabled: true,
+            },
+        )
+        .await
+        .expect("inferred");
+        assert_eq!(inferred.target_kind, "RECIPE");
+        assert_eq!(inferred.target_id.as_deref(), Some("rec-2"));
+
+        let sink = create_outbound(
+            &pool,
+            "ws-1",
+            OutboundInput {
+                name: "Hook".into(),
+                sink_type: "HTTP_WEBHOOK".into(),
+                config: serde_json::json!({"url":"https://example.com/hook"}),
+                is_enabled: true,
+            },
+        )
+        .await
+        .expect("hook");
+        assert_eq!(sink.sink_type, "HTTP_WEBHOOK");
+
+        let missing_id = create_inbound(
+            &pool,
+            "ws-1",
+            InboundInput {
+                name: "Sem id".into(),
+                source_type: "FOLDER_WATCH".into(),
+                config: serde_json::json!({}),
+                target_agent: None,
+                target_column: Some("TODO".into()),
+                target_kind: Some("RECIPE".into()),
+                target_id: None,
+                auto_execute: true,
+                is_enabled: true,
+            },
+        )
+        .await;
+        assert!(missing_id.is_err());
     }
 }

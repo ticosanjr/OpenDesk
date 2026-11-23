@@ -1,6 +1,9 @@
 use crate::{db::settings, paths::AppPaths};
 use serde_json::Value;
 
+#[path = "live_system.rs"]
+pub(super) mod system;
+
 use super::{LiveProbe, ServiceProbe};
 
 pub(super) async fn probe_live(
@@ -212,6 +215,35 @@ pub(super) async fn probe_live(
         .into(),
         detail: origin,
     });
+
+    probes.push(system::probe_vault(pool).await);
+    probes.push(system::probe_http_pollers(pool).await);
+    probes.push(system::probe_recipes(pool).await);
+
+    probes.push(
+        system::probe_discord(
+            opendesk_channels::discord::load(pool).await.ok(),
+            opendesk_channels::discord::token(&secrets),
+        )
+        .await,
+    );
+    probes.push(
+        system::probe_slack(
+            opendesk_channels::slack::load(pool).await.ok(),
+            opendesk_channels::slack::app_token(&secrets),
+            opendesk_channels::slack::bot_token(&secrets),
+        )
+        .await,
+    );
+    let qr_status = settings::get(pool, "whatsapp_qr_last_status")
+        .await
+        .ok()
+        .flatten()
+        .and_then(|value| value.as_str().map(str::to_string));
+    probes.push(system::probe_qr(
+        opendesk_channels::whatsapp::load_qr_config(pool).await.ok(),
+        qr_status,
+    ));
 
     probes
 }

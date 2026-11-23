@@ -41,6 +41,7 @@ pub struct QueueStatus {
 
 pub struct QueueManager {
     pool: SqlitePool,
+    scrubber: Arc<opendesk_storage::secrets::SecretScrubber>,
     paths: AppPaths,
     events: EventBus,
     write_buffer: Arc<opendesk_storage::write_buffer::WriteBuffer>,
@@ -75,6 +76,7 @@ async fn worktree_runs_enabled(pool: &sqlx::SqlitePool) -> bool {
 
 pub struct QueueConfig {
     pub pool: SqlitePool,
+    pub scrubber: Arc<opendesk_storage::secrets::SecretScrubber>,
     pub paths: AppPaths,
     pub events: EventBus,
     pub write_buffer: Arc<opendesk_storage::write_buffer::WriteBuffer>,
@@ -89,6 +91,7 @@ impl QueueManager {
     pub fn new(config: QueueConfig) -> Arc<Self> {
         let QueueConfig {
             pool,
+            scrubber,
             paths,
             events,
             write_buffer,
@@ -100,6 +103,7 @@ impl QueueManager {
         } = config;
         Arc::new(Self {
             pool,
+            scrubber,
             paths,
             events,
             write_buffer,

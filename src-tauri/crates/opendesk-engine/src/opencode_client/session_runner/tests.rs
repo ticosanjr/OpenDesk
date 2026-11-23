@@ -70,12 +70,14 @@ async fn stream_close_falls_back_to_wait_and_messages() {
         .expect("db");
     let log = temp.path().join("run.jsonl");
     let events = EventBus::new(16);
+    let scrubber = opendesk_storage::secrets::SecretScrubber::new();
     let outcome = execute_run(
         rest,
         RunRequest {
             notifier: None,
             pool: &pool,
             secrets: &SecretStore::with_dir(temp.path().join("secrets")),
+            scrubber: &scrubber,
             workspace_id: "ws-1",
             run_id: "run-1",
             task_id: None,

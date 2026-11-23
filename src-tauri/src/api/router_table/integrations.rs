@@ -23,6 +23,39 @@ pub(super) fn routes() -> Router<Arc<AppState>> {
             post(channels::rotate_webhook_token),
         )
         .route("/api/channels/whatsapp/send", post(channels::send_whatsapp))
+        .route(
+            "/api/channels/discord",
+            get(channels::discord::status).put(channels::discord::update),
+        )
+        .route(
+            "/api/channels/discord/start",
+            post(channels::discord::start),
+        )
+        .route("/api/channels/discord/stop", post(channels::discord::stop))
+        .route("/api/channels/discord/send", post(channels::discord::send))
+        .route(
+            "/api/channels/slack",
+            get(channels::slack::status).put(channels::slack::update),
+        )
+        .route("/api/channels/slack/start", post(channels::slack::start))
+        .route("/api/channels/slack/stop", post(channels::slack::stop))
+        .route("/api/channels/slack/send", post(channels::slack::send))
+        .route(
+            "/api/channels/whatsapp-qr",
+            get(channels::whatsapp_qr::status).put(channels::whatsapp_qr::update),
+        )
+        .route(
+            "/api/channels/whatsapp-qr/start",
+            post(channels::whatsapp_qr::start),
+        )
+        .route(
+            "/api/channels/whatsapp-qr/stop",
+            post(channels::whatsapp_qr::stop),
+        )
+        .route(
+            "/api/channels/whatsapp-qr/send",
+            post(channels::whatsapp_qr::send),
+        )
         .route("/api/tickets", get(tickets::list))
         .route(
             "/api/tickets/{id}",
@@ -168,4 +201,17 @@ pub(super) fn routes() -> Router<Arc<AppState>> {
         .route("/api/integrations/telegram/start", post(telegram::start))
         .route("/api/integrations/telegram/stop", post(telegram::stop))
         .route("/api/integrations/telegram/test", post(telegram::test))
+        .route("/api/vault", get(vault::list).post(vault::create))
+        .route("/api/vault/import-env", post(vault::import_env))
+        .route("/api/vault/import-bitwarden", post(vault::import_bitwarden))
+        .route("/api/vault/audit", get(vault::audit))
+        .route(
+            "/api/vault/{id}",
+            get(vault::get).patch(vault::update).delete(vault::delete),
+        )
+        .route(
+            "/api/vault/{id}/acl",
+            get(vault::get_acl).put(vault::put_acl),
+        )
+        .route("/api/vault/{id}/request-fill", post(vault::request_fill))
 }

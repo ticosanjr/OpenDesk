@@ -7,8 +7,9 @@ import { FieldHint } from "@/components/ui/field-hint";
 import { cn } from "@/lib/utils";
 import { inputClass } from "../recipe-fields";
 import { TriggerEditor } from "../recipe-trigger-editor";
-import type { Dictionary, FlowEntry } from "../recipe-types";
+import type { Dictionary, FlowEntry, FlowNodeType } from "../recipe-types";
 import { commit, normalizeFlow, normalizeTriggers } from "./recipe-editor-model";
+import { DagNodeEditor } from "./DagNodeEditor";
 import { HitlEditor } from "./HitlEditor";
 import { SinkEditor } from "./SinkEditor";
 import { StepEditor } from "./StepEditor";
@@ -72,7 +73,7 @@ export function RecipeStepper({
         id: `checkpoint-${count}`,
         name: `Checkpoint ${count}`,
         interaction_type: "BINARY_GATE",
-        channels: ["DESKTOP_UI"],
+        channels: ["DESKTOP_UI", "PUSH"],
         timeout_minutes: 240,
         on_timeout: "PAUSE_AND_ALERT",
         prompt_template: "Aprovar a execução?",
@@ -91,6 +92,39 @@ export function RecipeStepper({
         config: { format: "pdf" },
       },
     ]);
+  }
+
+  function addComplex(type: FlowNodeType) {
+    const count = flow.filter((item) => item.type === type).length + 1;
+    const base: Record<FlowNodeType, Dictionary> = {
+      step: {},
+      hitl: {},
+      sink: {},
+      branch: { id: `branch-${count}`, when: "true", then: [], else: [] },
+      parallel: { id: `parallel-${count}`, join: "all", branches: [[], []] },
+      map: {
+        id: `map-${count}`,
+        items: "{{steps.lista.structured.items}}",
+        item_var: "item",
+        max_concurrency: 3,
+        flow: [],
+      },
+      recipe_call: { id: `call-${count}`, recipe: "outra-receita", with: {} },
+      loop: { id: `loop-${count}`, max_iterations: 3, flow: [] },
+      switch: { id: `switch-${count}`, cases: [], default: [] },
+    };
+    const labels: Record<FlowNodeType, string> = {
+      step: "Etapa",
+      hitl: "Checkpoint",
+      sink: "Saída",
+      branch: "Condição",
+      parallel: "Paralelo",
+      map: "Map",
+      recipe_call: "Sub-receita",
+      loop: "Loop",
+      switch: "Switch",
+    };
+    setFlow([...flow, { ...base[type], type, name: labels[type] }]);
   }
 
   return (
@@ -171,10 +205,16 @@ export function RecipeStepper({
             <div className="flex items-center gap-1">
               <Badge
                 variant={
-                  item.type === "step" ? "default" : item.type === "hitl" ? "yellow" : "green"
+                  item.type === "step"
+                    ? "default"
+                    : item.type === "hitl"
+                      ? "yellow"
+                      : item.type === "sink"
+                        ? "green"
+                        : "purple"
                 }
               >
-                {item.type === "step" ? "Etapa" : item.type === "hitl" ? "Checkpoint" : "Saída"}
+                {nodeLabel(item.type)}
               </Badge>
               <input
                 value={(item.name as string) ?? ""}
@@ -227,9 +267,14 @@ export function RecipeStepper({
                 checkpoint={item}
                 onChange={(value) => patch(index, value)}
               />
-            ) : (
+            ) : item.type === "sink" ? (
               <SinkEditor
                 sink={item}
+                onChange={(value) => patch(index, value)}
+              />
+            ) : (
+              <DagNodeEditor
+                node={item}
                 onChange={(value) => patch(index, value)}
               />
             )}
@@ -252,8 +297,49 @@ export function RecipeStepper({
           <Button variant="outline" size="sm" onClick={addSink}>
             <IconLabel icon={<Plus size={11} />}>Saída</IconLabel>
           </Button>
+          <Button variant="outline" size="sm" onClick={() => addComplex("branch")}>
+            <IconLabel icon={<Plus size={11} />}>Condição</IconLabel>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => addComplex("parallel")}>
+            <IconLabel icon={<Plus size={11} />}>Paralelo</IconLabel>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => addComplex("map")}>
+            <IconLabel icon={<Plus size={11} />}>Map</IconLabel>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => addComplex("recipe_call")}>
+            <IconLabel icon={<Plus size={11} />}>Sub-receita</IconLabel>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => addComplex("loop")}>
+            <IconLabel icon={<Plus size={11} />}>Loop</IconLabel>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => addComplex("switch")}>
+            <IconLabel icon={<Plus size={11} />}>Switch</IconLabel>
+          </Button>
         </div>
       </section>
     </div>
   );
+}
+
+function nodeLabel(type: FlowNodeType): string {
+  switch (type) {
+    case "step":
+      return "Etapa";
+    case "hitl":
+      return "Checkpoint";
+    case "sink":
+      return "Saída";
+    case "branch":
+      return "Condição";
+    case "parallel":
+      return "Paralelo";
+    case "map":
+      return "Map";
+    case "recipe_call":
+      return "Sub-receita";
+    case "loop":
+      return "Loop";
+    case "switch":
+      return "Switch";
+  }
 }

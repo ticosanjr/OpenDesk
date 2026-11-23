@@ -76,6 +76,46 @@ impl Validator {
                             step.id
                         )));
                     }
+                    if let Some(policy) = step.on_schema_error.as_deref()
+                        && !matches!(policy, "retry_format" | "fail" | "hitl")
+                    {
+                        return Err(AppError::BadRequest(format!(
+                            "on_schema_error inválido no step {}: use retry_format, fail ou hitl",
+                            step.id
+                        )));
+                    }
+                    if let Some(retry) = step.retry_max
+                        && retry > 5
+                    {
+                        return Err(AppError::BadRequest(format!(
+                            "retry_max do step {} excede 5",
+                            step.id
+                        )));
+                    }
+                    if let Some(timeout) = step.timeout_secs
+                        && !(1..=7200).contains(&timeout)
+                    {
+                        return Err(AppError::BadRequest(format!(
+                            "timeout_secs do step {} deve ficar entre 1 e 7200",
+                            step.id
+                        )));
+                    }
+                    let mut refs = std::collections::HashSet::new();
+                    for reference in &step.vault_refs {
+                        let reference = reference.trim();
+                        if reference.is_empty() || reference.contains("{{") {
+                            return Err(AppError::BadRequest(format!(
+                                "vault_ref inválido no step {}",
+                                step.id
+                            )));
+                        }
+                        if !refs.insert(reference.to_string()) {
+                            return Err(AppError::BadRequest(format!(
+                                "vault_ref duplicado no step {}: {reference}",
+                                step.id
+                            )));
+                        }
+                    }
                     for (field, schema) in [
                         ("input_schema", step.input_schema.as_ref()),
                         ("output_schema", step.output_schema.as_ref()),

@@ -140,7 +140,9 @@ pub async fn send_message_with_context(
     if !memory_policy.trim().is_empty() {
         parts.push(memory_policy);
     }
-    parts.push(content.to_string());
+    parts.push(crate::dsh_router::context_packer::untrusted_block(
+        "chat", content,
+    ));
     let prompt_text = parts.join("\n\n");
 
     let since_ms = now_ms();

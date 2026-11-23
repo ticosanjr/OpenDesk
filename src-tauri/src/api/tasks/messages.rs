@@ -127,9 +127,14 @@ pub async fn post_task_message(
             personal_context: &personal_context,
             structured_memory: &memory_context,
             session_packet: &session_packet,
+            harness_id: &decision.harness,
+            untrusted_data: "",
+            output_schema: None,
         },
         &templates,
     );
+    let conversation =
+        crate::dsh_router::context_packer::untrusted_block("follow-up", &conversation);
     let follow_up = crate::dsh_router::prompt_templates::render(
         &templates.follow_up,
         &[("conversation", &conversation)],

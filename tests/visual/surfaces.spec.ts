@@ -120,6 +120,13 @@ test("visual baselines for every route and main modal", async ({ page, request }
     for (const width of route.widths) {
       await page.setViewportSize(VIEWPORTS[width]);
       await page.goto(route.path);
+      if (route.name === "search") {
+        // The recent-activity fetch is debounced; wait for it so the golden is
+        // deterministic instead of racing the empty state.
+        await page
+          .getByText("Últimas atividades")
+          .waitFor({ state: "visible", timeout: 15_000 });
+      }
       if (route.name === "packs" && width === 1440) {
         await page.getByRole("button", { name: "Recomendados" }).click();
         // Pack installation and the curated list are asynchronous; wait for

@@ -45,6 +45,18 @@ pub(super) fn recipe_set_enabled() -> Value {
     )
 }
 
+pub(super) fn recipe_validate() -> Value {
+    tool(
+        "recipe_validate",
+        "Valida YAML de receita sem executar: DAG, expressões, schemas, limites e vault_refs. Retorna valid, issues e a receita normalizada.",
+        json!({
+            "type": "object",
+            "required": ["yaml"],
+            "properties": { "yaml": { "type": "string" } }
+        }),
+    )
+}
+
 pub(super) fn recipe_run() -> Value {
     tool(
         "recipe_run",

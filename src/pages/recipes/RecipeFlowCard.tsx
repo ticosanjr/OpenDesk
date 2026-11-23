@@ -1,6 +1,6 @@
 import { GitBranch, Play, Sparkles, Trash2 } from "lucide-react";
 import type { Dictionary } from "@/components/recipes/recipe-editors";
-import { RecipeStepper } from "@/components/recipes/recipe-editors";
+import { DagFlowEditor } from "@/components/recipes/editors/DagFlowEditor";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { IconLabel } from "@/components/ui/icon-label";
@@ -73,7 +73,7 @@ export function RecipeFlowCard({
         {editorLoading ? (
           <LoadingState label="Carregando receita…" rows={5} />
         ) : recipe ? (
-          <RecipeStepper
+          <DagFlowEditor
             recipe={recipe}
             workspaceId={workspaceId}
             onChange={onChange}

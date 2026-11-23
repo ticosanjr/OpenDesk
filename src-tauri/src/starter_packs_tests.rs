@@ -536,3 +536,61 @@ fn rejects_path_traversal_in_folders() {
     assert!(safe_relative("input/../etc").is_err());
     assert!(safe_relative("input/dropzone").is_ok());
 }
+
+#[test]
+fn priority_skills_are_not_generic_stubs() {
+    const PRIORITY: [&str; 6] = [
+        "ad-creative-studio",
+        "afiliados-growth",
+        "colecionador-vault",
+        "compras-dispensa",
+        "youtube-pipeline",
+        "assistente-pessoal",
+    ];
+    for id in PRIORITY {
+        let (manifest, _) = load_manifest(id).expect("manifest");
+        for skill in manifest.contents.skills {
+            let path = format!("packs/{id}/skills/{skill}/SKILL.md");
+            let text = BUNDLE
+                .get_file(&path)
+                .and_then(|file| std::str::from_utf8(file.contents()).ok())
+                .unwrap_or_else(|| panic!("{path} ausente"));
+            assert!(
+                !text.contains("Confirme entradas, escopo e critérios de sucesso"),
+                "{path} ainda é stub genérico"
+            );
+            assert!(text.contains("## Processo"), "{path} sem processo");
+            let body = text.splitn(3, "---").nth(2).unwrap_or("");
+            assert!(body.trim().len() >= 80, "{path} tem corpo curto demais");
+        }
+    }
+}
+
+#[test]
+fn all_bundled_skills_and_agents_are_substantive() {
+    for id in catalog().expect("catalog").packs {
+        let (manifest, _) = load_manifest(&id).expect("manifest");
+        for skill in manifest.contents.skills {
+            let path = format!("packs/{id}/skills/{skill}/SKILL.md");
+            let text = BUNDLE
+                .get_file(&path)
+                .and_then(|file| std::str::from_utf8(file.contents()).ok())
+                .unwrap_or_else(|| panic!("{path} ausente"));
+            assert!(
+                !text.contains("Confirme entradas, escopo e critérios de sucesso"),
+                "{path} ainda é stub genérico"
+            );
+            let body = text.splitn(3, "---").nth(2).unwrap_or("");
+            assert!(body.trim().len() >= 80, "{path} tem corpo curto demais");
+        }
+        for agent in manifest.contents.agents {
+            let path = format!("packs/{id}/agents/{agent}");
+            let text = BUNDLE
+                .get_file(&path)
+                .and_then(|file| std::str::from_utf8(file.contents()).ok())
+                .unwrap_or_else(|| panic!("{path} ausente"));
+            let body = text.splitn(3, "---").nth(2).unwrap_or("");
+            assert!(body.trim().len() >= 80, "{path} tem corpo curto demais");
+        }
+    }
+}

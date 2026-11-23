@@ -316,6 +316,8 @@ mod tests {
                 }),
                 target_agent: None,
                 target_column: Some("TODO".into()),
+                target_kind: None,
+                target_id: None,
                 auto_execute: false,
                 is_enabled: false,
             },

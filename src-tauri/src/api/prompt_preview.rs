@@ -93,13 +93,12 @@ pub async fn preview(
         personal_context: &personal_context,
         structured_memory: &memory_context,
         session_packet: &session_packet,
+        harness_id: &decision.harness,
+        untrusted_data: "",
+        output_schema: None,
     };
     let sections = dsh_router::context_packer::pack_sections(&context, &templates);
-    let prompt = sections
-        .iter()
-        .map(|section| section.content.as_str())
-        .collect::<Vec<_>>()
-        .join("\n\n");
+    let prompt = dsh_router::context_packer::render_sections(&context, &templates, &sections);
     let layer = prompt_layer::snapshot(
         std::path::Path::new(&workspace.root_path),
         &decision.selected_agent,

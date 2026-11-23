@@ -74,6 +74,18 @@ pub struct Step {
     /// Optional JSON Schema the agent output must satisfy.
     #[serde(default)]
     pub output_schema: Option<serde_json::Value>,
+    /// Extra attempts when the dispatched run fails.
+    #[serde(default)]
+    pub retry_max: Option<usize>,
+    /// Per-step wait limit in seconds (1..=7200).
+    #[serde(default)]
+    pub timeout_secs: Option<u64>,
+    /// `retry_format`, `fail` or `hitl` when `output_schema` does not validate.
+    #[serde(default)]
+    pub on_schema_error: Option<String>,
+    /// Vault entries this step declares. Validated by the API dry-run.
+    #[serde(default)]
+    pub vault_refs: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -229,6 +241,7 @@ pub enum FlowItem {
     Branch(BranchFlow),
     Parallel(ParallelFlow),
     Map(MapFlow),
+    #[serde(rename = "recipe_call", alias = "recipe")]
     Recipe(RecipeCall),
     Loop(LoopFlow),
     Switch(SwitchFlow),

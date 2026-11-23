@@ -148,16 +148,21 @@ pub async fn prompt_preview(
             content: content.clone(),
         });
     }
-    let prompt = [
-        personal.trim(),
-        channel.trim(),
-        memory_policy.trim(),
-        content.trim(),
-    ]
-    .into_iter()
-    .filter(|part| !part.is_empty())
-    .collect::<Vec<_>>()
-    .join("\n\n");
+    let rendered = sections
+        .iter()
+        .filter(|section| section.id != "message")
+        .cloned()
+        .collect::<Vec<_>>();
+    let prompt = crate::dsh_router::context_packer::render_sections_with(
+        &crate::dsh_router::context_packer::PromptBlocks {
+            harness_id: "opencode",
+            untrusted_data: &content,
+            output_schema: None,
+            untrusted_wrapper: &templates.untrusted_wrapper,
+            json_schema_contract: &templates.json_schema_contract,
+        },
+        &rendered,
+    );
     let layer = crate::api::prompt_layer::snapshot(
         std::path::Path::new(&workspace.root_path),
         &thread.agent,

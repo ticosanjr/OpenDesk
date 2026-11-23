@@ -165,6 +165,27 @@ pub const FIELDS: &[PromptTemplateField] = &[
         placeholders: &[],
     },
     PromptTemplateField {
+        id: "untrusted_wrapper",
+        label: "Wrapper de dados não confiáveis",
+        description: "Bloco que isola conteúdo de canal/chat; source e untrusted_data são escapados.",
+        group: "Segurança",
+        placeholders: &["source", "untrusted_data"],
+    },
+    PromptTemplateField {
+        id: "json_schema_contract",
+        label: "Contrato JSON",
+        description: "Bloco injetado quando um step/tarefa define output_schema.",
+        group: "Segurança",
+        placeholders: &["schema"],
+    },
+    PromptTemplateField {
+        id: "harness_overrides",
+        label: "Adaptação por harness",
+        description: "Instrução usada quando o run não é OpenCode.",
+        group: "Segurança",
+        placeholders: &["harness_id"],
+    },
+    PromptTemplateField {
         id: "recipe_feedback",
         label: "Correção de step de receita",
         description: "Bloco enviado ao refazer um passo de receita.",

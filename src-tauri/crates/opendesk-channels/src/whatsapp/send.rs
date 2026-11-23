@@ -63,7 +63,7 @@ pub async fn send_text(
         api_version(&config),
         config.phone_number_id.trim()
     );
-    let response = reqwest::Client::new()
+    let response = crate::http_client()
         .post(&url)
         .bearer_auth(access_token)
         .json(&json!({

@@ -3,7 +3,10 @@ use crate::{
     db::{self, settings, workspaces},
     error::AppResult,
     events::EventBus,
-    integrations::{google_oauth::GoogleOAuth, signal::SignalBridge, telegram::TelegramBridge},
+    integrations::{
+        discord::DiscordBridge, google_oauth::GoogleOAuth, signal::SignalBridge,
+        slack::SlackBridge, telegram::TelegramBridge, whatsapp_qr::WhatsAppQrBridge,
+    },
     opencode_client::{binary::OpenCodeLocator, daemon_manager::DaemonManager},
     paths::AppPaths,
     queue_scheduler::{CronEngine, QueueConfig, QueueManager},
@@ -37,6 +40,7 @@ pub struct ActiveChatTurn {
 
 pub struct AppState {
     pub paths: AppPaths,
+    pub scrubber: Arc<crate::secrets::SecretScrubber>,
     pub db: SqlitePool,
     pub events: EventBus,
     pub write_buffer: Arc<crate::db::write_buffer::WriteBuffer>,
@@ -49,6 +53,9 @@ pub struct AppState {
     pub google: Arc<GoogleOAuth>,
     pub signal: Arc<SignalBridge>,
     pub telegram: Arc<TelegramBridge>,
+    pub discord: Arc<DiscordBridge>,
+    pub slack: Arc<SlackBridge>,
+    pub whatsapp_qr: Arc<WhatsAppQrBridge>,
     pub io_bus: Arc<crate::io_bus::runtime::IoBus>,
     pub push_keys: crate::push::VapidKeys,
     pub adapters: Arc<crate::adapters::AdapterService>,
@@ -71,6 +78,9 @@ impl AppState {
     pub async fn initialize(paths: AppPaths) -> Result<Self> {
         let db = db::init(&paths.db_path).await?;
         crate::io_bus::secrets_guard::migrate_legacy_secrets(&db, &paths).await?;
+        if let Err(error) = db::vault::migrate_legacy_io_secrets(&db, &paths).await {
+            tracing::warn!(error = %error, "vault legacy import failed");
+        }
         db::maintenance::boot_check(&db).await?;
         if let Err(error) = db::worktrees::sweep(&db, &paths.data_dir).await {
             tracing::warn!(error = %error, "worktree sweep failed");
@@ -133,8 +143,10 @@ impl AppState {
             .and_then(|value| value.as_u64())
             .unwrap_or(1) as usize;
         let task_dispatcher = Arc::new(crate::shell_queue_ports::ShellTaskDispatcher::new());
+        let scrubber = Arc::new(crate::secrets::SecretScrubber::new());
         let queue = QueueManager::new(QueueConfig {
             pool: db.clone(),
+            scrubber: scrubber.clone(),
             paths: paths.clone(),
             events: events.clone(),
             write_buffer: write_buffer.clone(),
@@ -157,6 +169,7 @@ impl AppState {
 
         let state = Self {
             paths,
+            scrubber,
             db,
             events,
             write_buffer,
@@ -169,6 +182,9 @@ impl AppState {
             google,
             signal,
             telegram,
+            discord: Arc::new(DiscordBridge::default()),
+            slack: Arc::new(SlackBridge::default()),
+            whatsapp_qr: Arc::new(WhatsAppQrBridge::default()),
             io_bus,
             push_keys,
             adapters,

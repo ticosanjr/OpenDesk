@@ -112,6 +112,21 @@ pub const VARIABLES: &[PromptVariable] = &[
         available: true,
     },
     PromptVariable {
+        id: "untrusted_data",
+        description: "Conteúdo passivo de canal/chat.",
+        available: true,
+    },
+    PromptVariable {
+        id: "schema",
+        description: "JSON Schema de saída.",
+        available: true,
+    },
+    PromptVariable {
+        id: "harness_id",
+        description: "Harness do run.",
+        available: true,
+    },
+    PromptVariable {
         id: "feedback",
         description: "Correção de step de receita.",
         available: true,

@@ -94,6 +94,11 @@ pub enum OpenDeskWsEvent {
         thread_id: String,
         workspace_id: String,
     },
+    ChannelStatus {
+        channel: String,
+        status: String,
+        detail: Option<String>,
+    },
     PermissionRequested {
         request_id: String,
         run_id: String,

@@ -36,6 +36,7 @@ mod test_support;
 mod tray;
 mod updates;
 mod v1_export;
+mod vault_bitwarden;
 mod voice;
 
 pub mod audit;

@@ -36,6 +36,7 @@ mod server;
 mod tasks;
 mod tools;
 mod util;
+mod vault;
 mod voice;
 mod worktrees;
 
@@ -415,6 +416,11 @@ async fn dispatch(
     }
     if let Some(result) =
         worktrees::dispatch(&client, &endpoint, workspace_id, default_agent, tool, args).await
+    {
+        return result;
+    }
+    if let Some(result) =
+        vault::dispatch(&client, &endpoint, workspace_id, default_agent, tool, args).await
     {
         return result;
     }

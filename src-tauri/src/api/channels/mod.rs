@@ -1,9 +1,12 @@
 use serde::Deserialize;
 
+pub mod discord;
 mod routes;
+pub mod slack;
 mod status;
 mod webhook;
 mod whatsapp;
+pub mod whatsapp_qr;
 
 pub use opendesk_channels::whatsapp::WhatsAppConfig;
 pub use routes::*;

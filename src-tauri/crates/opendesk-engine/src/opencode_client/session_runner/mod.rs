@@ -10,7 +10,7 @@ use stream::{handle_event, read_tail};
 use crate::opencode_client::rest_client::{FileDiff, RestClient};
 use opendesk_storage::events::EventBus;
 use opendesk_storage::repos::runs::RunUsage;
-use opendesk_storage::secrets::SecretStore;
+use opendesk_storage::secrets::{SecretScrubber, SecretStore};
 
 use futures_util::StreamExt;
 use serde_json::Value;
@@ -73,6 +73,7 @@ pub struct RunOutcome {
 pub struct RunRequest<'a> {
     pub pool: &'a SqlitePool,
     pub secrets: &'a SecretStore,
+    pub scrubber: &'a SecretScrubber,
     pub workspace_id: &'a str,
     pub run_id: &'a str,
     pub task_id: Option<&'a str>,
@@ -111,6 +112,7 @@ pub async fn execute_run(
                     String::new(),
                     format!("could not create OpenCode session: {error:#}"),
                     request.log_path,
+                    request.scrubber,
                 );
             }
         },
@@ -161,6 +163,7 @@ pub async fn execute_run(
             session_id,
             format!("could not send OpenCode prompt: {error:#}"),
             request.log_path,
+            request.scrubber,
         );
     }
 
@@ -211,6 +214,7 @@ pub async fn execute_run(
                                     request.workspace_id,
                                     request.pool,
                                     request.secrets,
+                                    request.scrubber,
                                     request.log_path,
                                     events,
                                     &rest,
@@ -371,7 +375,26 @@ pub async fn execute_run(
         }
     }
 
-    let log_tail = read_tail(request.log_path, 16 * 1024);
+    let summary = summary.map(|value| request.scrubber.scrub(&value));
+    let error_message = error_message.map(|value| request.scrubber.scrub(&value));
+    let diffs = diffs
+        .into_iter()
+        .map(|mut diff| {
+            diff.patch = request.scrubber.scrub(&diff.patch);
+            diff
+        })
+        .collect();
+    let writes = writes
+        .into_iter()
+        .map(|mut write| {
+            if let Some(patch) = write.diff_patch.as_deref() {
+                write.diff_patch = Some(request.scrubber.scrub(patch));
+            }
+            write
+        })
+        .collect();
+    let log_tail =
+        read_tail(request.log_path, 16 * 1024).map(|value| request.scrubber.scrub(&value));
     publish_chunk(
         events,
         request.run_id,
@@ -393,7 +416,13 @@ pub async fn execute_run(
     }
 }
 
-fn failed_outcome(session_id: String, error: String, log_path: &Path) -> RunOutcome {
+fn failed_outcome(
+    session_id: String,
+    error: String,
+    log_path: &Path,
+    scrubber: &SecretScrubber,
+) -> RunOutcome {
+    let error = scrubber.scrub(&error);
     append_log(
         log_path,
         &serde_json::json!({

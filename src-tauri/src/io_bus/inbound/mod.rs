@@ -4,6 +4,7 @@ use tokio_util::sync::CancellationToken;
 
 pub mod chat_bridge;
 pub mod dropzone;
+pub mod http_poller;
 pub mod imap_idle;
 pub mod sql_poller;
 pub mod webhook;
@@ -20,6 +21,7 @@ pub async fn run(
             dropzone::run(state, source, cancel).await
         }
         "SQL_POLLER" => sql_poller::run(state, source, cancel).await,
+        "HTTP_POLLER" => http_poller::run(state, source, cancel).await,
         "IMAP_IDLE" => imap_idle::run(state, source, cancel).await,
         "TELEGRAM_BOT" | "MATRIX_BOT" | "MATTERMOST_BOT" => {
             chat_bridge::run(state, source, cancel).await

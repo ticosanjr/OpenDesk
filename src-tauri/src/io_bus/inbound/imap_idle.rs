@@ -344,6 +344,8 @@ mod tests {
             config_json: "{}".into(),
             target_agent: None,
             target_column: "TODO".into(),
+            target_kind: "TASK".into(),
+            target_id: None,
             auto_execute: false,
             is_enabled: true,
             last_triggered_at: None,

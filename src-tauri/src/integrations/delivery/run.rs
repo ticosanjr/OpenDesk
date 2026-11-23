@@ -84,7 +84,8 @@ pub async fn deliver_run(
     .await;
     let allows_channel = |channel: &str| match &notification_route {
         Some(route) => route.deliver && route.channels.iter().any(|item| item == channel),
-        None => true,
+        // WhatsApp and WebPush are opt-in through the notification route.
+        None => !matches!(channel, "whatsapp" | "push" | "webpush"),
     };
 
     let artifact_list = artifacts::list(pool, workspace_id, None, task_id, None, 50)
@@ -193,6 +194,32 @@ pub async fn deliver_run(
             &run,
             artifact_list.first(),
             schedule,
+        )
+        .await?;
+    }
+
+    if !unchanged_output && allows_channel("whatsapp") {
+        deliver_whatsapp(
+            pool,
+            &secrets,
+            workspace_id,
+            run_id,
+            &title,
+            &run,
+            artifact_list.first(),
+        )
+        .await?;
+    }
+
+    if !unchanged_output && (allows_channel("push") || allows_channel("webpush")) {
+        deliver_webpush(
+            pool,
+            paths,
+            workspace_id,
+            run_id,
+            &title,
+            &run,
+            artifact_list.first(),
         )
         .await?;
     }

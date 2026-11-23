@@ -4,6 +4,34 @@ use std::collections::BTreeMap;
 
 /// Channel routing policy. Adapters do not decide policy; the router does, and
 /// the engine only emits a `NotificationIntent`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TrustLevel {
+    Trusted,
+    Internal,
+    Untrusted,
+}
+
+impl TrustLevel {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Trusted => "trusted",
+            Self::Internal => "internal",
+            Self::Untrusted => "untrusted",
+        }
+    }
+}
+
+/// Channel messages are trusted only when the sender passes the configured
+/// allowlist. Everything else is untrusted and must not reach the LLM.
+pub fn classify(allowlisted: bool) -> TrustLevel {
+    if allowlisted {
+        TrustLevel::Trusted
+    } else {
+        TrustLevel::Untrusted
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RouterConfig {
     /// Care level (`LOW`/`NORMAL`/`HIGH`/`CRITICAL`) → channel ids.
@@ -86,6 +114,13 @@ impl NotificationRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn allowlist_is_the_trust_boundary() {
+        assert_eq!(classify(true), TrustLevel::Trusted);
+        assert_eq!(classify(false), TrustLevel::Untrusted);
+        assert_eq!(TrustLevel::Internal.as_str(), "internal");
+    }
 
     fn config() -> RouterConfig {
         let mut channels_by_care = BTreeMap::new();

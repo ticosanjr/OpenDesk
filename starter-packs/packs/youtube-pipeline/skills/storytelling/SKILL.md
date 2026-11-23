@@ -5,19 +5,18 @@ description: Narrativa e tensão.
 # Storytelling
 
 ## Quando usar
-Em blocos narrativos.
+Em blocos narrativos, cases e introduções.
 
 ## Processo
-1. Situação.
-2. Complicação.
-3. Tentativa.
-4. Resultado.
-5. Lição.
+1. Defina protagonista, desejo, obstáculo e consequência.
+2. Mostre a virada com uma cena concreta, não com resumo abstrato.
+3. Use detalhes sensoriais curtos e evite adjetivos genéricos.
+4. Feche com aprendizado aplicável ao tema do vídeo.
 
-## Checklist
-- [ ] Há tensão real.
-- [ ] O exemplo conecta com a tese.
+## Saída
+Estrutura em cinco beats: contexto, desejo, obstáculo, virada e lição.
 
-## Anti-padrões
-- Entregar texto genérico sem adaptar ao contexto recebido.
-- Não esconder incertezas: marque o que é fato, inferência ou recomendação.
+## Critérios de aceite
+- [ ] Cada beat tem função clara.
+- [ ] A história conecta com a promessa do vídeo.
+- [ ] Nenhum detalhe inventado é apresentado como fato.

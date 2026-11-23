@@ -22,6 +22,7 @@ mod recipes;
 mod schedules;
 mod status;
 mod tasks;
+mod vault;
 mod voice;
 mod worktrees;
 
@@ -50,6 +51,7 @@ pub(super) fn tools() -> Vec<Value> {
         schedules::routine_run(),
         recipes::recipe_list(),
         recipes::recipe_save(),
+        recipes::recipe_validate(),
         recipes::recipe_set_enabled(),
         recipes::recipe_run(),
         ops::attention_list(),
@@ -57,6 +59,8 @@ pub(super) fn tools() -> Vec<Value> {
         ops::artifact_list(),
         ops::artifact_read(),
         ops::artifact_pin(),
+        vault::vault_list_refs(),
+        vault::vault_request_fill(),
         memory::memory_save(),
         memory::memory_search(),
         handoffs::handoff_create(),
@@ -195,6 +199,7 @@ fn visible_in(name: &str, phase: &str) -> bool {
             | "routine_run"
             | "recipe_list"
             | "recipe_save"
+            | "recipe_validate"
             | "recipe_set_enabled"
             | "recipe_run"
             | "recipe_resume"
@@ -225,6 +230,7 @@ fn visible_in(name: &str, phase: &str) -> bool {
             | "handoff_create"
             | "handoff_respond"
             | "handoff_finish"
+            | "vault_request_fill"
     ) {
         "BUILD"
     } else if matches!(name, "artifact_pin" | "artifact_rollback") {
@@ -310,6 +316,9 @@ mod tests {
             "memory_search",
             "handoff_respond",
             "handoff_finish",
+            "vault_list_refs",
+            "vault_request_fill",
+            "recipe_validate",
         ] {
             assert!(names.iter().any(|name| name == expected), "{expected}");
         }
@@ -325,7 +334,7 @@ mod tests {
         ] {
             assert!(names.iter().any(|name| name == expected), "{expected}");
         }
-        assert_eq!(names.len(), 48);
+        assert_eq!(names.len(), 51);
     }
 
     #[test]

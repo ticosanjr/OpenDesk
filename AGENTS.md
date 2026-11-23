@@ -167,7 +167,7 @@ limite de 500 linhas no frontend, processos com `kill_on_drop` + TERM→KILL e
 fila/cron event-driven. As fases seguintes extraíram engine, receitas, MCP,
 canais e enterprise; a 1.7.0 extinguiu o `opendesk-core`; a 1.7.1 fechou o hardening, deixou a baseline
 de limites vazia e fixou a cobertura em 63,0% total / 75,5% no escopo de negócio
-(medido 64,08% / 76,40%). O limite de 500 linhas vale também para
+(medido 64,60% / 76,17%). O limite de 500 linhas vale também para
 `src-tauri/src` e `include!` é proibido em produção.
 Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
 Fábrica de Capacidades default (`meta-forge`). O MCP `opendesk-control` permite
@@ -181,6 +181,11 @@ sandbox/computer-use, voz e multi-node. A 1.1.0 fechou passkeys WebAuthn,
 bootstrap compartilhado desktop/daemon e TUI. As decisões estão em ADRs
 0062–0075 e as notas em `docs/archive/v1/releases/`. A 1.2.0 adicionou o worker remoto
 (`opendesk node run`) e passou a publicar `opendeskd` no release.
+A 1.8.0 fechou as fases F0–F7 do plano de fechamento: Credential Vault
+zero-exposure, importação Bitwarden, prompts blindados com orçamento de contexto,
+receitas DAG 2.0 (nove tipos de nó, schema, retry e versões), `http_poller`,
+`http_webhook`, entregas WhatsApp/WebPush e canais Discord/Slack/WhatsApp QR.
+As decisões estão nas ADRs 0221–0226 e as notas em `docs/releases/1.8.0.md`.
 
 Próxima frente: cobertura Rust ≥80% (plano em `docs/coverage-plan.md`), builds
 Windows/macOS (`docs/platform-builds.md`) e contrato Google com conta dedicada

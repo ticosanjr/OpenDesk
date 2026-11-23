@@ -38,7 +38,7 @@ export const SINK_TYPES = [
   { value: "SQL_INSERT", label: "Inserir no SQL (SQL_INSERT)" },
 ];
 
-export const CHANNELS = ["DESKTOP_UI", "EMAIL", "SIGNAL", "TELEGRAM"];
+export const CHANNELS = ["DESKTOP_UI", "EMAIL", "SIGNAL", "TELEGRAM", "DISCORD", "SLACK", "PUSH"];
 
 export const ON_TIMEOUT = [
   { value: "PAUSE_AND_ALERT", label: "Pausar e avisar" },
@@ -49,7 +49,17 @@ export const ON_TIMEOUT = [
 function isFlowEntry(value: unknown): value is FlowEntry {
   if (!value || typeof value !== "object") return false;
   const type = (value as Dictionary).type;
-  return type === "step" || type === "hitl" || type === "sink";
+  return (
+    type === "step" ||
+    type === "hitl" ||
+    type === "sink" ||
+    type === "branch" ||
+    type === "parallel" ||
+    type === "map" ||
+    type === "recipe_call" ||
+    type === "loop" ||
+    type === "switch"
+  );
 }
 
 export function normalizeFlow(recipe: Dictionary): FlowEntry[] {

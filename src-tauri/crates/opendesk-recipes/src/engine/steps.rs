@@ -1,6 +1,7 @@
 use crate::{
     context::RecipeContext,
     error::{AppError, AppResult},
+    hitl::{self, HitlOutcome, HitlResolution},
     parser::{self, FlowItem, Step},
     store,
 };
@@ -86,6 +87,8 @@ pub(crate) async fn execute_step(
         )
     });
     let mut attempt = 0usize;
+    let mut failure_retries = 0usize;
+    let max_failure_retries = step.retry_max.unwrap_or(0);
     let mut correction = feedback;
     loop {
         attempt += 1;
@@ -127,8 +130,15 @@ pub(crate) async fn execute_step(
             session_id.as_deref(),
         )
         .await?;
-        let run_result =
-            wait_for_run(context, &run.workspace_id, task_id, &started, &run.id).await?;
+        let run_result = wait_for_run(
+            context,
+            &run.workspace_id,
+            task_id,
+            &started,
+            &run.id,
+            step.timeout_secs.unwrap_or(2 * 60 * 60),
+        )
+        .await?;
         if let Some(routine_id) = routine_id {
             let _ = opendesk_storage::repos::runs::set_schedule_id(
                 &context.pool,
@@ -137,22 +147,46 @@ pub(crate) async fn execute_step(
             )
             .await;
         }
+        if run_result.status == "FAILED" && failure_retries < max_failure_retries {
+            failure_retries += 1;
+            correction = Some(
+                "A execução anterior falhou. Tente novamente, corrija o erro e preserve o contrato."
+                    .to_string(),
+            );
+            continue;
+        }
         ensure_step_finished(&step.id, &run_result.status)?;
         *session_id = run_result.session_id.clone();
         let summary = run_result.summary_response.clone().unwrap_or_default();
-        let structured = match step.output_schema.as_ref() {
-            Some(schema) => match parser::validate_output(schema, &summary) {
-                Ok(value) => Some(value),
-                Err(error) if attempt < 2 => {
-                    correction = Some(format!(
-                        "A resposta anterior não validou o contrato: {error}. Responda novamente apenas com JSON válido."
-                    ));
-                    continue;
+        let mut structured = None;
+        if let Some(schema) = step.output_schema.as_ref() {
+            match parser::validate_output(schema, &summary) {
+                Ok(value) => structured = Some(value),
+                Err(error) => {
+                    let policy = step.on_schema_error.as_deref().unwrap_or("retry_format");
+                    if policy == "retry_format" && attempt < 2 {
+                        correction = Some(format!(
+                            "A resposta anterior não validou o contrato: {error}. Responda novamente apenas com JSON válido."
+                        ));
+                        continue;
+                    }
+                    if policy == "hitl" {
+                        let (approved, feedback) =
+                            schema_hitl(context, run, step, &error.to_string()).await?;
+                        if approved {
+                            structured = None;
+                        } else if let Some(feedback) = feedback {
+                            correction = Some(feedback);
+                            continue;
+                        } else {
+                            return Err(error);
+                        }
+                    } else {
+                        return Err(error);
+                    }
                 }
-                Err(error) => return Err(error),
-            },
-            None => None,
-        };
+            }
+        }
         let artifacts =
             opendesk_storage::repos::artifacts::list_by_run(&context.pool, &run_result.id, 200)
                 .await
@@ -181,14 +215,60 @@ pub(crate) async fn execute_step(
     }
 }
 
+async fn schema_hitl(
+    context: &RecipeContext,
+    run: &store::RecipeRun,
+    step: &Step,
+    error: &str,
+) -> AppResult<(bool, Option<String>)> {
+    let checkpoint = parser::HitlCheckpoint {
+        id: format!(
+            "schema-{}-{}",
+            step.id,
+            chrono::Utc::now().timestamp_millis()
+        ),
+        after_step: String::new(),
+        name: Some(format!("Schema do step {}", step.name)),
+        description: None,
+        interaction_type: "APPROVAL_WITH_FEEDBACK".into(),
+        channels: vec!["DESKTOP_UI".into()],
+        timeout_minutes: 60,
+        on_timeout: "ABORT".into(),
+        prompt_template: format!(
+            "A saída do step {} não validou o schema: {error}. Aprovar mesmo assim ou enviar uma correção?",
+            step.name
+        ),
+        attach_files: Vec::new(),
+        options: Vec::new(),
+    };
+    let token = hitl::request(
+        context,
+        run,
+        &checkpoint,
+        &step.name,
+        &checkpoint.prompt_template,
+        None,
+        &[],
+    )
+    .await?;
+    match hitl::wait(context, &token, checkpoint.timeout_minutes).await? {
+        HitlOutcome::Resolved(HitlResolution::Approved) => Ok((true, None)),
+        HitlOutcome::Resolved(HitlResolution::FeedbackProvided { feedback_text, .. }) => {
+            Ok((false, Some(feedback_text)))
+        }
+        _ => Ok((false, None)),
+    }
+}
+
 async fn wait_for_run(
     context: &RecipeContext,
     workspace_id: &str,
     task_id: &str,
     started_after: &str,
     recipe_run_id: &str,
+    timeout_secs: u64,
 ) -> AppResult<opendesk_storage::repos::runs::TaskRun> {
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(2 * 60 * 60);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs.clamp(1, 7200));
     loop {
         if store::is_cancel_requested(&context.pool, recipe_run_id).await? {
             return Err(AppError::BadRequest("cancelado pelo usuário".into()));

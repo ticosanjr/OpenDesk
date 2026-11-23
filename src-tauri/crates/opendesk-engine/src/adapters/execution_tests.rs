@@ -116,6 +116,7 @@ mod tests {
         let outcome = execute(
             fake.clone(),
             RunRequest {
+                scrubber: &opendesk_storage::secrets::SecretScrubber::new(),
                 pool: &ctx.db,
                 secrets: &secrets,
                 workspace_id: &ctx.workspace_id,
@@ -165,6 +166,7 @@ mod tests {
         let outcome = execute(
             fake,
             RunRequest {
+                scrubber: &opendesk_storage::secrets::SecretScrubber::new(),
                 pool: &ctx.db,
                 secrets: &secrets,
                 workspace_id: &ctx.workspace_id,

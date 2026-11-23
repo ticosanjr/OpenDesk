@@ -4,8 +4,10 @@
 //! This module only adapts the concrete channels (email, Signal and Telegram)
 //! owned by the desktop shell.
 
+pub mod discord;
 pub mod email;
 pub mod signal;
+pub mod slack;
 pub mod telegram;
 
 pub use opendesk_recipes::hitl::*;
@@ -35,6 +37,8 @@ impl HitlChannelDispatcher for ShellHitlChannels {
             "EMAIL" => email::dispatch(context, request).await,
             "SIGNAL" => signal::dispatch(context, request).await,
             "TELEGRAM" => telegram::dispatch(context, request).await,
+            "DISCORD" => discord::dispatch(context, request).await,
+            "SLACK" => slack::dispatch(context, request).await,
             other => Err(AppError::BadRequest(format!(
                 "canal HITL desconhecido: {other}"
             ))),

@@ -43,6 +43,8 @@ pub async fn run(
         "TELEGRAM_MSG" => telegram(ctx, &config, &message, output).await,
         "MATRIX_MSG" => matrix(ctx, &config, &message).await,
         "MATTERMOST_MSG" => mattermost(&config, &message).await,
+        "WHATSAPP_MSG" => whatsapp(ctx, &config, &message).await,
+        "WEBPUSH" => webpush(ctx, &config, &message).await,
         other => Err(AppError::BadRequest(format!(
             "mensageria não suportada: {other}"
         ))),
@@ -223,6 +225,29 @@ async fn mattermost(config: &Config, message: &str) -> AppResult<Vec<String>> {
     ))
 }
 
+async fn whatsapp(ctx: &IoContext, config: &Config, message: &str) -> AppResult<Vec<String>> {
+    let to = config
+        .to
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("WhatsApp sink exige 'to'".into()))?;
+    opendesk_channels::whatsapp::send_text(&ctx.pool, &ctx.secrets(), to, message).await?;
+    Ok(vec![format!("whatsapp:{to}")])
+}
+
+async fn webpush(ctx: &IoContext, config: &Config, message: &str) -> AppResult<Vec<String>> {
+    let title = config
+        .subject
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("OpenDesk");
+    let payload = opendesk_channels::webpush::PushPayload::new(title, message, "/");
+    let sent = opendesk_channels::webpush::send_to_all(&ctx.pool, &ctx.paths, &payload).await?;
+    Ok(vec![format!("webpush:{sent}")])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -280,5 +305,58 @@ mod secret_tests {
         let error = crate::io_bus::secret(&io.paths, config.token_ref.as_deref())
             .expect_err("missing secret");
         assert!(error.to_string().contains("não encontrado"));
+    }
+
+    fn output(workspace_id: &str) -> RunOutput {
+        RunOutput {
+            workspace_id: workspace_id.into(),
+            workspace_root: "/tmp".into(),
+            output_directory: None,
+            task_id: None,
+            run_id: "run".into(),
+            title: "T".into(),
+            summary: "S".into(),
+            artifacts: Vec::new(),
+        }
+    }
+
+    fn sink(sink_type: &str, config: serde_json::Value) -> OutboundSink {
+        OutboundSink {
+            id: "sink".into(),
+            workspace_id: "ws".into(),
+            name: "Sink".into(),
+            sink_type: sink_type.into(),
+            config_json: config.to_string(),
+            is_enabled: true,
+            last_run_at: None,
+            last_status: None,
+            last_error: None,
+            created_at: "now".into(),
+        }
+    }
+
+    #[tokio::test]
+    async fn whatsapp_requires_a_recipient_and_webpush_without_devices_is_ok() {
+        let ctx = crate::test_support::context().await;
+        let io = IoContext {
+            pool: ctx.state.db.clone(),
+            paths: ctx.state.paths.clone(),
+        };
+        assert!(
+            run(
+                &io,
+                &sink("WHATSAPP_MSG", serde_json::json!({})),
+                &output(&ctx.workspace_id)
+            )
+            .await
+            .is_err()
+        );
+        let result = run(
+            &io,
+            &sink("WEBPUSH", serde_json::json!({ "subject": "OpenDesk" })),
+            &output(&ctx.workspace_id),
+        )
+        .await;
+        assert!(result.is_ok());
     }
 }

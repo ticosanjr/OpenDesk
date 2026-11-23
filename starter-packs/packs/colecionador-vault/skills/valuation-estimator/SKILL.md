@@ -5,15 +5,18 @@ description: Estima valor com premissas.
 # Valuation Estimator
 
 ## Quando usar
-Estima valor com premissas.
+Para estimar valor de um item sem tratá-lo como avaliação oficial.
 
 ## Processo
-1. Confirme entradas, escopo e critérios de sucesso.
-2. Execute com evidência rastreável.
-3. Marque incertezas e riscos.
-4. Entregue saída estruturada e revisável.
+1. Colete comparáveis recentes com data, condição e fonte.
+2. Ajuste por raridade, estado, completude e liquidez do mercado.
+3. Produza faixa mínima, provável e máxima; explique cada premissa.
+4. Marque quando não há comparável suficiente.
 
-## Checklist
-- [ ] Fontes e premissas explícitas.
-- [ ] Nenhuma ação irreversível sem aprovação.
-- [ ] Resultado salvo no diretório do run.
+## Saída
+Faixa de valor, comparáveis e nível de confiança (`baixo`, `médio`, `alto`).
+
+## Critérios de aceite
+- [ ] Toda estimativa tem ao menos uma premissa explícita.
+- [ ] A faixa não é apresentada como preço garantido.
+- [ ] Comparáveis sem fonte são descartados.

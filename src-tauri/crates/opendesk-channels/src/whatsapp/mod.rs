@@ -9,12 +9,19 @@
 //! `SecretStore` instead of the whole shell state.
 
 mod config;
+#[cfg(feature = "ch-whatsapp-qr")]
+mod qr;
 mod send;
 mod webhook;
 
 pub use config::{
     WEBHOOK_HEADER, WEBHOOK_NAMESPACE, WHATSAPP_SECRET_NAMESPACE, WHATSAPP_SETTING, WhatsAppConfig,
     apply_credentials, connected, load_config, save_config, validate_config,
+};
+#[cfg(feature = "ch-whatsapp-qr")]
+pub use qr::{
+    QrEvent, WhatsAppQrBridge, WhatsAppQrConfig, WhatsAppQrEventHandler, allowed as qr_allowed,
+    load as load_qr_config, parse_line as parse_qr_line, save as save_qr_config,
 };
 pub use send::{SentMessage, send_text};
 pub use webhook::{MetaMessage, extract_meta_messages, media_extension, verify_signature};

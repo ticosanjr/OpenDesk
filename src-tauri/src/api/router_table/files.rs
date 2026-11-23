@@ -51,10 +51,16 @@ pub(super) fn routes() -> Router<Arc<AppState>> {
         )
         .route("/api/recipes", get(recipes::list).post(recipes::sync))
         .route("/api/recipes/sync", post(recipes::sync))
+        .route("/api/recipes/validate", post(recipes::validate))
         .route("/api/recipes/runs", get(recipes::runs))
         .route("/api/recipes/runs/{id}", get(recipes::run_detail))
         .route("/api/recipes/runs/{id}/cancel", post(recipes::cancel_run))
         .route("/api/recipes/runs/{id}/retry", post(recipes::retry_run))
+        .route("/api/recipes/runs/{id}/resume", post(recipes::resume_run))
+        .route(
+            "/api/recipes/runs/{id}/nodes/{*path}",
+            post(recipes::retry_node),
+        )
         .route("/api/recipes/hitl", get(recipes::hitl_pending))
         .route(
             "/api/recipes/hitl/{token}/resolve",

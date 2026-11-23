@@ -31,6 +31,19 @@ pub async fn run(
     let _index = store::get(&state.db, &workspace_id, &id).await?;
     let yaml = store::yaml_for(&state.db, &workspace_id, &id).await?;
     let recipe = parser::parse(&yaml)?;
+    if body.dry_run {
+        let issues = super::validate::vault_issues(&state.db, &workspace_id, &recipe).await;
+        if !issues.is_empty() {
+            let message = issues
+                .iter()
+                .filter_map(|issue| issue.get("message").and_then(serde_json::Value::as_str))
+                .collect::<Vec<_>>()
+                .join("; ");
+            return Err(AppError::BadRequest(format!(
+                "vault_refs inválidos: {message}"
+            )));
+        }
+    }
     let trigger = if body.trigger_context.is_null() {
         serde_json::json!({ "manual": true })
     } else {
@@ -202,6 +215,61 @@ pub async fn retry_run(
     let yaml = store::yaml_for(&state.db, &run.workspace_id, &run.recipe_id).await?;
     let recipe = parser::parse(&yaml)?;
     store::reset_for_retry(&state.db, &id).await?;
+    let refreshed = store::get_run(&state.db, &id).await?;
+    engine::resume(
+        crate::app_state::recipe_context(&state),
+        recipe,
+        refreshed.clone(),
+    )
+    .await?;
+    Ok(Json(refreshed))
+}
+
+fn ensure_resumable(run: &store::RecipeRun) -> AppResult<()> {
+    match run.status.as_str() {
+        "FAILED" | "TIMED_OUT" | "REJECTED" => Ok(()),
+        "WAITING_HITL" => Err(AppError::Conflict(
+            "resolva o HITL pendente antes de retomar".into(),
+        )),
+        other => Err(AppError::Conflict(format!(
+            "run no estado {other} não pode ser retomado"
+        ))),
+    }
+}
+
+pub async fn resume_run(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<store::RecipeRun>> {
+    let run = store::get_run(&state.db, &id).await?;
+    ensure_resumable(&run)?;
+    let yaml = store::yaml_for(&state.db, &run.workspace_id, &run.recipe_id).await?;
+    let recipe = parser::parse(&yaml)?;
+    store::reset_for_retry(&state.db, &id).await?;
+    let refreshed = store::get_run(&state.db, &id).await?;
+    engine::resume(
+        crate::app_state::recipe_context(&state),
+        recipe,
+        refreshed.clone(),
+    )
+    .await?;
+    Ok(Json(refreshed))
+}
+
+pub async fn retry_node(
+    State(state): State<Arc<AppState>>,
+    Path((id, path)): Path<(String, String)>,
+) -> AppResult<Json<store::RecipeRun>> {
+    let run = store::get_run(&state.db, &id).await?;
+    ensure_resumable(&run)?;
+    let path = path.trim_matches('/');
+    if path.is_empty() {
+        return Err(AppError::BadRequest("node path é obrigatório".into()));
+    }
+    let yaml = store::yaml_for(&state.db, &run.workspace_id, &run.recipe_id).await?;
+    let recipe = parser::parse(&yaml)?;
+    store::reset_for_retry(&state.db, &id).await?;
+    store::reset_node_subtree(&state.db, &id, path).await?;
     let refreshed = store::get_run(&state.db, &id).await?;
     engine::resume(
         crate::app_state::recipe_context(&state),

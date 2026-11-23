@@ -49,6 +49,15 @@ pub async fn start(state: Arc<AppState>, options: StartOptions) -> anyhow::Resul
         if let Err(error) = state.telegram.start_if_enabled(state.clone()).await {
             tracing::warn!(error = %error, "Telegram bridge was not started");
         }
+        if let Err(error) = state.discord.start_if_enabled(state.clone()).await {
+            tracing::warn!(error = %error, "Discord bridge was not started");
+        }
+        if let Err(error) = state.slack.start_if_enabled(state.clone()).await {
+            tracing::warn!(error = %error, "Slack bridge was not started");
+        }
+        if let Err(error) = state.whatsapp_qr.start_if_enabled(state.clone()).await {
+            tracing::warn!(error = %error, "WhatsApp QR bridge was not started");
+        }
     }
 
     state.refresh_watcher().await?;

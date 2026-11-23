@@ -33,6 +33,26 @@ pub fn enabled_channels() -> Vec<ChannelDescriptor> {
             media: true,
         },
     });
+    #[cfg(feature = "ch-discord")]
+    channels.push(ChannelDescriptor {
+        id: "discord",
+        capabilities: ChannelCapabilities {
+            threads: true,
+            attachments: true,
+            buttons: true,
+            media: true,
+        },
+    });
+    #[cfg(feature = "ch-slack")]
+    channels.push(ChannelDescriptor {
+        id: "slack",
+        capabilities: ChannelCapabilities {
+            threads: true,
+            attachments: true,
+            buttons: true,
+            media: true,
+        },
+    });
     #[cfg(feature = "ch-email")]
     channels.push(ChannelDescriptor {
         id: "email",
@@ -91,8 +111,10 @@ mod tests {
             feature = "ch-whatsapp",
             feature = "ch-email",
             feature = "ch-signal",
-            feature = "ch-webpush"
+            feature = "ch-webpush",
+            feature = "ch-discord",
+            feature = "ch-slack"
         ))]
-        assert_eq!(ids.len(), 5);
+        assert_eq!(ids.len(), 7);
     }
 }

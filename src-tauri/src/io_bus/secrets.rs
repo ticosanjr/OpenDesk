@@ -41,7 +41,8 @@ pub fn ensure_webhook_secret_with(
         ));
     };
     if let Some(reference) = object
-        .get("secret_ref")
+        .get("vault_ref")
+        .or_else(|| object.get("secret_ref"))
         .and_then(serde_json::Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -84,7 +85,8 @@ pub fn webhook_secret_ref(config_json: &str) -> Option<String> {
         .ok()
         .and_then(|config| {
             config
-                .get("secret_ref")
+                .get("vault_ref")
+                .or_else(|| config.get("secret_ref"))
                 .and_then(serde_json::Value::as_str)
                 .map(str::trim)
                 .filter(|value| !value.is_empty())

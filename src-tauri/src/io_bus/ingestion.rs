@@ -12,51 +12,97 @@ use crate::{
 use std::sync::Arc;
 use uuid::Uuid;
 
+/// Resolves the typed destination, falling back to `config_json` for rows
+/// created before `target_kind`/`target_id` existed.
+fn typed_target(source: &InboundSource) -> Option<(String, String)> {
+    if source.target_kind != "TASK" {
+        return source
+            .target_id
+            .clone()
+            .map(|id| (source.target_kind.clone(), id));
+    }
+    let config = serde_json::from_str::<serde_json::Value>(&source.config_json).ok()?;
+    for (key, kind) in [("schedule_id", "SCHEDULE"), ("recipe_id", "RECIPE")] {
+        if let Some(id) = config
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            return Some((kind.into(), id.to_string()));
+        }
+    }
+    None
+}
+
 /// Convert any inbound signal into exactly one deterministic task.
 pub async fn ingest(
     state: &Arc<AppState>,
     source: &InboundSource,
     event: NormalizedTaskEvent,
 ) -> AppResult<Option<tasks::Task>> {
-    // A routine can subscribe to this source. The routine decides whether it
-    // runs a prompt or a recipe, so ingest does not create a task in that case.
-    if let Ok(config) = serde_json::from_str::<serde_json::Value>(&source.config_json)
-        && let Some(schedule_id) = config.get("schedule_id").and_then(|value| value.as_str())
-        && let Ok(schedule) = crate::db::schedules::get(&state.db, schedule_id).await
-    {
-        return crate::api::schedules::execute_schedule_from_source(state, &schedule, &event).await;
-    }
-    // Sources can route their signal to a declarative recipe instead of creating
-    // a standalone task. This is how IMAP/Signal/SQL/webhook triggers reuse the
-    // recipe engine without duplicating adapters.
-    if let Ok(config) = serde_json::from_str::<serde_json::Value>(&source.config_json)
-        && let Some(recipe_id) = config.get("recipe_id").and_then(|value| value.as_str())
-    {
-        let yaml =
-            crate::recipes::store::yaml_for(&state.db, &source.workspace_id, recipe_id).await?;
-        let recipe = crate::recipes::parser::parse(&yaml)?;
-        let trigger = serde_json::json!({
-            "source_id": source.id,
-            "external_id": event.external_id,
-            "title": event.title,
-            "body": event.body_markdown,
-            "attachments": event.attachments,
-            "metadata": event.metadata,
-        });
-        let run = crate::recipes::engine::start(
-            crate::app_state::recipe_context(state),
-            &source.workspace_id,
-            recipe,
-            trigger,
-            false,
-        )
-        .await?;
-        if let Some(task_id) = run.task_id {
-            return Ok(Some(tasks::get(&state.db, &task_id).await?));
+    if let Some((kind, id)) = typed_target(source) {
+        match kind.as_str() {
+            // A routine can subscribe to this source. The routine decides
+            // whether it runs a prompt or a recipe, so ingest does not create
+            // a task in that case.
+            "SCHEDULE" => {
+                if let Ok(schedule) = crate::db::schedules::get(&state.db, &id).await {
+                    return crate::api::schedules::execute_schedule_from_source(
+                        state, &schedule, &event,
+                    )
+                    .await;
+                }
+            }
+            // Sources can route their signal to a declarative recipe instead of
+            // creating a standalone task. This is how IMAP/Signal/SQL/webhook
+            // triggers reuse the recipe engine without duplicating adapters.
+            "RECIPE" => {
+                let yaml =
+                    crate::recipes::store::yaml_for(&state.db, &source.workspace_id, &id).await?;
+                let recipe = crate::recipes::parser::parse(&yaml)?;
+                let trigger = serde_json::json!({
+                    "source_id": source.id,
+                    "external_id": event.external_id,
+                    "title": event.title,
+                    "body": event.body_markdown,
+                    "attachments": event.attachments,
+                    "metadata": event.metadata,
+                });
+                let run = crate::recipes::engine::start(
+                    crate::app_state::recipe_context(state),
+                    &source.workspace_id,
+                    recipe,
+                    trigger,
+                    false,
+                )
+                .await?;
+                if let Some(task_id) = run.task_id {
+                    return Ok(Some(tasks::get(&state.db, &task_id).await?));
+                }
+                return Err(AppError::Internal(
+                    "recipe acionada por I/O não criou task".into(),
+                ));
+            }
+            "TICKET" => {
+                crate::db::tickets::create(
+                    &state.db,
+                    crate::db::tickets::CreateTicketInput {
+                        workspace_id: source.workspace_id.clone(),
+                        source: format!("io_bus:{}", source.id),
+                        source_ref: Some(event.external_id.clone()),
+                        title: event.title.clone(),
+                        body: event.body_markdown.clone(),
+                        priority: event.priority,
+                        assigned_agent: source.target_agent.clone(),
+                        metadata: event.metadata.clone(),
+                    },
+                )
+                .await?;
+                return Ok(None);
+            }
+            _ => {}
         }
-        return Err(AppError::Internal(
-            "recipe acionada por I/O não criou task".into(),
-        ));
     }
     let seed = format!(
         "opendesk:io:{}:{}",

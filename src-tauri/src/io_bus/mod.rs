@@ -16,6 +16,7 @@ pub mod runtime;
 mod secrets;
 pub mod secrets_guard;
 pub mod sql;
+pub mod ssrf;
 pub mod tools;
 
 pub use ingestion::ingest;
@@ -129,6 +130,8 @@ mod tests {
                 config: serde_json::json!({ "secret_ref": "wh-test" }),
                 target_agent: None,
                 target_column: Some("TODO".into()),
+                target_kind: None,
+                target_id: None,
                 auto_execute: false,
                 is_enabled: true,
             },
@@ -181,6 +184,8 @@ mod tests {
             config_json: "{invalid".into(),
             target_agent: None,
             target_column: "TODO".into(),
+            target_kind: "TASK".into(),
+            target_id: None,
             auto_execute: true,
             is_enabled: true,
             last_triggered_at: None,

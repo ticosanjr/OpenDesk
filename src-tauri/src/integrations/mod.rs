@@ -1,7 +1,11 @@
 pub mod delivery;
+pub mod discord;
+pub mod external_chat;
 pub mod google_api;
 pub mod google_calendar;
 pub mod google_oauth;
 pub mod signal;
+pub mod slack;
 pub use opendesk_channels::email as smtp_mailer;
 pub mod telegram;
+pub mod whatsapp_qr;

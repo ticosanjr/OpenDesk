@@ -17,6 +17,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { recipeRunStatusLabel, recipeRunStatusTone } from "@/lib/status";
 import { relativeTime } from "@/lib/format";
 import { toast } from "@/store/toast-store";
+import { RecipeNodeTree, type RecipeRunNode } from "./recipes/RecipeNodeTree";
 
 interface RecipeRunDetail {
   id: string;
@@ -31,22 +32,6 @@ interface RecipeRunDetail {
   started_at: string;
   completed_at?: string | null;
   cancel_requested?: boolean;
-}
-
-interface RecipeRunNode {
-  id: string;
-  node_index: number;
-  node_id: string;
-  node_path?: string | null;
-  parent_path?: string | null;
-  item_key?: string | null;
-  kind: string;
-  status: string;
-  attempts: number;
-  output_json?: string | null;
-  error_message?: string | null;
-  started_at?: string | null;
-  finished_at?: string | null;
 }
 
 interface HitlRequest {
@@ -66,77 +51,6 @@ function parseJson(value: string): unknown {
   } catch {
     return value;
   }
-}
-
-function statusVariant(status: string) {
-  if (status === "DONE") return "green" as const;
-  if (status === "FAILED") return "red" as const;
-  if (status === "WAITING_HITL") return "yellow" as const;
-  if (status === "RUNNING") return "blue" as const;
-  return "default" as const;
-}
-
-function RecipeNodeTree({
-  node,
-  children,
-  depth,
-}: {
-  node: RecipeRunNode;
-  children: Map<string, RecipeRunNode[]>;
-  depth: number;
-}) {
-  const key = node.node_path ?? node.node_id;
-  const nested = children.get(key) ?? [];
-  return (
-    <div className={depth > 0 ? "border-l border-zinc-800/70 pl-3" : undefined}>
-      <div className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant={statusVariant(node.status)}>{node.status}</Badge>
-            <span className="font-mono text-[11px] text-zinc-500">#{node.node_index}</span>
-            <span className="text-[13px] text-zinc-200">
-              {node.node_path ?? node.node_id}
-            </span>
-            <Badge variant="default">{node.kind}</Badge>
-            {node.item_key ? (
-              <span className="font-mono text-[11px] text-zinc-500">
-                item {node.item_key}
-              </span>
-            ) : null}
-            {node.attempts > 1 ? (
-              <span className="text-[11px] text-zinc-500">{node.attempts} tentativas</span>
-            ) : null}
-          </div>
-          {node.error_message ? (
-            <p className="mt-1 whitespace-pre-wrap text-[11.5px] text-red-300">
-              {node.error_message}
-            </p>
-          ) : null}
-          {node.output_json ? (
-            <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap font-mono text-[10.5px] text-zinc-500">
-              {node.output_json}
-            </pre>
-          ) : null}
-        </div>
-        <span className="text-[11px] text-zinc-600">
-          {node.started_at ? relativeTime(node.started_at) : "não iniciado"}
-          {node.finished_at ? ` · fim ${relativeTime(node.finished_at)}` : ""}
-        </span>
-      </div>
-      {nested.length > 0 ? (
-        <div className="mt-1.5 space-y-1.5">
-          {nested.map((child) => (
-            <RecipeNodeTree
-              key={child.id}
-              node={child}
-              children={children}
-              depth={depth + 1}
-            />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 export function RecipeRunDetailPage() {
@@ -237,10 +151,10 @@ export function RecipeRunDetailPage() {
     if (!runId) return;
     setBusy("retry");
     try {
-      await apiPost(`/api/recipes/runs/${encodeURIComponent(runId)}/retry`);
+      await apiPost(`/api/recipes/runs/${encodeURIComponent(runId)}/resume`);
       toast({
         tone: "success",
-        title: "Receita reenfileirada",
+        title: "Receita retomada",
         description: "Os nós concluídos foram preservados.",
       });
       await load();
@@ -248,6 +162,34 @@ export function RecipeRunDetailPage() {
       toast({
         tone: "error",
         title: "Não foi possível repetir",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function retryNode(path: string) {
+    if (!runId) return;
+    setBusy(`node:${path}`);
+    try {
+      const encoded = path
+        .split("/")
+        .map((part) => encodeURIComponent(part))
+        .join("/");
+      await apiPost(
+        `/api/recipes/runs/${encodeURIComponent(runId)}/nodes/${encoded}`,
+      );
+      toast({
+        tone: "success",
+        title: "Nó reenfileirado",
+        description: path,
+      });
+      await load();
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível retomar o nó",
         description: cause instanceof Error ? cause.message : String(cause),
       });
     } finally {
@@ -318,7 +260,7 @@ export function RecipeRunDetailPage() {
                 disabled={busy === "retry"}
                 onClick={() => void retryRun()}
               >
-                Repetir
+                Retomar
               </Button>
             ) : null}
             <Button
@@ -412,6 +354,11 @@ export function RecipeRunDetailPage() {
                   node={node}
                   children={children}
                   depth={0}
+                  onRetry={
+                    ["FAILED", "REJECTED", "TIMED_OUT"].includes(run.status)
+                      ? (path) => void retryNode(path)
+                      : undefined
+                  }
                 />
               ));
             })()
