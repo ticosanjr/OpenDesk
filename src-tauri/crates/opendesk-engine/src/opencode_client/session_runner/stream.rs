@@ -1,4 +1,5 @@
 use super::PermissionDecision;
+use crate::opencode_client::event_stream::session_matches;
 use crate::opencode_client::rest_client::RestClient;
 use opendesk_storage::events::{EventBus, OpenDeskWsEvent};
 use opendesk_storage::repos::{permissions, settings};
@@ -238,40 +239,4 @@ pub(super) fn read_tail(path: &Path, max_bytes: usize) -> Option<String> {
     let bytes = std::fs::read(path).ok()?;
     let start = bytes.len().saturating_sub(max_bytes);
     Some(String::from_utf8_lossy(&bytes[start..]).to_string())
-}
-
-pub(super) fn session_matches(event: &Value, session_id: &str) -> bool {
-    event
-        .pointer("/data/sessionID")
-        .and_then(Value::as_str)
-        .map(|value| value == session_id)
-        .unwrap_or(false)
-}
-
-pub(super) fn extract_events(buffer: &mut String) -> Vec<Value> {
-    let mut events = Vec::new();
-
-    while let Some(position) = buffer.find("\n\n") {
-        let block = buffer[..position].to_string();
-        buffer.drain(..position + 2);
-
-        let mut data = String::new();
-        for line in block.lines() {
-            if let Some(value) = line.strip_prefix("data:") {
-                if !data.is_empty() {
-                    data.push('\n');
-                }
-                data.push_str(value.trim_start());
-            }
-        }
-
-        if data.is_empty() {
-            continue;
-        }
-        if let Ok(value) = serde_json::from_str::<Value>(&data) {
-            events.push(value);
-        }
-    }
-
-    events
 }

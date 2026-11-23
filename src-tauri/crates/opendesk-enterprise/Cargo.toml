@@ -1,6 +1,6 @@
 [package]
 name = "opendesk-enterprise"
-version = "1.7.0"
+version = "1.7.1"
 description = "OpenDesk enterprise: auth, cluster, computer-use and eval"
 edition = "2024"
 license = "MIT"

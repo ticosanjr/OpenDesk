@@ -107,7 +107,7 @@ if [[ "$SKIP_BUILD" != "1" && "$REUSE_BUILD" == "1" ]]; then
         "$ROOT/src-tauri/gen" \
         "$ROOT/src-tauri/build.rs" "$ROOT/src-tauri/Cargo.toml" \
         "$ROOT/src-tauri/Cargo.lock" "$ROOT/src-tauri/tauri.conf.json" \
-        "$ROOT/src-tauri/update-signing-public-key.txt" \
+        "$ROOT/src-tauri/crates/opendesk-enterprise/src/update-signing-public-key.txt" \
         "$ROOT/package.json" "$ROOT/package-lock.json" \
         "$ROOT/index.html" "$ROOT/vite.config.ts" \
         "$ROOT/tsconfig.json" "$ROOT/tsconfig.node.json" \

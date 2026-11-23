@@ -6,10 +6,7 @@ import { apiPost } from "@/lib/api";
 import { links } from "@/lib/links";
 import { useAppStore } from "@/store/app-store";
 import { toast } from "@/store/toast-store";
-
-function isTauri() {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-}
+import { hideWindowIfTauri } from "@/lib/runtime-env";
 
 export function CapturePage() {
   const workspaces = useAppStore((state) => state.workspaces);
@@ -36,12 +33,8 @@ export function CapturePage() {
   }, []);
 
   async function close() {
-    if (isTauri()) {
-      const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      await getCurrentWindow().hide();
-    } else {
-      navigate("/");
-    }
+    const hidden = await hideWindowIfTauri();
+    if (!hidden) navigate("/");
   }
 
   function attachImage(file: File) {

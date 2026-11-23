@@ -3,6 +3,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
 use uuid::Uuid;
 
+#[path = "io_bus_migration.rs"]
+mod io_bus_migration;
+pub use io_bus_migration::{all_inbound, all_outbound, set_inbound_config, set_outbound_config};
+
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct InboundSource {
     pub id: String,

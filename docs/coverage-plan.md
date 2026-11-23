@@ -4,8 +4,8 @@ O gate usa dois limites de linhas (llvm-cov):
 
 | Medida | Antes da 1.4.2 | Agora | Meta |
 |---|---:|---:|---:|
-| Total (`--workspace`) | 54,35% | **63,05%** | piso 63,0% |
-| Negócio (domain, storage, engine, recipes, api, fila, io_bus, …) | 64,09% | **75,98%** | piso 75,5% (meta 75% atingida) |
+| Total (`--workspace`) | 54,35% | **64,08%** | piso 63,0% |
+| Negócio (domain, storage, engine, recipes, api, fila, io_bus, …) | 64,09% | **76,40%** | piso 75,5% (meta 75% atingida) |
 
 Comandos:
 
@@ -46,7 +46,7 @@ scripts/coverage-core.sh /tmp/cov.txt
 4. Contratos reais (Google/conta dedicada, OpenCode) continuam opt-in e não
    entram no percentual.
 
-O escopo de negócio está em 75,98%, acima da meta de 75%. O total do workspace
+O escopo de negócio está em 76,40%, acima da meta de 75%. O total do workspace
 inclui CLI, tray, updater, doctor, integrações de rede e o registro de handlers
 MCP; o piso de 63,0% protege esse patamar. `engine`+`recipes` isolados ficam em
 68,2%: a próxima onda deve priorizar worker/lease, cron e DAG para levar esse

@@ -4,9 +4,11 @@ use models::DataEnvelope;
 pub use models::{AgentDto, FileDiff, ModelDto, ModelRefDto, ModelVariantDto, ServerInfo};
 
 use anyhow::{Context, Result};
+use futures_util::StreamExt;
 use serde::Deserialize;
 use serde_json::Value;
 use std::time::Duration;
+use tokio::sync::mpsc;
 
 #[derive(Clone)]
 pub struct RestClient {
@@ -315,6 +317,30 @@ impl RestClient {
             anyhow::bail!("OpenCode event stream failed ({status}): {body}");
         }
         Ok(response)
+    }
+
+    /// Subscribes to the global OpenCode SSE stream and forwards parsed events.
+    /// The task ends when the receiver is dropped or the stream closes.
+    pub async fn event_receiver(&self) -> Result<mpsc::Receiver<Value>> {
+        let response = self.event_response().await?;
+        let mut stream = response.bytes_stream();
+        let (tx, rx) = mpsc::channel(256);
+        tokio::spawn(async move {
+            let mut buffer = Vec::new();
+            while let Some(chunk) = stream.next().await {
+                let Ok(chunk) = chunk else {
+                    break;
+                };
+                buffer.extend_from_slice(&chunk);
+                for event in crate::opencode_client::event_stream::extract_events_bytes(&mut buffer)
+                {
+                    if tx.send(event).await.is_err() {
+                        return;
+                    }
+                }
+            }
+        });
+        Ok(rx)
     }
 
     async fn get_json_value(&self, path: &str) -> Result<Value> {

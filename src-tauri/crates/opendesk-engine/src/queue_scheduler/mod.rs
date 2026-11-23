@@ -2,7 +2,7 @@ pub mod cron_engine;
 mod dto;
 mod leases;
 pub mod queue_manager;
-pub mod recurrence;
+pub use crate::scheduler::recurrence;
 pub mod run_execution;
 pub mod settlement;
 

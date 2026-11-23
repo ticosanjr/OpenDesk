@@ -6,7 +6,7 @@ use crate::{
 };
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 struct Config {
     #[serde(default)]
     to: Option<String>,
@@ -18,8 +18,6 @@ struct Config {
     attach_artifacts: Option<bool>,
     #[serde(default)]
     token_ref: Option<String>,
-    #[serde(default)]
-    token: Option<String>,
     #[serde(default)]
     chat_id: Option<String>,
     #[serde(default)]
@@ -57,23 +55,6 @@ fn message_markdown(output: &RunOutput) -> String {
         text.push_str(&format!("\n- `{}`", artifact.file_path));
     }
     text
-}
-
-fn secret(ctx: &IoContext, config: &Config) -> AppResult<String> {
-    if let Some(token) = config
-        .token
-        .as_deref()
-        .filter(|value| !value.trim().is_empty())
-    {
-        return Ok(token.to_string());
-    }
-    let key = config
-        .token_ref
-        .as_deref()
-        .ok_or_else(|| AppError::BadRequest("token_ref é obrigatório".into()))?;
-    ctx.secrets()
-        .get("io_bus", key)?
-        .ok_or_else(|| AppError::NotFound(format!("segredo {key}")))
 }
 
 async fn smtp(
@@ -157,7 +138,7 @@ async fn signal_channel(
     message: &str,
     output: &RunOutput,
 ) -> AppResult<Vec<String>> {
-    let signal = crate::integrations::signal::load(&ctx.pool).await?;
+    let signal = opendesk_channels::signal::load(&ctx.pool).await?;
     if !signal.enabled {
         return Err(AppError::BadRequest("Signal não está habilitado".into()));
     }
@@ -171,7 +152,7 @@ async fn signal_channel(
         .take(5)
         .map(|path| path.to_string_lossy().to_string())
         .collect::<Vec<_>>();
-    crate::integrations::signal::send_with_attachments(
+    opendesk_channels::signal::send_with_attachments(
         &signal.cli_path,
         &signal.account,
         recipient,
@@ -188,16 +169,17 @@ async fn telegram(
     message: &str,
     output: &RunOutput,
 ) -> AppResult<Vec<String>> {
-    let token = secret(ctx, config)?;
+    let token = crate::io_bus::secret(&ctx.paths, config.token_ref.as_deref())?;
     let chat_id = config
         .chat_id
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("Telegram sink exige chat_id".into()))?;
-    crate::io_bus::chat::send_telegram(&token, chat_id, message, Some("HTML")).await?;
+    opendesk_channels::telegram::send_text_with_parse_mode(&token, chat_id, message, Some("HTML"))
+        .await?;
     if config.attach_artifacts.unwrap_or(true) {
         for path in artifact_paths(output).into_iter().take(5) {
             if let Err(error) =
-                crate::integrations::telegram::send_document(&token, chat_id, path, None).await
+                opendesk_channels::telegram::send_document(&token, chat_id, path, None).await
             {
                 tracing::warn!(path = %path.display(), error = %error, "Telegram sink attachment failed");
             }
@@ -207,7 +189,7 @@ async fn telegram(
 }
 
 async fn matrix(ctx: &IoContext, config: &Config, message: &str) -> AppResult<Vec<String>> {
-    let token = secret(ctx, config)?;
+    let token = crate::io_bus::secret(&ctx.paths, config.token_ref.as_deref())?;
     let homeserver = config
         .homeserver
         .as_deref()
@@ -265,5 +247,38 @@ mod tests {
         let text = message_markdown(&output);
         assert!(text.contains("## Relatório"));
         assert!(text.contains("out/a.md"));
+    }
+}
+
+#[cfg(test)]
+mod secret_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn token_requires_a_reference_in_the_secret_store() {
+        let ctx = crate::test_support::context().await;
+        let io = IoContext {
+            pool: ctx.state.db.clone(),
+            paths: ctx.state.paths.clone(),
+        };
+        let mut config = Config::default();
+        let error =
+            crate::io_bus::secret(&io.paths, config.token_ref.as_deref()).expect_err("missing ref");
+        assert!(error.to_string().contains("referência"));
+
+        ctx.state
+            .secrets
+            .set("io_bus", "telegram-sink", "123:abc")
+            .expect("secret");
+        config.token_ref = Some("telegram-sink".into());
+        assert_eq!(
+            crate::io_bus::secret(&io.paths, config.token_ref.as_deref()).expect("resolve"),
+            "123:abc"
+        );
+
+        config.token_ref = Some("missing-sink".into());
+        let error = crate::io_bus::secret(&io.paths, config.token_ref.as_deref())
+            .expect_err("missing secret");
+        assert!(error.to_string().contains("não encontrado"));
     }
 }

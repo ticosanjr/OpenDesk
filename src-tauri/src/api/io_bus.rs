@@ -41,6 +41,7 @@ pub async fn create_inbound(
     if is_webhook(&input.source_type) {
         crate::io_bus::ensure_webhook_secret(&state.paths, &mut input.config)?;
     }
+    crate::io_bus::secrets_guard::validate_no_plaintext_secrets(&input.config)?;
     let source = io_bus::create_inbound(&state.db, &workspace_id, input).await?;
     state.io_bus.reload(state.clone()).await?;
     Ok(Json(source))
@@ -56,6 +57,7 @@ pub async fn update_inbound(
     if is_webhook(&input.source_type) {
         crate::io_bus::ensure_webhook_secret(&state.paths, &mut input.config)?;
     }
+    crate::io_bus::secrets_guard::validate_no_plaintext_secrets(&input.config)?;
     let source = io_bus::update_inbound(&state.db, &id, input).await?;
     if let Some(reference) = previous_secret
         && crate::io_bus::webhook_secret_ref(&source.config_json).as_deref() != Some(&reference)
@@ -93,6 +95,7 @@ pub async fn create_outbound(
 ) -> AppResult<Json<io_bus::OutboundSink>> {
     let workspace_id =
         crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    crate::io_bus::secrets_guard::validate_no_plaintext_secrets(&input.config)?;
     Ok(Json(
         io_bus::create_outbound(&state.db, &workspace_id, input).await?,
     ))
@@ -103,6 +106,7 @@ pub async fn update_outbound(
     Path(id): Path<String>,
     Json(input): Json<OutboundInput>,
 ) -> AppResult<Json<io_bus::OutboundSink>> {
+    crate::io_bus::secrets_guard::validate_no_plaintext_secrets(&input.config)?;
     Ok(Json(io_bus::update_outbound(&state.db, &id, input).await?))
 }
 

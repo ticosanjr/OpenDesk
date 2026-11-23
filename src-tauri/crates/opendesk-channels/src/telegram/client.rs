@@ -17,7 +17,31 @@ const MAX_MESSAGE_CHARS: usize = 3800;
 pub const MAX_FILE_BYTES: usize = 20 * 1024 * 1024;
 
 pub async fn send_text(token: &str, chat_id: &str, text: &str) -> AppResult<()> {
-    send_text_with_markup(token, chat_id, text, None, None).await
+    send_text_with_parse_mode(token, chat_id, text, None).await
+}
+
+/// Sends text with an optional Bot API `parse_mode` (for example `HTML`).
+/// Used by the I/O bus, which formats artifacts as HTML.
+pub async fn send_text_with_parse_mode(
+    token: &str,
+    chat_id: &str,
+    text: &str,
+    parse_mode: Option<&str>,
+) -> AppResult<()> {
+    let text = if text.trim().is_empty() {
+        "(sem resposta)"
+    } else {
+        text
+    };
+    if let Some(mode) = parse_mode {
+        // Parse-mode payloads are HTML/Markdown and may not survive chunking;
+        // preserve the historical single-message behavior for the I/O bus.
+        return send_chunk_with_mode(token, chat_id, text, None, None, Some(mode)).await;
+    }
+    for chunk in chunks(text, MAX_MESSAGE_CHARS) {
+        send_chunk_with_mode(token, chat_id, &chunk, None, None, None).await?;
+    }
+    Ok(())
 }
 
 pub async fn send_reply(token: &str, chat_id: &str, message_id: i64, text: &str) -> AppResult<()> {
@@ -56,6 +80,17 @@ async fn send_chunk(
     reply_to: Option<i64>,
     markup: Option<&Value>,
 ) -> AppResult<()> {
+    send_chunk_with_mode(token, chat_id, text, reply_to, markup, None).await
+}
+
+async fn send_chunk_with_mode(
+    token: &str,
+    chat_id: &str,
+    text: &str,
+    reply_to: Option<i64>,
+    markup: Option<&Value>,
+    parse_mode: Option<&str>,
+) -> AppResult<()> {
     let mut payload = json!({
         "chat_id": chat_id,
         "text": text,
@@ -69,6 +104,9 @@ async fn send_chunk(
     }
     if let Some(markup) = markup {
         payload["reply_markup"] = markup.clone();
+    }
+    if let Some(mode) = parse_mode {
+        payload["parse_mode"] = Value::String(mode.to_string());
     }
     let response = client()
         .post(api_url(token, "sendMessage"))
@@ -276,6 +314,12 @@ pub async fn delete_webhook(token: &str) -> AppResult<()> {
 }
 
 pub async fn get_updates(token: &str, offset: i64) -> AppResult<Vec<TelegramUpdate>> {
+    let value = get_updates_value(token, offset).await?;
+    Ok(parse_updates(&value))
+}
+
+/// Raw form used by the I/O bus bridge, which keeps its own update handler.
+pub async fn get_updates_value(token: &str, offset: i64) -> AppResult<Value> {
     let response = client()
         .post(api_url(token, "getUpdates"))
         .json(&json!({
@@ -286,8 +330,7 @@ pub async fn get_updates(token: &str, offset: i64) -> AppResult<Vec<TelegramUpda
         .send()
         .await
         .map_err(|_| AppError::Daemon("Telegram: falha de rede no long polling".into()))?;
-    let value = parse_response("getUpdates", response).await?;
-    Ok(parse_updates(&value))
+    parse_response("getUpdates", response).await
 }
 
 async fn parse_response(method: &str, response: reqwest::Response) -> AppResult<Value> {

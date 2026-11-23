@@ -1,5 +1,6 @@
 pub mod binary;
 pub mod daemon_manager;
+pub mod event_stream;
 pub mod rest_client;
 pub mod updater;
 

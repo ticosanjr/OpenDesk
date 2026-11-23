@@ -14,8 +14,6 @@ pub struct TelegramConfig {
     #[serde(default)]
     pub token_ref: Option<String>,
     #[serde(default)]
-    pub token: Option<String>,
-    #[serde(default)]
     pub allowed_chats: Vec<String>,
 }
 #[derive(Debug, Default, Deserialize)]
@@ -23,8 +21,6 @@ pub struct MatrixConfig {
     pub homeserver: String,
     #[serde(default)]
     pub access_token_ref: Option<String>,
-    #[serde(default)]
-    pub access_token: Option<String>,
     #[serde(default)]
     pub rooms: Vec<String>,
 }
@@ -50,40 +46,26 @@ async fn run_telegram(
     cancel: CancellationToken,
 ) -> AppResult<()> {
     let config: TelegramConfig = source_config(&source)?;
-    let token = secret(&state, config.token_ref.as_deref(), config.token.as_deref())?;
-    let client = crate::io_bus::http_client(40);
+    let token = crate::io_bus::secret(&state.paths, config.token_ref.as_deref())?;
     let mut offset = 0i64;
     loop {
         if cancel.is_cancelled() {
             break;
         }
-        let response = client
-            .get(format!("https://api.telegram.org/bot{token}/getUpdates"))
-            .query(&[
-                ("timeout", "25".to_string()),
-                ("offset", offset.to_string()),
-                (
-                    "allowed_updates",
-                    "[\"message\",\"callback_query\"]".to_string(),
-                ),
-            ])
-            .send()
-            .await;
-        let response = match response {
-            Ok(response) => response,
+        let value = match opendesk_channels::telegram::get_updates_value(&token, offset).await {
+            Ok(value) => value,
             Err(error) => {
                 tracing::warn!(error = %error, "Telegram poll failed");
                 sleep_or_cancel(&cancel, 5).await;
                 continue;
             }
         };
-        let value: serde_json::Value = response.json().await.unwrap_or_default();
         if let Some(updates) = value.get("result").and_then(|value| value.as_array()) {
             for update in updates {
                 if let Some(id) = update.get("update_id").and_then(|value| value.as_i64()) {
                     offset = offset.max(id + 1);
                 }
-                handle_telegram_update(&state, &source, &client, &token, update, &config).await;
+                handle_telegram_update(&state, &source, &token, update, &config).await;
             }
         }
         if value
@@ -101,7 +83,6 @@ async fn run_telegram(
 async fn handle_telegram_update(
     state: &Arc<AppState>,
     source: &db::io_bus::InboundSource,
-    client: &reqwest::Client,
     token: &str,
     update: &serde_json::Value,
     config: &TelegramConfig,
@@ -136,12 +117,7 @@ async fn handle_telegram_update(
                 decision: decision.to_string(),
             });
         }
-        let _ = client
-            .post(format!(
-                "https://api.telegram.org/bot{token}/answerCallbackQuery"
-            ))
-            .json(&serde_json::json!({ "callback_query_id": callback_id, "text": "OpenDesk" }))
-            .send()
+        let _ = opendesk_channels::telegram::answer_callback_query(token, callback_id, "OpenDesk")
             .await;
         return;
     }
@@ -172,9 +148,8 @@ async fn handle_telegram_update(
                 request_id: request.request_id,
                 decision: "once".into(),
             });
-            let _ =
-                crate::io_bus::chat::send_telegram(token, &chat_id, "Permissão aprovada.", None)
-                    .await;
+            let _ = opendesk_channels::telegram::send_text(token, &chat_id, "Permissão aprovada.")
+                .await;
         }
         return;
     }
@@ -184,8 +159,8 @@ async fn handle_telegram_update(
                 request_id: request.request_id,
                 decision: "reject".into(),
             });
-            let _ = crate::io_bus::chat::send_telegram(token, &chat_id, "Permissão negada.", None)
-                .await;
+            let _ =
+                opendesk_channels::telegram::send_text(token, &chat_id, "Permissão negada.").await;
         }
         return;
     }
@@ -213,8 +188,8 @@ async fn handle_telegram_update(
     if let Err(error) = crate::io_bus::ingest(state, source, event).await {
         tracing::warn!(error = %error, "Telegram ingest failed");
     }
-    let _ = crate::io_bus::chat::send_telegram(token, &chat_id, "Tarefa criada no OpenDesk.", None)
-        .await;
+    let _ =
+        opendesk_channels::telegram::send_text(token, &chat_id, "Tarefa criada no OpenDesk.").await;
 }
 
 async fn run_matrix(
@@ -223,11 +198,7 @@ async fn run_matrix(
     cancel: CancellationToken,
 ) -> AppResult<()> {
     let config: MatrixConfig = source_config(&source)?;
-    let token = secret(
-        &state,
-        config.access_token_ref.as_deref(),
-        config.access_token.as_deref(),
-    )?;
+    let token = crate::io_bus::secret(&state.paths, config.access_token_ref.as_deref())?;
     let client = crate::io_bus::http_client(40);
     let mut since: Option<String> = None;
     loop {
@@ -317,14 +288,6 @@ async fn run_matrix(
         }
     }
     Ok(())
-}
-
-fn secret(
-    state: &Arc<AppState>,
-    reference: Option<&str>,
-    plain: Option<&str>,
-) -> AppResult<String> {
-    crate::io_bus::secret(&state.paths, reference, plain)
 }
 
 async fn sleep_or_cancel(cancel: &CancellationToken, seconds: u64) {

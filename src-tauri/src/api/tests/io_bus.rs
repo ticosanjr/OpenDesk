@@ -279,3 +279,105 @@ async fn webhook_source_without_secret_is_rejected() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn io_bus_rejects_plaintext_secrets_before_persisting() {
+    let ctx = test_support::context().await;
+    let query = format!("?workspace_id={}", ctx.workspace_id);
+
+    for (name, source_type, config) in [
+        (
+            "Telegram sem ref",
+            "TELEGRAM_BOT",
+            json!({ "token": "123:abc" }),
+        ),
+        (
+            "SQL sem ref",
+            "SQL_POLLER",
+            json!({ "database_url": "postgres://user:pass@db/app", "query": "SELECT 1" }),
+        ),
+        (
+            "Telegram aninhado",
+            "TELEGRAM_BOT",
+            json!({ "channels": [{ "access_token": "nested" }] }),
+        ),
+    ] {
+        let (status, body) = call(
+            &ctx,
+            Method::POST,
+            &format!("/api/io/inbound{query}"),
+            Some(json!({
+                "name": name,
+                "source_type": source_type,
+                "config": config,
+                "auto_execute": false,
+                "is_enabled": false
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        assert!(
+            body["message"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("texto plano"),
+            "{body}"
+        );
+    }
+
+    let (status, body) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/io/outbound{query}"),
+        Some(json!({
+            "name": "SQL sem ref",
+            "sink_type": "SQL_INSERT",
+            "config": {
+                "database_url": "postgres://user:pass@db/app",
+                "query": "INSERT INTO x VALUES (?)"
+            },
+            "is_enabled": false
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("texto plano"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn io_bus_accepts_an_empty_legacy_field_when_a_reference_exists() {
+    let ctx = test_support::context().await;
+    let query = format!("?workspace_id={}", ctx.workspace_id);
+    ctx.state
+        .secrets
+        .set("io_bus", "telegram-qa", "123:abc")
+        .expect("secret");
+    let (status, body) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/io/inbound{query}"),
+        Some(json!({
+            "name": "Telegram com ref",
+            "source_type": "TELEGRAM_BOT",
+            "config": {
+                "token": "",
+                "token_ref": "telegram-qa",
+                "allowed_chats": ["1"]
+            },
+            "auto_execute": false,
+            "is_enabled": false
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let stored: Value =
+        serde_json::from_str(body["config_json"].as_str().expect("config")).expect("json");
+    assert_eq!(stored["token_ref"], "telegram-qa");
+    assert_eq!(stored["token"], "");
+}

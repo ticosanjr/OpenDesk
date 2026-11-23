@@ -4922,7 +4922,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "aes-gcm 0.10.3",
  "anyhow",
@@ -5008,7 +5008,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-channels"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -5032,7 +5032,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-cli"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "opendesk",
  "opendesk-storage",
@@ -5041,14 +5041,14 @@ dependencies = [
 
 [[package]]
 name = "opendesk-daemon"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "opendesk",
 ]
 
 [[package]]
 name = "opendesk-domain"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -5060,7 +5060,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-engine"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5094,7 +5094,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-enterprise"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5120,7 +5120,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-mcp"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "anyhow",
  "opendesk-engine",
@@ -5132,18 +5132,19 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
 name = "opendesk-node"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "opendesk",
 ]
 
 [[package]]
 name = "opendesk-recipes"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -5168,7 +5169,7 @@ dependencies = [
 
 [[package]]
 name = "opendesk-storage"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "aes-gcm 0.10.3",
  "anyhow",

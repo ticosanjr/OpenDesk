@@ -70,6 +70,7 @@ pub use crate::api_endpoint::ApiEndpoint;
 impl AppState {
     pub async fn initialize(paths: AppPaths) -> Result<Self> {
         let db = db::init(&paths.db_path).await?;
+        crate::io_bus::secrets_guard::migrate_legacy_secrets(&db, &paths).await?;
         db::maintenance::boot_check(&db).await?;
         if let Err(error) = db::worktrees::sweep(&db, &paths.data_dir).await {
             tracing::warn!(error = %error, "worktree sweep failed");

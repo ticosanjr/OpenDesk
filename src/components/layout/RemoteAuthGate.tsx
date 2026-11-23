@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Fingerprint, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { isTauriRuntime } from "@/lib/runtime-env";
 import {
   fetchPasskeyStatus,
   hasSecureOrigin,
@@ -11,10 +12,6 @@ import {
 } from "@/lib/passkey";
 
 const TOKEN_KEY = "opendesk_api_token";
-
-function isTauri(): boolean {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-}
 
 function hasEnvToken(): boolean {
   return Boolean(import.meta.env.VITE_OPENDESK_TOKEN);
@@ -36,13 +33,13 @@ export function RemoteAuthGate({ children }: { children: ReactNode }) {
   const [passkeyBusy, setPasskeyBusy] = useState(false);
 
   useEffect(() => {
-    if (isTauri() || hasEnvToken() || storedToken) return;
+    if (isTauriRuntime() || hasEnvToken() || storedToken) return;
     void fetchPasskeyStatus()
       .then(setPasskey)
       .catch(() => setPasskey(null));
   }, [storedToken]);
 
-  if (isTauri() || hasEnvToken()) return <>{children}</>;
+  if (isTauriRuntime() || hasEnvToken()) return <>{children}</>;
   if (storedToken) return <>{children}</>;
 
   async function signIn() {

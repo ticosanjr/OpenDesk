@@ -1,4 +1,4 @@
-//! Shell database facade: storage repositories plus shell-only maintenance.
+//! Shell database facade over storage repositories and maintenance.
 
 use sqlx::SqlitePool;
 use std::path::Path;
@@ -7,7 +7,7 @@ pub use opendesk_engine::worktree::store as worktrees;
 pub use opendesk_storage::repos::*;
 pub use opendesk_storage::write_buffer;
 
-pub mod maintenance;
+pub use opendesk_storage::maintenance;
 
 /// Opens the V2 database. The schema lives in `opendesk-storage`.
 pub async fn init(db_path: &Path) -> anyhow::Result<SqlitePool> {

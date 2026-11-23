@@ -214,7 +214,7 @@ fn keygen_cli(args: &[String]) -> Result<()> {
     println!("key_id:  {}", public_key_id(&public_b64)?);
     println!(
         "\nGuarde a chave privada offline e faça backup. A chave pública deve ser\n\
-         commitada em src-tauri/update-signing-public-key.txt."
+         commitada em crates/opendesk-enterprise/src/update-signing-public-key.txt."
     );
     Ok(())
 }

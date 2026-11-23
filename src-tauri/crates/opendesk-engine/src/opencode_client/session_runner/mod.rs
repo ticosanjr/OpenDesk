@@ -1,10 +1,11 @@
 mod artifacts;
 mod stream;
 
+use crate::opencode_client::event_stream::{extract_events, session_matches};
 pub use artifacts::chat_turn_signals;
 use artifacts::{parse_messages, parse_model_ref};
 pub(crate) use stream::{append_log, publish_chunk};
-use stream::{extract_events, handle_event, read_tail, session_matches};
+use stream::{handle_event, read_tail};
 
 use crate::opencode_client::rest_client::{FileDiff, RestClient};
 use opendesk_storage::events::EventBus;

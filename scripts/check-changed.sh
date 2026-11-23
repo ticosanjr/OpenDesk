@@ -34,6 +34,8 @@ done <<< "$changed"
 
 if [[ "$rust" == "1" ]]; then
   echo "==> Rust changed: fmt, clippy and unit tests"
+  python3 scripts/check-rust-limits.py
+  python3 scripts/check-rust-limits.py --root src-tauri/src --baseline scripts/shell-limits-baseline.txt
   (cd src-tauri && cargo fmt -- --check)
   (cd src-tauri && cargo clippy --all-targets -- -D warnings)
   (cd src-tauri && cargo test --lib)

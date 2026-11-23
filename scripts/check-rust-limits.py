@@ -17,7 +17,7 @@ import pathlib
 import sys
 
 MAX_LINES = 500
-PATTERNS = (".unwrap()", ".expect(")
+PATTERNS = (".unwrap()", ".expect(", "include!(")
 
 
 def is_test_file(path: pathlib.Path) -> bool:
@@ -47,11 +47,11 @@ def scan(roots: list[pathlib.Path], check_lines: bool = True) -> dict[str, tuple
                 text = path.read_text(errors="ignore")
             except OSError:
                 continue
+            if is_test_file(path):
+                continue
             lines = len(text.splitlines())
             if check_lines and lines > MAX_LINES:
                 issues[str(path)] = ("lines", lines)
-            if is_test_file(path):
-                continue
             body = production_text(text)
             for pattern in PATTERNS:
                 count = body.count(pattern)

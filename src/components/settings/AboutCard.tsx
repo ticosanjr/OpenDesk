@@ -10,7 +10,8 @@ import {
   RefreshCw,
   Terminal,
 } from "lucide-react";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { openLocalPath } from "@/lib/runtime-env";
+import { toast } from "@/store/toast-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,6 +63,17 @@ export function AboutCard() {
       setDesktopMessage(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setDesktopBusy(false);
+    }
+  }
+
+  async function reveal(path: string) {
+    const result = await openLocalPath(path);
+    if (!result.ok) {
+      toast({
+        tone: "info",
+        title: "Caminho local",
+        description: result.fallback ?? path,
+      });
     }
   }
 
@@ -194,7 +206,7 @@ export function AboutCard() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => void openPath(info.paths.log_dir).catch(() => {})}
+                onClick={() => void reveal(info.paths.log_dir)}
               >
                 <Terminal size={13} />
                 Abrir logs
@@ -202,7 +214,7 @@ export function AboutCard() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => void openPath(info.paths.data_dir).catch(() => {})}
+                onClick={() => void reveal(info.paths.data_dir)}
               >
                 <FolderOpen size={13} />
                 Abrir dados

@@ -6,7 +6,7 @@ chave pública e recusa releases sem `latest.json.sig` válido.
 ## Chaves
 
 - Privada: `~/.config/opendesk/update-signing.key` (0600). Nunca versionar.
-- Pública: `src-tauri/update-signing-public-key.txt` (versionada).
+- Pública: `src-tauri/crates/opendesk-enterprise/src/update-signing-public-key.txt` (versionada).
 - Alternativa de caminho: `OPENDESK_UPDATE_SIGNING_KEY=/caminho/chave`.
 
 Gerar um par novo (substitui a chave pública do repositório):
@@ -14,7 +14,7 @@ Gerar um par novo (substitui a chave pública do repositório):
 ```bash
 opendesk keygen-update \
   --out ~/.config/opendesk/update-signing.key \
-  --public-out src-tauri/update-signing-public-key.txt
+  --public-out src-tauri/crates/opendesk-enterprise/src/update-signing-public-key.txt
 ```
 
 Guarde a chave privada offline e faça backup. Sem ela não é possível assinar

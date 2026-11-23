@@ -27,46 +27,7 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/*
- * Type roles. The app still has legacy arbitrary sizes; these roles are the
- * target vocabulary for shared primitives and new surfaces.
- * overline: section labels (uppercase, mono, max 3-4 per screen)
- * meta: timestamps, ids, helper text
- * body: default reading size
- * title: card and panel titles
- * page: page title
- * kpi: highlighted numbers
- */
-.type-overline {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.45;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #8b8b96;
-}
-
-.type-meta {
-  font-size: 12px;
-  line-height: 1.5;
-  color: #8b8b96;
-}
-
-.type-body {
-  font-size: 13.5px;
-  line-height: 1.55;
-  color: #e4e4e7;
-}
-
-.type-title {
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.35;
-  letter-spacing: -0.01em;
-  color: #f4f4f5;
-}
-
+/* Page title role. Other type roles now use the shared `ui-classes` helpers. */
 .type-page {
   font-size: 24px;
   font-weight: 600;
@@ -75,61 +36,7 @@
   color: #fafafa;
 }
 
-.type-kpi {
-  font-family: var(--font-mono);
-  font-size: 28px;
-  font-weight: 500;
-  line-height: 1.15;
-  letter-spacing: -0.03em;
-  color: #fafafa;
-  font-variant-numeric: tabular-nums;
-}
-
 /* Shared surfaces and form controls. */
-.surface-panel {
-  border: 1px solid rgb(39 39 42 / 0.72);
-  border-radius: var(--radius-card);
-  background: rgb(24 24 27 / 0.28);
-}
-
-.surface-inset {
-  border: 1px solid rgb(39 39 42 / 0.7);
-  border-radius: 8px;
-  background: rgb(9 9 11 / 0.5);
-}
-
-.field-base {
-  height: 36px;
-  width: 100%;
-  border: 1px solid #27272a;
-  border-radius: 8px;
-  background: rgb(24 24 27 / 0.5);
-  padding: 0 10px;
-  font-size: 13px;
-  color: #f4f4f5;
-  outline: none;
-  transition: border-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
-}
-
-.field-base::placeholder {
-  color: #8b8b96;
-}
-
-.field-base:hover {
-  border-color: #3f3f46;
-}
-
-.field-base:focus-visible {
-  border-color: color-mix(in srgb, var(--workspace-accent) 65%, #3f3f46);
-  outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--workspace-accent) 18%, transparent);
-}
-
-.tap-target {
-  min-height: 28px;
-  min-width: 28px;
-}
-
 button:not(:disabled),
 [role="button"]:not([aria-disabled="true"]) {
   cursor: pointer;
@@ -206,10 +113,6 @@ body {
   border-color: var(--workspace-border);
 }
 
-.workspace-divider-soft {
-  border-color: var(--workspace-border-soft);
-}
-
 .workspace-nav-active {
   background: var(--workspace-surface);
   box-shadow: inset 2px 0 0 var(--workspace-accent);
@@ -219,14 +122,6 @@ body {
   background: var(--workspace-surface);
   color: #fafafa;
   box-shadow: inset 0 -2px 0 var(--workspace-accent);
-}
-
-.workspace-card {
-  border-color: var(--workspace-border-soft);
-}
-
-.workspace-card:hover {
-  border-color: var(--workspace-border);
 }
 
 .workspace-scope input:focus,
@@ -293,14 +188,6 @@ textarea:focus-visible {
 .cv-auto {
   content-visibility: auto;
   contain-intrinsic-size: 96px;
-}
-
-.workspace-topline {
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--workspace-accent) 55%, transparent),
-    transparent 40%
-  );
 }
 
 .scroll-area {
@@ -389,13 +276,8 @@ button {
   animation: opendesk-gear-spin 1.8s linear infinite;
 }
 
-.opendesk-gear-reverse {
-  animation: opendesk-gear-spin 1.2s linear infinite reverse;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .opendesk-gear,
-  .opendesk-gear-reverse,
   .animate-pulse {
     animation: none;
   }

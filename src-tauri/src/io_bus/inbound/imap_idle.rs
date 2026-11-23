@@ -17,8 +17,6 @@ pub struct ImapConfig {
     pub port: u16,
     pub username: String,
     #[serde(default)]
-    pub password: Option<String>,
-    #[serde(default)]
     pub password_ref: Option<String>,
     #[serde(default = "default_mailbox")]
     pub mailbox: String,
@@ -307,11 +305,7 @@ async fn save_email_chat(
 }
 
 fn password(state: &Arc<AppState>, config: &ImapConfig) -> AppResult<String> {
-    crate::io_bus::secret(
-        &state.paths,
-        config.password_ref.as_deref(),
-        config.password.as_deref(),
-    )
+    crate::io_bus::secret(&state.paths, config.password_ref.as_deref())
 }
 
 #[cfg(test)]

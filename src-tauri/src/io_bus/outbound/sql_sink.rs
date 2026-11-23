@@ -9,8 +9,6 @@ use std::path::Path;
 #[derive(Debug, Deserialize)]
 struct Config {
     #[serde(default)]
-    database_url: Option<String>,
-    #[serde(default)]
     database_url_ref: Option<String>,
     query: String,
     #[serde(default)]
@@ -25,10 +23,7 @@ pub async fn run(
     output: &RunOutput,
 ) -> AppResult<Vec<String>> {
     let config: Config = config_value(sink)?;
-    let database_url = match config.database_url {
-        Some(url) if !url.trim().is_empty() => url,
-        _ => crate::io_bus::secret(&ctx.paths, config.database_url_ref.as_deref(), None)?,
-    };
+    let database_url = crate::io_bus::secret(&ctx.paths, config.database_url_ref.as_deref())?;
     let source = config
         .artifact
         .as_deref()
@@ -157,10 +152,14 @@ mod tests {
             pool: ctx.state.db.clone(),
             paths: ctx.state.paths.clone(),
         };
+        ctx.state
+            .secrets
+            .set("io_bus", "test-sql-sink-url", &url)
+            .expect("secret");
         let result = run(
             &io,
             &sink(json!({
-                "database_url": url,
+                "database_url_ref": "test-sql-sink-url",
                 "query": "INSERT INTO registros (name, count, ok) VALUES (?, ?, ?)",
                 "columns": ["name", "count", "ok"]
             })),
@@ -194,8 +193,12 @@ mod tests {
             paths: ctx.state.paths.clone(),
         };
         let database = format!("sqlite://{}", directory.join("erros.db").to_string_lossy());
+        ctx.state
+            .secrets
+            .set("io_bus", "test-sql-sink-errors", &database)
+            .expect("secret");
         let config = json!({
-            "database_url": database,
+            "database_url_ref": "test-sql-sink-errors",
             "query": "INSERT INTO x VALUES (?)",
             "columns": ["name"]
         });

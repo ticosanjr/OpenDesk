@@ -13,6 +13,8 @@ pub async fn run(
     source: InboundSource,
     cancel: CancellationToken,
 ) -> AppResult<()> {
+    let config: serde_json::Value = crate::io_bus::source_config(&source)?;
+    crate::io_bus::secrets_guard::validate_no_plaintext_secrets(&config)?;
     match source.source_type.as_str() {
         "FOLDER_WATCH" | "OCR_WATCH" | "AUDIO_STT_WATCH" => {
             dropzone::run(state, source, cancel).await

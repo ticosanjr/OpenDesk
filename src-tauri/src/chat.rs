@@ -4,11 +4,10 @@ use crate::{
         budget,
         chat::{self, ChatMessage, ChatThread},
         chat_turns::{self, CreateChatTurnInput},
-        runs::{self, CreateChatRunInput, RunUsage},
-        workspaces,
+        runs::{self, CreateChatRunInput},
+        settings, workspaces,
     },
     error::{AppError, AppResult},
-    opencode_client::rest_client::ModelRefDto,
 };
 use chrono::Utc;
 use serde::Serialize;
@@ -17,7 +16,21 @@ use std::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-const CANCEL_MESSAGE: &str = "chat turn cancelled";
+pub(super) const CANCEL_MESSAGE: &str = "chat turn cancelled";
+
+#[path = "chat_parse.rs"]
+mod chat_parse;
+
+pub use chat_parse::ChatUsage;
+use chat_parse::*;
+
+#[path = "chat/chat_turn.rs"]
+mod chat_turn;
+use chat_turn::wait_for_turn;
+
+#[cfg(test)]
+#[path = "chat/chat_tests.rs"]
+mod chat_tests;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ChatReply {
@@ -28,16 +41,6 @@ pub struct ChatReply {
     pub error: Option<String>,
     pub run_id: Option<String>,
     pub turn_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Serialize)]
-pub struct ChatUsage {
-    pub tokens_input: i64,
-    pub tokens_output: i64,
-    pub tokens_reasoning: i64,
-    pub tokens_cache_read: i64,
-    pub tokens_cache_write: i64,
-    pub estimated_cost_usd: f64,
 }
 
 pub async fn send_message_with_context(
@@ -141,8 +144,19 @@ pub async fn send_message_with_context(
     let prompt_text = parts.join("\n\n");
 
     let since_ms = now_ms();
+    let timeout_minutes = settings::get(&state.db, "chat_turn_timeout_minutes")
+        .await
+        .ok()
+        .flatten()
+        .and_then(|value| value.as_u64())
+        .unwrap_or(30)
+        .clamp(1, 180);
+    let turn_timeout = Duration::from_secs(timeout_minutes * 60);
     let mut prompt_message = Value::Null;
     let prompt_result = async {
+        // Subscribe before prompting so an immediate terminal event cannot be
+        // lost between the prompt and wait_for_turn.
+        let mut session_events = client.event_receiver().await.ok();
         match client.prompt(&session_id, &prompt_text).await {
             Ok(value) => prompt_message = value,
             Err(error) => {
@@ -172,8 +186,28 @@ pub async fn send_message_with_context(
             }
         }
         match cancel.as_ref() {
-            Some(cancel) => wait_for_turn(&client, &session_id, since_ms, cancel).await,
-            None => wait_for_turn(&client, &session_id, since_ms, &CancellationToken::new()).await,
+            Some(cancel) => {
+                wait_for_turn(
+                    &client,
+                    &session_id,
+                    since_ms,
+                    cancel,
+                    session_events.take(),
+                    turn_timeout,
+                )
+                .await
+            }
+            None => {
+                wait_for_turn(
+                    &client,
+                    &session_id,
+                    since_ms,
+                    &CancellationToken::new(),
+                    session_events.take(),
+                    turn_timeout,
+                )
+                .await
+            }
         }
     }
     .await;
@@ -351,44 +385,6 @@ pub async fn send_message_with_context(
     })
 }
 
-fn run_usage(usage: &ChatUsage) -> RunUsage {
-    RunUsage {
-        tokens_input: usage.tokens_input,
-        tokens_output: usage.tokens_output,
-        tokens_reasoning: usage.tokens_reasoning,
-        tokens_cache_read: usage.tokens_cache_read,
-        tokens_cache_write: usage.tokens_cache_write,
-        estimated_cost_usd: usage.estimated_cost_usd,
-    }
-}
-
-fn turn_model(value: &Value, since_ms: i64) -> Option<(Option<String>, String)> {
-    let messages = value.get("data").and_then(Value::as_array)?;
-    for message in messages.iter().rev() {
-        if message.get("type").and_then(Value::as_str) != Some("assistant") {
-            continue;
-        }
-        let created = message
-            .pointer("/time/created")
-            .and_then(Value::as_i64)
-            .unwrap_or(0);
-        if created < since_ms {
-            continue;
-        }
-        let Some(model_id) = message.get("modelID").and_then(Value::as_str) else {
-            continue;
-        };
-        return Some((
-            message
-                .get("providerID")
-                .and_then(Value::as_str)
-                .map(str::to_string),
-            model_id.to_string(),
-        ));
-    }
-    None
-}
-
 /// Operational context prepended to every channel prompt. Telegram, Signal and
 /// the desktop chat share one vocabulary so the agent always knows where it is
 /// and how to send a workspace file back to the user.
@@ -415,376 +411,4 @@ pub fn channel_context_with(
             ("file_hint", &file_hint),
         ],
     )
-}
-
-/// The daemon reports a missing session as a 404 or "session not found". Only
-/// those cases are safe to retry with a fresh session; other errors (network,
-/// budget, invalid model) must surface without creating duplicate work.
-fn is_missing_session_error(message: &str) -> bool {
-    let lower = message.to_lowercase();
-    lower.contains("404")
-        || (lower.contains("session") && (lower.contains("not found") || lower.contains("unknown")))
-}
-
-fn parse_model_ref(model: &str) -> Option<ModelRefDto> {
-    ModelRefDto::parse(model)
-}
-
-fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|value| value.as_millis() as i64)
-        .unwrap_or(0)
-}
-
-fn message_created(message: &Value) -> Option<i64> {
-    message
-        .pointer("/time/created")
-        .and_then(Value::as_i64)
-        .or_else(|| message.get("created").and_then(Value::as_i64))
-}
-
-fn message_text(message: &Value) -> String {
-    message
-        .get("content")
-        .and_then(Value::as_array)
-        .map(|content| {
-            content
-                .iter()
-                .filter(|part| part.get("type").and_then(Value::as_str) == Some("text"))
-                .filter_map(|part| part.get("text").and_then(Value::as_str))
-                .collect::<Vec<_>>()
-                .join("")
-        })
-        .unwrap_or_default()
-}
-
-fn turn_has_idle(value: &Value, since_ms: i64) -> bool {
-    value
-        .get("data")
-        .and_then(Value::as_array)
-        .map(|messages| {
-            messages.iter().any(|message| {
-                message.get("type").and_then(Value::as_str) == Some("idle")
-                    && message_created(message).is_some_and(|created| created >= since_ms)
-            })
-        })
-        .unwrap_or(false)
-}
-
-fn turn_has_text(value: &Value, since_ms: i64) -> bool {
-    value
-        .get("data")
-        .and_then(Value::as_array)
-        .map(|messages| {
-            messages.iter().any(|message| {
-                message.get("type").and_then(Value::as_str) == Some("assistant")
-                    && message_created(message).is_some_and(|created| created >= since_ms)
-                    && !message_text(message).trim().is_empty()
-            })
-        })
-        .unwrap_or(false)
-}
-
-fn turn_signature(value: &Value, since_ms: i64) -> String {
-    value
-        .get("data")
-        .and_then(Value::as_array)
-        .map(|messages| {
-            messages
-                .iter()
-                .filter(|message| {
-                    message.get("type").and_then(Value::as_str) == Some("assistant")
-                        && message_created(message).is_some_and(|created| created >= since_ms)
-                })
-                .map(|message| {
-                    let id = message.get("id").and_then(Value::as_str).unwrap_or("");
-                    let text = message_text(message);
-                    format!("{id}:{}", text.len())
-                })
-                .collect::<Vec<_>>()
-                .join("|")
-        })
-        .unwrap_or_default()
-}
-
-/// Waits for the current turn to finish before reading the answer. OpenCode's
-/// prompt endpoint is asynchronous; reading the message list immediately used
-/// to return the previous assistant reply.
-///
-/// A tool-using turn emits intermediate `assistant` messages that contain only
-/// tool calls. Those must never be mistaken for the final answer, so the idle
-/// marker is authoritative: the turn ends only when OpenCode reports idle and a
-/// text message from this turn exists. The quiet-signature fallback is only a
-/// safety net for a missing idle marker and requires text (30s of silence).
-async fn wait_for_turn(
-    client: &crate::opencode_client::rest_client::RestClient,
-    session_id: &str,
-    since_ms: i64,
-    cancel: &CancellationToken,
-) -> Result<Value, String> {
-    const IDLE_WITHOUT_TEXT_GRACE: Duration = Duration::from_secs(2);
-    const TEXT_STABLE_GRACE: Duration = Duration::from_secs(30);
-    let mut stable_signature = String::new();
-    let mut stable_since: Option<std::time::Instant> = None;
-    let mut idle_without_text_since: Option<std::time::Instant> = None;
-    loop {
-        if cancel.is_cancelled() {
-            return Err(CANCEL_MESSAGE.into());
-        }
-        let value = client
-            .messages(session_id)
-            .await
-            .map_err(|error| format!("could not read session messages: {error:#}"))?;
-        let signature = turn_signature(&value, since_ms);
-        let has_text = turn_has_text(&value, since_ms);
-        let has_idle = turn_has_idle(&value, since_ms);
-
-        if has_text && has_idle {
-            return Ok(value);
-        }
-        if has_idle && !has_text {
-            // The message list is ordered, but keep a tiny grace in case the
-            // final text lands just after the idle marker.
-            let since = *idle_without_text_since.get_or_insert_with(std::time::Instant::now);
-            if since.elapsed() >= IDLE_WITHOUT_TEXT_GRACE {
-                return Ok(value);
-            }
-        } else {
-            idle_without_text_since = None;
-        }
-
-        if !has_text {
-            stable_signature.clear();
-            stable_since = None;
-        } else if signature == stable_signature {
-            if stable_since.is_some_and(|since| since.elapsed() >= TEXT_STABLE_GRACE) {
-                return Ok(value);
-            }
-        } else {
-            stable_signature = signature;
-            stable_since = Some(std::time::Instant::now());
-        }
-        tokio::select! {
-            _ = cancel.cancelled() => return Err(CANCEL_MESSAGE.into()),
-            _ = tokio::time::sleep(Duration::from_millis(500)) => {}
-        }
-    }
-}
-
-fn parse_assistant_since(value: &Value, since_ms: i64) -> (Option<String>, ChatUsage) {
-    let mut usage = ChatUsage::default();
-    let mut answer = None;
-    let Some(messages) = value.get("data").and_then(Value::as_array) else {
-        return (answer, usage);
-    };
-    for message in messages {
-        if message.get("type").and_then(Value::as_str) != Some("assistant") {
-            continue;
-        }
-        if !message_created(message).is_some_and(|created| created >= since_ms) {
-            continue;
-        }
-        if let Some(cost) = message.get("cost").and_then(Value::as_f64) {
-            usage.estimated_cost_usd += cost;
-        }
-        if let Some(tokens) = message.get("tokens") {
-            usage.tokens_input += tokens.get("input").and_then(Value::as_i64).unwrap_or(0);
-            usage.tokens_output += tokens.get("output").and_then(Value::as_i64).unwrap_or(0);
-            usage.tokens_reasoning += tokens.get("reasoning").and_then(Value::as_i64).unwrap_or(0);
-            if let Some(cache) = tokens.get("cache") {
-                usage.tokens_cache_read += cache.get("read").and_then(Value::as_i64).unwrap_or(0);
-                usage.tokens_cache_write += cache.get("write").and_then(Value::as_i64).unwrap_or(0);
-            }
-        }
-        let text = message_text(message);
-        if !text.trim().is_empty() {
-            answer = Some(text);
-        }
-    }
-    (answer, usage)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_model_refs_with_variants() {
-        let model = parse_model_ref("opencode-go/glm-5.3#high").expect("model");
-        assert_eq!(model.provider_id, "opencode-go");
-        assert_eq!(model.id, "glm-5.3");
-        assert_eq!(model.variant.as_deref(), Some("high"));
-        assert_eq!(
-            parse_model_ref("opencode-go/glm-5.3")
-                .expect("plain")
-                .variant,
-            None
-        );
-        assert_eq!(
-            parse_model_ref("opencode-go/glm-5.3# ")
-                .expect("empty")
-                .variant,
-            None
-        );
-        assert!(parse_model_ref("no-provider").is_none());
-    }
-
-    #[test]
-    fn detects_only_missing_session_errors() {
-        assert!(is_missing_session_error(
-            "OpenCode prompt failed (404 Not Found): {\"error\":\"session not found\"}"
-        ));
-        assert!(is_missing_session_error("unknown session abc"));
-        assert!(!is_missing_session_error(
-            "OpenCode prompt failed (500): timeout"
-        ));
-        assert!(!is_missing_session_error("could not send OpenCode prompt"));
-    }
-
-    fn turn_fixture() -> serde_json::Value {
-        serde_json::json!({
-            "data": [
-                {
-                    "id": "old",
-                    "type": "assistant",
-                    "time": { "created": 500, "completed": 600 },
-                    "cost": 99.0,
-                    "tokens": { "input": 1, "output": 1 },
-                    "content": [{ "type": "text", "text": "Olá! Sou o agente." }]
-                },
-                {
-                    "id": "new",
-                    "type": "assistant",
-                    "time": { "created": 2000, "completed": 2100 },
-                    "cost": 0.02,
-                    "tokens": { "input": 10, "output": 20 },
-                    "content": [
-                        { "type": "reasoning", "text": "pensando" },
-                        { "type": "tool", "name": "read" },
-                        { "type": "text", "text": "Meu poema novo" }
-                    ]
-                },
-                { "id": "idle", "type": "idle", "time": { "created": 2200 } }
-            ]
-        })
-    }
-
-    #[test]
-    fn parses_only_the_current_turn_and_ignores_the_old_answer() {
-        let value = turn_fixture();
-        assert!(turn_has_idle(&value, 1000));
-        assert!(turn_has_text(&value, 1000));
-        assert!(!turn_has_text(&value, 2300));
-        assert!(!turn_has_idle(&value, 2300));
-        let (text, usage) = parse_assistant_since(&value, 1000);
-        assert_eq!(text.as_deref(), Some("Meu poema novo"));
-        assert_eq!(usage.tokens_input, 10);
-        assert_eq!(usage.tokens_output, 20);
-        assert!((usage.estimated_cost_usd - 0.02).abs() < f64::EPSILON);
-
-        let (old, usage) = parse_assistant_since(&value, 3000);
-        assert!(old.is_none(), "never fall back to an older answer");
-        assert_eq!(usage.tokens_input, 0);
-    }
-
-    #[tokio::test]
-    async fn waits_for_a_new_turn_instead_of_returning_the_previous_answer() {
-        use axum::{Json, Router, extract::State, routing::get};
-        use std::sync::{
-            Arc,
-            atomic::{AtomicUsize, Ordering},
-        };
-
-        async fn messages(State(calls): State<Arc<AtomicUsize>>) -> Json<serde_json::Value> {
-            let call = calls.fetch_add(1, Ordering::SeqCst);
-            if call == 0 {
-                Json(serde_json::json!({
-                    "data": [{
-                        "id": "old",
-                        "type": "assistant",
-                        "time": { "created": 500, "completed": 600 },
-                        "content": [{ "type": "text", "text": "Olá! Sou o agente." }]
-                    }]
-                }))
-            } else {
-                Json(turn_fixture())
-            }
-        }
-
-        let calls = Arc::new(AtomicUsize::new(0));
-        let app = Router::new()
-            .route("/api/session/{id}/message", get(messages))
-            .with_state(calls);
-        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-            .await
-            .expect("listener");
-        let address = listener.local_addr().expect("address");
-        let handle = tokio::spawn(async move {
-            let _ = axum::serve(listener, app).await;
-        });
-        let client = crate::opencode_client::rest_client::RestClient::new_with_url(
-            &format!("http://{address}"),
-            "secret".into(),
-        );
-        let value = wait_for_turn(&client, "ses-1", 1000, &CancellationToken::new())
-            .await
-            .expect("turn");
-        let (text, _) = parse_assistant_since(&value, 1000);
-        assert_eq!(text.as_deref(), Some("Meu poema novo"));
-        handle.abort();
-    }
-
-    #[tokio::test]
-    async fn does_not_stop_on_a_tool_only_message() {
-        use axum::{Json, Router, extract::State, routing::get};
-        use std::sync::{
-            Arc,
-            atomic::{AtomicUsize, Ordering},
-        };
-
-        async fn messages(State(calls): State<Arc<AtomicUsize>>) -> Json<serde_json::Value> {
-            let call = calls.fetch_add(1, Ordering::SeqCst);
-            if call < 3 {
-                // The agent is still working: an assistant message exists, but
-                // it only carries a tool call and there is no idle marker.
-                Json(serde_json::json!({
-                    "data": [{
-                        "id": "tool-step",
-                        "type": "assistant",
-                        "time": { "created": 2000 },
-                        "content": [{
-                            "type": "tool",
-                            "name": "execute",
-                            "state": { "status": "completed" }
-                        }]
-                    }]
-                }))
-            } else {
-                Json(turn_fixture())
-            }
-        }
-
-        let calls = Arc::new(AtomicUsize::new(0));
-        let app = Router::new()
-            .route("/api/session/{id}/message", get(messages))
-            .with_state(calls);
-        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-            .await
-            .expect("listener");
-        let address = listener.local_addr().expect("address");
-        let handle = tokio::spawn(async move {
-            let _ = axum::serve(listener, app).await;
-        });
-        let client = crate::opencode_client::rest_client::RestClient::new_with_url(
-            &format!("http://{address}"),
-            "secret".into(),
-        );
-        let value = wait_for_turn(&client, "ses-1", 1000, &CancellationToken::new())
-            .await
-            .expect("turn with tools");
-        let (text, _) = parse_assistant_since(&value, 1000);
-        assert_eq!(text.as_deref(), Some("Meu poema novo"));
-        handle.abort();
-    }
 }

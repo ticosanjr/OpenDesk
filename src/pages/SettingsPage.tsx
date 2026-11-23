@@ -18,7 +18,7 @@ import {
   Workflow,
   Wrench,
 } from "lucide-react";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { openLocalPath } from "@/lib/runtime-env";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { EngineCard } from "@/components/settings/EngineCard";
@@ -125,10 +125,13 @@ export function SettingsPage() {
   }
 
   async function reveal(path: string) {
-    try {
-      await openPath(path);
-    } catch (cause) {
-      console.warn("OpenDesk: could not open path", cause);
+    const result = await openLocalPath(path);
+    if (!result.ok) {
+      toast({
+        tone: "info",
+        title: "Caminho local",
+        description: result.fallback ?? path,
+      });
     }
   }
 

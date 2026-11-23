@@ -37,3 +37,6 @@ lcov.info
 
 # Update signing private key (never commit)
 update-signing.key
+
+# Local repomix bundles (analysis artifacts)
+opendesk-bundle*.md

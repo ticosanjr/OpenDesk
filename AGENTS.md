@@ -165,9 +165,10 @@ além do atalho automático do AppImage no menu/barra de tarefas.
 A 1.4.2 endureceu a verificação: shell sem `unwrap/expect` de produção,
 limite de 500 linhas no frontend, processos com `kill_on_drop` + TERM→KILL e
 fila/cron event-driven. As fases seguintes extraíram engine, receitas, MCP,
-canais e enterprise; a 1.7.0 **extinguiu o `opendesk-core`**, deixou a baseline
+canais e enterprise; a 1.7.0 extinguiu o `opendesk-core`; a 1.7.1 fechou o hardening, deixou a baseline
 de limites vazia e fixou a cobertura em 63,0% total / 75,5% no escopo de negócio
-(medido 63,05% / 75,98%).
+(medido 64,08% / 76,40%). O limite de 500 linhas vale também para
+`src-tauri/src` e `include!` é proibido em produção.
 Pacotes iniciais opcionais (`starter-packs/`) embutidos no binário, incluindo a
 Fábrica de Capacidades default (`meta-forge`). O MCP `opendesk-control` permite
 aos agentes operar tarefas, execuções, rotinas, receitas, fila e artefatos; o

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Copy, ExternalLink, Globe, Loader2, Power, RefreshCw } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openExternalUrl } from "@/lib/runtime-env";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -176,7 +176,11 @@ export function BrowserCard() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => void openUrl("https://opencode.ai/product/browse")}
+            onClick={() =>
+              void openExternalUrl("https://opencode.ai/product/browse").catch(() =>
+                toast({ tone: "error", title: "Não foi possível abrir o link" }),
+              )
+            }
           >
             <ExternalLink size={12} />
             Instalar extensão

@@ -13,8 +13,8 @@ mod tests;
 
 pub use client::{
     MAX_FILE_BYTES, answer_callback_query, clear_buttons, delete_webhook, download_file, get_me,
-    get_updates, send_chat_action, send_document, send_reply, send_text, send_text_with_markup,
-    send_to_allowlist_parts,
+    get_updates, get_updates_value, send_chat_action, send_document, send_reply, send_text,
+    send_text_with_markup, send_text_with_parse_mode, send_to_allowlist_parts,
 };
 pub use config::{
     OFFSET_KEY, clear_offset, known_chats, load, record_chat, resolve_recipients, save, token,

@@ -15,6 +15,7 @@ import { isEditableTarget } from "@/lib/keyboard";
 import { AppBanners } from "@/components/layout/app-shell/AppBanners";
 import { ShortcutsModal } from "@/components/layout/app-shell/ShortcutsModal";
 import { routeLabel, safeHexColor } from "@/components/layout/app-shell/helpers";
+import { isTauriRuntime } from "@/lib/runtime-env";
 import { useAppNotifications } from "@/components/layout/app-shell/use-app-notifications";
 
 export { safeHexColor } from "@/components/layout/app-shell/helpers";
@@ -103,7 +104,7 @@ export function AppShell() {
         modifier &&
         event.shiftKey &&
         event.code === "Space" &&
-        !("__TAURI_INTERNALS__" in window)
+        !isTauriRuntime()
       ) {
         event.preventDefault();
         navigate("/capture");

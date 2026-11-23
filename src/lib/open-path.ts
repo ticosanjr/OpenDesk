@@ -1,7 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
-
-/** Opens a workspace/app path through the Rust allowlist, bypassing the
- * static opener plugin scope so configurable workspace roots work. */
-export async function openWorkspacePath(path: string): Promise<void> {
-  await invoke("open_workspace_path", { path });
-}
+/**
+ * Compatibility entry point. The runtime-aware implementation lives in
+ * `runtime-env.ts` so browser/PWA builds never call Tauri invokes blindly.
+ */
+export { openWorkspacePath } from "./runtime-env";

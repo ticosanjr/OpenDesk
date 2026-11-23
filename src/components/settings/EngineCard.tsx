@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Cpu } from "lucide-react";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { openLocalPath } from "@/lib/runtime-env";
+import { toast } from "@/store/toast-store";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiGet, apiPost } from "@/lib/api";
@@ -262,10 +263,13 @@ export function EngineCard() {
   async function revealLogs() {
     const path = diagnosticsData ? logDirFrom(diagnosticsData) : null;
     if (path) {
-      try {
-        await openPath(path);
-      } catch {
-        // Ignore; the diagnostics output already contains the path.
+      const result = await openLocalPath(path);
+      if (!result.ok) {
+        toast({
+          tone: "info",
+          title: "Caminho dos logs",
+          description: result.fallback ?? path,
+        });
       }
     }
   }

@@ -121,6 +121,51 @@ Registro de mudanças de comportamento da refatoração V2. O histórico V1 est�
 - Canais completos (Telegram/Signal/WhatsApp/e-mail/WebPush) e MCP no crate.
 - ADR 0212.
 
+## 2026-11-23 — 1.7.1: I/O bus fail-closed
+
+- `io_bus` não aceita mais `token`, `access_token`, `password`, `secret`,
+  `api_key`, `database_url` ou `private_key` em texto plano.
+- Migração única no boot move credenciais legadas para o `SecretStore` e
+  reescreve o config com `*_ref`; falhas mantêm a linha intacta e o runtime a
+  rejeita.
+- Validação na API (sources/sinks/rotinas), no runtime de inbound/outbound e
+  redaction de credenciais em erros SQL.
+- 11 testes novos no shell (346 no total). ADR 0213.
+- Studio install fail-closed: apenas HTTPS, DNS/IP privado bloqueado, redirects
+  revalidados, download em streaming (25 MiB), ZIP com 250 entradas/50 MiB/ratio
+  50/sem symlink e diretório local canonicalizado. 8 testes novos (354 no shell).
+  ADR 0214.
+- Frontend runtime adapter: links, caminhos locais e Quick Capture passam por
+  `src/lib/runtime-env.ts`; PWA não chama Tauri, esquemas inválidos são
+  bloqueados e caminhos locais viram toast. 10 testes novos no Vitest (266).
+  ADR 0215.
+- Storage sem `include!` de produção: tasks/schedules/calendar/memory viraram
+  módulos reais (`model`/`mutations`/`events`/`notes`), com a mesma API.
+  `Recurrence` foi consolidado em `engine::scheduler::recurrence`. Fachadas de
+  conversas mantidas (sem SQL duplicado). ADR 0216.
+- Canais: `io_bus` deixou de duplicar Telegram; envio, polling e callback usam
+  `opendesk-channels` (novo `send_text_with_parse_mode`/`get_updates_value`).
+  Matrix permanece no shell. ADR 0217.
+- Manutenção do banco movida para `opendesk-storage` (SQL direto para cerimônias
+  WebAuthn); MCPs consolidados em `src/mcp/`, com o registro de sessões puro em
+  `opendesk-mcp::session`. Passkey/audit no shell e sandbox no engine por decisão
+  arquitetural. Shell 349, storage 89, MCP 12. ADR 0218.
+- Chat event-driven: `RestClient::event_receiver` + parser SSE compartilhado;
+  `wait_for_turn` acorda em idle/execução, ignora outra sessão, aplica timeout
+  configurável e usa fallback apenas quando necessário; parsing em
+  `chat_parse.rs`. Shell 352. ADR 0219.
+
+## 2026-11-23 — 1.7.1: limite no shell
+
+- Limite de 500 linhas e proibição de `include!` de produção passam a valer
+  também em `src-tauri/src`; baseline vazia.
+- 31 arquivos de produção divididos por concern (CLI, packs, APIs, MCP,
+  integrações, chat, doctor, computer, learning, governance, backup, updates,
+  io_bus, calendário).
+- `docs/implementation-plan.md` arquivado; caminho da chave de assinatura
+  corrigido; CSS sem uso removido (495 → 386 linhas).
+- ADR 0220. Cobertura: 64,08% total / 76,40% no escopo de negócio.
+
 ## Próximas ondas
 
 2. `opendesk-engine`/`opendesk-recipes`, god-files e event-driven.

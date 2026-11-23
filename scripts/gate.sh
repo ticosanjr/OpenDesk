@@ -27,7 +27,7 @@ echo "==> Clippy (-D warnings)"
 
 echo "==> Rust limits (500 lines / no unwrap outside tests)"
 python3 scripts/check-rust-limits.py
-python3 scripts/check-rust-limits.py --root src-tauri/src --no-line-limit --baseline scripts/shell-limits-baseline.txt
+python3 scripts/check-rust-limits.py --root src-tauri/src --baseline scripts/shell-limits-baseline.txt
 
 echo "==> Frontend limits (500 lines per source file)"
 python3 scripts/check-frontend-limits.py

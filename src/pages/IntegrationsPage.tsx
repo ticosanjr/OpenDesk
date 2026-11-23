@@ -28,7 +28,7 @@ import { McpHubCard } from "@/components/integrations/McpHubCard";
 import { TicketInboxCard } from "@/components/integrations/TicketInboxCard";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openExternalUrl } from "@/lib/runtime-env";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
 import type { Delivery, GoogleConfig, GoogleStatus, SmtpSettings } from "@/lib/types";
 import { EMPTY_FORM, type SmtpForm } from "./integrations/smtp-form";
@@ -212,11 +212,7 @@ export function IntegrationsPage() {
         "/api/integrations/google/oauth/start",
         { workspace_id: activeWorkspaceId },
       );
-      try {
-        await openUrl(response.auth_url);
-      } catch {
-        window.open(response.auth_url, "_blank", "noopener,noreferrer");
-      }
+      await openExternalUrl(response.auth_url);
       setGoogleMessage(
         "Autorize no navegador. O callback volta para o OpenDesk; depois clique em Atualizar.",
       );

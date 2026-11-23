@@ -18,6 +18,8 @@ pub async fn execute(
     sink: &OutboundSink,
     output: &RunOutput,
 ) -> AppResult<Vec<String>> {
+    let config: serde_json::Value = crate::io_bus::config_value(sink)?;
+    crate::io_bus::secrets_guard::validate_no_plaintext_secrets(&config)?;
     match sink.sink_type.as_str() {
         "DOC_COMPILER" => compiler::run(ctx, sink, output).await,
         "ATOMIC_FS" => atomic_fs::run(ctx, sink, output).await,

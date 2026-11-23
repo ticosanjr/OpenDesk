@@ -12,8 +12,6 @@ use tokio_util::sync::CancellationToken;
 #[derive(Debug, Deserialize)]
 pub struct PollerConfig {
     #[serde(default)]
-    pub database_url: Option<String>,
-    #[serde(default)]
     pub database_url_ref: Option<String>,
     pub query: String,
     #[serde(default)]
@@ -103,14 +101,7 @@ async fn poll_once(
 }
 
 fn database_url(state: &Arc<AppState>, config: &PollerConfig) -> AppResult<String> {
-    if let Some(url) = config
-        .database_url
-        .as_deref()
-        .filter(|value| !value.trim().is_empty())
-    {
-        return Ok(url.to_string());
-    }
-    crate::io_bus::secret(&state.paths, config.database_url_ref.as_deref(), None)
+    crate::io_bus::secret(&state.paths, config.database_url_ref.as_deref())
 }
 
 fn row_json(row: &sqlx::any::AnyRow) -> serde_json::Value {
@@ -163,5 +154,38 @@ mod tests {
         assert_eq!(value["n"], 7);
         assert_eq!(value["s"], "x");
         pool.close().await;
+    }
+}
+
+#[cfg(test)]
+mod secret_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn database_url_requires_a_reference_in_the_secret_store() {
+        let ctx = crate::test_support::context().await;
+        let mut config = PollerConfig {
+            database_url_ref: None,
+            query: "SELECT 1".into(),
+            confirm_query: None,
+            id_column: None,
+            interval_secs: 60,
+        };
+        let error = database_url(&ctx.state, &config).expect_err("missing ref");
+        assert!(error.to_string().contains("referência"));
+
+        ctx.state
+            .secrets
+            .set("io_bus", "poller-url", "sqlite::memory:")
+            .expect("secret");
+        config.database_url_ref = Some("poller-url".into());
+        assert_eq!(
+            database_url(&ctx.state, &config).expect("resolve"),
+            "sqlite::memory:"
+        );
+
+        config.database_url_ref = Some("missing-poller".into());
+        let error = database_url(&ctx.state, &config).expect_err("missing secret");
+        assert!(error.to_string().contains("não encontrado"));
     }
 }
