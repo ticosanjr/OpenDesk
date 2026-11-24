@@ -64,6 +64,21 @@ describe("api client", () => {
     await expect(apiDelete("/api/x")).resolves.toBeUndefined();
   });
 
+  it("falls back to the stored PWA token when the env port is absent", async () => {
+    vi.stubEnv("VITE_OPENDESK_PORT", "0");
+    window.localStorage.setItem("opendesk_api_token", "stored-token");
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { apiGet } = await import("./api");
+    await expect(apiGet("/api/status")).resolves.toEqual({ ok: true });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("/api/status");
+    expect((init.headers as Headers).get("Authorization")).toBe(
+      "Bearer stored-token",
+    );
+    window.localStorage.clear();
+  });
+
   it("builds the websocket URL with an encoded token", async () => {
     vi.stubEnv("VITE_OPENDESK_TOKEN", "a b&c");
     const { websocketUrl } = await import("./api");

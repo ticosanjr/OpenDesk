@@ -36,13 +36,30 @@ export interface RouterRule {
   is_enabled: boolean;
 }
 
+export interface QueueGroupUsage {
+  group: string;
+  active: number;
+  limit: number;
+}
+
 export interface QueueStatus {
   paused: boolean;
   pause_reason?: string | null;
   active_jobs: number;
   concurrency: number;
+  max_concurrency: number;
+  max_queue_size: number;
+  default_agent_concurrency: number;
+  group_usage: QueueGroupUsage[];
   running: number;
   waiting: number;
+}
+
+export interface QueuePolicy {
+  max_concurrency: number;
+  max_queue_size: number;
+  default_agent_concurrency: number;
+  group_limits: Record<string, number>;
 }
 
 export interface FileEntry {

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, RotateCcw, Save, SlidersHorizontal } from "lucide-react";
+import { Download, Loader2, RotateCcw, Save, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
+import { downloadConfigBundle } from "@/lib/config-bundle";
 import type {
   PromptTemplateField,
   PromptTemplates,
@@ -129,6 +130,19 @@ export function PromptTemplatesCard() {
           </p>
         </div>
         <div className="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!workspaceId}
+            onClick={() => {
+              if (workspaceId) {
+                void downloadConfigBundle(workspaceId, ["prompt_templates"]);
+              }
+            }}
+          >
+            <Download size={13} />
+            Exportar JSON
+          </Button>
           <Button variant="outline" size="sm" onClick={() => void reset()} disabled={saving}>
             <RotateCcw size={13} />
             Restaurar

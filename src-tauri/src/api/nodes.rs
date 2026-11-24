@@ -355,6 +355,7 @@ pub async fn complete_job(
         state.events.publish(OpenDeskWsEvent::RunFinished {
             run_id: run_id.to_string(),
             task_id: job.task_id.clone(),
+            workspace_id: job.workspace_id.clone(),
             status: run_status.to_string(),
             estimated_cost_usd: usage.estimated_cost_usd,
             tokens_input: usage.tokens_input,
@@ -453,7 +454,7 @@ pub async fn complete_job(
         workspace_id: job.workspace_id.clone(),
         jobs: jobs
             .into_iter()
-            .map(crate::queue_scheduler::job_dto)
+            .map(|job| crate::queue_scheduler::job_dto(job, None))
             .collect(),
     });
     Ok(Json(json!({

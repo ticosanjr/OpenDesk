@@ -32,6 +32,8 @@ pub struct QueueJobDto {
     pub error_message: Option<String>,
     #[serde(default)]
     pub task_origin: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wait_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -157,6 +159,7 @@ pub enum OpenDeskWsEvent {
     RunFinished {
         run_id: String,
         task_id: Option<String>,
+        workspace_id: String,
         status: String,
         estimated_cost_usd: f64,
         tokens_input: i64,

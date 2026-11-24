@@ -42,6 +42,10 @@ pub(super) fn routes() -> Router<Arc<AppState>> {
         )
         .route("/api/queue", get(queue::list_queue))
         .route("/api/queue/status", get(queue::queue_status))
+        .route(
+            "/api/queue/config",
+            get(queue::queue_config).put(queue::update_queue_config),
+        )
         .route("/api/queue/pause", post(queue::pause_queue))
         .route("/api/queue/resume", post(queue::resume_queue))
         .route("/api/queue/{id}/cancel", post(queue::cancel_job))

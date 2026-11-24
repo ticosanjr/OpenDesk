@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueueController } from "./QueueController";
 import type { QueueJob, QueueStatus } from "@/lib/types";
 
@@ -8,6 +8,10 @@ const status: QueueStatus = {
   paused: false,
   active_jobs: 1,
   concurrency: 2,
+  max_concurrency: 2,
+  max_queue_size: 200,
+  default_agent_concurrency: 2,
+  group_usage: [],
   running: 1,
   waiting: 1,
 };
@@ -38,6 +42,7 @@ const jobs: QueueJob[] = [
     resolved_model: "model",
     resolved_effort: "low",
     enqueued_at: new Date().toISOString(),
+    wait_reason: "Grupo default cheio (1/1)",
   },
 ];
 
@@ -63,11 +68,50 @@ describe("QueueController", () => {
     expect(screen.getByText("Aguardando")).toBeInTheDocument();
     expect(screen.getAllByText(/lease/).length).toBeGreaterThan(0);
     expect(screen.getByText(/local_llm_heavy/)).toBeInTheDocument();
+    expect(screen.getByText("Grupo default cheio (1/1)")).toBeInTheDocument();
+    expect(screen.getByText(/slots 1\/2/)).toBeInTheDocument();
+    expect(screen.getByText(/fila 1\/200/)).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: "Cancelar" })[0]);
     expect(onJobAction).toHaveBeenCalledWith("job-1", "cancel");
 
     fireEvent.click(screen.getByTitle("Aumentar prioridade"));
     expect(onPriority).toHaveBeenCalledWith("job-2", 3);
+    expect(
+      document.querySelector('[data-focus-id="job-2"]'),
+    ).toBeInTheDocument();
   });
+
+  it("scrolls to and highlights the job from ?job=<id>", () => {
+    vi.useFakeTimers();
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    render(
+      <MemoryRouter initialEntries={["/kanban?view=queue&job=job-2"]}>
+        <QueueController
+          queue={jobs}
+          status={status}
+          loading={false}
+          onRefresh={vi.fn()}
+          onTogglePause={vi.fn()}
+          onConcurrency={vi.fn()}
+          onJobAction={vi.fn()}
+          onPriority={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(
+      document
+        .querySelector('[data-focus-id="job-2"]')
+        ?.classList.contains("focus-pulse"),
+    ).toBe(true);
+  });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });

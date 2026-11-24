@@ -9,6 +9,8 @@ import { StatusDot, statusTone } from "@/components/ui/status-dot";
 import { cn } from "@/lib/utils";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
 import { formatUsd } from "@/lib/format";
+import { links } from "@/lib/links";
+import { allQueueCounts } from "@/lib/queue";
 
 const FALLBACK_DAILY_LIMIT = 5;
 
@@ -54,11 +56,14 @@ export function Topbar() {
     window.addEventListener("mousedown", onPointerDown);
     return () => window.removeEventListener("mousedown", onPointerDown);
   }, [workspaceOpen]);
+  const queue = useAppStore((state) => state.queue);
+  const queueStatus = useAppStore((state) => state.queueStatus);
+  const queueCounts = allQueueCounts(queue);
   const spent = dashboard?.daily_cost_usd ?? budget?.daily_spent ?? 0;
   const dailyLimit = budget?.daily_limit ?? FALLBACK_DAILY_LIMIT;
   const spentPct = Math.min(100, (spent / Math.max(dailyLimit, 0.01)) * 100);
-  const running = dashboard?.queue_running ?? 0;
-  const waiting = dashboard?.queue_waiting ?? 0;
+  const running = queueStatus?.running ?? queueCounts.running;
+  const waiting = queueStatus?.waiting ?? queueCounts.waiting;
   const activeJobs = daemon?.active_jobs ?? 0;
 
   async function requestRestart() {
@@ -207,9 +212,11 @@ export function Topbar() {
           </span>
         </div>
 
-        <div
-          className="hidden items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-2.5 py-1.5 2xl:flex"
-          title={`${running} execução(ões) ativa(s) e ${waiting} job(s) na fila`}
+        <button
+          type="button"
+          onClick={() => navigate(links.queue())}
+          className="hidden items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-2.5 py-1.5 transition-colors hover:border-zinc-700 hover:bg-zinc-900/60 2xl:flex"
+          title={`${running} execução(ões) ativa(s) e ${waiting} job(s) na fila — abrir a fila`}
         >
           <span className="font-mono text-[12px] uppercase tracking-wide text-zinc-500">
             fila
@@ -221,7 +228,7 @@ export function Topbar() {
           <span className="whitespace-nowrap text-[13px] text-zinc-400">
             {waiting} na fila
           </span>
-        </div>
+        </button>
 
         <button
           type="button"
@@ -272,7 +279,7 @@ export function Topbar() {
           size="sm"
           className="h-9"
           onClick={() => {
-            navigate("/kanban");
+            navigate(links.kanban());
             setTaskDialogOpen(true);
           }}
           title="Nova tarefa (Ctrl/Cmd+N)"

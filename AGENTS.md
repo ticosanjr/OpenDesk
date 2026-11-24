@@ -186,6 +186,11 @@ zero-exposure, importação Bitwarden, prompts blindados com orçamento de conte
 receitas DAG 2.0 (nove tipos de nó, schema, retry e versões), `http_poller`,
 `http_webhook`, entregas WhatsApp/WebPush e canais Discord/Slack/WhatsApp QR.
 As decisões estão nas ADRs 0221–0226 e as notas em `docs/releases/1.8.0.md`.
+A 1.9.0 fechou a estabilização operacional: deep-links e abas determinísticos,
+fila concorrente com `QueuePolicy`/backpressure/`wait_reason`, contadores live
+com resync por WebSocket, backup v2 com SQLite/logs/segredos portáveis e config
+bundle JSON de memórias, prompts e configurações. Notas em
+`docs/releases/1.9.0.md`.
 
 Próxima frente: cobertura Rust ≥80% (plano em `docs/coverage-plan.md`), builds
 Windows/macOS (`docs/platform-builds.md`) e contrato Google com conta dedicada

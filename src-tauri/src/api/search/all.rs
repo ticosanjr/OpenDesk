@@ -30,7 +30,7 @@ pub async fn search(
     .await?;
     for (id, title, description, updated_at) in tasks {
         hits.push(SearchHit {
-            link: format!("/kanban?task={}", urlencode(&id)),
+            link: format!("/kanban?view=board&task={}", urlencode(&id)),
             id,
             kind: "task".into(),
             title,
@@ -105,7 +105,7 @@ pub async fn search(
     .await?;
     for (id, name, command, created_at) in schedules {
         hits.push(SearchHit {
-            link: format!("/routines?schedule={}", urlencode(&id)),
+            link: format!("/routines?routine={}", urlencode(&id)),
             id,
             kind: "schedule".into(),
             title: name,
@@ -150,7 +150,7 @@ pub async fn search(
     .await?;
     for (id, task_id, content, created_at) in task_messages {
         hits.push(SearchHit {
-            link: format!("/kanban?task={}", urlencode(&task_id)),
+            link: format!("/kanban?view=board&task={}", urlencode(&task_id)),
             id,
             kind: "comment".into(),
             title: "Comentário em tarefa".into(),
@@ -241,7 +241,7 @@ pub async fn recent(
     .await?;
     for (id, title, description, updated_at) in tasks {
         hits.push(SearchHit {
-            link: format!("/kanban?task={}", urlencode(&id)),
+            link: format!("/kanban?view=board&task={}", urlencode(&id)),
             id,
             kind: "task".into(),
             title,
@@ -301,7 +301,7 @@ pub async fn recent(
     .await?;
     for (id, task_id, content, created_at) in comments {
         hits.push(SearchHit {
-            link: format!("/kanban?task={}", urlencode(&task_id)),
+            link: format!("/kanban?view=board&task={}", urlencode(&task_id)),
             id,
             kind: "comment".into(),
             title: "Comentário em tarefa".into(),
@@ -339,7 +339,7 @@ pub async fn recent(
     .await?;
     for (id, name, command, created_at) in schedules {
         hits.push(SearchHit {
-            link: format!("/routines?schedule={}", urlencode(&id)),
+            link: format!("/routines?routine={}", urlencode(&id)),
             id,
             kind: "schedule".into(),
             title: name,

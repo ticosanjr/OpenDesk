@@ -51,6 +51,7 @@ export function RoutinesPage() {
   const [historyRuns, setHistoryRuns] = useState<TaskRun[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   useFocusParam("schedule");
+  useFocusParam("routine");
 
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
   const query = useMemo(

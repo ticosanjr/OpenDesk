@@ -22,6 +22,7 @@ export function ArtifactsPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const workspaces = useAppStore((state) => state.workspaces);
   const lastArtifactEvent = useAppStore((state) => state.lastArtifactEvent);
+  const revisions = useAppStore((state) => state.revisions);
   const setWorkspaceDialogOpen = useUiStore(
     (state) => state.setWorkspaceDialogOpen,
   );
@@ -82,12 +83,13 @@ export function ArtifactsPage() {
 
   useEffect(() => {
     void load();
-  }, [load, lastArtifactEvent]);
+  }, [load, lastArtifactEvent, revisions.artifacts]);
 
-  // Deep link from the dashboard/search: /artifacts?id=<artifact-id>.
-  // Fetch by id instead of depending on the current list/filter window.
+  // Deep link from the dashboard/search: /artifacts?artifact=<artifact-id>.
+  // `id` is still accepted for older links. Fetch by id instead of depending
+  // on the current list/filter window.
   useEffect(() => {
-    const id = searchParams.get("id");
+    const id = searchParams.get("artifact") ?? searchParams.get("id");
     if (!id) return;
     let cancelled = false;
     apiGet<Artifact>(`/api/artifacts/${id}`)
@@ -102,6 +104,7 @@ export function ArtifactsPage() {
         setSearchParams(
           (current) => {
             const next = new URLSearchParams(current);
+            next.delete("artifact");
             next.delete("id");
             return next;
           },

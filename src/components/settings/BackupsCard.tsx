@@ -19,7 +19,13 @@ import { apiBlob, apiDelete, apiGet, apiPost } from "@/lib/api";
 import { pickFolder, slugifyWorkspace } from "@/lib/folder";
 import { downloadBlob } from "@/lib/download";
 import { relativeTime } from "@/lib/format";
-import type { Workspace, WorkspaceBackup } from "@/lib/types";
+import type {
+  BackupOptions,
+  RestoreMode,
+  RestoreReport,
+  Workspace,
+  WorkspaceBackup,
+} from "@/lib/types";
 import { useAppStore } from "@/store/app-store";
 import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
@@ -45,8 +51,13 @@ export function BackupsCard() {
   const [restoring, setRestoring] = useState<WorkspaceBackup | null>(null);
   const [restoreName, setRestoreName] = useState("");
   const [restorePath, setRestorePath] = useState("");
+  const [restoreMode, setRestoreMode] =
+    useState<RestoreMode>("new_workspace");
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [defaultsRoot, setDefaultsRoot] = useState("");
+  const [includeLogs, setIncludeLogs] = useState(true);
+  const [backupPassphrase, setBackupPassphrase] = useState("");
+  const [restorePassphrase, setRestorePassphrase] = useState("");
 
   const query = useMemo(
     () =>
@@ -91,8 +102,13 @@ export function BackupsCard() {
     if (!activeWorkspaceId) return;
     setCreating(true);
     try {
+      const options: BackupOptions = {
+        include_logs: includeLogs,
+        passphrase: backupPassphrase.trim() || undefined,
+      };
       const backup = await apiPost<WorkspaceBackup>(
         `/api/backups${query}`,
+        options,
       );
       await load();
       toast({
@@ -130,24 +146,44 @@ export function BackupsCard() {
 
   async function restore() {
     if (!restoring) return;
-    if (!restorePath.trim()) {
+    if (restoreMode === "new_workspace" && !restorePath.trim()) {
       setRestoreError("Informe a pasta de destino.");
       return;
+    }
+    if (restoreMode === "in_place") {
+      // An in-place restore writes files and rows, so force the operator to
+      // acknowledge the destructive mode explicitly.
+      const confirmed = await confirmAction({
+        title: "Substituir o workspace atual?",
+        description:
+          "As tarefas, runs, memórias e arquivos atuais serão substituídos pelo conteúdo do backup.",
+        confirmLabel: "Substituir",
+        tone: "destructive",
+      });
+      if (!confirmed) return;
     }
     setBusy(`restore-${restoring.id}`);
     setRestoreError(null);
     try {
-      const created = await apiPost<Workspace>(
-        `/api/backups/${restoring.id}/restore${query}`,
-        { target_path: restorePath.trim(), name: restoreName.trim() },
-      );
+      const created = await apiPost<
+        Workspace & { restore_report?: RestoreReport }
+      >(`/api/backups/${restoring.id}/restore${query}`, {
+        target_path: restorePath.trim(),
+        name: restoreName.trim(),
+        mode: restoreMode,
+        passphrase: restorePassphrase.trim() || undefined,
+      });
       await load();
       await refresh();
       setRestoring(null);
+      const missing = created.restore_report?.missing_secrets.length ?? 0;
       toast({
-        tone: "success",
+        tone: missing > 0 ? "warning" : "success",
         title: "Workspace restaurado",
-        description: created.name,
+        description:
+          missing > 0
+            ? `${created.name} · ${missing} segredo(s) precisam ser reenviados`
+            : created.name,
         href: "/settings?section=workspaces",
       });
     } catch (cause) {
@@ -247,6 +283,27 @@ export function BackupsCard() {
               <span className="font-mono text-zinc-500">destino padrão: {defaultsRoot}</span>
             ) : null}
           </div>
+          <div className="flex flex-wrap items-end gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2">
+            <label className="flex items-center gap-2 text-[12.5px] text-zinc-400">
+              <input
+                type="checkbox"
+                checked={includeLogs}
+                onChange={(event) => setIncludeLogs(event.target.checked)}
+                className="h-3.5 w-3.5 accent-blue-500"
+              />
+              Incluir logs de execução
+            </label>
+            <label className="min-w-[220px] flex-1">
+              <span className={labelClass}>Senha para segredos (opcional)</span>
+              <input
+                type="password"
+                value={backupPassphrase}
+                onChange={(event) => setBackupPassphrase(event.target.value)}
+                placeholder="protege SMTP, tokens e Vault"
+                className={cn(inputClass, "h-8 text-[12px]")}
+              />
+            </label>
+          </div>
           {loading && backups.length === 0 ? (
             <LoadingState rows={2} label="Carregando backups…" />
           ) : backups.length === 0 ? (
@@ -317,32 +374,58 @@ export function BackupsCard() {
       <Modal
         open={restoring !== null}
         onClose={() => setRestoring(null)}
-        title="Restaurar backup como novo workspace"
-        description="O destino precisa estar vazio ou não existir. O workspace atual não é alterado."
+        title="Restaurar backup"
+        description="Novo workspace mantém os arquivos atuais intactos; restaurar no lugar cria um backup de segurança antes de substituir."
         size="md"
       >
         <div className="space-y-3">
           <label>
-            <span className={labelClass}>Nome do novo workspace</span>
+            <span className={labelClass}>Modo</span>
+            <select
+              value={restoreMode}
+              onChange={(event) =>
+                setRestoreMode(event.target.value as RestoreMode)
+              }
+              className={inputClass}
+            >
+              <option value="new_workspace">Restaurar como novo workspace</option>
+              <option value="in_place">Substituir o workspace atual</option>
+            </select>
+          </label>
+          {restoreMode === "new_workspace" ? (
+            <>
+              <label>
+                <span className={labelClass}>Nome do novo workspace</span>
+                <input
+                  value={restoreName}
+                  onChange={(event) => setRestoreName(event.target.value)}
+                  className={inputClass}
+                />
+              </label>
+              <label>
+                <span className={labelClass}>Pasta de destino</span>
+                <div className="flex gap-1.5">
+                  <input
+                    value={restorePath}
+                    onChange={(event) => setRestorePath(event.target.value)}
+                    placeholder="/home/user/OpenDesk Workareas/workspace-restaurado"
+                    className={cn(inputClass, "font-mono text-[12px]")}
+                  />
+                  <Button variant="outline" size="sm" className="h-9" onClick={() => void chooseTarget()}>
+                    <FolderOpen size={13} />
+                  </Button>
+                </div>
+              </label>
+            </>
+          ) : null}
+          <label>
+            <span className={labelClass}>Senha dos segredos (se o backup tiver)</span>
             <input
-              value={restoreName}
-              onChange={(event) => setRestoreName(event.target.value)}
+              type="password"
+              value={restorePassphrase}
+              onChange={(event) => setRestorePassphrase(event.target.value)}
               className={inputClass}
             />
-          </label>
-          <label>
-            <span className={labelClass}>Pasta de destino</span>
-            <div className="flex gap-1.5">
-              <input
-                value={restorePath}
-                onChange={(event) => setRestorePath(event.target.value)}
-                placeholder="/home/user/OpenDesk Workareas/workspace-restaurado"
-                className={cn(inputClass, "font-mono text-[12px]")}
-              />
-              <Button variant="outline" size="sm" className="h-9" onClick={() => void chooseTarget()}>
-                <FolderOpen size={13} />
-              </Button>
-            </div>
           </label>
           {restoreError ? (
             <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">

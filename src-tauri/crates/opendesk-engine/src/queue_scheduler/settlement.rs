@@ -234,6 +234,7 @@ pub fn publish_run_finished(
     events.publish(OpenDeskWsEvent::RunFinished {
         run_id: run_id.to_string(),
         task_id: job.task_id.clone(),
+        workspace_id: job.workspace_id.clone(),
         status: outcome.status.as_str().to_string(),
         estimated_cost_usd: outcome.usage.estimated_cost_usd,
         tokens_input: outcome.usage.tokens_input,

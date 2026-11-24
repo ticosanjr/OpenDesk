@@ -172,6 +172,25 @@ async fn global_search_finds_tasks_schedules_comments_and_agents() {
     assert!(kinds.contains(&"schedule"));
     assert!(kinds.contains(&"comment"));
     assert!(kinds.contains(&"agent"));
+    let hits = hits.as_array().expect("hits");
+    let task_link = hits
+        .iter()
+        .find(|hit| hit["kind"] == "task")
+        .and_then(|hit| hit["link"].as_str())
+        .expect("task link");
+    assert_eq!(task_link, format!("/kanban?view=board&task={task_id}"));
+    let comment_link = hits
+        .iter()
+        .find(|hit| hit["kind"] == "comment")
+        .and_then(|hit| hit["link"].as_str())
+        .expect("comment link");
+    assert!(comment_link.starts_with("/kanban?view=board&task="));
+    let schedule_link = hits
+        .iter()
+        .find(|hit| hit["kind"] == "schedule")
+        .and_then(|hit| hit["link"].as_str())
+        .expect("schedule link");
+    assert!(schedule_link.starts_with("/routines?routine="));
 }
 
 #[tokio::test]

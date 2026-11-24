@@ -138,10 +138,17 @@ impl AppState {
         let signal = Arc::new(SignalBridge::default());
         let telegram = Arc::new(TelegramBridge::default());
         let io_bus = Arc::new(crate::io_bus::runtime::IoBus::new());
-        let concurrency = settings::get(&db, QUEUE_CONCURRENCY_SETTING)
+        let mut queue_policy = crate::db::queue::load_policy(&db).await?;
+        if settings::get(&db, crate::db::queue::QUEUE_POLICY_SETTING)
             .await?
-            .and_then(|value| value.as_u64())
-            .unwrap_or(1) as usize;
+            .is_none()
+            && let Some(legacy) = settings::get(&db, QUEUE_CONCURRENCY_SETTING)
+                .await?
+                .and_then(|value| value.as_u64())
+        {
+            queue_policy.max_concurrency = legacy as usize;
+            queue_policy = crate::db::queue::save_policy(&db, &queue_policy).await?;
+        }
         let task_dispatcher = Arc::new(crate::shell_queue_ports::ShellTaskDispatcher::new());
         let scrubber = Arc::new(crate::secrets::SecretScrubber::new());
         let queue = QueueManager::new(QueueConfig {
@@ -156,7 +163,7 @@ impl AppState {
                 google: google.clone(),
             }),
             notifier: crate::shell_queue_ports::shell_run_notifier(),
-            concurrency,
+            policy: queue_policy,
         });
         let cron = CronEngine::new(
             db.clone(),

@@ -16,6 +16,8 @@ pub enum AppError {
     NotFound(String),
     #[error("conflict: {0}")]
     Conflict(String),
+    #[error("queue full: {0}")]
+    QueueFull(String),
     #[error("internal error: {0}")]
     Internal(String),
 }
@@ -44,6 +46,7 @@ impl From<AppError> for DomainError {
             AppError::BadRequest(message) => Self::Validation(message),
             AppError::NotFound(message) => Self::NotFound(message),
             AppError::Conflict(message) => Self::Conflict(message),
+            AppError::QueueFull(message) => Self::Conflict(message),
             AppError::Internal(message) => Self::Internal(message),
         }
     }

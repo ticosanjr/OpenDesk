@@ -1,17 +1,72 @@
+const enc = encodeURIComponent;
+
+export type SettingsSection =
+  | "general"
+  | "engine"
+  | "updates"
+  | "notifications"
+  | "queue"
+  | "backups"
+  | "audit"
+  | "tools"
+  | "about"
+  | "workspaces"
+  | "prompt"
+  | "harness"
+  | "sandbox"
+  | "voice"
+  | "nodes"
+  | "security";
+
+export type IntegrationSection =
+  | "smtp"
+  | "google"
+  | "signal"
+  | "telegram"
+  | "channels"
+  | "team"
+  | "browser"
+  | "inbound"
+  | "sinks"
+  | "vault"
+  | "deliveries"
+  | "hub"
+  | "mcp";
+
+export type StudioTab = "agents" | "skills" | "commands" | "mcp" | "config";
+
+/** Canonical internal URLs. Components must not build these by hand. */
 export const links = {
-  task: (id: string) => `/kanban?task=${encodeURIComponent(id)}`,
+  dashboard: () => "/",
+  kanban: (taskId?: string) =>
+    taskId
+      ? `/kanban?view=board&task=${enc(taskId)}`
+      : "/kanban?view=board",
+  queue: (jobId?: string) =>
+    jobId
+      ? `/kanban?view=queue&job=${enc(jobId)}`
+      : "/kanban?view=queue",
+  task: (id: string) => `/kanban?view=board&task=${enc(id)}`,
   taskRun: (taskId: string, runId: string) =>
-    `/kanban?task=${encodeURIComponent(taskId)}&run=${encodeURIComponent(runId)}`,
-  run: (id: string) => `/runs/${encodeURIComponent(id)}`,
-  chat: (id: string) => `/chat?thread=${encodeURIComponent(id)}`,
-  runs: () => "/runs",
+    `/kanban?view=board&task=${enc(taskId)}&run=${enc(runId)}`,
+  run: (id: string) => `/runs/${enc(id)}`,
+  runs: (scope?: string) =>
+    scope ? `/runs?scope=${enc(scope)}` : "/runs",
+  chat: (threadId?: string) =>
+    threadId ? `/chat?thread=${enc(threadId)}` : "/chat",
   calendar: (date?: string) =>
-    date ? `/calendar?date=${encodeURIComponent(date)}` : "/calendar",
-  calendarEvent: (id: string) =>
-    `/calendar?event=${encodeURIComponent(id)}`,
-  artifact: (id: string) => `/artifacts?id=${encodeURIComponent(id)}`,
-  schedule: (id: string) => `/routines?schedule=${encodeURIComponent(id)}`,
-  recipeRun: (id: string) => `/recipe-runs/${encodeURIComponent(id)}`,
+    date ? `/calendar?date=${enc(date)}` : "/calendar",
+  calendarEvent: (id: string) => `/calendar?event=${enc(id)}`,
+  artifact: (id: string) => `/artifacts?artifact=${enc(id)}`,
+  routine: (scheduleId: string) => `/routines?routine=${enc(scheduleId)}`,
+  /** Older name kept so existing callers keep working. */
+  schedule: (scheduleId: string) => links.routine(scheduleId),
+  recipe: (recipeId: string) => `/recipes?recipe=${enc(recipeId)}`,
+  recipeRun: (runId: string) => `/recipe-runs/${enc(runId)}`,
+  studio: (tab: StudioTab, id?: string) =>
+    id
+      ? `/studio?tab=${enc(tab)}&focus=${enc(id)}`
+      : `/studio?tab=${enc(tab)}`,
   agent: (id: string, scope = "workspace", workspaceId?: string | null) => {
     const params = new URLSearchParams({ kind: "agent", id, scope });
     if (workspaceId) params.set("workspace_id", workspaceId);
@@ -22,31 +77,14 @@ export const links = {
     if (workspaceId) params.set("workspace_id", workspaceId);
     return `/studio?${params.toString()}`;
   },
-  file: (path: string) => `/files?path=${encodeURIComponent(path)}`,
-  dir: (path: string) => `/files?dir=1&path=${encodeURIComponent(path)}`,
-  settings: (
-    section:
-      | "general"
-      | "engine"
-      | "updates"
-      | "notifications"
-      | "queue"
-      | "backups"
-      | "audit"
-      | "tools"
-      | "about"
-      | "workspaces" = "general",
-  ) =>
-    `/settings?section=${section}`,
-  integration: (
-    section:
-      | "smtp"
-      | "google"
-      | "signal"
-      | "browser"
-      | "inbound"
-      | "sinks"
-      | "deliveries"
-      | "mcp" = "smtp",
-  ) => `/integrations?section=${section}`,
+  file: (path: string) => `/files?path=${enc(path)}`,
+  dir: (path: string) => `/files?dir=1&path=${enc(path)}`,
+  settings: (section: SettingsSection = "general") =>
+    `/settings?section=${enc(section)}`,
+  integration: (section: IntegrationSection = "smtp") =>
+    `/integrations?section=${enc(section)}`,
+  learning: (tab?: string) =>
+    tab ? `/learning?tab=${enc(tab)}` : "/learning",
+  governance: (section?: string) =>
+    section ? `/governance?section=${enc(section)}` : "/governance",
 };

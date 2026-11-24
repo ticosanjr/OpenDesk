@@ -14,6 +14,7 @@ use rand::RngCore;
 use sha2::{Digest, Sha256};
 use std::{
     borrow::Cow,
+    collections::BTreeMap,
     path::PathBuf,
     sync::{Arc, RwLock},
 };
@@ -84,6 +85,56 @@ impl SecretStore {
 
         let (nonce, ciphertext) = bytes.split_at(12);
         open(nonce, ciphertext).map(Some)
+    }
+
+    /// Decrypts every stored secret for portable backup. The key is the
+    /// sanitized file stem, which is stable across machines.
+    pub fn export_plaintext(&self) -> AppResult<BTreeMap<String, String>> {
+        let mut values = BTreeMap::new();
+        let entries = match std::fs::read_dir(&self.dir) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(values),
+            Err(error) => return Err(AppError::Io(error)),
+        };
+        for entry in entries {
+            let entry = entry?;
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !name.ends_with(".sec") {
+                continue;
+            }
+            let encoded = std::fs::read_to_string(entry.path())?;
+            let bytes = STANDARD
+                .decode(encoded.trim())
+                .map_err(|error| AppError::Internal(format!("invalid secret file: {error}")))?;
+            if bytes.len() < 13 {
+                continue;
+            }
+            let (nonce, ciphertext) = bytes.split_at(12);
+            values.insert(
+                name.trim_end_matches(".sec").to_string(),
+                open(nonce, ciphertext)?,
+            );
+        }
+        Ok(values)
+    }
+
+    /// Re-seals portable secrets with this machine's key.
+    pub fn import_plaintext(&self, values: &BTreeMap<String, String>) -> AppResult<()> {
+        std::fs::create_dir_all(&self.dir)?;
+        for (stem, value) in values {
+            let sealed = seal(value)?;
+            let mut output = Vec::with_capacity(12 + sealed.ciphertext.len());
+            output.extend_from_slice(&sealed.nonce);
+            output.extend_from_slice(&sealed.ciphertext);
+            let path = self.dir.join(format!("{stem}.sec"));
+            std::fs::write(&path, STANDARD.encode(output))?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+            }
+        }
+        Ok(())
     }
 
     pub fn delete(&self, namespace: &str, key: &str) -> AppResult<()> {

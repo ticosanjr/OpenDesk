@@ -16,6 +16,7 @@ pub mod channels;
 pub mod chat;
 #[cfg(feature = "desktop")]
 pub mod commands;
+pub mod config_bundle;
 pub mod core;
 pub mod cost;
 pub mod dedupe;

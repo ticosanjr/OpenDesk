@@ -102,7 +102,7 @@ pub(super) fn queued_item(
         status: status_for(scheduled, end, now),
         source: "EXECUTION".into(),
         color: execution_color(&job.status),
-        href: Some("/kanban".into()),
+        href: Some(format!("/kanban?view=queue&job={}", job.id)),
         execution_status: Some(job.status.clone()),
         run_id: None,
         missed_id: None,

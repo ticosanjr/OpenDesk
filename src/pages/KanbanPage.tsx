@@ -48,6 +48,7 @@ export function KanbanPage() {
   const lastTaskEvent = useAppStore((state) => state.lastTaskEvent);
   const lastRunEvent = useAppStore((state) => state.lastRunEvent);
   const lastPermissionEvent = useAppStore((state) => state.lastPermissionEvent);
+  const revisions = useAppStore((state) => state.revisions);
   const setWorkspaceDialogOpen = useUiStore(
     (state) => state.setWorkspaceDialogOpen,
   );
@@ -81,7 +82,7 @@ export function KanbanPage() {
   const { views: savedViews, save: saveView, remove: removeView } = useKanbanViews();
   const [view, setView] = useState<"board" | "list" | "queue">("board");
   const [queueScope, setQueueScope] = useState<"work" | "automations" | "all">(
-    "work",
+    "all",
   );
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [blockingTask, setBlockingTask] = useState<Task | null>(null);
@@ -183,7 +184,7 @@ export function KanbanPage() {
         }, {}),
       );
       setQueueStatus(status);
-      useAppStore.setState({ queue: jobs });
+      useAppStore.setState({ queue: jobs, queueStatus: status });
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -200,6 +201,9 @@ export function KanbanPage() {
     lastRunEvent?.run_id,
     lastRunEvent?.status,
     lastPermissionEvent?.request_id,
+    revisions.tasks,
+    revisions.runs,
+    revisions.attention,
   ]);
 
   useEffect(() => {
@@ -218,28 +222,46 @@ export function KanbanPage() {
     }
   }, [taskDialogOpen, setTaskDialogOpen]);
 
+  const changeView = useCallback(
+    (next: "board" | "list" | "queue") => {
+      setView(next);
+      const params = new URLSearchParams(searchParams);
+      params.set("view", next);
+      if (next !== "queue") params.delete("job");
+      setSearchParams(params, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
   useEffect(() => {
     const requested = searchParams.get("view");
-    if (requested === "queue" || requested === "board" || requested === "list") {
+    if (requested === "queue" || requested === "list") {
       setView(requested);
-      const next = new URLSearchParams(searchParams);
-      next.delete("view");
-      setSearchParams(next, { replace: true });
+      return;
     }
-  }, [searchParams, setSearchParams]);
+    setView("board");
+  }, [searchParams]);
 
   // Deep links from the dashboard: /kanban?task=<id>&run=<id>
   useEffect(() => {
     const taskId = searchParams.get("task");
     if (!taskId) return;
     const runId = searchParams.get("run");
+    const clearTaskParams = () => {
+      const next = new URLSearchParams(searchParams);
+      next.set("view", "board");
+      next.delete("task");
+      next.delete("run");
+      setSearchParams(next, { replace: true });
+    };
     const open = (task: Task) => {
+      setView("board");
       setSelectedTask(task);
       if (runId) {
         setInitialRunId(runId);
         setLogTask(task);
       }
-      setSearchParams({}, { replace: true });
+      clearTaskParams();
     };
     const task = tasks.find((item) => item.id === taskId);
     if (task) {
@@ -254,7 +276,7 @@ export function KanbanPage() {
         if (!cancelled) open(fetched);
       })
       .catch(() => {
-        if (!cancelled) setSearchParams({}, { replace: true });
+        if (!cancelled) clearTaskParams();
       });
     return () => {
       cancelled = true;
@@ -298,7 +320,7 @@ export function KanbanPage() {
 
       <KanbanToolbar
         view={view}
-        setView={setView}
+        setView={changeView}
         query={query}
         setQuery={setQuery}
         filtersRef={filtersRef}

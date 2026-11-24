@@ -27,7 +27,8 @@ import {
   Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { queueBadgeLabel, queueCounts, workQueue } from "@/lib/queue";
+import { links } from "@/lib/links";
+import { allQueueCounts, queueBadgeLabel } from "@/lib/queue";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { StatusDot, statusTone } from "@/components/ui/status-dot";
@@ -45,7 +46,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { to: "/", label: "Dashboard", icon: Gauge, end: true },
       { to: "/search", label: "Buscar", icon: Search },
-      { to: "/kanban", label: "Kanban & Fila", icon: KanbanSquare },
+      { to: links.kanban(), label: "Kanban & Fila", icon: KanbanSquare },
       { to: "/calendar", label: "Calendário", icon: CalendarDays },
       { to: "/runs", label: "Execuções", icon: Activity },
       { to: "/worktrees", label: "Worktrees", icon: GitBranch },
@@ -84,7 +85,9 @@ export function Sidebar() {
   const daemon = useAppStore((state) => state.daemon);
   const connected = useAppStore((state) => state.connected);
   const queue = useAppStore((state) => state.queue);
-  const counts = queueCounts(workQueue(queue));
+  const attentionCount = useAppStore((state) => state.attentionCount);
+  const dashboard = useAppStore((state) => state.dashboard);
+  const counts = allQueueCounts(queue);
   const badge = queueBadgeLabel(counts);
 
   return (
@@ -135,18 +138,39 @@ export function Sidebar() {
                 >
                   <span className="relative shrink-0">
                     <item.icon size={17} strokeWidth={1.8} />
-                    {item.to === "/kanban" && counts.running > 0 ? (
+                    {item.to.startsWith("/kanban") && counts.running > 0 ? (
                       <span className="absolute -right-1 -top-1 h-2 w-2 animate-pulse rounded-full bg-blue-400" />
+                    ) : null}
+                    {item.to === "/" && attentionCount > 0 ? (
+                      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-amber-400" />
                     ) : null}
                   </span>
                   {!collapsed ? <span className="truncate">{item.label}</span> : null}
-                  {!collapsed && item.to === "/kanban" && counts.running > 0 ? (
+                  {!collapsed && item.to.startsWith("/kanban") && counts.running > 0 ? (
                     <span
                       className="ml-auto inline-flex items-center gap-1 font-mono text-[11px] text-blue-300"
                       title={`${counts.running} execução(ões) em andamento`}
                     >
                       <Loader2 size={10} className="animate-spin" />
                       {counts.running}
+                    </span>
+                  ) : null}
+                  {!collapsed && item.to === "/" && attentionCount > 0 ? (
+                    <span
+                      className="ml-auto inline-flex items-center gap-1 font-mono text-[11px] text-amber-300"
+                      title={`${attentionCount} item(ns) pedindo atenção`}
+                    >
+                      {attentionCount}
+                    </span>
+                  ) : null}
+                  {!collapsed &&
+                  item.to === "/runs" &&
+                  (dashboard?.runs_running ?? 0) > 0 ? (
+                    <span
+                      className="ml-auto inline-flex items-center gap-1 font-mono text-[11px] text-blue-300"
+                      title={`${dashboard?.runs_running} execução(ões) em andamento`}
+                    >
+                      {dashboard?.runs_running}
                     </span>
                   ) : null}
                 </NavLink>
@@ -179,7 +203,7 @@ export function Sidebar() {
             </div>
             {badge ? (
               <Link
-                to="/kanban?view=queue"
+                to={links.queue()}
                 className="mt-2 flex flex-col gap-0.5 rounded-md border border-blue-500/20 bg-blue-500/[0.06] px-2 py-1 text-[11.5px] text-blue-200"
                 title={badge}
               >

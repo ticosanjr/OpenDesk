@@ -29,6 +29,9 @@ Uso:
   opendesk backups restore <backup-id> --path <diretório> [--name <nome>]
   opendesk backups download <backup-id> --out <arquivo>
   opendesk backups delete <backup-id>
+  opendesk config export <arquivo.json> [--workspace <id>] [--sections a,b]
+  opendesk config import <arquivo.json> [--workspace <id>] [--dry-run]
+        [--mode merge-skip|merge-overwrite|replace]
   opendesk export <run-id> [--format md|html|json] [--out <arquivo>]
 
 O servidor local precisa estar rodando (app desktop ou --headless).";

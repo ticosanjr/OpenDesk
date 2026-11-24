@@ -34,6 +34,7 @@ import { SectionNav } from "@/components/ui/section-nav";
 import { ToolsCard } from "@/components/settings/ToolsCard";
 import { QueueSettingsCard } from "@/components/settings/QueueSettingsCard";
 import { BackupsCard } from "@/components/settings/BackupsCard";
+import { ConfigBundleCard } from "@/components/settings/ConfigBundleCard";
 import { AuditCard } from "@/components/settings/AuditCard";
 import { PromptSettings } from "@/components/settings/PromptSettings";
 import { useAppStore } from "@/store/app-store";
@@ -190,6 +191,7 @@ export function SettingsPage() {
       {activeTab === "tools" ? <ToolsCard /> : null}
 
       {activeTab === "general" ? (
+        <>
         <GeneralSettings
           root={root}
           loading={loading}
@@ -205,6 +207,8 @@ export function SettingsPage() {
           onReveal={() => void reveal(root)}
           onSelectTab={selectTab}
         />
+        <ConfigBundleCard />
+        </>
       ) : null}
 
       {activeTab === "workspaces" ? (

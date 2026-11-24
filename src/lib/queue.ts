@@ -19,6 +19,13 @@ export function workQueue<T extends { task_origin?: string | null }>(
   return jobs.filter(isWorkQueueJob);
 }
 
+/** Real engine pressure, including routines, recipes and I/O automations. */
+export function allQueueCounts<T extends { status: string }>(
+  jobs: T[],
+): QueueCounts {
+  return queueCounts(jobs);
+}
+
 export function queueCounts(jobs: Array<{ status: string }>): QueueCounts {
   let waiting = 0;
   let running = 0;

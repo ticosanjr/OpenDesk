@@ -25,6 +25,22 @@ beforeEach(() => {
     workspaces: [],
     activeWorkspaceId: null,
     dashboard: null,
+    queue: [],
+    queueStatus: null,
+    attentionCount: 0,
+    revisions: {
+      queue: 0,
+      tasks: 0,
+      runs: 0,
+      artifacts: 0,
+      attention: 0,
+      schedules: 0,
+      recipes: 0,
+      memory: 0,
+      governance: 0,
+      studio: 0,
+    },
+    wsConnected: false,
     loading: false,
     error: null,
   });
@@ -283,6 +299,7 @@ describe("websocket event reducer", () => {
     const { handleEvent } = await import("./app-store");
     const get = apiGet as Mock;
     get.mockResolvedValue([]);
+    useAppStore.setState({ activeWorkspaceId: "ws" });
     handleEvent({ event_id: 30, event_type: "ResyncRequired", payload: {} });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(get).toHaveBeenCalled();
@@ -524,5 +541,249 @@ describe("boot and sockets", () => {
     await useAppStore.getState().selectWorkspace("ws-9");
     expect(useAppStore.getState().activeWorkspaceId).toBe("ws-9");
     expect(useAppStore.getState().dashboard?.runs_total).toBe(4);
+  });
+});
+
+describe("live revisions and resync", () => {
+  it("applies queue snapshots only for the active workspace", async () => {
+    const { handleEvent } = await import("./app-store");
+    useAppStore.setState({
+      activeWorkspaceId: "ws-a",
+      queueStatus: {
+        paused: false,
+        active_jobs: 0,
+        concurrency: 3,
+        max_concurrency: 3,
+        max_queue_size: 200,
+        default_agent_concurrency: 2,
+        group_usage: [],
+        running: 0,
+        waiting: 0,
+      },
+    });
+    handleEvent({
+      event_id: 1,
+      event_type: "QueueUpdated",
+      payload: {
+        workspace_id: "ws-b",
+        jobs: [{ id: "other", status: "RUNNING" }],
+      },
+    });
+    expect(useAppStore.getState().queue).toEqual([]);
+
+    handleEvent({
+      event_id: 2,
+      event_type: "QueueUpdated",
+      payload: {
+        workspace_id: "ws-a",
+        jobs: [
+          { id: "j1", status: "RUNNING" },
+          { id: "j2", status: "QUEUED" },
+        ],
+      },
+    });
+    const state = useAppStore.getState();
+    expect(state.queue.map((job) => job.id)).toEqual(["j1", "j2"]);
+    expect(state.queueStatus).toMatchObject({ running: 1, waiting: 1 });
+    expect(state.revisions.queue).toBe(1);
+  });
+
+  it("coalesces a burst of events into one live refresh", async () => {
+    vi.useFakeTimers();
+    const { handleEvent } = await import("./app-store");
+    const get = apiGet as Mock;
+    get.mockResolvedValue([]);
+    useAppStore.setState({ activeWorkspaceId: "ws-a" });
+    for (let index = 0; index < 50; index += 1) {
+      handleEvent({
+        event_id: index + 1,
+        event_type: "TaskUpdated",
+        payload: {
+          task_id: `task-${index}`,
+          workspace_id: "ws-a",
+          stage: "BUILD",
+        },
+      });
+    }
+    expect(get).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(200);
+    const dashboardCalls = get.mock.calls.filter(([path]) =>
+      String(path).includes("/api/dashboard"),
+    );
+    expect(dashboardCalls).toHaveLength(1);
+    expect(useAppStore.getState().revisions.tasks).toBe(50);
+    vi.useRealTimers();
+  });
+
+  it("discards a slow response from a previous workspace", async () => {
+    let resolveA: ((value: unknown) => void) | null = null;
+    const slowA = new Promise((resolve) => {
+      resolveA = resolve;
+    });
+    (apiGet as Mock).mockImplementation(async (path: string) => {
+      if (path.includes("/api/dashboard") && path.includes("ws-a")) return slowA;
+      if (path.includes("/api/dashboard")) return { runs_total: 2 };
+      return [];
+    });
+    useAppStore.setState({ activeWorkspaceId: "ws-a", dashboard: null });
+    const first = useAppStore.getState().refreshLiveState("ws-a");
+    useAppStore.setState({ activeWorkspaceId: "ws-b" });
+    await useAppStore.getState().refreshLiveState("ws-b");
+    resolveA!({ runs_total: 99 });
+    await first;
+    expect(useAppStore.getState().dashboard?.runs_total).toBe(2);
+  });
+});
+
+describe("live state edge cases", () => {
+  it("refreshes queue, status and attention for the active workspace", async () => {
+    (apiGet as Mock).mockImplementation(async (path: string) => {
+      if (path.includes("/api/dashboard")) return { runs_total: 3 };
+      if (path.includes("/api/queue/status")) {
+        return {
+          paused: false,
+          active_jobs: 1,
+          concurrency: 3,
+          max_concurrency: 3,
+          max_queue_size: 200,
+          default_agent_concurrency: 2,
+          group_usage: [],
+          running: 1,
+          waiting: 2,
+        };
+      }
+      if (path.includes("/api/queue")) return [{ id: "j1", status: "RUNNING" }];
+      if (path.includes("/api/attention")) {
+        return { requests: [{ id: "r1" }], hitl: [] };
+      }
+      return [];
+    });
+    useAppStore.setState({ activeWorkspaceId: "ws-1" });
+    await useAppStore.getState().refreshLiveState("ws-1");
+    const state = useAppStore.getState();
+    expect(state.dashboard?.runs_total).toBe(3);
+    expect(state.queue).toHaveLength(1);
+    expect(state.queueStatus?.running).toBe(1);
+    expect(state.attentionCount).toBe(1);
+  });
+
+  it("clears live state without a workspace", async () => {
+    useAppStore.setState({ activeWorkspaceId: null, queue: [{ id: "old" } as never] });
+    await useAppStore.getState().refreshLiveState();
+    expect(useAppStore.getState().queue).toEqual([]);
+    expect(useAppStore.getState().queueStatus).toBeNull();
+  });
+
+  it("falls back when queue or status fails after switching workspace", async () => {
+    const workspace = {
+      id: "ws-3",
+      name: "Three",
+      root_path: "/tmp/three",
+      color_hex: "#fff",
+      default_router_policy: "COST_BENEFIT",
+      timezone: "UTC",
+      is_active: true,
+      created_at: "",
+      last_opened_at: "",
+    };
+    (apiPost as Mock).mockResolvedValue(workspace);
+    (apiGet as Mock).mockImplementation(async (path: string) => {
+      if (path.includes("/api/dashboard")) return { runs_total: 1 };
+      throw new Error("offline");
+    });
+    await useAppStore.getState().selectWorkspace("ws-3");
+    expect(useAppStore.getState().queue).toEqual([]);
+    expect(useAppStore.getState().queueStatus).toBeNull();
+  });
+
+  it("counts learning, handoff and ticket events", async () => {
+    const { handleEvent } = await import("./app-store");
+    useAppStore.setState({ activeWorkspaceId: "ws-1" });
+    handleEvent({
+      event_id: 700,
+      event_type: "LearningUpdated",
+      payload: { workspace_id: "ws-1" },
+    });
+    handleEvent({
+      event_id: 701,
+      event_type: "HandoffUpdated",
+      payload: { handoff_id: "h1", workspace_id: "ws-1", status: "DONE", target_agent: "build" },
+    });
+    handleEvent({
+      event_id: 702,
+      event_type: "TicketUpdated",
+      payload: { ticket_id: "t1", workspace_id: "ws-1", source: "x", status: "OPEN" },
+    });
+    const revisions = useAppStore.getState().revisions;
+    expect(revisions.memory).toBe(1);
+    expect(revisions.tasks).toBe(2);
+    expect(revisions.governance).toBe(2);
+  });
+});
+
+describe("event payload guards", () => {
+  it("ignores incomplete schedule and run payloads", async () => {
+    const { handleEvent } = await import("./app-store");
+    useAppStore.setState({
+      activeWorkspaceId: "ws-a",
+      lastScheduleEvent: null,
+      lastRunEvent: null,
+      revisions: {
+        queue: 0,
+        tasks: 0,
+        runs: 0,
+        artifacts: 0,
+        attention: 0,
+        schedules: 0,
+        recipes: 0,
+        memory: 0,
+        governance: 0,
+        studio: 0,
+      },
+    });
+    handleEvent({
+      event_id: 800,
+      event_type: "ScheduleUpdated",
+      payload: { schedule_id: "s1" },
+    });
+    expect(useAppStore.getState().lastScheduleEvent).toBeNull();
+    handleEvent({
+      event_id: 801,
+      event_type: "RunFinished",
+      payload: { run_id: "r1", workspace_id: "ws-b", status: "SUCCESS" },
+    });
+    expect(useAppStore.getState().lastRunEvent?.workspace_id).toBe("ws-b");
+    expect(useAppStore.getState().revisions.runs).toBe(0);
+    handleEvent({
+      event_id: 802,
+      event_type: "QueueUpdated",
+      payload: {
+        jobs: [{ id: "j1", status: "QUEUED" }],
+      },
+    });
+    expect(useAppStore.getState().queue).toHaveLength(1);
+  });
+
+  it("does not fetch on resync without an active workspace", async () => {
+    const { handleEvent } = await import("./app-store");
+    useAppStore.setState({ activeWorkspaceId: null });
+    (apiGet as Mock).mockClear();
+    handleEvent({ event_id: 803, event_type: "ResyncRequired", payload: {} });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(apiGet).not.toHaveBeenCalled();
+  });
+});
+
+describe("attention edge cases", () => {
+  it("ignores non-object attention payloads", async () => {
+    (apiGet as Mock).mockImplementation(async (path: string) => {
+      if (path.includes("/api/attention")) return "invalid";
+      if (path.includes("/api/queue/status")) return null;
+      if (path.includes("/api/queue")) return [];
+      return { runs_total: 0 };
+    });
+    useAppStore.setState({ activeWorkspaceId: "ws-a", attentionCount: 0 });
+    await useAppStore.getState().refreshLiveState("ws-a");
+    expect(useAppStore.getState().attentionCount).toBe(0);
   });
 });

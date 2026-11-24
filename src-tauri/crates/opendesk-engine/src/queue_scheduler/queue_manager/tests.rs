@@ -20,37 +20,41 @@ fn split_model_handles_provider_and_variant() {
 
 #[test]
 fn job_dto_preserves_operational_fields() {
-    let dto = job_dto(queue::QueueJob {
-        id: "job-1".into(),
-        workspace_id: "ws-1".into(),
-        task_id: Some("task-1".into()),
-        schedule_id: None,
-        session_id: Some("session-1".into()),
-        concurrency_group: Some("web_scraper".into()),
-        prompt_payload: "prompt".into(),
-        resolved_mode: "build".into(),
-        resolved_agent: "build".into(),
-        resolved_model: "opencode-go/glm-5.3".into(),
-        resolved_effort: "high".into(),
-        resolved_harness: "opencode".into(),
-        assigned_node_id: None,
-        job_kind: "task".into(),
-        scheduled_for: None,
-        output_dir: Some("/tmp/out".into()),
-        priority: 3,
-        status: "QUEUED".into(),
-        retry_count: 1,
-        max_retries: 2,
-        error_message: Some("retry me".into()),
-        enqueued_at: "2026-11-11T00:00:00Z".into(),
-        started_at: None,
-        finished_at: None,
-        lease_expires_at: Some("2026-11-11T00:01:00Z".into()),
-        last_heartbeat_at: Some("2026-11-11T00:00:30Z".into()),
-        task_title: Some("Relatório".into()),
-        task_origin: Some("MANUAL".into()),
-    });
+    let dto = job_dto(
+        queue::QueueJob {
+            id: "job-1".into(),
+            workspace_id: "ws-1".into(),
+            task_id: Some("task-1".into()),
+            schedule_id: None,
+            session_id: Some("session-1".into()),
+            concurrency_group: Some("web_scraper".into()),
+            prompt_payload: "prompt".into(),
+            resolved_mode: "build".into(),
+            resolved_agent: "build".into(),
+            resolved_model: "opencode-go/glm-5.3".into(),
+            resolved_effort: "high".into(),
+            resolved_harness: "opencode".into(),
+            assigned_node_id: None,
+            job_kind: "task".into(),
+            scheduled_for: None,
+            output_dir: Some("/tmp/out".into()),
+            priority: 3,
+            status: "QUEUED".into(),
+            retry_count: 1,
+            max_retries: 2,
+            error_message: Some("retry me".into()),
+            enqueued_at: "2026-11-11T00:00:00Z".into(),
+            started_at: None,
+            finished_at: None,
+            lease_expires_at: Some("2026-11-11T00:01:00Z".into()),
+            last_heartbeat_at: Some("2026-11-11T00:00:30Z".into()),
+            task_title: Some("Relatório".into()),
+            task_origin: Some("MANUAL".into()),
+        },
+        Some("Aguardando slot livre".into()),
+    );
     assert_eq!(dto.id, "job-1");
+    assert_eq!(dto.wait_reason.as_deref(), Some("Aguardando slot livre"));
     assert_eq!(dto.title.as_deref(), Some("Relatório"));
     assert_eq!(dto.priority, 3);
     assert_eq!(dto.concurrency_group.as_deref(), Some("web_scraper"));
@@ -81,6 +85,6 @@ fn concurrency_is_clamped_to_a_safe_range() {
     assert_eq!(clamp_concurrency(0), 1);
     assert_eq!(clamp_concurrency(1), 1);
     assert_eq!(clamp_concurrency(3), 3);
-    assert_eq!(clamp_concurrency(4), 4);
-    assert_eq!(clamp_concurrency(99), 4);
+    assert_eq!(clamp_concurrency(32), 32);
+    assert_eq!(clamp_concurrency(99), 32);
 }

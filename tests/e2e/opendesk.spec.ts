@@ -965,7 +965,7 @@ test("global search finds tasks and opens them", async ({ page, request }) => {
   await page.goto("/#/search");
   await page.getByPlaceholder("Digite pelo menos 2 caracteres…").fill("Busca Global E2E");
   await expect(page.getByText("Busca Global E2E").first()).toBeVisible();
-  await page.locator('a[href*="/kanban?task="]').first().click();
+  await page.locator('a[href*="/kanban?view=board&task="]').first().click();
   await expect(page).toHaveURL(/kanban/);
   await expect(page.getByRole("dialog")).toBeVisible();
 });

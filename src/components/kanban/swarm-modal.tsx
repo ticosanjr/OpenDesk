@@ -141,7 +141,7 @@ export function SwarmModal({
                         key={artifact.id}
                         type="button"
                         onClick={() => {
-                          window.location.hash = `#/artifacts?id=${encodeURIComponent(artifact.id)}`;
+                          window.location.hash = `#${links.artifact(artifact.id)}`;
                         }}
                         className="flex w-full items-center gap-1.5 truncate rounded border border-zinc-800/70 px-1.5 py-1 text-left text-[12px] text-zinc-400 hover:text-zinc-100"
                         title={artifact.file_path}

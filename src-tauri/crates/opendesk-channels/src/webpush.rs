@@ -332,6 +332,7 @@ mod tests {
         let finished = OpenDeskWsEvent::RunFinished {
             run_id: "run-2".into(),
             task_id: None,
+            workspace_id: "ws".into(),
             status: "failed".into(),
             estimated_cost_usd: 0.5,
             tokens_input: 10,

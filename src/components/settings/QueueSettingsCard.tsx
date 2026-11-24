@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { apiGet, apiPut } from "@/lib/api";
 import { toast } from "@/store/toast-store";
+import type { QueuePolicy } from "@/lib/types";
 import { smallInputClass, smallLabelClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ interface DedupeSettings {
 
 export function QueueSettingsCard() {
   const [settings, setSettings] = useState<DedupeSettings | null>(null);
+  const [policy, setPolicy] = useState<QueuePolicy | null>(null);
   const [autostart, setAutostart] = useState(true);
   const [missedPolicy, setMissedPolicy] = useState("ASK");
   const [loading, setLoading] = useState(true);
@@ -26,13 +28,15 @@ export function QueueSettingsCard() {
       apiGet<DedupeSettings>("/api/settings/dedupe"),
       apiGet<boolean>("/api/settings/tasks_autostart").catch(() => true),
       apiGet<string>("/api/settings/missed_run_policy").catch(() => "ASK"),
+      apiGet<QueuePolicy>("/api/queue/config"),
     ])
-      .then(([dedupe, start, missed]) => {
+      .then(([dedupe, start, missed, queuePolicy]) => {
         setSettings(dedupe);
         setAutostart(start !== false);
         setMissedPolicy(
           ["ASK", "RUN", "SKIP"].includes(missed) ? missed : "ASK",
         );
+        setPolicy(queuePolicy);
       })
       .catch((cause) =>
         toast({
@@ -48,12 +52,16 @@ export function QueueSettingsCard() {
     if (!settings) return;
     setSaving(true);
     try {
-      const [saved] = await Promise.all([
+      const [saved, , , savedPolicy] = await Promise.all([
         apiPut<DedupeSettings>("/api/settings/dedupe", settings),
         apiPut<boolean>("/api/settings/tasks_autostart", autostart),
         apiPut<string>("/api/settings/missed_run_policy", missedPolicy),
+        policy
+          ? apiPut<QueuePolicy>("/api/queue/config", policy)
+          : Promise.resolve(null),
       ]);
       setSettings(saved);
+      if (savedPolicy) setPolicy(savedPolicy);
       toast({ tone: "success", title: "Preferências da fila salvas" });
     } catch (cause) {
       toast({
@@ -166,6 +174,99 @@ export function QueueSettingsCard() {
                 0 desliga a carência. O padrão é 5 minutos.
               </span>
             </label>
+            {policy ? (
+              <div className="space-y-3 rounded-lg border border-zinc-800/70 bg-zinc-950/30 p-3">
+                <div>
+                  <p className="text-[13px] font-medium text-zinc-300">
+                    Capacidade da fila
+                  </p>
+                  <p className="mt-0.5 text-[12px] text-zinc-500">
+                    Slots globais, teto da fila e limites por grupo. Mudanças
+                    valem imediatamente para a próxima reivindicação.
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <label>
+                    <span className={smallLabelClass}>Concorrência máxima</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={32}
+                      value={policy.max_concurrency}
+                      onChange={(event) =>
+                        setPolicy({
+                          ...policy,
+                          max_concurrency: Number(event.target.value) || 1,
+                        })
+                      }
+                      className={cn(smallInputClass, "font-mono")}
+                      aria-label="Concorrência máxima"
+                    />
+                  </label>
+                  <label>
+                    <span className={smallLabelClass}>Tamanho máximo da fila</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10000}
+                      value={policy.max_queue_size}
+                      onChange={(event) =>
+                        setPolicy({
+                          ...policy,
+                          max_queue_size: Number(event.target.value) || 1,
+                        })
+                      }
+                      className={cn(smallInputClass, "font-mono")}
+                      aria-label="Tamanho máximo da fila"
+                    />
+                  </label>
+                  <label>
+                    <span className={smallLabelClass}>Quota padrão por agente</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={32}
+                      value={policy.default_agent_concurrency}
+                      onChange={(event) =>
+                        setPolicy({
+                          ...policy,
+                          default_agent_concurrency:
+                            Number(event.target.value) || 1,
+                        })
+                      }
+                      className={cn(smallInputClass, "font-mono")}
+                      aria-label="Quota padrão por agente"
+                    />
+                  </label>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {Object.keys(policy.group_limits)
+                    .sort()
+                    .map((group) => (
+                      <label key={group}>
+                        <span className={smallLabelClass}>{group}</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={32}
+                          value={policy.group_limits[group] ?? 1}
+                          onChange={(event) =>
+                            setPolicy({
+                              ...policy,
+                              group_limits: {
+                                ...policy.group_limits,
+                                [group]: Number(event.target.value) || 1,
+                              },
+                            })
+                          }
+                          className={cn(smallInputClass, "font-mono")}
+                          aria-label={`Limite do grupo ${group}`}
+                        />
+                      </label>
+                    ))}
+                </div>
+              </div>
+            ) : null}
             <div className="flex justify-end">
               <Button size="sm" onClick={() => void save()} disabled={saving}>
                 {saving ? (

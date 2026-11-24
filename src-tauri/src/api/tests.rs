@@ -66,6 +66,7 @@ mod browse;
 mod calendar;
 mod channels;
 mod chat_files;
+mod config_bundle;
 mod core;
 mod dedupe;
 mod export;

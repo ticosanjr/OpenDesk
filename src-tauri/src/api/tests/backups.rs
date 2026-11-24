@@ -62,3 +62,21 @@ async fn workspace_backups_create_list_restore_and_delete() {
     assert_eq!(status, StatusCode::OK);
     assert!(list.as_array().expect("list").is_empty());
 }
+
+#[tokio::test]
+async fn workspace_backup_accepts_log_and_secret_options() {
+    let ctx = test_support::context().await;
+    let workspace = format!("workspace_id={}", ctx.workspace_id);
+    let (status, created) = call(
+        &ctx,
+        Method::POST,
+        &format!("/api/backups?{workspace}"),
+        Some(json!({ "include_logs": false, "passphrase": "segredo-forte" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "create: {created}");
+    assert_eq!(created["version"], 2);
+    assert_eq!(created["includes"]["encrypted_secrets"], true);
+    assert_eq!(created["includes"]["run_logs"], false);
+    assert!(created["counts"]["files"].is_number());
+}

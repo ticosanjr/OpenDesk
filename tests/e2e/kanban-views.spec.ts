@@ -1,6 +1,36 @@
 import { expect, test } from "@playwright/test";
 import { api, seedWorkspace } from "./helpers";
 
+test("kanban view deep links switch tabs without reloading", async ({
+  page,
+  request,
+}) => {
+  await seedWorkspace(request, "Kanban Deep Links");
+  await page.goto("/#/kanban");
+  await expect(page.getByRole("button", { name: "Board", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+
+  await page.evaluate(() => {
+    window.location.hash = "#/kanban?view=queue";
+  });
+  await expect(page.getByText("Controlador da fila")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Fila", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+
+  await page.evaluate(() => {
+    window.location.hash = "#/kanban?view=board";
+  });
+  await expect(page.getByRole("button", { name: "Board", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByText("Controlador da fila")).toHaveCount(0);
+});
+
 test("kanban saves and reapplies a named filter view", async ({
   page,
   request,

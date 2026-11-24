@@ -12,9 +12,21 @@ use std::{
 use walkdir::WalkDir;
 
 pub(super) const MANIFEST: &str = "opendesk-backup.json";
-pub(super) const BACKUP_VERSION: u32 = 1;
+pub(super) const BACKUP_VERSION: u32 = 2;
 pub(super) const MAX_EXTRACT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 pub(super) const MAX_FILES: usize = 100_000;
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BackupIncludes {
+    #[serde(default)]
+    pub workspace_files: bool,
+    #[serde(default)]
+    pub sqlite_state: bool,
+    #[serde(default)]
+    pub run_logs: bool,
+    #[serde(default)]
+    pub encrypted_secrets: bool,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceBackup {
@@ -28,6 +40,10 @@ pub struct WorkspaceBackup {
     pub bytes: u64,
     pub created_at: String,
     pub version: u32,
+    #[serde(default)]
+    pub includes: BackupIncludes,
+    #[serde(default)]
+    pub counts: std::collections::BTreeMap<String, u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,6 +55,16 @@ pub(super) struct Manifest {
     pub files: usize,
     pub bytes: u64,
     pub version: u32,
+    #[serde(default)]
+    pub includes: BackupIncludes,
+    #[serde(default)]
+    pub counts: std::collections::BTreeMap<String, u64>,
+    #[serde(default)]
+    pub db_sha256: Option<String>,
+    #[serde(default)]
+    pub files_sha256: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    pub workspace_root: String,
 }
 
 pub(super) fn backup_root(paths: &AppPaths) -> PathBuf {

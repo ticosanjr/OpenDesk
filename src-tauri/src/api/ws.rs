@@ -78,7 +78,16 @@ async fn send_initial(socket: &mut WebSocket, state: &AppState) -> Result<(), ()
             binary_path: status.binary_path,
         },
     };
-    send_json(socket, &envelope).await
+    send_json(socket, &envelope).await?;
+    // The client owns the active workspace, so the initial queue/attention
+    // snapshot is a resync request rather than a guessed workspace payload.
+    let resync = WsEnvelope {
+        event_id: 0,
+        event: OpenDeskWsEvent::ResyncRequired {
+            reason: "initial snapshot".into(),
+        },
+    };
+    send_json(socket, &resync).await
 }
 
 async fn send_json(socket: &mut WebSocket, envelope: &WsEnvelope) -> Result<(), ()> {

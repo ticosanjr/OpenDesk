@@ -41,6 +41,7 @@ mod voice;
 
 pub mod audit;
 pub mod backup;
+pub mod config_bundle;
 pub mod db;
 pub mod desktop_integration;
 pub mod error;

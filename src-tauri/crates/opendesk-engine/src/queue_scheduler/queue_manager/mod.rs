@@ -30,11 +30,22 @@ mod worker;
 mod tests;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QueueGroupUsage {
+    pub group: String,
+    pub active: i64,
+    pub limit: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueueStatus {
     pub paused: bool,
     pub pause_reason: Option<String>,
     pub active_jobs: usize,
     pub concurrency: usize,
+    pub max_concurrency: usize,
+    pub max_queue_size: usize,
+    pub default_agent_concurrency: usize,
+    pub group_usage: Vec<QueueGroupUsage>,
     pub running: i64,
     pub waiting: i64,
 }
@@ -51,6 +62,7 @@ pub struct QueueManager {
     notifier: Arc<dyn RunNotifier>,
     paused: AtomicBool,
     pause_reason: Mutex<Option<String>>,
+    policy: Mutex<queue::QueuePolicy>,
     concurrency: AtomicUsize,
     active: AtomicUsize,
     notify: Notify,
@@ -84,7 +96,7 @@ pub struct QueueConfig {
     pub adapters: Arc<AdapterService>,
     pub ports: Arc<dyn QueuePorts>,
     pub notifier: Arc<dyn RunNotifier>,
-    pub concurrency: usize,
+    pub policy: queue::QueuePolicy,
 }
 
 impl QueueManager {
@@ -99,8 +111,9 @@ impl QueueManager {
             adapters,
             ports,
             notifier,
-            concurrency,
+            policy,
         } = config;
+        let policy = policy.normalized();
         Arc::new(Self {
             pool,
             scrubber,
@@ -113,7 +126,8 @@ impl QueueManager {
             notifier,
             paused: AtomicBool::new(false),
             pause_reason: Mutex::new(None),
-            concurrency: AtomicUsize::new(clamp_concurrency(concurrency)),
+            concurrency: AtomicUsize::new(clamp_concurrency(policy.max_concurrency)),
+            policy: Mutex::new(policy),
             active: AtomicUsize::new(0),
             notify: Notify::new(),
             shutdown: CancellationToken::new(),
@@ -154,6 +168,30 @@ impl QueueManager {
         self.concurrency.load(Ordering::Relaxed)
     }
 
+    pub fn policy(&self) -> queue::QueuePolicy {
+        self.policy
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .clone()
+    }
+
+    pub async fn set_policy(&self, policy: queue::QueuePolicy) -> AppResult<queue::QueuePolicy> {
+        policy.validate()?;
+        let saved = queue::save_policy(&self.pool, &policy).await?;
+        let concurrency = clamp_concurrency(saved.max_concurrency);
+        {
+            let mut current = self
+                .policy
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            *current = saved.clone();
+        }
+        self.concurrency.store(concurrency, Ordering::Relaxed);
+        self.notify.notify_waiters();
+        self.publish_status_for_all().await;
+        Ok(saved)
+    }
+
     pub fn set_concurrency(&self, value: usize) {
         self.concurrency
             .store(clamp_concurrency(value), Ordering::Relaxed);
@@ -162,6 +200,18 @@ impl QueueManager {
 
     pub async fn status(&self, workspace_id: Option<&str>) -> AppResult<QueueStatus> {
         let (running, waiting) = queue::counts(&self.pool, workspace_id).await?;
+        let policy = self.policy();
+        let usage = queue::running_by_group(&self.pool).await?;
+        let mut group_usage = policy
+            .group_limits
+            .iter()
+            .map(|(group, limit)| QueueGroupUsage {
+                group: group.clone(),
+                active: usage.get(group).copied().unwrap_or(0),
+                limit: *limit,
+            })
+            .collect::<Vec<_>>();
+        group_usage.sort_by(|left, right| left.group.cmp(&right.group));
         Ok(QueueStatus {
             paused: self.is_paused(),
             pause_reason: self
@@ -171,6 +221,10 @@ impl QueueManager {
                 .clone(),
             active_jobs: self.active.load(Ordering::Relaxed),
             concurrency: self.concurrency(),
+            max_concurrency: policy.max_concurrency,
+            max_queue_size: policy.max_queue_size,
+            default_agent_concurrency: policy.default_agent_concurrency,
+            group_usage,
             running,
             waiting,
         })
@@ -198,7 +252,15 @@ impl QueueManager {
 
     pub async fn list(&self, workspace_id: Option<&str>) -> AppResult<Vec<QueueJobDto>> {
         let jobs = queue::list(&self.pool, workspace_id).await?;
-        Ok(jobs.into_iter().map(job_dto).collect())
+        let reasons =
+            queue::wait_reasons(&self.pool, &jobs, &self.policy(), self.is_paused()).await?;
+        Ok(jobs
+            .into_iter()
+            .map(|job| {
+                let reason = reasons.get(&job.id).cloned();
+                job_dto(job, reason)
+            })
+            .collect())
     }
 
     pub async fn enqueue(&self, input: queue::EnqueueInput) -> AppResult<queue::QueueJob> {
@@ -247,9 +309,18 @@ impl QueueManager {
 
     async fn publish_queue(&self, workspace_id: &str) {
         if let Ok(jobs) = queue::list(&self.pool, Some(workspace_id)).await {
+            let reasons = queue::wait_reasons(&self.pool, &jobs, &self.policy(), self.is_paused())
+                .await
+                .unwrap_or_default();
             self.events.publish(OpenDeskWsEvent::QueueUpdated {
                 workspace_id: workspace_id.to_string(),
-                jobs: jobs.into_iter().map(job_dto).collect(),
+                jobs: jobs
+                    .into_iter()
+                    .map(|job| {
+                        let reason = reasons.get(&job.id).cloned();
+                        job_dto(job, reason)
+                    })
+                    .collect(),
             });
         }
     }
@@ -260,7 +331,7 @@ impl QueueManager {
 }
 
 fn clamp_concurrency(value: usize) -> usize {
-    value.clamp(1, 4)
+    value.clamp(1, 32)
 }
 
 fn split_model(model: &str) -> (Option<String>, String) {

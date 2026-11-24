@@ -5,6 +5,7 @@ mod args;
 mod backups;
 mod chat;
 mod commands;
+mod config;
 mod node;
 mod node_job;
 mod opencode_job;
@@ -76,6 +77,8 @@ async fn execute(args: Args) -> Result<()> {
         ("backups", Some("restore")) => backups::restore(&args, &client, &endpoint).await?,
         ("backups", Some("download")) => backups::download(&args, &client, &endpoint).await?,
         ("backups", Some("delete")) => backups::delete(&args, &client, &endpoint).await?,
+        ("config", Some("export")) => config::export(&args, &client, &endpoint).await?,
+        ("config", Some("import")) => config::import(&args, &client, &endpoint).await?,
         ("export", _) => backups::export(&args, &client, &endpoint).await?,
         _ => {
             println!("{HELP}");

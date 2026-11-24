@@ -6,8 +6,10 @@ import {
   Clock3,
   FolderOpen,
   ListChecks,
+  Minus,
   Pause,
   Play,
+  Plus,
   RotateCw,
   Square,
 } from "lucide-react";
@@ -21,6 +23,7 @@ import { IconLabel } from "@/components/ui/icon-label";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EntityLink } from "@/components/ui/entity-link";
 import { links } from "@/lib/links";
+import { useFocusParam } from "@/lib/use-focus-param";
 import { relativeTime } from "@/lib/format";
 import type { QueueJob, QueueStatus } from "@/lib/types";
 
@@ -58,6 +61,7 @@ export function QueueController({
   onJobAction: (id: string, action: "cancel" | "retry") => void;
   onPriority: (id: string, priority: number) => void;
 }) {
+  useFocusParam("job");
   const running = queue.filter((job) => job.status === "RUNNING").length;
   const waiting = queue.filter(
     (job) => job.status === "QUEUED" || job.status === "PAUSED",
@@ -90,24 +94,50 @@ export function QueueController({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label
+          <div
             className="flex items-center gap-2 text-[13.5px] text-zinc-500"
             title="Quantos jobs podem rodar ao mesmo tempo"
           >
             concorrência
-            <select
-              value={status?.concurrency ?? 1}
-              onChange={(event) => onConcurrency(Number(event.target.value))}
-              className="h-8 rounded-md border border-zinc-800 bg-zinc-900/60 px-2.5 text-[13.5px] text-zinc-200 outline-none transition-colors hover:border-zinc-700 focus:border-blue-500/60"
-              aria-label="Concorrência da fila"
-            >
-              {[1, 2, 3, 4].map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </label>
+            <div className="flex items-center gap-0.5 rounded-md border border-zinc-800 bg-zinc-900/60 p-0.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                aria-label="Diminuir concorrência"
+                onClick={() =>
+                  onConcurrency(Math.max(1, (status?.concurrency ?? 1) - 1))
+                }
+              >
+                <Minus size={12} />
+              </Button>
+              <select
+                value={status?.concurrency ?? 1}
+                onChange={(event) => onConcurrency(Number(event.target.value))}
+                className="h-7 bg-transparent px-1 font-mono text-[13.5px] text-zinc-200 outline-none"
+                aria-label="Concorrência da fila"
+              >
+                {Array.from({ length: 32 }, (_, index) => index + 1).map(
+                  (value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ),
+                )}
+              </select>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                aria-label="Aumentar concorrência"
+                onClick={() =>
+                  onConcurrency(Math.min(32, (status?.concurrency ?? 1) + 1))
+                }
+              >
+                <Plus size={12} />
+              </Button>
+            </div>
+          </div>
           {failed > 0 ? (
             <Button
               variant="outline"
@@ -151,6 +181,14 @@ export function QueueController({
           <span className="inline-flex items-center gap-1.5">
             total <CountPill value={queue.length} />
           </span>
+          <span
+            className="inline-flex items-center gap-1.5 font-mono"
+            title="Slots ocupados / concorrência e jobs aguardando / limite da fila"
+          >
+            slots {status?.active_jobs ?? running}/{status?.concurrency ?? 1}
+            <span className="text-zinc-600">·</span>
+            fila {status?.waiting ?? waiting}/{status?.max_queue_size ?? "—"}
+          </span>
           <span className="ml-auto hidden font-mono text-[11.5px] text-zinc-500 md:inline">
             lease 60s · heartbeat 5s
           </span>
@@ -179,6 +217,7 @@ export function QueueController({
             {sorted.map((job) => (
               <div
                 key={job.id}
+                data-focus-id={job.id}
                 className="cv-auto rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-2.5 py-2"
               >
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -211,6 +250,15 @@ export function QueueController({
                         ? ` · retry ${job.retry_count}/${job.max_retries ?? "?"}`
                         : ""}
                     </p>
+                    {job.wait_reason &&
+                    (job.status === "QUEUED" || job.status === "PAUSED") ? (
+                      <p
+                        className="mt-0.5 truncate text-[11.5px] text-amber-300/80"
+                        title={job.wait_reason}
+                      >
+                        {job.wait_reason}
+                      </p>
+                    ) : null}
                   </div>
                   <span className="inline-flex items-center gap-1 font-mono text-[11.5px] text-zinc-500">
                     <Clock3 size={9} />

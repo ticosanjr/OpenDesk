@@ -4,8 +4,22 @@ import type {
   DaemonStatus,
   DashboardStats,
   QueueJob,
+  QueueStatus,
   Workspace,
 } from "@/lib/types";
+
+export interface LiveRevisions {
+  queue: number;
+  tasks: number;
+  runs: number;
+  artifacts: number;
+  attention: number;
+  schedules: number;
+  recipes: number;
+  memory: number;
+  governance: number;
+  studio: number;
+}
 
 export interface CreateWorkspaceInput {
   name: string;
@@ -27,6 +41,10 @@ export interface AppStore {
   dashboard: DashboardStats | null;
   budget: BudgetStatus | null;
   queue: QueueJob[];
+  queueStatus: QueueStatus | null;
+  attentionCount: number;
+  revisions: LiveRevisions;
+  wsConnected: boolean;
   lastEventId: number;
   lastFsEvent: {
     entity: string;
@@ -42,6 +60,7 @@ export interface AppStore {
   lastRunEvent: {
     run_id: string;
     task_id?: string | null;
+    workspace_id?: string;
     status: string;
   } | null;
   lastRunChunk: {
@@ -88,6 +107,8 @@ export interface AppStore {
   } | null;
   boot: () => Promise<void>;
   refresh: () => Promise<void>;
+  refreshLiveState: (workspaceId?: string | null) => Promise<void>;
+  setAttentionCount: (count: number) => void;
   selectWorkspace: (id: string) => Promise<void>;
   createWorkspace: (input: CreateWorkspaceInput) => Promise<Workspace>;
   restartDaemon: () => Promise<void>;

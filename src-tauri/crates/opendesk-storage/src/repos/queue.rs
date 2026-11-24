@@ -1,7 +1,16 @@
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
+use std::collections::HashMap;
 use uuid::Uuid;
+
+#[path = "queue_scheduling.rs"]
+mod scheduling;
+
+pub use scheduling::{
+    QUEUE_POLICY_SETTING, QueuePolicy, load_policy, next_eligible, next_queued, save_policy,
+    wait_reasons,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct QueueJob {
@@ -141,6 +150,19 @@ pub async fn enqueue(pool: &SqlitePool, input: EnqueueInput) -> AppResult<QueueJ
     if let Some(existing) = active_by_dedupe(pool, &input.workspace_id, &dedupe_key).await? {
         return Ok(existing);
     }
+    let policy = scheduling::load_policy(pool).await?;
+    let active: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM execution_queue
+         WHERE status IN ('QUEUED', 'PAUSED', 'RUNNING')",
+    )
+    .fetch_one(pool)
+    .await?;
+    if active >= policy.max_queue_size as i64 {
+        return Err(AppError::QueueFull(format!(
+            "fila cheia: {active}/{} jobs ativos",
+            policy.max_queue_size
+        )));
+    }
     let id = Uuid::now_v7().to_string();
     let insert = sqlx::query(
         "INSERT INTO execution_queue (
@@ -211,47 +233,6 @@ pub async fn list(pool: &SqlitePool, workspace_id: Option<&str>) -> AppResult<Ve
         .bind(workspace_id)
         .bind(workspace_id)
         .fetch_all(pool)
-        .await?)
-}
-
-pub async fn next_queued(pool: &SqlitePool) -> AppResult<Option<QueueJob>> {
-    let query = format!(
-        "SELECT {COLUMNS} FROM execution_queue q
-         LEFT JOIN tasks t ON t.id = q.task_id
-         WHERE q.status = 'QUEUED'
-           AND (
-             SELECT COUNT(*) FROM execution_queue r
-             WHERE r.status = 'RUNNING' AND r.concurrency_group = q.concurrency_group
-           ) < CASE q.concurrency_group
-             WHEN 'local_llm_heavy' THEN 1
-             WHEN 'web_scraper' THEN 2
-             WHEN 'light_api' THEN 5
-             ELSE 100
-           END
-           -- Optional per-agent quota. No profile means the group limit above
-           -- remains the only constraint.
-           AND (
-             NOT EXISTS (
-               SELECT 1 FROM agent_profiles p
-               WHERE p.workspace_id = q.workspace_id
-                 AND p.agent_id = q.resolved_agent
-                 AND p.concurrency_quota > 0
-             )
-             OR (
-               SELECT COUNT(*) FROM execution_queue r
-               WHERE r.status = 'RUNNING'
-                 AND r.workspace_id = q.workspace_id
-                 AND r.resolved_agent = q.resolved_agent
-             ) < (
-               SELECT p.concurrency_quota FROM agent_profiles p
-               WHERE p.workspace_id = q.workspace_id AND p.agent_id = q.resolved_agent
-             )
-           )
-         ORDER BY q.priority DESC, q.enqueued_at ASC
-         LIMIT 1"
-    );
-    Ok(sqlx::query_as::<_, QueueJob>(&query)
-        .fetch_optional(pool)
         .await?)
 }
 
@@ -474,6 +455,18 @@ pub async fn recover_running(pool: &SqlitePool) -> AppResult<u64> {
     .execute(pool)
     .await?;
     Ok(result.rows_affected())
+}
+
+pub async fn running_by_group(pool: &SqlitePool) -> AppResult<HashMap<String, i64>> {
+    Ok(sqlx::query_as::<_, (String, i64)>(
+        "SELECT COALESCE(concurrency_group, 'default'), COUNT(*)
+         FROM execution_queue WHERE status = 'RUNNING'
+         GROUP BY 1",
+    )
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .collect())
 }
 
 pub async fn counts(pool: &SqlitePool, workspace_id: Option<&str>) -> AppResult<(i64, i64)> {

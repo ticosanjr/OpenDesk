@@ -26,6 +26,9 @@ pub enum AppError {
     #[error("conflict: {0}")]
     Conflict(String),
 
+    #[error("queue full: {0}")]
+    QueueFull(String),
+
     #[error("OpenCode daemon error: {0}")]
     Daemon(String),
 
@@ -44,6 +47,7 @@ impl From<opendesk_storage::error::AppError> for AppError {
             Storage::BadRequest(message) => Self::BadRequest(message),
             Storage::NotFound(message) => Self::NotFound(message),
             Storage::Conflict(message) => Self::Conflict(message),
+            Storage::QueueFull(message) => Self::QueueFull(message),
             Storage::Internal(message) => Self::Internal(message),
         }
     }
@@ -59,6 +63,7 @@ impl From<opendesk_engine::error::AppError> for AppError {
             Engine::BadRequest(message) => Self::BadRequest(message),
             Engine::NotFound(message) => Self::NotFound(message),
             Engine::Conflict(message) => Self::Conflict(message),
+            Engine::QueueFull(message) => Self::QueueFull(message),
             Engine::Daemon(message) => Self::Daemon(message),
             Engine::Internal(message) => Self::Internal(message),
         }
@@ -75,6 +80,7 @@ impl From<AppError> for opendesk_engine::error::AppError {
             AppError::BadRequest(message) => Engine::BadRequest(message),
             AppError::NotFound(message) => Engine::NotFound(message),
             AppError::Conflict(message) => Engine::Conflict(message),
+            AppError::QueueFull(message) => Engine::QueueFull(message),
             AppError::Daemon(message) => Engine::Daemon(message),
             AppError::Internal(message) => Engine::Internal(message),
         }
@@ -108,6 +114,7 @@ impl AppError {
             Self::BadRequest(_) => (StatusCode::BAD_REQUEST, "invalid_request"),
             Self::NotFound(_) => (StatusCode::NOT_FOUND, "not_found"),
             Self::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
+            Self::QueueFull(_) => (StatusCode::TOO_MANY_REQUESTS, "queue_full"),
             Self::Daemon(_) => (StatusCode::SERVICE_UNAVAILABLE, "daemon_unavailable"),
             Self::Http(_) => (StatusCode::BAD_GATEWAY, "opencode_error"),
             Self::Io(_) | Self::Db(_) | Self::Internal(_) => {

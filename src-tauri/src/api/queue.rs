@@ -1,6 +1,6 @@
 use crate::{
-    app_state::{AppState, QUEUE_CONCURRENCY_SETTING},
-    db::{queue::QueueJob, settings},
+    app_state::AppState,
+    db::queue::{self, QueueJob, QueuePolicy},
     error::AppResult,
     events::QueueJobDto,
 };
@@ -91,13 +91,25 @@ pub async fn set_concurrency(
     State(state): State<Arc<AppState>>,
     Json(body): Json<ConcurrencyBody>,
 ) -> AppResult<Json<crate::queue_scheduler::QueueStatus>> {
-    let value = body.concurrency.clamp(1, 4);
-    settings::set(
-        &state.db,
-        QUEUE_CONCURRENCY_SETTING,
-        &serde_json::json!(value),
-    )
-    .await?;
-    state.queue.set_concurrency(value);
+    let mut policy = queue::load_policy(&state.db).await?;
+    if !(1..=32).contains(&body.concurrency) {
+        return Err(crate::error::AppError::BadRequest(
+            "concurrency deve ficar entre 1 e 32".into(),
+        ));
+    }
+    policy.max_concurrency = body.concurrency;
+    state.queue.set_policy(policy).await?;
     Ok(Json(state.queue.status(None).await?))
+}
+
+pub async fn queue_config(State(state): State<Arc<AppState>>) -> AppResult<Json<QueuePolicy>> {
+    Ok(Json(queue::load_policy(&state.db).await?))
+}
+
+pub async fn update_queue_config(
+    State(state): State<Arc<AppState>>,
+    Json(policy): Json<QueuePolicy>,
+) -> AppResult<Json<QueuePolicy>> {
+    policy.validate()?;
+    Ok(Json(state.queue.set_policy(policy).await?))
 }

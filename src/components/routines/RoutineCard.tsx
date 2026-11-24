@@ -158,6 +158,7 @@ export function RoutineCard({
   return (
     <div
       data-card="routine"
+      data-focus-id={schedule.id}
       className={cn(
         "relative flex min-h-[188px] flex-col rounded-xl border px-3.5 py-3",
         schedule.is_active

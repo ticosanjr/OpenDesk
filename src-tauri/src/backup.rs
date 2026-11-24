@@ -3,14 +3,20 @@
 
 #[path = "backup_create.rs"]
 mod create;
+#[path = "backup_extract.rs"]
+mod extract;
 #[path = "backup_manifest.rs"]
 mod manifest;
+#[path = "backup_secrets.rs"]
+mod portable;
 #[path = "backup_restore.rs"]
 mod restore;
+#[path = "backup_state.rs"]
+mod state;
 
-pub use create::create;
-pub use manifest::{WorkspaceBackup, delete, get, list};
-pub use restore::{RestoreInput, restore_as_new};
+pub use create::{BackupOptions, create, create_with_options};
+pub use manifest::{BackupIncludes, WorkspaceBackup, delete, get, list};
+pub use restore::{RestoreInput, RestoreMode, RestoreReport, restore, restore_as_new};
 
 #[cfg(test)]
 #[path = "backup_tests.rs"]

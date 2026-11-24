@@ -34,6 +34,8 @@ export function AttentionCard() {
   const lastRecipeEvent = useAppStore((state) => state.lastRecipeEvent);
   const lastProposalEvent = useAppStore((state) => state.lastProposalEvent);
   const lastScheduleEvent = useAppStore((state) => state.lastScheduleEvent);
+  const revisions = useAppStore((state) => state.revisions);
+  const setAttentionCount = useAppStore((state) => state.setAttentionCount);
   const [data, setData] = useState<Attention | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [feedbackToken, setFeedbackToken] = useState<string | null>(null);
@@ -71,20 +73,25 @@ export function AttentionCard() {
     lastRecipeEvent,
     lastProposalEvent,
     lastScheduleEvent,
+    revisions.attention,
   ]);
 
+  const total = data
+    ? data.requests.length +
+      data.missed_runs.length +
+      data.task_interactions.length +
+      data.hitl.length +
+      data.proposals.length +
+      data.awaiting_approval.length +
+      data.blocked.length +
+      data.failed_runs.length
+    : 0;
+
+  useEffect(() => {
+    setAttentionCount(total);
+  }, [setAttentionCount, total]);
+
   if (!data) return null;
-
-  const total =
-    data.requests.length +
-    data.missed_runs.length +
-    data.task_interactions.length +
-    data.hitl.length +
-    data.proposals.length +
-    data.awaiting_approval.length +
-    data.blocked.length +
-    data.failed_runs.length;
-
   if (total === 0) return null;
 
   const summary = [

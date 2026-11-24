@@ -24,7 +24,10 @@ async fn fixture(ctx: &crate::test_support::TestContext) -> (Arc<QueueManager>, 
         adapters: Arc::new(AdapterService::load(&ctx.db).await.expect("adapters")),
         ports: Arc::new(NoopQueuePorts),
         notifier: Arc::new(NoopNotifier),
-        concurrency: 1,
+        policy: opendesk_storage::repos::queue::QueuePolicy {
+            max_concurrency: 1,
+            ..Default::default()
+        },
     });
     let cron = CronEngine::new(
         ctx.db.clone(),

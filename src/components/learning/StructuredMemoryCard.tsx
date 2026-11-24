@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { BrainCircuit, Loader2, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { BrainCircuit, Download, Loader2, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { relativeTime } from "@/lib/format";
+import { downloadConfigBundle } from "@/lib/config-bundle";
+import { useAppStore } from "@/store/app-store";
 import { toast } from "@/store/toast-store";
 
 interface MemoryNote {
@@ -192,6 +194,26 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const workspaceId = useAppStore.getState().activeWorkspaceId;
+              if (workspaceId) {
+                void downloadConfigBundle(workspaceId, [
+                  "memory_md",
+                  "structured_memory",
+                  "personal_context",
+                  "learning",
+                ]);
+              }
+            }}
+          >
+            <Download size={13} />
+            Exportar JSON
+          </Button>
+        </div>
         <div className="grid gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3 sm:grid-cols-2 lg:grid-cols-4">
           <input
             value={form.namespace}

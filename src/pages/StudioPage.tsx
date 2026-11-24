@@ -48,23 +48,27 @@ export function StudioPage() {
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
 
   useEffect(() => {
-    const id = params.get("id");
-    if (!id) return;
+    const tabParam = params.get("tab");
+    const id = params.get("focus") ?? params.get("id");
+    if (!tabParam && !id) return;
     const kind = params.get("kind");
     const requested = params.get("scope");
     if (requested === "global" || requested === "workspace") {
       setScope(requested);
     }
-    setFocusId(id);
-    setTab(
-      kind === "skill"
+    if (id) setFocusId(id);
+    const requestedTab =
+      tabParam ??
+      (kind === "skill"
         ? "skills"
         : kind === "command"
           ? "commands"
           : kind === "mcp"
             ? "mcp"
-            : "agents",
-    );
+            : "agents");
+    if (TABS.some((item) => item.id === requestedTab)) {
+      setTab(requestedTab as Tab);
+    }
     setParams({}, { replace: true });
   }, [params, setParams]);
 

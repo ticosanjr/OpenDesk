@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isWorkQueueJob, queueBadgeLabel, queueCounts, workQueue } from "./queue";
+import {
+  allQueueCounts,
+  isWorkQueueJob,
+  queueBadgeLabel,
+  queueCounts,
+  workQueue,
+} from "./queue";
 
 describe("queue badge helpers", () => {
   it("counts only active jobs", () => {
@@ -42,5 +48,15 @@ describe("workQueue", () => {
     expect(workQueue(jobs).map((job) => job.id)).toEqual(["a", "b"]);
     expect(isWorkQueueJob({ task_origin: "MANUAL" })).toBe(true);
     expect(isWorkQueueJob({ task_origin: "RECIPE" })).toBe(false);
+  });
+
+  it("counts automation jobs in the real engine pressure", () => {
+    const jobs = [
+      { id: "a", status: "RUNNING", task_origin: "MANUAL" },
+      { id: "b", status: "QUEUED", task_origin: "RECIPE" },
+      { id: "c", status: "QUEUED", task_origin: "ROUTINE" },
+      { id: "d", status: "COMPLETED", task_origin: "IO_BUS" },
+    ];
+    expect(allQueueCounts(jobs)).toEqual({ waiting: 2, running: 1, active: 3 });
   });
 });

@@ -352,3 +352,110 @@ opcional via Bitwarden CLI.
 - ADR 0226 documenta a importação Bitwarden e a ampliação do `doctor --live`.
 - Versão **1.8.0**: release local com verificação, build LTO, `.deb`, `.rpm`,
   AppImage, checksums, `latest.json` assinado, commit e tag.
+
+## 2026-11-24 — Estabilização operacional: Fase 1 (navegação)
+
+- `src/lib/links.ts` virou o contrato único de deep-links, com `queue(jobId)`,
+  `kanban(taskId)`, abas do Studio, `?artifact=`, `?routine=` e seções de
+  Settings/Integrações tipadas; componentes deixaram de montar `/kanban` à mão.
+- `KanbanPage` mantém `?view=board|list|queue` na URL e reage a mudanças de
+  `searchParams` sem recarregar; `?task=` volta para o board e `?job=` abre a
+  fila com foco no job (`data-focus-id` + `useFocusParam`).
+- Topbar e Sidebar apontam a fila para `links.queue()`; notificações passam a
+  usar o link canônico da tarefa/artefato/rotina.
+- Backend alinhado: itens `queued` do calendário vão para
+  `/kanban?view=queue&job=<id>`; busca global emite `view=board` em tarefas e
+  comentários e `?routine=` em rotinas.
+- Testes: Vitest **272**, contrato de links, foco da fila e E2E
+  `kanban-views` (troca de aba em rota quente) verdes.
+- Fases 2–6 do `docs/plano-melhorias-operacionais.md` seguem pendentes.
+
+## 2026-11-24 — Estabilização operacional: Fase 2 (fila)
+
+- `QueuePolicy` persistida em `app_settings` (`queue_policy`) com
+  `max_concurrency` (1–32, default 3), `max_queue_size` (default 200),
+  `default_agent_concurrency` (default 2) e `group_limits`; o antigo
+  `queue_concurrency` é migrado no boot.
+- `next_eligible` aplica limites configuráveis por grupo, quota por agente
+  (perfil explícito ou default) e impede dois jobs simultâneos na mesma
+  tarefa/sessão, sem head-of-line blocking entre grupos.
+- Enqueue fail-closed respeita `max_queue_size` e retorna `QueueFull` (HTTP 429).
+- API ganhou `GET/PUT /api/queue/config`, `wait_reason` por job, `max_*` e
+  `group_usage` no status; `/api/queue/concurrency` aceita 1–32.
+- UI: controlador mostra `slots ativos/máx`, teto da fila, motivo de espera,
+  seletor 1–32 com +/− e escopo “Tudo” por padrão; Settings edita a política
+  completa. Sidebar usa `allQueueCounts` (autom ações incluídas).
+- Testes: claims paralelos com barreira (3 slots), fila cheia, quota de agente,
+  mesmo task/sessão, head-of-line blocking e motivos de espera.
+
+## 2026-11-24 — Estabilização operacional: Fase 3 (tempo real)
+
+- Store ganhou `queueStatus`, `attentionCount`, `revisions` por domínio,
+  `wsConnected`, `refreshLiveState` e `workspaceRequestSeq`; respostas de um
+  workspace anterior são descartadas.
+- `QueueUpdated` atualiza fila, status, dashboard e revisão sem esperar troca de
+  página; `TaskUpdated`/`RunFinished` disparam refresh live com debounce de
+  150 ms; artefatos incrementam contadores na hora.
+- Resync acontece em `ResyncRequired`, reconexão do WebSocket, retorno de
+  `visibilitychange` e snapshot inicial do servidor.
+- `attentionCount` é calculado pelo store a partir de `/api/attention` e
+  atualizado pelo Attention Card; Sidebar mostra atenção, fila e runs ao vivo.
+- Topbar usa fila/status do store (inclui automações); Dashboard, Kanban, Runs e
+  Artefatos recarregam por `revisions`; cache do Studio é invalidado em
+  resync/aprendizado/engine.
+- Backend: `send_initial` envia `ResyncRequired` após o status do daemon para o
+  cliente buscar o snapshot do workspace ativo.
+- Testes: 276 Vitest, incluindo rajada de 50 eventos em um único refresh e
+  descarte de resposta atrasada de outro workspace.
+
+## 2026-11-24 — Estabilização operacional: Fase 4 (backup v2)
+
+- Backup v2 inclui `db/workspace_state.json` com todas as tabelas que têm
+  `workspace_id` (descobertas via `sqlite_master`), `db/run_logs/*.jsonl` e,
+  opcionalmente, `db/secrets.enc` protegido por senha.
+- Manifesto ganhou `includes`, `counts`, `db_sha256`, `files_sha256` e
+  `workspace_root`; backups v1 continuam restaurando arquivos.
+- Restauração `new_workspace`: novo `workspace_id`, remapeamento de PKs UUID e
+  referências `*_id`, reescrita de caminhos absolutos para o novo root.
+- Restauração `in_place`: backup de segurança automático, staging, troca de
+  arquivos com rollback e substituição de linhas em transação única com
+  `foreign_key_check`.
+- Segredos portáveis: Argon2id + AES-256-GCM para `SecretStore` e plaintext do
+  Vault; `secrets.enc` sem senha correta aborta antes de escrever. Segredos
+  globais de outras integrações não entram no arquivo.
+- API/UI: criação com logs/senha, restauração por modo, relatório com
+  `missing_secrets` e `pre_restore_backup`.
+- Testes: round-trip com tarefa restaurada, restauração in-place, senha
+  errada e arquivo corrompido.
+
+## 2026-11-24 — Estabilização operacional: Fase 5 (config bundle)
+
+- JSON único (`schema_version: 1`) com memórias (`MEMORY.md` + notas,
+  namespaces e ACLs), contexto pessoal, aprendizado, templates de prompt,
+  roteador, budget, política da fila/dedupe, rotas de automação e governança
+  (perfis/metas). Assets do Studio continuam nativos no workspace e não são
+  duplicados no JSON.
+- Exportação remove recursivamente campos de senha/token/segredo/api_key/
+  ciphertext; referências `*_ref` e metadados operacionais permanecem.
+- Endpoints `POST /api/config-bundle/export|preview|import` com limite de 10 MB,
+  validação estrita de `schema_version` e prévia de conflitos
+  (`incoming`, `existing`, `create`, `update`).
+- Modos de importação: manter existentes, sobrescrever e substituir seção;
+  memória cria namespaces ausentes e remapeia ACLs para os novos IDs.
+- CLI: `opendesk config export <arquivo.json>` e
+  `opendesk config import <arquivo.json> [--dry-run] [--mode ...]`.
+- UI: card em Configurações › Geral com presets, download, upload, prévia e
+  confirmação; atalhos de exportação em Memória estruturada e Prompts.
+- Testes: sanitização de segredos, recusa de schema desconhecido, round-trip de
+  memórias sem duplicatas, preview/import via API e atualização por overwrite.
+
+## 2026-11-24 — Fase 6: gate final e release 1.9.0
+
+- Gate completo: TypeScript, ESLint, Vitest (287), fmt, clippy, limites, testes
+  Rust, build, cobertura, 103 E2E verdes e 49 goldens.
+- Cobertura Rust final: **64,56%** total (piso 63,0%) e **76,30%** no escopo de
+  negócio (piso 75,5%); frontend branches **90,09%** (piso 90%).
+- Goldens de `learning-1440` e `settings-1920` atualizados por mudanças
+  intencionais (exportação JSON).
+- Versão **1.9.0** preparada para release local com AppImage, `.deb`, `.rpm`,
+  binários portáveis, checksums e `latest.json` assinado.

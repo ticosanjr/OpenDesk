@@ -3,8 +3,9 @@
 use opendesk_storage::events::QueueJobDto;
 use opendesk_storage::repos::queue;
 
-pub fn job_dto(job: queue::QueueJob) -> QueueJobDto {
+pub fn job_dto(job: queue::QueueJob, wait_reason: Option<String>) -> QueueJobDto {
     QueueJobDto {
+        wait_reason,
         id: job.id,
         task_id: job.task_id,
         title: job.task_title,

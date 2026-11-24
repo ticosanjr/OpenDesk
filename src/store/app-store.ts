@@ -1,20 +1,20 @@
 import { create } from "zustand";
 import { apiGet, apiPost, websocketUrl } from "@/lib/api";
-import {
-  markNotificationOnce,
-  notificationEnabled,
-  sendNativeNotification,
-} from "@/lib/notification-policy";
 import type {
-  Artifact,
   BudgetStatus,
   DaemonStatus,
   DashboardStats,
   QueueJob,
+  QueueStatus,
   Workspace,
   WsEvent,
 } from "@/lib/types";
-import type { AppStore, CreateWorkspaceInput } from "@/store/app-store-types";
+import type {
+  AppStore,
+  CreateWorkspaceInput,
+  LiveRevisions,
+} from "@/store/app-store-types";
+import { reduceEvent } from "@/store/app-store-events";
 
 export type { AppStore, CreateWorkspaceInput } from "@/store/app-store-types";
 
@@ -22,6 +22,73 @@ let socket: WebSocket | null = null;
 let reconnectTimer: number | null = null;
 let reconnectAttempts = 0;
 let bootPromise: Promise<void> | null = null;
+let workspaceRequestSeq = 0;
+let liveRefreshTimer: number | null = null;
+let visibilityBound = false;
+
+const EMPTY_REVISIONS: LiveRevisions = {
+  queue: 0,
+  tasks: 0,
+  runs: 0,
+  artifacts: 0,
+  attention: 0,
+  schedules: 0,
+  recipes: 0,
+  memory: 0,
+  governance: 0,
+  studio: 0,
+};
+
+function attentionTotal(value: unknown): number {
+  if (!value || typeof value !== "object") return 0;
+  return [
+    "requests",
+    "missed_runs",
+    "task_interactions",
+    "hitl",
+    "proposals",
+    "awaiting_approval",
+    "blocked",
+    "failed_runs",
+  ].reduce((total, key) => {
+    const list = (value as Record<string, unknown>)[key];
+    return total + (Array.isArray(list) ? list.length : 0);
+  }, 0);
+}
+
+function validQueueStatus(value: unknown): value is QueueStatus {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Number.isFinite((value as QueueStatus).running),
+  );
+}
+
+function scheduleLiveRefresh() {
+  if (typeof window === "undefined") return;
+  if (liveRefreshTimer !== null) window.clearTimeout(liveRefreshTimer);
+  liveRefreshTimer = window.setTimeout(() => {
+    liveRefreshTimer = null;
+    void useAppStore.getState().refreshLiveState();
+  }, 150);
+}
+
+export function handleEvent(event: WsEvent) {
+  reduceEvent(event, {
+    getState: useAppStore.getState,
+    setState: useAppStore.setState,
+    scheduleLiveRefresh,
+  });
+}
+
+function bindVisibilityRefresh() {
+  if (visibilityBound || typeof document === "undefined") return;
+  visibilityBound = true;
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) void useAppStore.getState().refreshLiveState();
+  });
+}
 
 export const useAppStore = create<AppStore>((set, get) => ({
   booted: false,
@@ -34,6 +101,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   dashboard: null,
   budget: null,
   queue: [],
+  queueStatus: null,
+  attentionCount: 0,
+  revisions: { ...EMPTY_REVISIONS },
+  wsConnected: false,
   lastEventId: 0,
   lastFsEvent: null,
   lastTaskEvent: null,
@@ -54,6 +125,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (bootPromise) return bootPromise;
 
     bootPromise = (async () => {
+      bindVisibilityRefresh();
       set({ loading: true, error: null });
       try {
         await get().refresh();
@@ -77,6 +149,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   refresh: async () => {
+    const requestId = ++workspaceRequestSeq;
     const previousWorkspaceId = get().activeWorkspaceId;
     const previousDashboard = get().dashboard;
     const [daemonResult, workspacesResult, budgetResult] = await Promise.allSettled([
@@ -125,50 +198,135 @@ export const useAppStore = create<AppStore>((set, get) => ({
     });
 
     if (activeWorkspaceId) {
-      const [dashboardResult, queueResult] = await Promise.allSettled([
+      const [dashboardResult, queueResult, statusResult, attentionResult] =
+        await Promise.allSettled([
+          apiGet<DashboardStats>(
+            `/api/dashboard?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+          ),
+          apiGet<QueueJob[]>(
+            `/api/queue?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+          ),
+          apiGet<QueueStatus>(
+            `/api/queue/status?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+          ),
+          apiGet<unknown>(
+            `/api/attention?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+          ),
+        ]);
+      if (
+        requestId !== workspaceRequestSeq ||
+        get().activeWorkspaceId !== activeWorkspaceId
+      ) {
+        return;
+      }
+      if (dashboardResult.status === "fulfilled") {
+        set({ dashboard: dashboardResult.value });
+      }
+      if (queueResult.status === "fulfilled" && Array.isArray(queueResult.value)) {
+        set({ queue: queueResult.value });
+      }
+      if (statusResult.status === "fulfilled" && validQueueStatus(statusResult.value)) {
+        set({ queueStatus: statusResult.value });
+      }
+      if (attentionResult.status === "fulfilled") {
+        set({ attentionCount: attentionTotal(attentionResult.value) });
+      }
+    } else {
+      set({ queue: [], queueStatus: null, attentionCount: 0 });
+    }
+  },
+
+  refreshLiveState: async (workspaceId) => {
+    const activeWorkspaceId = workspaceId ?? get().activeWorkspaceId;
+    if (!activeWorkspaceId) {
+      set({ queue: [], queueStatus: null });
+      return;
+    }
+    const requestId = ++workspaceRequestSeq;
+    const [dashboardResult, queueResult, statusResult, attentionResult] =
+      await Promise.allSettled([
         apiGet<DashboardStats>(
           `/api/dashboard?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
         ),
         apiGet<QueueJob[]>(
           `/api/queue?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
         ),
+        apiGet<QueueStatus>(
+          `/api/queue/status?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+        ),
+        apiGet<unknown>(
+          `/api/attention?workspace_id=${encodeURIComponent(activeWorkspaceId)}`,
+        ),
       ]);
-      if (dashboardResult.status === "fulfilled") {
-        set({ dashboard: dashboardResult.value });
-      }
-      if (queueResult.status === "fulfilled") {
-        set({ queue: queueResult.value });
-      }
-    } else {
-      set({ queue: [] });
+    if (
+      requestId !== workspaceRequestSeq ||
+      get().activeWorkspaceId !== activeWorkspaceId
+    ) {
+      return;
+    }
+    if (dashboardResult.status === "fulfilled") {
+      set({ dashboard: dashboardResult.value });
+    }
+    if (queueResult.status === "fulfilled" && Array.isArray(queueResult.value)) {
+      set({ queue: queueResult.value });
+    }
+    if (statusResult.status === "fulfilled" && validQueueStatus(statusResult.value)) {
+      set({ queueStatus: statusResult.value });
+    }
+    if (attentionResult.status === "fulfilled") {
+      set({ attentionCount: attentionTotal(attentionResult.value) });
     }
   },
 
+  setAttentionCount: (count) => set({ attentionCount: Math.max(0, count) }),
+
   selectWorkspace: async (id: string) => {
+    const requestId = ++workspaceRequestSeq;
     const workspace = await apiPost<Workspace>(`/api/workspaces/${id}/activate`);
     set((state) => ({
       activeWorkspaceId: workspace.id,
       workspaces: state.workspaces.map((item) =>
         item.id === workspace.id ? workspace : item,
       ),
+      dashboard: null,
+      queue: [],
+      queueStatus: null,
+      attentionCount: 0,
     }));
-    const [dashboard, queue] = await Promise.all([
+    const [dashboard, queue, status] = await Promise.all([
       apiGet<DashboardStats>(
         `/api/dashboard?workspace_id=${encodeURIComponent(workspace.id)}`,
       ),
       apiGet<QueueJob[]>(
         `/api/queue?workspace_id=${encodeURIComponent(workspace.id)}`,
       ).catch(() => [] as QueueJob[]),
+      apiGet<QueueStatus>(
+        `/api/queue/status?workspace_id=${encodeURIComponent(workspace.id)}`,
+      ).catch(() => null),
     ]);
-    set({ dashboard, queue });
+    if (
+      requestId !== workspaceRequestSeq ||
+      get().activeWorkspaceId !== workspace.id
+    ) {
+      return;
+    }
+    set({
+      dashboard,
+      queue: Array.isArray(queue) ? queue : [],
+      queueStatus: validQueueStatus(status) ? status : null,
+    });
   },
 
   createWorkspace: async (input: CreateWorkspaceInput) => {
+    workspaceRequestSeq += 1;
     const workspace = await apiPost<Workspace>("/api/workspaces", input);
     set((state) => ({
       workspaces: [workspace, ...state.workspaces],
       activeWorkspaceId: workspace.id,
+      dashboard: null,
       queue: [],
+      queueStatus: null,
+      attentionCount: 0,
     }));
     return workspace;
   },
@@ -203,11 +361,14 @@ async function connectSocket() {
   }
 
   const url = await websocketUrl();
+  const wasReconnect = reconnectAttempts > 0;
   socket = new WebSocket(url);
 
   socket.onopen = () => {
     reconnectAttempts = 0;
-    useAppStore.setState({ connected: true });
+    bindVisibilityRefresh();
+    useAppStore.setState({ connected: true, wsConnected: true });
+    if (wasReconnect) void useAppStore.getState().refreshLiveState();
   };
 
   socket.onmessage = (message) => {
@@ -224,7 +385,7 @@ async function connectSocket() {
   };
 
   socket.onclose = () => {
-    useAppStore.setState({ connected: false });
+    useAppStore.setState({ connected: false, wsConnected: false });
     scheduleReconnect();
   };
 }
@@ -237,238 +398,4 @@ function scheduleReconnect() {
     reconnectTimer = null;
     void connectSocket();
   }, delay);
-}
-
-export function handleEvent(event: WsEvent) {
-  const state = useAppStore.getState();
-  if (event.event_id > state.lastEventId) {
-    useAppStore.setState({ lastEventId: event.event_id });
-  }
-
-  switch (event.event_type) {
-    case "DaemonStatusChanged":
-      useAppStore.setState({ daemon: event.payload as DaemonStatus });
-      break;
-    case "QueueUpdated": {
-      const payload = event.payload as {
-        workspace_id?: string;
-        jobs?: QueueJob[];
-      };
-      // Queue events are broadcast per workspace. Applying another workspace's
-      // history made the sidebar badge show a number that did not belong to the
-      // active board.
-      if (
-        !payload.workspace_id ||
-        payload.workspace_id === useAppStore.getState().activeWorkspaceId
-      ) {
-        useAppStore.setState({ queue: payload.jobs ?? [] });
-      }
-      break;
-    }
-    case "FsSyncTriggered": {
-      const payload = event.payload as {
-        workspace_id?: string;
-        entity?: string;
-        path?: string;
-      };
-      useAppStore.setState({
-        lastFsEvent: {
-          entity: payload.entity ?? "file",
-          path: payload.path ?? "",
-          workspace_id: payload.workspace_id ?? "",
-        },
-      });
-      break;
-    }
-    case "ResyncRequired":
-      void state.refresh();
-      break;
-    case "TaskUpdated": {
-      const payload = event.payload as {
-        task_id?: string;
-        workspace_id?: string;
-        stage?: string;
-        phase_status?: string | null;
-      };
-      if (payload.task_id && payload.workspace_id && payload.stage) {
-        useAppStore.setState({
-          lastTaskEvent: {
-            task_id: payload.task_id,
-            workspace_id: payload.workspace_id,
-            stage: payload.stage,
-            phase_status: payload.phase_status,
-          },
-        });
-      }
-      break;
-    }
-    case "RunStreamChunk": {
-      const payload = event.payload as {
-        run_id?: string;
-        task_id?: string | null;
-        chunk_type?: string;
-      };
-      if (payload.run_id) {
-        useAppStore.setState({
-          lastRunChunk: {
-            run_id: payload.run_id,
-            task_id: payload.task_id,
-            chunk_type: payload.chunk_type ?? "event",
-            seq: event.event_id,
-          },
-        });
-      }
-      break;
-    }
-    case "ChatUpdated": {
-      const payload = event.payload as {
-        thread_id?: string;
-        workspace_id?: string;
-      };
-      if (payload.thread_id && payload.workspace_id) {
-        useAppStore.setState({
-          lastChatEvent: {
-            thread_id: payload.thread_id,
-            workspace_id: payload.workspace_id,
-            seq: event.event_id,
-          },
-        });
-      }
-      break;
-    }
-    case "RecipeRunUpdated":
-    case "HitlRequested":
-    case "HitlResolved":
-      useAppStore.setState((current) => ({ lastRecipeEvent: current.lastRecipeEvent + 1 }));
-      break;
-    case "ProposalCreated":
-    case "ProposalResolved":
-      useAppStore.setState((current) => ({ lastProposalEvent: current.lastProposalEvent + 1 }));
-      break;
-    case "PermissionRequested": {
-      const payload = event.payload as {
-        request_id?: string;
-        task_id?: string | null;
-        workspace_id?: string;
-        action?: string;
-        resources?: string[];
-      };
-      if (payload.request_id && payload.workspace_id) {
-        useAppStore.setState({
-          lastPermissionEvent: {
-            request_id: payload.request_id,
-            task_id: payload.task_id,
-            workspace_id: payload.workspace_id,
-            action: payload.action ?? "permission",
-            resources: payload.resources ?? [],
-          },
-        });
-        if (
-          notificationEnabled("interactions") &&
-          markNotificationOnce(`permission:${payload.request_id}`)
-        ) {
-          void sendNativeNotification(
-            "Agente bloqueado esperando você",
-            `${payload.action ?? "permissão"}: ${(payload.resources ?? []).join(", ").slice(0, 120)}`,
-          );
-        }
-      }
-      break;
-    }
-    case "RunFinished": {
-      const payload = event.payload as {
-        run_id?: string;
-        task_id?: string | null;
-        status?: string;
-      };
-      if (payload.run_id && payload.status) {
-        useAppStore.setState({
-          lastRunEvent: {
-            run_id: payload.run_id,
-            task_id: payload.task_id,
-            status: payload.status,
-          },
-        });
-      }
-      break;
-    }
-    case "ArtifactCreated":
-      useAppStore.setState((current) => ({
-        lastArtifactEvent: current.lastArtifactEvent + 1,
-        lastArtifact: (event.payload as { artifact?: Artifact }).artifact ?? null,
-        dashboard: current.dashboard
-          ? {
-              ...current.dashboard,
-              artifacts_total: current.dashboard.artifacts_total + 1,
-            }
-          : current.dashboard,
-      }));
-      break;
-    case "GoogleConnectionUpdated": {
-      const payload = event.payload as {
-        workspace_id?: string;
-        connected?: boolean;
-        email?: string | null;
-      };
-      if (payload.workspace_id) {
-        useAppStore.setState({
-          lastGoogleEvent: {
-            workspace_id: payload.workspace_id,
-            connected: payload.connected ?? false,
-            email: payload.email,
-          },
-        });
-      }
-      break;
-    }
-    case "EngineUpdateProgress": {
-      const payload = event.payload as {
-        phase?: string;
-        message?: string | null;
-        ok?: boolean | null;
-      };
-      useAppStore.setState({
-        lastEngineUpdate: {
-          phase: payload.phase ?? "running",
-          message: payload.message,
-          ok: payload.ok,
-        },
-      });
-      break;
-    }
-    case "ScheduleUpdated": {
-      const payload = event.payload as {
-        schedule_id?: string;
-        workspace_id?: string;
-      };
-      if (payload.schedule_id && payload.workspace_id) {
-        useAppStore.setState({
-          lastScheduleEvent: {
-            schedule_id: payload.schedule_id,
-            workspace_id: payload.workspace_id,
-          },
-        });
-      }
-      break;
-    }
-    case "BudgetAlert": {
-      const payload = event.payload as {
-        level?: string;
-        message?: string;
-        daily_spent?: number;
-        daily_limit?: number;
-      };
-      useAppStore.setState({
-        budgetAlert: {
-          level: payload.level ?? "soft",
-          message: payload.message ?? "orçamento próximo do limite",
-          daily_spent: payload.daily_spent ?? 0,
-          daily_limit: payload.daily_limit ?? 0,
-        },
-      });
-      break;
-    }
-    default:
-      break;
-  }
 }

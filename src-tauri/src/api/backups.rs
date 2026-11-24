@@ -28,10 +28,12 @@ pub async fn list(
 pub async fn create(
     State(state): State<Arc<AppState>>,
     Query(query): Query<BackupQuery>,
+    options: Option<Json<backup::BackupOptions>>,
 ) -> AppResult<Json<backup::WorkspaceBackup>> {
     let workspace_id = workspace_id(&state, &query).await?;
+    let options = options.map(|Json(value)| value).unwrap_or_default();
     Ok(Json(
-        backup::create(&state.db, &state.paths, &workspace_id).await?,
+        backup::create_with_options(&state.db, &state.paths, &workspace_id, options).await?,
     ))
 }
 
@@ -61,11 +63,20 @@ pub async fn restore(
     Path(id): Path<String>,
     Query(query): Query<BackupQuery>,
     Json(body): Json<backup::RestoreInput>,
-) -> AppResult<Json<crate::db::workspaces::Workspace>> {
+) -> AppResult<Json<serde_json::Value>> {
     let workspace_id = workspace_id(&state, &query).await?;
-    Ok(Json(
-        backup::restore_as_new(&state.db, &state.paths, &workspace_id, &id, body).await?,
-    ))
+    let (workspace, report) =
+        backup::restore(&state.db, &state.paths, &workspace_id, &id, body).await?;
+    let mut value = serde_json::to_value(workspace)
+        .map_err(|error| crate::error::AppError::Internal(error.to_string()))?;
+    if let Some(object) = value.as_object_mut() {
+        object.insert(
+            "restore_report".into(),
+            serde_json::to_value(report)
+                .map_err(|error| crate::error::AppError::Internal(error.to_string()))?,
+        );
+    }
+    Ok(Json(value))
 }
 
 pub async fn delete(

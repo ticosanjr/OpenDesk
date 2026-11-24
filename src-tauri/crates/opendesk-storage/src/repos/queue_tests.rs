@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
     use tempfile::TempDir;
 
     async fn setup() -> (TempDir, SqlitePool) {
@@ -131,4 +132,263 @@ mod tests {
         assert_eq!(cancelled.status, "CANCELLED");
         assert!(cancel(&pool, &job.id).await.is_err());
     }
+
+#[tokio::test]
+async fn queue_policy_roundtrip_normalizes_limits() {
+    let (_temp, pool) = setup().await;
+    let policy = QueuePolicy {
+        max_concurrency: 40,
+        max_queue_size: 0,
+        default_agent_concurrency: 0,
+        group_limits: HashMap::from([("default".into(), 99)]),
+    };
+    let saved = save_policy(&pool, &policy).await.expect("save");
+    assert_eq!(saved.max_concurrency, 32);
+    assert_eq!(saved.max_queue_size, 1);
+    assert_eq!(saved.default_agent_concurrency, 1);
+    assert_eq!(saved.group_limits["default"], 32);
+    assert_eq!(load_policy(&pool).await.expect("load"), saved);
+}
+
+#[tokio::test]
+async fn queue_full_rejects_new_jobs_until_a_slot_frees() {
+    let (_temp, pool) = setup().await;
+    save_policy(
+        &pool,
+        &QueuePolicy {
+            max_concurrency: 2,
+            max_queue_size: 2,
+            default_agent_concurrency: 2,
+            group_limits: HashMap::from([("default".into(), 2)]),
+        },
+    )
+    .await
+    .expect("policy");
+    let mut first = input();
+    first.prompt_payload = "first".into();
+    let first = enqueue(&pool, first).await.expect("first");
+    let mut second = input();
+    second.prompt_payload = "second".into();
+    let second = enqueue(&pool, second).await.expect("second");
+
+    let mut third = input();
+    third.prompt_payload = "third".into();
+    let error = enqueue(&pool, third).await.expect_err("queue full");
+    assert!(matches!(error, AppError::QueueFull(_)));
+
+    finish(&pool, &first.id, "COMPLETED", None)
+        .await
+        .expect("finish");
+    let mut fourth = input();
+    fourth.prompt_payload = "fourth".into();
+    enqueue(&pool, fourth).await.expect("after slot frees");
+    assert_eq!(get(&pool, &second.id).await.expect("second").status, "QUEUED");
+}
+
+#[tokio::test]
+async fn parallel_claims_fill_three_slots() {
+    let (_temp, pool) = setup().await;
+    let policy = QueuePolicy {
+        max_concurrency: 3,
+        max_queue_size: 20,
+        default_agent_concurrency: 3,
+        group_limits: HashMap::from([("default".into(), 3)]),
+    };
+    save_policy(&pool, &policy).await.expect("policy");
+    let mut expected = Vec::new();
+    for index in 0..3 {
+        let mut job = input();
+        job.prompt_payload = format!("parallel-{index}");
+        job.session_id = Some(format!("session-{index}"));
+        expected.push(enqueue(&pool, job).await.expect("enqueue").id);
+    }
+    let barrier = Arc::new(tokio::sync::Barrier::new(3));
+    let mut handles = Vec::new();
+    for _ in 0..3 {
+        let pool = pool.clone();
+        let policy = policy.clone();
+        let barrier = Arc::clone(&barrier);
+        handles.push(tokio::spawn(async move {
+            barrier.wait().await;
+            for _ in 0..50 {
+                if let Some(job) = next_eligible(&pool, &policy).await.expect("eligible")
+                    && claim(&pool, &job.id).await.expect("claim")
+                {
+                    return job.id;
+                }
+                tokio::task::yield_now().await;
+            }
+            panic!("no eligible job");
+        }));
+    }
+    let mut claimed = Vec::new();
+    for handle in handles {
+        claimed.push(handle.await.expect("join"));
+    }
+    claimed.sort();
+    expected.sort();
+    assert_eq!(claimed, expected);
+    let running: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM execution_queue WHERE status = 'RUNNING'")
+            .fetch_one(&pool)
+            .await
+            .expect("running");
+    assert_eq!(running, 3);
+}
+
+#[tokio::test]
+async fn head_of_line_blocking_skips_a_full_group() {
+    let (_temp, pool) = setup().await;
+    let policy = QueuePolicy {
+        max_concurrency: 4,
+        max_queue_size: 20,
+        default_agent_concurrency: 4,
+        group_limits: HashMap::from([
+            ("local_llm_heavy".into(), 1),
+            ("light_api".into(), 5),
+            ("default".into(), 4),
+        ]),
+    };
+    save_policy(&pool, &policy).await.expect("policy");
+    let mut heavy = input();
+    heavy.concurrency_group = Some("local_llm_heavy".into());
+    heavy.prompt_payload = "heavy-1".into();
+    heavy.priority = 4;
+    heavy.resolved_effort = "high".into();
+    let first = enqueue(&pool, heavy.clone()).await.expect("heavy 1");
+    heavy.prompt_payload = "heavy-2".into();
+    heavy.resolved_effort = "low".into();
+    let blocked = enqueue(&pool, heavy).await.expect("heavy 2");
+    let mut light = input();
+    light.concurrency_group = Some("light_api".into());
+    light.prompt_payload = "light-1".into();
+    light.resolved_agent = "scout".into();
+    light.priority = 1;
+    let light = enqueue(&pool, light).await.expect("light");
+
+    assert!(claim(&pool, &first.id).await.expect("claim heavy"));
+    let next = next_eligible(&pool, &policy)
+        .await
+        .expect("next")
+        .expect("light job");
+    assert_eq!(next.id, light.id);
+    assert_ne!(next.id, blocked.id);
+}
+
+#[tokio::test]
+async fn same_task_or_session_is_not_claimed_twice() {
+    let (_temp, pool) = setup().await;
+    let policy = QueuePolicy {
+        max_concurrency: 4,
+        max_queue_size: 20,
+        default_agent_concurrency: 4,
+        group_limits: HashMap::from([("default".into(), 4)]),
+    };
+    save_policy(&pool, &policy).await.expect("policy");
+    sqlx::query(
+        "INSERT INTO tasks (id, workspace_id, title, description)
+         VALUES ('task-1', 'ws-1', 'Task', 'Description')",
+    )
+    .execute(&pool)
+    .await
+    .expect("task");
+    let mut first = input();
+    first.task_id = Some("task-1".into());
+    first.prompt_payload = "same-task-1".into();
+    let first = enqueue(&pool, first).await.expect("first");
+    let mut second = input();
+    second.task_id = Some("task-1".into());
+    second.session_id = Some("session-2".into());
+    second.prompt_payload = "same-task-2".into();
+    let second = enqueue(&pool, second).await.expect("second");
+    assert!(claim(&pool, &first.id).await.expect("claim"));
+    assert!(next_eligible(&pool, &policy)
+        .await
+        .expect("next")
+        .is_none());
+    finish(&pool, &first.id, "COMPLETED", None)
+        .await
+        .expect("finish");
+    assert_eq!(
+        next_eligible(&pool, &policy)
+            .await
+            .expect("next")
+            .expect("second")
+            .id,
+        second.id
+    );
+}
+
+#[tokio::test]
+async fn default_agent_quota_limits_parallelism() {
+    let (_temp, pool) = setup().await;
+    let policy = QueuePolicy {
+        max_concurrency: 4,
+        max_queue_size: 20,
+        default_agent_concurrency: 1,
+        group_limits: HashMap::from([("default".into(), 4)]),
+    };
+    save_policy(&pool, &policy).await.expect("policy");
+    let mut first = input();
+    first.prompt_payload = "agent-1".into();
+    let first = enqueue(&pool, first).await.expect("first");
+    let mut second = input();
+    second.prompt_payload = "agent-2".into();
+    let second = enqueue(&pool, second).await.expect("second");
+    assert!(claim(&pool, &first.id).await.expect("claim"));
+    assert!(next_eligible(&pool, &policy)
+        .await
+        .expect("next")
+        .is_none());
+    finish(&pool, &first.id, "COMPLETED", None)
+        .await
+        .expect("finish");
+    assert_eq!(
+        next_eligible(&pool, &policy)
+            .await
+            .expect("next")
+            .expect("second")
+            .id,
+        second.id
+    );
+}
+
+#[tokio::test]
+async fn wait_reasons_explain_group_pause_and_schedule() {
+    let (_temp, pool) = setup().await;
+    let policy = QueuePolicy {
+        max_concurrency: 2,
+        max_queue_size: 20,
+        default_agent_concurrency: 2,
+        group_limits: HashMap::from([("default".into(), 1)]),
+    };
+    save_policy(&pool, &policy).await.expect("policy");
+    let running = enqueue(&pool, input()).await.expect("running");
+    assert!(claim(&pool, &running.id).await.expect("claim"));
+    let mut waiting = input();
+    waiting.prompt_payload = "waiting".into();
+    let waiting = enqueue(&pool, waiting).await.expect("waiting");
+    let reasons = wait_reasons(&pool, std::slice::from_ref(&waiting), &policy, false)
+        .await
+        .expect("reasons");
+    assert_eq!(
+        reasons.get(&waiting.id).map(String::as_str),
+        Some("Grupo default cheio (1/1)")
+    );
+    let paused = wait_reasons(&pool, std::slice::from_ref(&waiting), &policy, true)
+        .await
+        .expect("paused");
+    assert_eq!(paused.get(&waiting.id).map(String::as_str), Some("Fila pausada"));
+    let mut scheduled = input();
+    scheduled.prompt_payload = "scheduled".into();
+    scheduled.scheduled_for = Some("2999-01-01T00:00:00.000Z".into());
+    let scheduled = enqueue(&pool, scheduled).await.expect("scheduled");
+    let reasons = wait_reasons(&pool, std::slice::from_ref(&scheduled), &policy, false)
+        .await
+        .expect("scheduled reasons");
+    assert_eq!(
+        reasons.get(&scheduled.id).map(String::as_str),
+        Some("Aguardando horário agendado")
+    );
+}
 }

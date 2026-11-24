@@ -200,6 +200,40 @@ async fn queue_budget_cost_and_chat_endpoints_work_offline() {
     let (status, status_body) = call(&ctx, Method::GET, "/api/queue/status", None).await;
     assert_eq!(status, StatusCode::OK);
     assert!(status_body.is_object());
+    assert!(status_body["max_concurrency"].is_number());
+    assert!(status_body["max_queue_size"].is_number());
+    assert!(status_body["group_usage"].is_array());
+    let (status, policy) = call(&ctx, Method::GET, "/api/queue/config", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(policy["default_agent_concurrency"], 2);
+    let (status, saved) = call(
+        &ctx,
+        Method::PUT,
+        "/api/queue/config",
+        Some(json!({
+            "max_concurrency": 5,
+            "max_queue_size": 50,
+            "default_agent_concurrency": 3,
+            "group_limits": { "default": 5, "light_api": 4 }
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{saved}");
+    assert_eq!(saved["max_concurrency"], 5);
+    assert_eq!(saved["group_limits"]["light_api"], 4);
+    let (status, _) = call(
+        &ctx,
+        Method::PUT,
+        "/api/queue/config",
+        Some(json!({
+            "max_concurrency": 0,
+            "max_queue_size": 50,
+            "default_agent_concurrency": 3,
+            "group_limits": {}
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
     let (status, _) = call(&ctx, Method::POST, "/api/queue/pause", None).await;
     assert_eq!(status, StatusCode::OK);
     let (status, _) = call(&ctx, Method::POST, "/api/queue/resume", None).await;

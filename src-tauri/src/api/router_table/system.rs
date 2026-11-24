@@ -4,6 +4,7 @@ use crate::api::core::*;
 use crate::api::*;
 use crate::app_state::AppState;
 use axum::Router;
+use axum::extract::DefaultBodyLimit;
 use axum::routing::{get, post};
 use std::sync::Arc;
 
@@ -52,6 +53,19 @@ pub(super) fn routes() -> Router<Arc<AppState>> {
         .route("/api/audit", get(audit::list))
         .route("/api/attention", get(attention::attention))
         .route("/api/attention/dismiss", post(attention::dismiss))
+        .route("/api/config-bundle/export", post(config_bundle::export))
+        .route(
+            "/api/config-bundle/preview",
+            post(config_bundle::preview).layer(DefaultBodyLimit::max(
+                crate::config_bundle::MAX_BUNDLE_BYTES,
+            )),
+        )
+        .route(
+            "/api/config-bundle/import",
+            post(config_bundle::import).layer(DefaultBodyLimit::max(
+                crate::config_bundle::MAX_BUNDLE_BYTES,
+            )),
+        )
         .route("/api/test/seed", post(seed::seed))
         .route(
             "/api/budget",

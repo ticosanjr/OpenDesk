@@ -28,6 +28,7 @@ impl QueueManager {
             // Fill every available concurrency slot before going back to
             // sleep. Each job runs in its own task so a slow model call does
             // not block the next queued job.
+            let policy = self.policy();
             loop {
                 if self.active.load(Ordering::Relaxed) >= self.concurrency() {
                     break;
@@ -50,7 +51,7 @@ impl QueueManager {
                     }
                 }
 
-                let Some(job) = (match queue::next_queued(&self.pool).await {
+                let Some(job) = (match queue::next_eligible(&self.pool, &policy).await {
                     Ok(job) => job,
                     Err(error) => {
                         tracing::error!(error = %error, "could not read queue");

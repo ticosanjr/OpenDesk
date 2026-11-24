@@ -26,6 +26,9 @@ pub enum AppError {
     #[error("conflict: {0}")]
     Conflict(String),
 
+    #[error("queue full: {0}")]
+    QueueFull(String),
+
     #[error("OpenCode daemon error: {0}")]
     Daemon(String),
 
@@ -44,6 +47,7 @@ impl From<::opendesk_storage::error::AppError> for AppError {
             Storage::BadRequest(message) => Self::BadRequest(message),
             Storage::NotFound(message) => Self::NotFound(message),
             Storage::Conflict(message) => Self::Conflict(message),
+            Storage::QueueFull(message) => Self::QueueFull(message),
             Storage::Internal(message) => Self::Internal(message),
         }
     }

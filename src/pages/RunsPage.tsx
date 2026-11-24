@@ -62,6 +62,7 @@ export function RunsPage() {
     (state) => state.setWorkspaceDialogOpen,
   );
   const lastRunEvent = useAppStore((state) => state.lastRunEvent);
+  const revisions = useAppStore((state) => state.revisions);
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
   const [runs, setRuns] = useState<TaskRun[]>([]);
   const [loading, setLoading] = useState(false);
@@ -95,7 +96,7 @@ export function RunsPage() {
 
   useEffect(() => {
     void load();
-  }, [load, lastRunEvent?.run_id, lastRunEvent?.status]);
+  }, [load, lastRunEvent?.run_id, lastRunEvent?.status, revisions.runs]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();

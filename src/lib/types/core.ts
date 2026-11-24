@@ -57,6 +57,7 @@ export interface QueueJob {
   lease_expires_at?: string | null;
   last_heartbeat_at?: string | null;
   error_message?: string | null;
+  wait_reason?: string | null;
 }
 
 export interface ApiEnvelope<T> {

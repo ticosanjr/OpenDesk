@@ -64,6 +64,7 @@ export function DashboardPage() {
   const lastRunEvent = useAppStore((state) => state.lastRunEvent);
   const lastArtifactEvent = useAppStore((state) => state.lastArtifactEvent);
   const lastPermissionEvent = useAppStore((state) => state.lastPermissionEvent);
+  const revisions = useAppStore((state) => state.revisions);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -85,6 +86,9 @@ export function DashboardPage() {
     lastRunEvent?.run_id,
     lastRunEvent?.status,
     lastPermissionEvent?.request_id,
+    revisions.tasks,
+    revisions.runs,
+    revisions.attention,
   ]);
 
   useEffect(() => {
@@ -187,7 +191,13 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspace, lastRunEvent?.run_id, lastArtifactEvent]);
+  }, [
+    activeWorkspace,
+    lastRunEvent?.run_id,
+    lastArtifactEvent,
+    revisions.runs,
+    revisions.artifacts,
+  ]);
 
   if (!activeWorkspace) {
     return (
