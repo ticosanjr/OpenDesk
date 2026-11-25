@@ -21,7 +21,7 @@ pub use config_bundle_types::{
 };
 pub use export::export;
 use export::{entries, memory_path};
-use import_memory::{import_memory, import_personal_context, import_prompts};
+pub(crate) use import_memory::{import_memory, import_personal_context, import_prompts};
 use import_ops::{import_automation, import_governance, import_learning, import_router};
 
 pub const SCHEMA_VERSION: u32 = config_bundle_types::SCHEMA_VERSION;

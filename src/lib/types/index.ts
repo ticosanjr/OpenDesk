@@ -11,3 +11,4 @@ export * from "./browser";
 export * from "./backup";
 export * from "./metrics";
 export * from "./audit";
+export * from "./script-tools";

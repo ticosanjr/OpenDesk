@@ -73,13 +73,13 @@ export function KanbanBoard({
   }, [updateBoardScroll, tasks.length]);
 
   return (
-    <div className="relative">
+    <div className="relative flex min-h-0 flex-1 flex-col">
       <div
         ref={boardRef}
         role="region"
         aria-label="Quadro Kanban"
         tabIndex={0}
-        className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+        className="-mx-1 flex min-h-0 flex-1 items-stretch gap-3 overflow-x-auto px-1 pb-2 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
         onDragOver={(event) => {
           event.preventDefault();
           const element = boardRef.current;
@@ -105,7 +105,7 @@ export function KanbanBoard({
               key={column.id}
               data-column={column.id}
               className={cn(
-                "flex min-h-[440px] w-[280px] shrink-0 flex-col transition-colors xl:w-auto xl:min-w-[220px] xl:flex-1",
+                "flex h-full min-h-[440px] w-[280px] shrink-0 flex-col transition-colors xl:w-auto xl:min-w-[220px] xl:flex-1",
                 dragOverColumn === column.id &&
                   "border-blue-500/50 bg-blue-500/[0.04]",
               )}
@@ -144,7 +144,7 @@ export function KanbanBoard({
                 </CardTitle>
                 <CountPill value={columnTasks.length} tone={column.tone} />
               </CardHeader>
-              <CardContent className="flex-1 space-y-2 p-2.5">
+              <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2.5">
                 {columnTasks.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-zinc-800/80 bg-zinc-950/30 px-3 py-10 text-center">
                     <GripVertical size={16} className="mx-auto text-zinc-600" />

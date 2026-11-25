@@ -5,6 +5,8 @@
 mod create;
 #[path = "backup_extract.rs"]
 mod extract;
+#[path = "backup_import.rs"]
+mod import;
 #[path = "backup_manifest.rs"]
 mod manifest;
 #[path = "backup_secrets.rs"]
@@ -15,6 +17,8 @@ mod restore;
 mod state;
 
 pub use create::{BackupOptions, create, create_with_options};
+pub use import::import_archive;
+pub use manifest::MAX_IMPORT_BYTES;
 pub use manifest::{BackupIncludes, WorkspaceBackup, delete, get, list};
 pub use restore::{RestoreInput, RestoreMode, RestoreReport, restore, restore_as_new};
 

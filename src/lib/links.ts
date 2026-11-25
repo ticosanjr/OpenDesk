@@ -77,8 +77,9 @@ export const links = {
     if (workspaceId) params.set("workspace_id", workspaceId);
     return `/studio?${params.toString()}`;
   },
-  file: (path: string) => `/files?path=${enc(path)}`,
-  dir: (path: string) => `/files?dir=1&path=${enc(path)}`,
+  worktrees: () => "/runs?tab=worktrees",
+  file: (path: string) => `/search?tab=files&path=${enc(path)}`,
+  dir: (path: string) => `/search?tab=files&dir=1&path=${enc(path)}`,
   settings: (section: SettingsSection = "general") =>
     `/settings?section=${enc(section)}`,
   integration: (section: IntegrationSection = "smtp") =>

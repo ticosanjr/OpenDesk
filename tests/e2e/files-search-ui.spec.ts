@@ -14,6 +14,7 @@ test("files page searches the whole workspace and opens a nested result", async 
   );
 
   await page.goto("/#/files");
+  await page.waitForTimeout(300);
   await expect(page.getByRole("heading", { name: "Arquivos" })).toBeVisible();
   await page.getByRole("button", { name: "Todo o workspace" }).click();
   await page

@@ -21,4 +21,16 @@ describe("formatJsonContent", () => {
       formatted: false,
     });
   });
+
+  it("keeps empty and invalid JSONL untouched", () => {
+    expect(formatJsonContent("  ")).toEqual({ text: "  ", formatted: false });
+    expect(formatJsonContent('{"a":1}\nnot-json\n')).toEqual({
+      text: '{"a":1}\nnot-json\n',
+      formatted: false,
+    });
+    expect(formatJsonContent('{"only":true}')).toEqual({
+      text: '{\n  "only": true\n}',
+      formatted: true,
+    });
+  });
 });

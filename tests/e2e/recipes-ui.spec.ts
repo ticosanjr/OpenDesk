@@ -48,7 +48,12 @@ flow:
   await expect(page.getByText("Receita UI Flow").first()).toBeVisible();
   await page.getByText("Receita UI Flow").first().click();
   await expect(page.getByText("Ordem de execução")).toBeVisible();
-  const expand = page.getByRole("button", { name: "Expandir editor YAML" });
+  await page.getByRole("button", { name: "Recolher todos" }).click();
+  await expect(
+    page.getByRole("button", { name: "Expandir etapa" }).first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Expandir todos" }).click();
+  const expand = page.getByRole("button", { name: "Mostrar YAML" });
   if (await expand.count()) await expand.click();
   await page.locator('button[title="Mover para baixo"]').first().click();
   const editor = page.getByLabel("Editor YAML da receita");

@@ -1,7 +1,11 @@
 use crate::{
+    api::bundles::{
+        BundleImportBody, envelope, expect_array, expect_str, validate_envelope, validate_items,
+    },
     app_state::AppState,
+    config_bundle,
     db::memory::{self, CreateNoteInput, MemoryAcl, MemoryNamespace, MemoryNote, UpdateNoteInput},
-    error::AppResult,
+    error::{AppError, AppResult},
 };
 use axum::{
     Json,
@@ -186,4 +190,72 @@ pub async fn context(
     )
     .await?;
     Ok(Json(json!({ "context": rendered })))
+}
+
+pub async fn export(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<MemoryQuery>,
+) -> AppResult<Json<Value>> {
+    let workspace_id = workspace(&state, query.workspace_id.as_deref()).await?;
+    let namespaces = memory::list_namespaces(&state.db, &workspace_id).await?;
+    let notes = memory::list_notes(&state.db, &workspace_id, None, None, 10_000).await?;
+    let mut acls = serde_json::Map::new();
+    for namespace in &namespaces {
+        acls.insert(
+            namespace.id.clone(),
+            serde_json::to_value(memory::list_acl(&state.db, &namespace.id).await?)?,
+        );
+    }
+    Ok(Json(envelope(
+        "structured_memory",
+        Some(&workspace_id),
+        json!({ "namespaces": namespaces, "notes": notes, "acls": acls }),
+    )))
+}
+
+pub async fn import(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<BundleImportBody>,
+) -> AppResult<Json<Value>> {
+    let items = validate_envelope(&body.bundle, "structured_memory")?;
+    validate_items(&items)?;
+    let namespaces = expect_array(&items, "namespaces")?;
+    let notes = expect_array(&items, "notes")?;
+    if namespaces.len() + notes.len() > crate::api::bundles::MAX_ITEMS {
+        return Err(AppError::BadRequest(
+            "bundle de memória excede o limite de itens".into(),
+        ));
+    }
+    for namespace in namespaces {
+        expect_str(namespace, "name")?;
+    }
+    for note in notes {
+        expect_str(note, "namespace")?;
+        expect_str(note, "title")?;
+        expect_str(note, "body")?;
+    }
+    if let Some(acls) = items.get("acls") {
+        let map = acls
+            .as_object()
+            .ok_or_else(|| AppError::BadRequest("items.acls deve ser um objeto".into()))?;
+        for entries in map.values() {
+            for entry in entries
+                .as_array()
+                .ok_or_else(|| AppError::BadRequest("ACL deve ser uma lista".into()))?
+            {
+                expect_str(entry, "agent")?;
+            }
+        }
+    }
+    let _: Vec<MemoryNamespace> = serde_json::from_value(items["namespaces"].clone())
+        .map_err(|error| AppError::BadRequest(format!("namespace inválido: {error}")))?;
+    let _: Vec<MemoryNote> = serde_json::from_value(items["notes"].clone())
+        .map_err(|error| AppError::BadRequest(format!("nota inválida: {error}")))?;
+    let workspace_id = workspace(&state, body.workspace_id.as_deref()).await?;
+    config_bundle::import_memory(&state.db, &workspace_id, &items, body.mode.into()).await?;
+    Ok(Json(json!({
+        "ok": true,
+        "kind": "structured_memory",
+        "imported": namespaces.len() + notes.len(),
+    })))
 }

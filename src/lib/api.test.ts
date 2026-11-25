@@ -101,3 +101,81 @@ describe("apiText", () => {
     await expect(apiText("/api/missing")).rejects.toThrow("Request failed (500)");
   });
 });
+
+describe("apiPostBlob", () => {
+  it("returns a blob and includes the API error message", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(new Blob(["audio"]), { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse({ message: "sem voz" }, 503));
+    vi.stubGlobal("fetch", fetchMock);
+    const { apiPostBlob } = await import("./api");
+
+    const blob = await apiPostBlob("/api/voice/tts", { text: "oi" });
+    expect(blob.size).toBeGreaterThan(0);
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe(JSON.stringify({ text: "oi" }));
+    await expect(apiPostBlob("/api/voice/tts", { text: "x" })).rejects.toThrow(
+      "sem voz",
+    );
+  });
+
+  it("falls back to the status when the error body is not JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("no", { status: 502 })),
+    );
+    const { apiPostBlob } = await import("./api");
+    await expect(apiPostBlob("/api/voice/tts", {})).rejects.toThrow(
+      "Request failed (502)",
+    );
+  });
+});
+
+describe("apiBlob and retries", () => {
+  it("downloads blobs and reports blob errors", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(new Blob(["zip"]), { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse({ message: "sem arquivo" }, 404))
+      .mockResolvedValueOnce(new Response("no", { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { apiBlob } = await import("./api");
+
+    const blob = await apiBlob("/api/backups/1/download");
+    expect(blob.size).toBeGreaterThan(0);
+    await expect(apiBlob("/api/backups/2/download")).rejects.toThrow(
+      "sem arquivo",
+    );
+    await expect(apiBlob("/api/backups/3/download")).rejects.toThrow(
+      "Request failed (500)",
+    );
+  });
+
+  it("retries a 429 read once", async () => {
+    const retry = new Response(JSON.stringify({ message: "limite" }), {
+      status: 429,
+      headers: { "retry-after": "0" },
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(retry)
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { apiGet } = await import("./api");
+    await expect(apiGet("/api/status")).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("sends a POST blob without a body", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(new Blob(["audio"]), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { apiPostBlob } = await import("./api");
+    await apiPostBlob("/api/voice/tts");
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.body).toBeUndefined();
+  });
+});

@@ -4,7 +4,6 @@ import {
   ExternalLink,
   FileText,
   FolderOpen,
-  Image as ImageIcon,
   Loader2,
   Music,
   RefreshCw,
@@ -68,7 +67,6 @@ export function FileViewer({
   const needsBlob = ["image", "pdf", "video", "audio"].includes(kind);
   const blobUrl = useAuthBlob(needsBlob ? rawUrl : null);
   const [tab, setTab] = useState<"preview" | "source">("preview");
-  const [zoom, setZoom] = useState(100);
   const [downloading, setDownloading] = useState(false);
   const [allowScripts, setAllowScripts] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -138,7 +136,12 @@ export function FileViewer({
   }
 
   const showToolbar =
-    !embedded || truncated || kind === "html" || textSource || Boolean(blobUrl);
+    !embedded ||
+    truncated ||
+    kind === "html" ||
+    kind === "csv" ||
+    textSource ||
+    Boolean(blobUrl);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -197,7 +200,7 @@ export function FileViewer({
                       : "text-zinc-500 hover:text-zinc-200",
                   )}
                 >
-                  {value === "preview" ? "prévia" : "fonte"}
+                  {value === "preview" ? "visualização" : "fonte"}
                 </button>
               ))}
             </span>
@@ -274,7 +277,6 @@ export function FileViewer({
         name={name}
         jsonPreview={jsonPreview}
         blobUrl={blobUrl}
-        zoom={zoom}
         binary={binary}
         isArchive={isArchive}
         archive={archive}
@@ -285,20 +287,6 @@ export function FileViewer({
         onDownload={() => void saveFile()}
       />
 
-      {kind === "image" && blobUrl ? (
-        <div className="flex items-center gap-2 border-t border-zinc-800/70 px-3 py-2">
-          <ImageIcon size={11} className="text-zinc-500" />
-          <input
-            type="range"
-            min={25}
-            max={200}
-            value={zoom}
-            onChange={(event) => setZoom(Number(event.target.value))}
-            className="h-1 flex-1 accent-blue-500"
-          />
-          <span className="font-mono text-[12px] text-zinc-500">{zoom}%</span>
-        </div>
-      ) : null}
       {kind === "video" || kind === "audio" ? (
         <div className="flex items-center gap-1 border-t border-zinc-800/70 px-3 py-2 text-[12px] text-zinc-500">
           {kind === "video" ? <Video size={11} /> : <Music size={11} />}

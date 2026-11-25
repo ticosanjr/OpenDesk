@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { ClipboardPaste, Loader2, Send, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { VoiceDictationButton } from "@/components/ui/voice-dictation-button";
+import { insertAtCursor } from "@/lib/use-voice-input";
 import { apiPost } from "@/lib/api";
 import { links } from "@/lib/links";
 import { useAppStore } from "@/store/app-store";
@@ -159,6 +161,14 @@ export function CapturePage() {
             onChange={(event) => setAgent(event.target.value)}
             placeholder="@agente (opcional)"
             className="h-7 w-36 rounded-md border border-zinc-800 bg-zinc-900 px-2 font-mono text-[12px] outline-none placeholder:text-zinc-500 focus:border-blue-500/40"
+          />
+          <VoiceDictationButton
+            label="Ditar captura"
+            onTranscript={(transcript) =>
+              setContent((current) =>
+                insertAtCursor(textarea.current, current, transcript.text),
+              )
+            }
           />
           <p className="text-[12px] text-zinc-500">
             Backlog · Ctrl+Enter envia · Esc fecha

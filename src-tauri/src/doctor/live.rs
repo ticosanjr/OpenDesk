@@ -137,7 +137,7 @@ pub(super) async fn probe_live(
         detail: mtls.detail,
     });
 
-    let quick_check = sqlx::query_scalar::<_, String>("PRAGMA quick_check")
+    let quick_check = sqlx::query_scalar::<_, String>("PRAGMA integrity_check")
         .fetch_one(pool)
         .await
         .unwrap_or_else(|error| format!("error: {error}"));
@@ -153,7 +153,9 @@ pub(super) async fn probe_live(
             "warn"
         }
         .into(),
-        detail: Some(format!("quick_check={quick_check}; journal_mode={journal}")),
+        detail: Some(format!(
+            "integrity_check={quick_check}; journal_mode={journal}"
+        )),
     });
 
     let sandbox_tools = ["bwrap", "docker", "podman"];

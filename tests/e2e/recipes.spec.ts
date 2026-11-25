@@ -55,6 +55,8 @@ sinks: []
   await expect(page.getByText("Receita E2E").first()).toBeVisible();
   await page.getByText("Receita E2E").first().click();
   await expect(page.getByRole("heading", { name: "Fluxo visual" })).toBeVisible();
+  const showYaml = page.getByRole("button", { name: "Mostrar YAML" });
+  if (await showYaml.count()) await showYaml.click();
   await expect(page.getByText("YAML", { exact: true })).toBeVisible();
 
   const detail = await request.get(`${auth.baseURL}/api/recipes/receita-e2e`, {

@@ -459,3 +459,196 @@ opcional via Bitwarden CLI.
   intencionais (exportação JSON).
 - Versão **1.9.0** preparada para release local com AppImage, `.deb`, `.rpm`,
   binários portáveis, checksums e `latest.json` assinado.
+
+## 2026-11-25 — Melhorias v2, Fase 1: integridade SQLite e receitas
+
+- Novo `opendesk-storage/src/integrity.rs`: `quick_check(5)` no boot, backup
+  `<db>.corrupt-<ts>/` com `.db`, `-wal` e `-shm`, reparo via `VACUUM INTO` e
+  fallback `sqlite3 .recover`, validação `integrity_check` e troca atômica.
+- Banco inexistente é aceito; banco corrompido nunca abre o app em estado
+  inválido. Em falha de reparo o original é preservado e o erro aponta o backup.
+- `opendesk repair-db [--db <path>]` adicionado ao binário desktop.
+- Erros SQLite `code 11` agora retornam mensagem acionável orientando o reparo.
+- `doctor --live` passou a reportar `integrity_check` detalhado.
+- Criação/edição de receita: escrita `.tmp` + rename atômico sob o mesmo lock do
+  watcher, seguida de sync/versão, eliminando corrida de upsert.
+- Testes: banco saudável/ausente, corrupção com backup e falha fechada, e duas
+  gravações concorrentes da mesma receita mantendo um único arquivo válido.
+
+## 2026-11-25 — Melhorias v2, Fase 2: navegação por abas e Kanban
+
+- `Execuções` e `Worktrees` unificados em `/runs` com abas; `/worktrees`
+  redireciona para `/runs?tab=worktrees`.
+- `Chat` e `Criador` agora são abas em `/chat` (`?tab=builder`), sem empilhar o
+  Meta-Builder abaixo da conversa.
+- `Buscar` e `Arquivos` unificados em `/search` (`?tab=files`); `/files`
+  redireciona preservando `path`/`dir`. Deep link abre o arquivo na aba certa.
+- Sidebar e Command Palette deixaram de listar Worktrees/Arquivos duplicados.
+- Kanban ocupa 100% da altura: `PageBodyFill`, colunas `h-full` e scroll apenas
+  dentro da coluna.
+- Testes E2E novos/atualizados: abas consolidadas, redirects, deep links,
+  worktrees, arquivos, scroll e Kanban. Goldens de kanban/chat/files/search/
+  worktrees regravados.
+
+## 2026-11-25 — Melhorias v2, Fase 3: UX de receitas e IconTag
+
+- YAML do editor de receitas inicia fechado, com botão “Mostrar YAML” e painel
+  lateral recolhível (`aria-label` alinhado ao texto visível).
+- `RecipeStepper` ganhou recolher/expandir por nó e “Recolher todos”/“Expandir
+  todos”; o cabeçalho mantém nome, tipo e resumo quando minimizado.
+- Passos receberam borda lateral colorida por tipo (azul/âmbar/esmeralda/roxo).
+- Novo `IconTag` acessível (tooltip, `aria-label`, foco por teclado) com mapas
+  de política do roteador, origem e gatilho.
+- `TaskCard`, `RoutineCard` e `RecipeListCard` trocaram tags verbosas por ícones
+  com tooltip, mantendo horário/recorrência e contagem de execuções em texto.
+- Testes: IconTag (a11y/tooltip), E2E de receitas com recolher/expandir e axe
+  nos modais; Vitest **289**.
+
+## 2026-11-25 — Melhorias v2, Fase 4: anexos clicáveis no chat
+
+- Backend persiste `metadata_json.attachments` nas mensagens do usuário
+  (`direction: "sent"`, `source: "ui"`) após salvar os arquivos em
+  `input/chat`, mantendo o caminho no conteúdo enviado ao agente.
+- Resposta do assistente inclui artefatos do `run_id` como anexos
+  `direction: "received"`/`source: "agent"` (nome, caminho e tamanho).
+- `Transcript` renderiza chips com direção (↑/↓), nome e tamanho; metadados
+  inválidos são ignorados sem quebrar a conversa.
+- Clique no chip busca `/api/files/content` e abre o `LazyFileViewer` em modal;
+  arquivo removido mostra erro amigável.
+- Teste Vitest do transcript cobre chips enviados/recebidos e JSON inválido;
+  E2E de chat e e-mail verdes; `cargo test chat` **14** testes.
+
+## 2026-11-25 — Melhorias v2, Fase 5: visualizador rico de arquivos
+
+- Imagens ganharam `ImageZoomPane`: zoom de 25% a 600% por botões, roda e
+  duplo clique, pan com pointer events, modo Ajustar/100%/200% e reset ao
+  trocar de arquivo (sem drag fantasma da imagem).
+- JSON/JSON Lines usa `JsonTreeView`: árvore colapsável, expandir/recolher
+  tudo, contagem de nós, busca de chave/valor com destaque, cópia por nó e do
+  JSON formatado, alternância Árvore/Código e aviso acima de 5.000 nós.
+- CSV/TSV usa `CsvTableView` com parser de aspas/escapes, cabeçalho fixo,
+  ordenação por coluna, filtro rápido, alternância Tabela/Bruto e paginação
+  de 500 linhas.
+- Markdown (`MarkdownPreview`) ganhou sumário lateral/popover a partir de 3
+  títulos, cópia em cada bloco de código, cópia do markdown bruto e busca com
+  contador/ocorrências reutilizando o visualizador de código.
+- Código/log/texto usa `CodeTextView`: números de linha, busca com contador e
+  anterior/próximo, quebra de linha e cópia; o toggle global virou
+  Visualização/Fonte.
+- `kindFor` reconhece `csv`/`tsv`; integração em `FilePreviewBody` mantém todos
+  os arquivos do viewer abaixo de 500 linhas.
+- Testes: `ImageZoomPane` (controles, roda, duplo clique, reset) e E2E
+  `files-rich-viewers` (JSON, CSV, Markdown, código e imagem).
+
+## 2026-11-25 — Melhorias v2, Fase 6: simetria de importação e exportação
+
+- Envelope único `{schema_version, kind, exported_at, source_workspace, items}`
+  com validação fail-closed de versão/kind em todos os imports.
+- Contexto pessoal: `GET /api/personal-context/export` e
+  `POST /api/personal-context/import` (`merge`/`replace`), com botões simétricos
+  no cartão.
+- Memória estruturada: `GET /api/memory/export` e `POST /api/memory/import`
+  recriando namespaces, ACLs e notas; cartão ganhou Importar ao lado de
+  Exportar.
+- Prompts: `GET /api/prompt-templates/export` e
+  `POST /api/prompt-templates/import`, rejeitando chaves desconhecidas antes de
+  gravar.
+- Pacotes: export individual em `/api/starter-packs/{id}/export`, import em
+  `/api/starter-packs/import`, lote em `/api/bundles/packs/export|import`.
+  Import valida manifesto, caminhos e conteúdo de agentes, comandos, skills,
+  receitas e rotinas antes de escrever.
+- Workspaces: `/api/bundles/workspaces/export|import` leva definição, seções de
+  configuração, receitas e rotinas; imports reutilizam o workspace existente
+  por id/nome ou criam um novo na raiz padrão.
+- Frontend: helper `import-export.ts`, botão reutilizável `JsonImportButton` com
+  diálogo único Mesclar/Substituir e `PacksBundleActions`.
+- Testes: suíte Rust de bundles/contexto/memória/prompts e E2E
+  `import-export-ui` (kind incompatível + import aplicado).
+
+- Goldens de `packs` (700/1024/1100) regravados pelos novos botões de
+  exportação/importação no cabeçalho.
+
+## 2026-11-25 — Melhorias v2, Fase 7: backup e restore completo
+
+- Formato v2 grava `state/workspace-state.json` (com fallback de leitura para
+  `db/workspace_state.json`), `state_sha256` no manifesto e SHA-256 por arquivo.
+- Snapshot inclui todas as tabelas com `workspace_id`; colunas de credenciais
+  em texto plano (`sync_token`, tokens/senhas) são zeradas no estado. Segredos
+  portáveis continuam apenas no `secrets.enc` protegido por senha.
+- Restore `replace_in_place` (alias `in_place`) limpa todas as tabelas
+  workspace-scoped em transação única, valida chaves estrangeiras, faz backup
+  de segurança antes e troca arquivos por staging atômico. `new_workspace`
+  remapeia ids, paths e FKs.
+- Extração fail-closed: caminho traversal, symlink e divergência de SHA-256
+  abortam antes de tocar no workspace ou no banco.
+- Novo `POST /api/backups/import` importa `.zip` após dry-run completo
+  (manifesto, arquivos e snapshot) e registra no catálogo local.
+- `BackupsCard` ganhou **Importar .zip**, contagem de registros de banco por
+  backup, versão e rótulos explícitos dos dois modos de restauração.
+- Teste round-trip restaura arquivo, tarefa, rotina, receita e contexto pessoal
+  idênticos, além do teste de importação e rejeição de ZIP truncado.
+
+## 2026-11-25 — Melhorias v2, Fase 8: STT/TTS reais e microfone universal
+
+- TTS agora retorna bytes de áudio em `POST /api/voice/tts` com
+  `Content-Type` e `X-Voice-Provider`, sem tocar áudio no servidor.
+  Provedores em ordem configurável: Piper, espeak-ng/espeak, endpoint
+  OpenAI-compatible (`/v1/audio/speech`, `secret_ref`) e comando custom.
+- STT em `POST /api/voice/stt`: whisper.cpp local com conversão automática
+  webm/ogg → WAV 16 kHz mono via ffmpeg, ou endpoint OpenAI-compatible
+  (`/v1/audio/transcriptions`). Áudio abaixo de 1 KB é rejeitado.
+- Processos de voz usam `kill_on_drop`, process group e timeout rígido de 60s.
+- Sem provedor, a API responde **503** com `error` e `install_hint` acionável.
+- Novos hooks compartilhados: `use-voice-input.ts` (MediaRecorder, tempo,
+  transcrição, liberação de tracks) e `use-voice-output.ts` (`Audio` +
+  Object URL revogado no fim/erro).
+- Novo `VoiceDictationButton` com estados gravando/transcrevendo, erro de
+  permissão e tooltip; integrado em Chat, tarefa (título e descrição), Quick
+  Capture e compositor de execução.
+- `VoiceCard` ganhou provedores/endpoints/secret_refs e botões **Testar fala
+  (TTS)** e **Testar transcrição (STT)**.
+- Removido `src/pages/chat/useVoiceInput.ts` em favor do hook compartilhado.
+- Testes: hooks/helpers de voz, botão acessível, TTS custom com bytes RIFF e
+  E2E de configurações/formulário.
+
+## 2026-11-25 — Melhorias v2, Fase 9: Ferramentas (Scripts como MCP)
+
+- Nova migration `0003_script_tools.sql` com escopo global/workspace, slug único,
+  schema de entrada, `secret_refs`, timeout, aprovação HITL e enabled.
+- Repositório CRUD completo em `opendesk-storage/repos/script_tools.rs`.
+- Executor seguro em `script_tools.rs`:
+  - slug/runtime/script validados; input conferido contra JSON Schema;
+  - `env_secret_refs_json` só aceita referências existentes no SecretStore;
+  - arquivo temporário `0700`, `cwd` na raiz do workspace, stdin JSON e
+    `OPENDESK_INPUT_JSON`;
+  - `kill_on_drop`, process group e timeout de 1–300s, com stdout/stderr
+    limitados a 1 MiB.
+- Novo MCP stdio `opendesk mcp-scripts`, registrado automaticamente como
+  `mcp.servers.opendesk-scripts`; expõe `script_<slug>` e executa via executor.
+  Ferramentas com `require_approval` são recusadas até aprovação explícita.
+- REST: lista/cria/edita/exclui, `/test`, `/export` e `/import` com envelope
+  validado; resumo das ferramentas ativas entra no prompt de tarefas/preview.
+- Frontend: `ScriptToolsCard` + `ScriptToolModal` com abas Script, Parâmetros,
+  Prompt para o Agente e Segredos & Limites, teste inline de stdout/stderr/exit,
+  toggle e export/import simétricos.
+- Testes: CRUD, schema, timeout, import, `tools/list`/`tools/call` reais e
+  rejeição de segredo em texto plano; E2E de criação/teste na UI.
+
+## 2026-11-25 — Melhorias v2, Fase 10: Testar tudo e gate final
+
+- Novo `self_test.rs` com etapas determinísticas: banco, motor, tarefa,
+  rotina, receita, script MCP, voz e limpeza sempre executada.
+- Modo `fast` funciona offline e não consome tokens; `full_ai` executa tarefa e
+  receita mínimas com o motor quando online.
+- Guarda `AtomicBool` impede execuções simultâneas (**409**).
+- Limpeza remove tarefa, rotina, receita (arquivo + índice + runs) e script
+  temporários com prefixo `__selftest_*`.
+- `POST /api/diagnostics/self-test` classificado como rota sensível.
+- `SelfTestCard` em Configurações → Diagnóstico com checklist, tempos, botões
+  rápido/com IA e cópia do relatório JSON.
+- Teste Rust valida modo rápido offline e zero resíduos no banco e no disco;
+  E2E cobre o fluxo na UI.
+- Gate final (`./scripts/gate.sh`) passou com 111 testes Playwright, 49
+  goldens, cobertura frontend 98,55% linhas e 90,2% branches. Ajustes de
+  compatibilidade: título da aba Arquivos, YAML aberto no E2E de receitas e
+  separação do botão de ditado do label do título da tarefa.

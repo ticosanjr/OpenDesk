@@ -14,7 +14,8 @@ use serde_json::{Map, Value};
 use sqlx::{Row, Sqlite, SqliteConnection, SqlitePool, TypeInfo, ValueRef, sqlite::SqliteRow};
 use std::collections::{BTreeMap, HashMap};
 
-pub(super) const STATE_ENTRY: &str = "db/workspace_state.json";
+pub(super) const STATE_ENTRY: &str = "state/workspace-state.json";
+pub(super) const LEGACY_STATE_ENTRY: &str = "db/workspace_state.json";
 pub(super) const RUN_LOGS_PREFIX: &str = "db/run_logs/";
 pub(super) const SECRETS_ENTRY: &str = "db/secrets.enc";
 
@@ -95,6 +96,26 @@ async fn columns(
         .collect())
 }
 
+/// Columns that can carry plaintext credentials. Encrypted Vault columns and
+/// `*_secret_ref` references stay in the snapshot: they are not plaintext.
+fn redacted_column(name: &str) -> bool {
+    let name = name.to_lowercase();
+    if name.ends_with("_ref") || name.ends_with("_ciphertext") || name.ends_with("_nonce") {
+        return false;
+    }
+    name == "sync_token"
+        || name == "token"
+        || name == "token_hash"
+        || name == "password"
+        || name == "api_key"
+        || name == "access_token"
+        || name == "refresh_token"
+        || name.ends_with("_password")
+        || name.ends_with("_api_key")
+        || name.ends_with("_access_token")
+        || name.ends_with("_refresh_token")
+}
+
 fn is_uuid_like(value: &str) -> bool {
     uuid::Uuid::parse_str(value).is_ok()
 }
@@ -139,11 +160,19 @@ pub(super) async fn export(pool: &SqlitePool, workspace_id: &str) -> AppResult<W
             .fetch_all(&mut *connection)
             .await
             .map_err(|error| AppError::Internal(format!("snapshot {table}: {error}")))?;
+        let redacted = column_names
+            .iter()
+            .map(|column| redacted_column(column))
+            .collect::<Vec<_>>();
         let mut data = Vec::with_capacity(rows.len());
         for row in rows {
             let mut values = Vec::with_capacity(column_names.len());
-            for index in 0..column_names.len() {
-                values.push(value_ref(&row, index)?);
+            for (index, is_redacted) in redacted.iter().enumerate() {
+                if *is_redacted {
+                    values.push(Value::Null);
+                } else {
+                    values.push(value_ref(&row, index)?);
+                }
             }
             data.push(values);
         }

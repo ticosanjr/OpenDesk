@@ -32,6 +32,7 @@ pub async fn send_message(
 ) -> AppResult<Json<chat::ChatReply>> {
     let thread = chat_db::get_thread(&state.db, &id).await?;
     let mut content = body.content;
+    let mut attachments = Vec::new();
     if !body.attachments.is_empty() {
         let workspace = crate::db::workspaces::get(&state.db, &thread.workspace_id).await?;
         for attachment in body.attachments {
@@ -42,8 +43,21 @@ pub async fn send_message(
                 &attachment.base64,
             )?;
             content.push_str(&format!("\n\nArquivo anexado: {}", saved.path));
+            attachments.push(chat::ChatAttachmentMeta {
+                name: saved.name.clone(),
+                path: saved.path.clone(),
+                mime: Some(saved.mime.clone()),
+                size: Some(saved.size as i64),
+                direction: "sent".into(),
+                source: Some("ui".into()),
+            });
         }
     }
+    let metadata = if attachments.is_empty() {
+        None
+    } else {
+        Some(serde_json::json!({ "attachments": attachments }).to_string())
+    };
     let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
         &state.db,
         Some(&thread.workspace_id),
@@ -56,7 +70,7 @@ pub async fn send_message(
     // handler still waits for the reply in the normal case, while the task keeps
     // running (and persisting messages) if the request is dropped.
     let handle = tokio::spawn(async move {
-        chat::send_message_with_context(&state, thread, &content, Some(&context)).await
+        chat::send_message_with_metadata(&state, thread, &content, Some(&context), metadata).await
     });
     match handle.await {
         Ok(result) => Ok(Json(result?)),

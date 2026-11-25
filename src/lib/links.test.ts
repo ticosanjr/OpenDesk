@@ -74,7 +74,8 @@ describe("entity links", () => {
   });
 
   it("encodes files and directories", () => {
-    expect(links.file("output/a b.md")).toBe("/files?path=output%2Fa%20b.md");
-    expect(links.dir("output/a b")).toBe("/files?dir=1&path=output%2Fa%20b");
+    expect(links.worktrees()).toBe("/runs?tab=worktrees");
+    expect(links.file("output/a b.md")).toBe("/search?tab=files&path=output%2Fa%20b.md");
+    expect(links.dir("output/a b")).toBe("/search?tab=files&dir=1&path=output%2Fa%20b");
   });
 });

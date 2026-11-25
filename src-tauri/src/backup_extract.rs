@@ -9,8 +9,10 @@ use std::{
 };
 use zip::ZipArchive;
 
-use super::manifest::{MANIFEST, MAX_EXTRACT_BYTES, MAX_FILES, Manifest, sha256_file};
-use super::state::{self, SECRETS_ENTRY, STATE_ENTRY};
+use super::manifest::{
+    MANIFEST, MAX_EXTRACT_BYTES, MAX_FILES, MAX_MANIFEST_BYTES, Manifest, sha256_file,
+};
+use super::state::{self, LEGACY_STATE_ENTRY, SECRETS_ENTRY, STATE_ENTRY};
 
 pub(super) fn safe_entry(entry: &zip::read::ZipFile<'_, File>) -> AppResult<PathBuf> {
     if let Some(mode) = entry.unix_mode()
@@ -38,8 +40,15 @@ pub(super) fn read_manifest(archive: &mut ZipArchive<File>) -> AppResult<Manifes
     let mut entry = archive
         .by_name(MANIFEST)
         .map_err(|_| AppError::BadRequest("backup sem manifesto".into()))?;
+    if entry.size() > MAX_MANIFEST_BYTES {
+        return Err(AppError::BadRequest(
+            "manifesto do backup é grande demais".into(),
+        ));
+    }
     let mut bytes = Vec::new();
-    (&mut entry).take(1024 * 1024).read_to_end(&mut bytes)?;
+    (&mut entry)
+        .take(MAX_MANIFEST_BYTES + 1)
+        .read_to_end(&mut bytes)?;
     serde_json::from_slice(&bytes)
         .map_err(|error| AppError::BadRequest(format!("manifesto inválido: {error}")))
 }
@@ -80,7 +89,10 @@ pub(super) fn extract_files(
             continue;
         }
         let name = relative.to_string_lossy().replace('\\', "/");
-        if name == STATE_ENTRY || name == SECRETS_ENTRY || name.starts_with(state::RUN_LOGS_PREFIX)
+        if name == STATE_ENTRY
+            || name == LEGACY_STATE_ENTRY
+            || name == SECRETS_ENTRY
+            || name.starts_with(state::RUN_LOGS_PREFIX)
         {
             continue;
         }
@@ -98,9 +110,10 @@ pub(super) fn extract_files(
         }
         let mut output = File::create(&target)?;
         std::io::copy(&mut entry, &mut output)?;
-        if manifest.version >= 2
-            && let Some(expected) = manifest.files_sha256.get(&name)
-        {
+        if manifest.version >= 2 {
+            let expected = manifest.files_sha256.get(&name).ok_or_else(|| {
+                AppError::BadRequest(format!("arquivo {name} sem SHA-256 no manifesto"))
+            })?;
             let actual = sha256_file(&target)?;
             if &actual != expected {
                 return Err(AppError::Conflict(format!(

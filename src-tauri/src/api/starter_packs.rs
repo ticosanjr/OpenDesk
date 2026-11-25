@@ -1,4 +1,9 @@
-use crate::{app_state::AppState, db::workspaces, error::AppResult};
+use crate::{
+    api::bundles::{BundleImportBody, envelope, validate_envelope},
+    app_state::AppState,
+    db::workspaces,
+    error::{AppError, AppResult},
+};
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -161,4 +166,31 @@ pub async fn create_template(
         )
         .await?,
     ))
+}
+
+pub async fn export_pack(Path(id): Path<String>) -> AppResult<Json<serde_json::Value>> {
+    let transfer = crate::starter_packs::export_pack(&id)?;
+    Ok(Json(envelope(
+        "starter_pack",
+        None,
+        serde_json::to_value(transfer)?,
+    )))
+}
+
+pub async fn import_pack(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<BundleImportBody>,
+) -> AppResult<Json<serde_json::Value>> {
+    let items = validate_envelope(&body.bundle, "starter_pack")?;
+    let transfer: crate::starter_packs::PackTransfer = serde_json::from_value(items)
+        .map_err(|error| AppError::BadRequest(format!("pacote inválido: {error}")))?;
+    crate::starter_packs::validate_pack(&transfer)?;
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, body.workspace_id.as_deref()).await?;
+    let result = crate::starter_packs::import_pack(&state, &workspace_id, transfer).await?;
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "kind": "starter_pack",
+        "imported": result,
+    })))
 }

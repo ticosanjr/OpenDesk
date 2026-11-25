@@ -39,7 +39,7 @@ test("worktree list shows a diff and merges after approval", async ({
   ]);
 
   await page.goto("/#/worktrees");
-  await expect(page.getByRole("heading", { name: "Worktrees" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Execuções", level: 1 })).toBeVisible();
   await expect(page.getByText("isolated.txt", { exact: false })).toHaveCount(0);
   await page.getByRole("button", { name: "Diff", exact: true }).first().click();
   await expect(page.getByText("diff unificado")).toBeVisible();

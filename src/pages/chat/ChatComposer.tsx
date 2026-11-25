@@ -1,6 +1,8 @@
-import { Loader2, Mic, Paperclip, Send, X } from "lucide-react";
+import { Loader2, Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SlashTextarea } from "@/components/ui/slash-textarea";
+import { VoiceDictationButton } from "@/components/ui/voice-dictation-button";
+import { appendTranscript } from "@/lib/use-voice-input";
 import type { ChatThread } from "@/lib/types";
 
 export interface ChatAttachment {
@@ -17,11 +19,7 @@ export function ChatComposer({
   onFiles,
   onRemoveAttachment,
   sending,
-  recording,
-  voiceBusy,
   onSend,
-  onStartRecording,
-  onStopRecording,
 }: {
   thread: ChatThread | null;
   workspaceId: string;
@@ -31,11 +29,7 @@ export function ChatComposer({
   onFiles: (files: File[]) => void;
   onRemoveAttachment: (index: number) => void;
   sending: boolean;
-  recording: boolean;
-  voiceBusy: boolean;
   onSend: () => void;
-  onStartRecording: () => void;
-  onStopRecording: () => void;
 }) {
   return (
     <div
@@ -91,20 +85,13 @@ export function ChatComposer({
           }
           className="min-h-[52px] flex-1"
         />
-        <Button
-          variant={recording ? "destructive" : "outline"}
-          size="sm"
-          className="h-auto min-h-[52px] w-12 shrink-0"
-          title={recording ? "Parar gravação" : "Push-to-talk"}
-          onClick={() => (recording ? onStopRecording() : onStartRecording())}
-          disabled={!thread || sending || voiceBusy}
-        >
-          {voiceBusy ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <Mic size={14} />
-          )}
-        </Button>
+        <VoiceDictationButton
+          disabled={!thread || sending}
+          className="h-auto min-h-[52px] w-12"
+          onTranscript={(transcript) =>
+            onPromptChange(appendTranscript(prompt, transcript.text))
+          }
+        />
         <Button
           size="sm"
           className="h-auto min-h-[52px] w-24 shrink-0"

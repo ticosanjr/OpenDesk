@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { MessageSquare, RefreshCw, Wand2 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SectionTabs } from "@/components/ui/section-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -19,7 +21,7 @@ import { ThreadHeader } from "./chat/ThreadHeader";
 import { ThreadListCard } from "./chat/ThreadListCard";
 import { Transcript } from "./chat/Transcript";
 import { useChatThreadData } from "./chat/useChatThreadData";
-import { useVoiceInput } from "./chat/useVoiceInput";
+import { useVoiceOutput } from "@/lib/use-voice-output";
 
 export function ChatPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -29,6 +31,14 @@ export function ChatPage() {
     (state) => state.setWorkspaceDialogOpen,
   );
 
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") === "builder" ? "builder" : "chat";
+  function setTab(next: string) {
+    const search = new URLSearchParams(params);
+    if (next === "builder") search.set("tab", "builder");
+    else search.delete("tab");
+    setParams(search, { replace: true });
+  }
   const [agent, setAgent] = useState("build");
   const [model, setModel] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
@@ -40,8 +50,7 @@ export function ChatPage() {
   const [titleDraft, setTitleDraft] = useState("");
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailSubject, setEmailSubject] = useState("");
-  const { recording, voiceBusy, startRecording, stopRecording, speakMessage } =
-    useVoiceInput({ workspaceId: activeWorkspaceId, setPrompt });
+  const { play: playVoice } = useVoiceOutput();
   const {
     threads,
     selectedId,
@@ -287,12 +296,22 @@ export function ChatPage() {
         }
       />
 
+      <SectionTabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { id: "chat", label: "Chat", icon: MessageSquare },
+          { id: "builder", label: "Criador", icon: Wand2 },
+        ]}
+      />
+
       {error ? (
         <p className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">
           {error}
         </p>
       ) : null}
 
+      {tab === "chat" ? (
       <div className="grid gap-3 lg:grid-cols-[320px_1fr]">
         <ThreadListCard
           threads={threads}
@@ -336,7 +355,7 @@ export function ChatPage() {
               onTranscriptScroll={onTranscriptScroll}
               transcriptAtBottom={transcriptAtBottom}
               onScrollToBottom={() => scrollTranscript()}
-              onSpeak={(text) => void speakMessage(text)}
+              onSpeak={(text) => void playVoice(text, activeWorkspaceId)}
               onStop={() => void stopExecution()}
             />
             <ChatComposer
@@ -348,15 +367,12 @@ export function ChatPage() {
               onFiles={attachFiles}
               onRemoveAttachment={removeAttachment}
               sending={sending}
-              recording={recording}
-              voiceBusy={voiceBusy}
               onSend={() => void send()}
-              onStartRecording={() => void startRecording()}
-              onStopRecording={stopRecording}
             />
           </CardContent>
         </Card>
       </div>
+      ) : null}
 
       <EmailReplyModal
         open={emailOpen}
@@ -366,6 +382,7 @@ export function ChatPage() {
         onSubjectChange={setEmailSubject}
       />
 
+      {tab === "builder" ? (
       <Card>
         <CardHeader>
           <div>
@@ -383,6 +400,7 @@ export function ChatPage() {
           <MetaBuilder workspaceId={activeWorkspaceId} />
         </CardContent>
       </Card>
+      ) : null}
     </PageBody>
   );
 }

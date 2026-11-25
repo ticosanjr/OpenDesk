@@ -20,6 +20,11 @@ fn main() {
         opendesk_lib::run_cli(cli_args);
     } else if cli_args
         .first()
+        .is_some_and(|argument| argument == "repair-db")
+    {
+        opendesk_lib::run_repair_db(cli_args[1..].to_vec());
+    } else if cli_args
+        .first()
         .is_some_and(|argument| argument == "migrate-v1-export")
     {
         opendesk_lib::run_v1_export(cli_args[1..].to_vec());
@@ -36,6 +41,8 @@ fn main() {
         opendesk_lib::run_mcp_config();
     } else if std::env::args().any(|argument| argument == "mcp-control") {
         opendesk_lib::run_mcp_control();
+    } else if std::env::args().any(|argument| argument == "mcp-scripts") {
+        opendesk_lib::run_mcp_scripts();
     } else if std::env::args().any(|argument| argument == "mcp-google") {
         opendesk_lib::run_mcp_google();
     } else if std::env::args().any(|argument| argument == "--headless") {

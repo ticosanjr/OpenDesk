@@ -3,7 +3,8 @@ import { Loader2, Mic, MicOff, Play, Volume2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { apiGet, apiPost, apiPut } from "@/lib/api";
+import { apiGet, apiPostBlob, apiPut } from "@/lib/api";
+import { useVoiceInput } from "@/lib/use-voice-input";
 import { toast } from "@/store/toast-store";
 
 interface VoiceSettings {
@@ -13,6 +14,12 @@ interface VoiceSettings {
   tts_args: string[];
   language: string;
   voice: string;
+  stt_provider?: string;
+  stt_endpoint?: string;
+  stt_secret_ref?: string;
+  tts_provider?: string;
+  tts_endpoint?: string;
+  tts_secret_ref?: string;
 }
 
 interface VoiceStatus {
@@ -28,18 +35,6 @@ interface VoiceStatus {
 const inputClass =
   "h-8 w-full rounded border border-zinc-700 bg-zinc-950 px-2 text-[12.5px] text-zinc-200";
 
-function base64FromBlob(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result ?? "");
-      resolve(result.includes(",") ? result.split(",")[1] : result);
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
-}
-
 export function VoiceCard() {
   const [status, setStatus] = useState<VoiceStatus | null>(null);
   const [settings, setSettings] = useState<VoiceSettings | null>(null);
@@ -47,9 +42,20 @@ export function VoiceCard() {
   const [text, setText] = useState("Olá, esta é uma prova de voz do OpenDesk.");
   const [audio, setAudio] = useState<string | null>(null);
   const [transcript, setTranscript] = useState("");
-  const [recording, setRecording] = useState(false);
-  const recorder = useRef<MediaRecorder | null>(null);
-  const chunks = useRef<Blob[]>([]);
+  const audioUrl = useRef<string | null>(null);
+
+  const voice = useVoiceInput({
+    onTranscript: (result) => {
+      setTranscript(result.text);
+      toast({
+        tone: "success",
+        title: `Transcrito com ${result.provider ?? "STT"}`,
+        description: result.text.slice(0, 120),
+      });
+    },
+    onError: (message) =>
+      toast({ tone: "error", title: "Transcrição falhou", description: message }),
+  });
 
   const load = useCallback(async () => {
     try {
@@ -92,11 +98,11 @@ export function VoiceCard() {
     if (!text.trim()) return;
     setBusy("speak");
     try {
-      const result = await apiPost<{ data: string; mime: string; path: string }>(
-        "/api/voice/speak",
-        { text },
-      );
-      setAudio(`data:${result.mime};base64,${result.data}`);
+      const blob = await apiPostBlob("/api/voice/tts", { text });
+      if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
+      const url = URL.createObjectURL(blob);
+      audioUrl.current = url;
+      setAudio(url);
     } catch (cause) {
       toast({
         tone: "error",
@@ -108,60 +114,12 @@ export function VoiceCard() {
     }
   }
 
-  async function startRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const media = new MediaRecorder(stream);
-      chunks.current = [];
-      media.ondataavailable = (event) => {
-        if (event.data.size > 0) chunks.current.push(event.data);
-      };
-      media.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop());
-        void transcribe(new Blob(chunks.current, { type: media.mimeType || "audio/webm" }));
-      };
-      media.start();
-      recorder.current = media;
-      setRecording(true);
-    } catch (cause) {
-      toast({
-        tone: "error",
-        title: "Microfone indisponível",
-        description: cause instanceof Error ? cause.message : String(cause),
-      });
-    }
-  }
-
-  function stopRecording() {
-    recorder.current?.stop();
-    recorder.current = null;
-    setRecording(false);
-  }
-
-  async function transcribe(blob: Blob) {
-    setBusy("transcribe");
-    try {
-      const audio_base64 = await base64FromBlob(blob);
-      const result = await apiPost<{ text: string; engine: string }>(
-        "/api/voice/transcribe",
-        { audio_base64, mime: blob.type || "audio/webm" },
-      );
-      setTranscript(result.text);
-      toast({
-        tone: "success",
-        title: `Transcrito com ${result.engine}`,
-        description: result.text.slice(0, 120),
-      });
-    } catch (cause) {
-      toast({
-        tone: "error",
-        title: "Transcrição falhou",
-        description: cause instanceof Error ? cause.message : String(cause),
-      });
-    } finally {
-      setBusy(null);
-    }
-  }
+  useEffect(
+    () => () => {
+      if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
+    },
+    [],
+  );
 
   return (
     <Card id="settings-voice" className="scroll-mt-14">
@@ -245,6 +203,84 @@ export function VoiceCard() {
                   className={inputClass}
                 />
               </label>
+              <label>
+                <span className="mb-1 block text-[11.5px] uppercase tracking-[0.1em] text-zinc-500">
+                  Provedores STT (ordem)
+                </span>
+                <input
+                  value={settings.stt_provider ?? "auto"}
+                  onChange={(event) =>
+                    setSettings({ ...settings, stt_provider: event.target.value })
+                  }
+                  placeholder="auto, whisper, openai"
+                  className={inputClass}
+                />
+              </label>
+              <label>
+                <span className="mb-1 block text-[11.5px] uppercase tracking-[0.1em] text-zinc-500">
+                  Endpoint STT (opcional)
+                </span>
+                <input
+                  value={settings.stt_endpoint ?? ""}
+                  onChange={(event) =>
+                    setSettings({ ...settings, stt_endpoint: event.target.value })
+                  }
+                  placeholder="https://api.openai.com"
+                  className={inputClass}
+                />
+              </label>
+              <label>
+                <span className="mb-1 block text-[11.5px] uppercase tracking-[0.1em] text-zinc-500">
+                  secret_ref STT
+                </span>
+                <input
+                  value={settings.stt_secret_ref ?? ""}
+                  onChange={(event) =>
+                    setSettings({ ...settings, stt_secret_ref: event.target.value })
+                  }
+                  placeholder="openai"
+                  className={inputClass}
+                />
+              </label>
+              <label>
+                <span className="mb-1 block text-[11.5px] uppercase tracking-[0.1em] text-zinc-500">
+                  Provedores TTS (ordem)
+                </span>
+                <input
+                  value={settings.tts_provider ?? "auto"}
+                  onChange={(event) =>
+                    setSettings({ ...settings, tts_provider: event.target.value })
+                  }
+                  placeholder="piper, espeak, openai"
+                  className={inputClass}
+                />
+              </label>
+              <label>
+                <span className="mb-1 block text-[11.5px] uppercase tracking-[0.1em] text-zinc-500">
+                  Endpoint TTS (opcional)
+                </span>
+                <input
+                  value={settings.tts_endpoint ?? ""}
+                  onChange={(event) =>
+                    setSettings({ ...settings, tts_endpoint: event.target.value })
+                  }
+                  placeholder="https://api.openai.com"
+                  className={inputClass}
+                />
+              </label>
+              <label>
+                <span className="mb-1 block text-[11.5px] uppercase tracking-[0.1em] text-zinc-500">
+                  secret_ref TTS
+                </span>
+                <input
+                  value={settings.tts_secret_ref ?? ""}
+                  onChange={(event) =>
+                    setSettings({ ...settings, tts_secret_ref: event.target.value })
+                  }
+                  placeholder="openai"
+                  className={inputClass}
+                />
+              </label>
             </div>
             <div className="flex justify-end">
               <Button
@@ -276,7 +312,7 @@ export function VoiceCard() {
                 ) : (
                   <Play size={12} />
                 )}
-                Falar
+                Testar fala (TTS)
               </Button>
               {audio ? (
                 <audio controls src={audio} className="sm:col-span-2 w-full" />
@@ -289,14 +325,20 @@ export function VoiceCard() {
                   Transcrever do microfone
                 </span>
                 <Button
-                  variant={recording ? "outline" : "default"}
+                  variant={voice.recording ? "outline" : "default"}
                   size="sm"
                   className="h-7"
-                  disabled={busy === "transcribe"}
-                  onClick={() => (recording ? stopRecording() : void startRecording())}
+                  disabled={voice.transcribing}
+                  onClick={() =>
+                    voice.recording ? voice.stop() : voice.start()
+                  }
                 >
-                  {recording ? <MicOff size={11} /> : <Mic size={11} />}
-                  {recording ? "Parar" : "Gravar"}
+                  {voice.recording ? <MicOff size={11} /> : <Mic size={11} />}
+                  {voice.recording
+                    ? `Parar (${voice.seconds}s)`
+                    : voice.transcribing
+                      ? "Transcrevendo…"
+                      : "Testar transcrição (STT)"}
                 </Button>
               </div>
               <p className="text-[11.5px] text-zinc-500">

@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Send,
   ShieldCheck,
+  Terminal,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import { OutboundSinksCard } from "@/components/integrations/OutboundSinksCard";
 import { BrowserCard } from "@/components/integrations/BrowserCard";
 import { ChannelsCard } from "@/components/integrations/ChannelsCard";
 import { McpHubCard } from "@/components/integrations/McpHubCard";
+import { ScriptToolsCard } from "@/components/integrations/ScriptToolsCard";
 import { TicketInboxCard } from "@/components/integrations/TicketInboxCard";
 import { VaultCard } from "@/components/integrations/VaultCard";
 import { TeamChannelsCard } from "@/components/integrations/channels/TeamChannelsCard";
@@ -82,6 +84,7 @@ export function IntegrationsPage() {
     { id: "deliveries", label: "Histórico", icon: Send, group: "Sistema" },
     { id: "hub", label: "MCP Hub", icon: Boxes, group: "Sistema" },
     { id: "mcp", label: "MCP e segurança", icon: ShieldCheck, group: "Sistema" },
+    { id: "scripts", label: "Ferramentas (Scripts MCP)", icon: Terminal, group: "Sistema" },
   ] as const;
   const activeTab = tabs.some((tab) => tab.id === section) ? section : "smtp";
   function selectTab(id: string) {
@@ -391,6 +394,9 @@ export function IntegrationsPage() {
       ) : null}
       {activeTab === "mcp" ? (
         <McpServicesSection />
+      ) : null}
+      {activeTab === "scripts" && activeWorkspaceId ? (
+        <ScriptToolsCard workspaceId={activeWorkspaceId} />
       ) : null}
         </div>
       </div>

@@ -266,9 +266,15 @@ pub(crate) async fn enqueue_decision_with_session(
     )
     .await
     .unwrap_or_default();
-    let session_packet = crate::session_context::render_and_persist(&state.db, &task.id)
+    let mut session_packet = crate::session_context::render_and_persist(&state.db, &task.id)
         .await
         .unwrap_or_default();
+    if let Ok(summary) = crate::script_tools::prompt_summary(&state.db, &task.workspace_id).await
+        && !summary.is_empty()
+    {
+        session_packet.push_str("\n\n");
+        session_packet.push_str(&summary);
+    }
     let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
         &state.db,
         Some(&task.workspace_id),

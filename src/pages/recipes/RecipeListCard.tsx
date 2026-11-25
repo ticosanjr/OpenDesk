@@ -4,6 +4,7 @@ import { CountPill } from "@/components/ui/count-pill";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { Switch } from "@/components/ui/switch";
+import { IconTag, triggerTag } from "@/components/ui/icon-tag";
 import { cn } from "@/lib/utils";
 import type { RecipeIndex } from "./recipe-shared";
 
@@ -63,8 +64,9 @@ export function RecipeListCard({
                 )}
               >
                 <p className="truncate text-[13.5px] font-medium">{item.name}</p>
-                <p className="truncate font-mono text-[13px] text-zinc-400">
-                  {item.trigger_type} · {item.total_runs} execuções
+                <p className="flex items-center gap-1.5 font-mono text-[13px] text-zinc-400">
+                  <IconTag {...triggerTag(item.trigger_type)} />
+                  <span>{item.total_runs} execuções</span>
                 </p>
                 {item.last_error ? (
                   <p className="truncate text-[13px] text-red-300">{item.last_error}</p>

@@ -37,6 +37,14 @@ pub async fn sync_workspace(
 ) -> AppResult<usize> {
     let lock = sync_lock(workspace_id);
     let _guard = lock.lock().await;
+    sync_workspace_locked(pool, workspace_id, root).await
+}
+
+async fn sync_workspace_locked(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    root: &Path,
+) -> AppResult<usize> {
     let dir = root.join(".opencode").join("recipes");
     std::fs::create_dir_all(&dir)?;
     let mut seen = Vec::new();
@@ -210,9 +218,13 @@ pub async fn save_yaml(
     } else {
         set_yaml_enabled(yaml, false)
     };
-    std::fs::write(&path, &content)?;
+    let lock = sync_lock(workspace_id);
+    let _guard = lock.lock().await;
+    let temp = path.with_extension(format!("yaml.{}.tmp", uuid::Uuid::now_v7()));
+    std::fs::write(&temp, &content)?;
+    std::fs::rename(&temp, &path)?;
     opendesk_engine::config_sync::watcher::expect_write(&path, Some(sha256(&content)));
-    sync_workspace(pool, workspace_id, Path::new(&root)).await?;
+    sync_workspace_locked(pool, workspace_id, Path::new(&root)).await?;
     record_version(pool, workspace_id, id, &content).await?;
     get(pool, workspace_id, id).await
 }

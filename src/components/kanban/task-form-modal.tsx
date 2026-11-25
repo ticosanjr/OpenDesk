@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { PromptAttachments } from "@/components/ui/prompt-attachments";
 import { SlashTextarea } from "@/components/ui/slash-textarea";
+import { VoiceDictationButton } from "@/components/ui/voice-dictation-button";
+import { appendTranscript } from "@/lib/use-voice-input";
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
 import { links } from "@/lib/links";
 import { isTaskRunning } from "@/lib/task-state";
@@ -355,9 +357,20 @@ export function TaskFormModal({
     >
       <div className="space-y-3">
       <div className="grid gap-3 md:grid-cols-2">
-        <label className="md:col-span-2">
-          <span className={labelClass}>Título (opcional)</span>
+        <div className="md:col-span-2">
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="task-title" className={labelClass}>
+              Título (opcional)
+            </label>
+            <VoiceDictationButton
+              label="Ditar campo principal"
+              onTranscript={(transcript) =>
+                setTitle((current) => appendTranscript(current, transcript.text))
+              }
+            />
+          </div>
           <input
+            id="task-title"
             autoFocus
             value={title}
             onChange={(event) => setTitle(event.target.value)}
@@ -368,9 +381,19 @@ export function TaskFormModal({
             Sem título, o OpenDesk usa a primeira linha da descrição, limitada a
             80 caracteres.
           </span>
-        </label>
+        </div>
         <div className="md:col-span-2">
-          <span className={labelClass}>Descrição / prompt</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className={labelClass}>Descrição / prompt</span>
+            <VoiceDictationButton
+              label="Ditar prompt"
+              onTranscript={(transcript) =>
+                setDescription((current) =>
+                  appendTranscript(current, transcript.text),
+                )
+              }
+            />
+          </div>
           <SlashTextarea
             value={description}
             onChange={setDescription}

@@ -12,6 +12,15 @@ export interface ChatThread {
   last_message_at?: string | null;
 }
 
+export interface ChatAttachmentMeta {
+  name: string;
+  path: string;
+  mime?: string | null;
+  size?: number | null;
+  direction: "sent" | "received";
+  source?: "ui" | "agent" | "telegram" | "signal" | "email";
+}
+
 export interface ChatMessage {
   id: string;
   thread_id: string;

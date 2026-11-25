@@ -13,6 +13,7 @@ import { ExternalResources } from "@/components/packs/ExternalResources";
 import { RecommendedSkills } from "@/components/packs/RecommendedSkills";
 import { PackInstallModal } from "@/components/packs/PackInstallModal";
 import { PackCatalog } from "@/components/packs/PackCatalog";
+import { PacksBundleActions } from "@/components/packs/PacksBundleActions";
 import { PacksToolbar } from "@/components/packs/PacksToolbar";
 import { WorkspaceTemplateCard } from "@/components/packs/WorkspaceTemplateCard";
 import { WorkspaceTemplateModal } from "@/components/packs/WorkspaceTemplateModal";
@@ -155,6 +156,7 @@ export function PacksPageContent({
         description="Comece com um pacote pronto ou adicione capacidades ao workspace atual. Tudo é opcional e removível."
         actions={
           <>
+            <PacksBundleActions onImported={onRefresh} />
             <Button variant="outline" size="sm" onClick={onRefresh} disabled={loading}>
               <IconLabel icon={<RefreshCw size={13} className={loading ? "animate-spin" : undefined} />}>
                 Atualizar

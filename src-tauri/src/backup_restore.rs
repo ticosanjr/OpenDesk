@@ -16,13 +16,14 @@ use zip::ZipArchive;
 use super::extract::{extract_files, extract_run_logs, read_bounded, read_manifest};
 use super::manifest::{BACKUP_VERSION, MAX_EXTRACT_BYTES, backup_path, sha256_file};
 use super::portable as secrets;
-use super::state::{self, SECRETS_ENTRY, STATE_ENTRY, WorkspaceState};
+use super::state::{self, LEGACY_STATE_ENTRY, SECRETS_ENTRY, STATE_ENTRY, WorkspaceState};
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum RestoreMode {
     #[default]
     NewWorkspace,
+    #[serde(alias = "replace_in_place")]
     InPlace,
 }
 
@@ -61,7 +62,7 @@ async fn install_state(
         .await?;
     let result = async {
         if replace {
-            clear_workspace(connection, state, workspace_id).await?;
+            clear_workspace(connection, workspace_id).await?;
         }
         state::restore(connection, state, workspace_id).await?;
         let violations = sqlx::query("PRAGMA foreign_key_check")
@@ -87,16 +88,31 @@ async fn install_state(
 
 async fn clear_workspace(
     connection: &mut sqlx::SqliteConnection,
-    state: &WorkspaceState,
     workspace_id: &str,
 ) -> AppResult<()> {
-    for table in state.tables.iter().rev() {
-        if table.name == "workspaces" {
+    let names = sqlx::query_scalar::<_, String>(
+        "SELECT name FROM sqlite_master
+         WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> '_sqlx_migrations'
+         ORDER BY name DESC",
+    )
+    .fetch_all(&mut *connection)
+    .await?;
+    for name in names {
+        if name == "workspaces" {
+            continue;
+        }
+        let has_workspace: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = 'workspace_id'",
+        )
+        .bind(&name)
+        .fetch_one(&mut *connection)
+        .await?;
+        if has_workspace == 0 {
             continue;
         }
         let sql = format!(
             "DELETE FROM \"{}\" WHERE workspace_id = ?",
-            table.name.replace('"', "\"\"")
+            name.replace('"', "\"\"")
         );
         sqlx::query(&sql)
             .bind(workspace_id)
@@ -201,9 +217,17 @@ pub async fn restore(
 
     let prepared = (|| -> AppResult<(Option<WorkspaceState>, Option<secrets::PortableSecrets>)> {
         extract_files(&mut archive, &staging, &manifest)?;
-        let state = match read_bounded(&mut archive, STATE_ENTRY, MAX_EXTRACT_BYTES)? {
+        let state_bytes = match read_bounded(&mut archive, STATE_ENTRY, MAX_EXTRACT_BYTES)? {
+            Some(bytes) => Some(bytes),
+            None => read_bounded(&mut archive, LEGACY_STATE_ENTRY, MAX_EXTRACT_BYTES)?,
+        };
+        let state = match state_bytes {
             Some(bytes) => {
-                if let Some(expected) = manifest.db_sha256.as_deref() {
+                let expected = manifest
+                    .state_sha256
+                    .as_deref()
+                    .or(manifest.db_sha256.as_deref());
+                if let Some(expected) = expected {
                     let actual = state::sha256_bytes(&bytes);
                     if actual != expected {
                         return Err(AppError::Conflict(

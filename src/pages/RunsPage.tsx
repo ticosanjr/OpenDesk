@@ -8,7 +8,7 @@ import {
   RefreshCw,
   Rows3,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterBar, FilterSearch, FilterSelect } from "@/components/ui/filter-bar";
 import { LoadingState } from "@/components/ui/loading-state";
+import { WorktreesTabContent } from "@/pages/WorktreesPage";
+import { RunsPageTabs } from "./runs/RunsPageTabs";
 import { useAppStore } from "@/store/app-store";
 import { useUiStore } from "@/store/ui-store";
 import { apiGet } from "@/lib/api";
@@ -36,24 +38,7 @@ import {
   matchesRunScope,
   runScope,
 } from "@/lib/run-scope";
-
-const STATUSES: Array<[string, string]> = [
-  ["", "todos os status"],
-  ["SUCCESS", "sucesso"],
-  ["FAILED", "falhou"],
-  ["RUNNING", "executando"],
-  ["CANCELLED", "cancelada"],
-];
-
-type SortKey = "recent" | "duration" | "cost" | "tokens";
-type RunsView = "cards" | "table";
-
-const SORTS: Array<[SortKey, string]> = [
-  ["recent", "mais recentes"],
-  ["duration", "maior duração"],
-  ["cost", "maior custo"],
-  ["tokens", "mais tokens"],
-];
+import { SORTS, STATUSES, type RunsView, type SortKey } from "./runs/options";
 
 export function RunsPage() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -74,6 +59,14 @@ export function RunsPage() {
   const [sort, setSort] = useState<SortKey>("recent");
   const [view, setView] = useState<RunsView>("cards");
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") === "worktrees" ? "worktrees" : "runs";
+  function switchTab(next: string) {
+    const search = new URLSearchParams(params);
+    if (next === "worktrees") search.set("tab", "worktrees");
+    else search.delete("tab");
+    setParams(search, { replace: true });
+  }
 
   const load = useCallback(async () => {
     if (!activeWorkspaceId) {
@@ -197,6 +190,19 @@ export function RunsPage() {
     );
   }
 
+  if (tab === "worktrees") {
+    return (
+      <PageBody>
+        <PageHeader
+          title="Execuções"
+          description={`${workspace?.name ?? "Workspace"} · worktrees isoladas e comparações A/B.`}
+        />
+        <RunsPageTabs value="worktrees" onChange={switchTab} />
+        <WorktreesTabContent />
+      </PageBody>
+    );
+  }
+
   return (
     <PageBody>
       <PageHeader
@@ -209,6 +215,8 @@ export function RunsPage() {
           </Button>
         }
       />
+
+      <RunsPageTabs value="runs" onChange={switchTab} />
 
       {error ? (
         <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">

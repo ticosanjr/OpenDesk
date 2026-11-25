@@ -27,6 +27,7 @@ pub mod recipe_files;
 pub mod router;
 pub mod runs;
 pub mod schedules;
+pub mod script_tools;
 pub mod settings;
 pub mod task_dedupe;
 pub mod task_messages;

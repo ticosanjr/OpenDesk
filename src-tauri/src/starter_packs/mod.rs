@@ -4,6 +4,7 @@ mod bundle;
 mod install;
 mod plan;
 mod registry;
+mod transfer;
 mod types;
 mod workspace;
 
@@ -33,6 +34,9 @@ use plan::planned_for;
 pub use bundle::{studio_paths, validate_bundle};
 pub use install::{install, install_item, preview};
 pub use registry::{detail, items, list};
+pub use transfer::{
+    PackTransfer, export as export_pack, import as import_pack, validate as validate_pack,
+};
 #[allow(unused_imports)]
 pub use types::{
     CatalogFile, Category, InstallPlan, InstallResult, ItemInstallResult, PackContents, PackCounts,

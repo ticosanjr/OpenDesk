@@ -1,10 +1,15 @@
-use crate::{app_state::AppState, backup, error::AppResult};
+use crate::{
+    app_state::AppState,
+    backup,
+    error::{AppError, AppResult},
+};
 use axum::{
     Json,
     extract::{Path, Query, State},
     http::header,
     response::IntoResponse,
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -87,4 +92,25 @@ pub async fn delete(
     let workspace_id = workspace_id(&state, &query).await?;
     backup::delete(&state.paths, &workspace_id, &id)?;
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ImportBackupBody {
+    #[serde(default)]
+    pub file_name: String,
+    pub content_base64: String,
+}
+
+pub async fn import(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<BackupQuery>,
+    Json(body): Json<ImportBackupBody>,
+) -> AppResult<Json<backup::WorkspaceBackup>> {
+    let workspace_id = workspace_id(&state, &query).await?;
+    let bytes = STANDARD
+        .decode(body.content_base64.trim())
+        .map_err(|_| AppError::BadRequest("conteúdo base64 inválido".into()))?;
+    Ok(Json(
+        backup::import_archive(&state.paths, &workspace_id, &body.file_name, &bytes).await?,
+    ))
 }

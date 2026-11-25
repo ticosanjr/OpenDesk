@@ -1,9 +1,12 @@
-import { ExternalLink, FolderPlus, Info } from "lucide-react";
+import { useState } from "react";
+import { Download, ExternalLink, FolderPlus, Info, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { apiDelete } from "@/lib/api";
+import { JsonImportButton } from "@/components/ui/json-import-button";
+import { exportJsonBundle, type BundleEnvelope } from "@/lib/import-export";
+import { apiDelete, apiGet } from "@/lib/api";
 import { shortPath } from "@/lib/format";
 import { ROUTER_POLICY_LABELS } from "@/lib/types";
 import type { Workspace } from "@/lib/types";
@@ -29,6 +32,31 @@ export function WorkspacesCard({
   onRefresh: () => Promise<void>;
   onOpenDialog: () => void;
 }) {
+  const [busy, setBusy] = useState(false);
+
+  async function exportWorkspaces() {
+    setBusy(true);
+    try {
+      const bundle = await apiGet<BundleEnvelope>(
+        "/api/bundles/workspaces/export",
+      );
+      exportJsonBundle(
+        "workspaces_bundle",
+        bundle.items,
+        `opendesk-workspaces-${new Date().toISOString().slice(0, 10)}.json`,
+      );
+      toast({ tone: "success", title: "Workspaces exportados" });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível exportar",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Card id="settings-workspaces" className="scroll-mt-14">
       <CardHeader>
@@ -41,7 +69,29 @@ export function WorkspacesCard({
             Você pode registrar pastas de qualquer local do disco.
           </p>
         </div>
-        <Badge variant="default">{workspaces.length}</Badge>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void exportWorkspaces()}
+            disabled={busy}
+          >
+            {busy ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Download size={13} />
+            )}
+            Exportar JSON
+          </Button>
+          <JsonImportButton
+            kind="workspaces_bundle"
+            endpoint="/api/bundles/workspaces/import"
+            workspaceId={null}
+            label="Importar JSON"
+            onImported={onRefresh}
+          />
+          <Badge variant="default">{workspaces.length}</Badge>
+        </div>
       </CardHeader>
       <CardContent>
         {workspaces.length === 0 ? (

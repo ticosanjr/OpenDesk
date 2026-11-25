@@ -9,9 +9,12 @@ import {
   Pencil,
   Play,
   Send,
+  Terminal,
   Trash2,
+  Workflow,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { IconTag, routerPolicyTag, triggerTag } from "@/components/ui/icon-tag";
 import { Button } from "@/components/ui/button";
 import { EntityLink } from "@/components/ui/entity-link";
 import { Switch } from "@/components/ui/switch";
@@ -20,8 +23,7 @@ import { IconLabel } from "@/components/ui/icon-label";
 import { links } from "@/lib/links";
 import { relativeTime } from "@/lib/format";
 import { describeRecurrence, parseRecurrence } from "@/lib/recurrence";
-import { ROUTER_POLICY_LABELS, type Schedule } from "@/lib/types";
-import { triggerLabel } from "@/lib/trigger-types";
+import type { Schedule } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export function RoutineCard({
@@ -55,13 +57,7 @@ export function RoutineCard({
         )
       : null;
   const meta = [
-    <Badge
-      key="trigger"
-      variant="blue"
-      title={`Gatilho: ${triggerLabel(schedule.trigger_type ?? "CRON")}`}
-    >
-      {triggerLabel(schedule.trigger_type ?? "CRON")}
-    </Badge>,
+    <IconTag key="trigger" {...triggerTag(schedule.trigger_type ?? "CRON")} />,
     schedule.trigger_type === "CRON" ? (
       <Badge
         key="recurrence"
@@ -71,19 +67,15 @@ export function RoutineCard({
         {recurrences}
       </Badge>
     ) : null,
-    <Badge
+    <IconTag
       key="target"
-      variant={schedule.target_kind === "RECIPE" ? "purple" : "default"}
-      title={
+      icon={schedule.target_kind === "RECIPE" ? Workflow : Terminal}
+      label={
         schedule.target_kind === "RECIPE"
-          ? `Executa a receita ${schedule.recipe_id ?? "não definida"}`
-          : "Executa um prompt livre"
+          ? `receita: ${schedule.recipe_id ?? "não definida"}`
+          : "prompt livre"
       }
-    >
-      {schedule.target_kind === "RECIPE"
-        ? `receita: ${schedule.recipe_id ?? "—"}`
-        : "prompt"}
-    </Badge>,
+    />,
     schedule.notify_only_on_change ? (
       <Badge key="novelty" variant="green">
         só novidades
@@ -114,13 +106,10 @@ export function RoutineCard({
         @{schedule.agent_name}
       </EntityLink>
     ) : null,
-    <Badge
+    <IconTag
       key="policy"
-      variant="default"
-      title="Política do roteador aplicada a esta rotina"
-    >
-      {ROUTER_POLICY_LABELS[schedule.router_policy] ?? schedule.router_policy}
-    </Badge>,
+      {...routerPolicyTag(schedule.router_policy)}
+    />,
     schedule.trigger_type === "CRON" ? (
       <Badge
         key="timezone"

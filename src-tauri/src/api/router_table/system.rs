@@ -66,6 +66,10 @@ pub(super) fn routes() -> Router<Arc<AppState>> {
                 crate::config_bundle::MAX_BUNDLE_BYTES,
             )),
         )
+        .route(
+            "/api/diagnostics/self-test",
+            post(self_test::run).layer(DefaultBodyLimit::max(1024 * 1024)),
+        )
         .route("/api/test/seed", post(seed::seed))
         .route(
             "/api/budget",

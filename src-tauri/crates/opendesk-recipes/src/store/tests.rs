@@ -393,3 +393,31 @@ flow:
     assert_eq!(node.item_key.as_deref(), Some("0000"));
     assert_eq!(node.parent_path.as_deref(), Some("arquivos/0000"));
 }
+
+#[tokio::test]
+async fn concurrent_saves_keep_one_valid_recipe_file() {
+    let temp = TempDir::new().expect("temp");
+    let pool = opendesk_storage::init(&temp.path().join("r.db"))
+        .await
+        .expect("db");
+    sqlx::query("INSERT INTO workspaces (id, name, root_path) VALUES ('ws-1', 'WS', ?)")
+        .bind(temp.path().to_string_lossy().to_string())
+        .execute(&pool)
+        .await
+        .expect("ws");
+    let yaml = "id: corrida\nname: Corrida\ntrigger:\n  type: MANUAL\n  config: {}\nsteps:\n  - id: s1\n    name: Um\n    prompt: oi\n";
+    let (first, second) = tokio::join!(
+        save_yaml(&pool, "ws-1", "corrida", yaml),
+        save_yaml(&pool, "ws-1", "corrida", yaml),
+    );
+    first.expect("first");
+    second.expect("second");
+    let path = temp.path().join(".opencode/recipes/corrida.yaml");
+    let content = std::fs::read_to_string(&path).expect("file");
+    crate::parser::parse(&content).expect("parse");
+    assert_eq!(list(&pool, "ws-1").await.expect("list").len(), 1);
+    let versions = super::versions::list_versions(&pool, "ws-1", "corrida")
+        .await
+        .expect("versions");
+    assert!(!versions.is_empty());
+}

@@ -12,6 +12,7 @@ export type Kind =
   | "markdown"
   | "html"
   | "json"
+  | "csv"
   | "image"
   | "pdf"
   | "video"
@@ -35,13 +36,12 @@ export function kindFor(name: string, mime?: string): Kind {
   if (ext === "html" || ext === "htm") return "html";
   if (mime === "application/json" || ["json", "jsonc", "jsonl"].includes(ext))
     return "json";
+  if (ext === "csv" || ext === "tsv") return "csv";
   if (
     [
       "yaml",
       "yml",
       "toml",
-      "csv",
-      "tsv",
       "js",
       "ts",
       "tsx",
@@ -57,6 +57,28 @@ export function kindFor(name: string, mime?: string): Kind {
   )
     return "text";
   return "binary";
+}
+
+/** Best-effort language label for the code viewer header. */
+export function languageFor(name: string): string {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  const languages: Record<string, string> = {
+    ts: "TypeScript",
+    tsx: "TSX",
+    js: "JavaScript",
+    jsx: "JSX",
+    rs: "Rust",
+    py: "Python",
+    sh: "Shell",
+    css: "CSS",
+    sql: "SQL",
+    yaml: "YAML",
+    yml: "YAML",
+    toml: "TOML",
+    log: "Log",
+    txt: "Texto",
+  };
+  return languages[ext] ?? (ext ? ext.toUpperCase() : "Texto");
 }
 
 export function useAuthBlob(url?: string | null) {

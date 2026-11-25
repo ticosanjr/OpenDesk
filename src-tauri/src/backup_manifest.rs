@@ -15,6 +15,8 @@ pub(super) const MANIFEST: &str = "opendesk-backup.json";
 pub(super) const BACKUP_VERSION: u32 = 2;
 pub(super) const MAX_EXTRACT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 pub(super) const MAX_FILES: usize = 100_000;
+pub(super) const MAX_MANIFEST_BYTES: u64 = 64 * 1024 * 1024;
+pub const MAX_IMPORT_BYTES: u64 = 256 * 1024 * 1024;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BackupIncludes {
@@ -59,6 +61,8 @@ pub(super) struct Manifest {
     pub includes: BackupIncludes,
     #[serde(default)]
     pub counts: std::collections::BTreeMap<String, u64>,
+    #[serde(default)]
+    pub state_sha256: Option<String>,
     #[serde(default)]
     pub db_sha256: Option<String>,
     #[serde(default)]

@@ -24,7 +24,7 @@ import { AbGroupsCard } from "./worktrees/AbGroupsCard";
 import { AbDetailCard } from "./worktrees/AbDetailCard";
 import type { AbForm } from "./worktrees/worktrees-shared";
 
-export function WorktreesPage() {
+function WorktreesContent({ embedded = false }: { embedded?: boolean }) {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const setWorkspaceDialogOpen = useUiStore((state) => state.setWorkspaceDialogOpen);
   const [tab, setTab] = useState("isolated");
@@ -238,25 +238,31 @@ export function WorktreesPage() {
   );
 
   if (!activeWorkspaceId) {
-    return (
+    const empty = (
+      <EmptyState
+        icon={GitBranch}
+        title="Nenhum workspace ativo"
+        description="Selecione um workspace para ver execuções isoladas e experimentos A/B."
+        action={
+          <Button size="sm" onClick={() => setWorkspaceDialogOpen(true)}>
+            Criar workspace
+          </Button>
+        }
+      />
+    );
+    return embedded ? (
+      empty
+    ) : (
       <PageBody>
         <PageHeader title="Worktrees" />
-        <EmptyState
-          icon={GitBranch}
-          title="Nenhum workspace ativo"
-          description="Selecione um workspace para ver execuções isoladas e experimentos A/B."
-          action={
-            <Button size="sm" onClick={() => setWorkspaceDialogOpen(true)}>
-              Criar workspace
-            </Button>
-          }
-        />
+        {empty}
       </PageBody>
     );
   }
 
-  return (
-    <PageBody>
+  const body = (
+    <>
+      <div className={embedded ? "hidden" : undefined}>
       <PageHeader
         title="Worktrees"
         description="Execuções isoladas, diffs e comparações A/B antes de tocar no workspace principal."
@@ -272,6 +278,7 @@ export function WorktreesPage() {
           </Button>
         }
       />
+      </div>
 
       <SectionTabs
         value={tab}
@@ -337,6 +344,19 @@ export function WorktreesPage() {
           <DiffView patch={diff?.patch ?? ""} />
         </div>
       </Modal>
-    </PageBody>
+    </>
   );
+  return embedded ? (
+    <div className="space-y-4">{body}</div>
+  ) : (
+    <PageBody>{body}</PageBody>
+  );
+}
+
+export function WorktreesPage() {
+  return <WorktreesContent />;
+}
+
+export function WorktreesTabContent() {
+  return <WorktreesContent embedded />;
 }

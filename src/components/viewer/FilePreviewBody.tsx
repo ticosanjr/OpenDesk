@@ -1,9 +1,12 @@
 import { Download, FileArchive, Loader2 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/format";
+import { CodeTextView } from "@/components/viewer/CodeTextView";
+import { CsvTableView } from "@/components/viewer/CsvTableView";
+import { ImageZoomPane } from "@/components/viewer/ImageZoomPane";
+import { JsonTreeView } from "@/components/viewer/JsonTreeView";
+import { MarkdownPreview } from "@/components/viewer/MarkdownPreview";
 import type { ArchiveEntry, Kind } from "@/components/viewer/preview-helpers";
 
 export function FilePreviewBody({
@@ -15,7 +18,6 @@ export function FilePreviewBody({
   name,
   jsonPreview,
   blobUrl,
-  zoom,
   binary,
   isArchive,
   archive,
@@ -33,7 +35,6 @@ export function FilePreviewBody({
   name: string;
   jsonPreview: { formatted: boolean; text: string } | null;
   blobUrl: string | null;
-  zoom: number;
   binary?: boolean;
   isArchive: boolean;
   archive: ArchiveEntry[] | null;
@@ -50,9 +51,7 @@ export function FilePreviewBody({
           {content || "Conteúdo não disponível."}
         </pre>
       ) : kind === "markdown" ? (
-        <div className="markdown-body max-w-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-        </div>
+        <MarkdownPreview content={content} />
       ) : kind === "html" ? (
         <iframe
           key={`${allowScripts ? "scripts" : "blocked"}-${reloadKey}`}
@@ -62,29 +61,24 @@ export function FilePreviewBody({
           className="h-full min-h-[420px] w-full rounded-lg border border-zinc-800 bg-white"
         />
       ) : kind === "json" ? (
-        <div className="space-y-2">
-          {jsonPreview && !jsonPreview.formatted ? (
+        jsonPreview?.formatted ? (
+          <JsonTreeView name={name} content={content} />
+        ) : (
+          <div className="space-y-2">
             <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
               JSON inválido ou com comentários; exibindo o texto original.
             </p>
-          ) : null}
-          <pre className="whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-zinc-300">
-            {jsonPreview?.text ?? content}
-          </pre>
-        </div>
+            <CodeTextView content={content} name={name} />
+          </div>
+        )
+      ) : kind === "csv" ? (
+        <CsvTableView name={name} content={content} />
       ) : kind === "image" ? (
-        <div className="flex min-h-[320px] items-center justify-center">
-          {blobUrl ? (
-            <img
-              src={blobUrl}
-              alt={name}
-              style={{ maxWidth: `${zoom}%` }}
-              className="max-h-[70vh] rounded-lg object-contain"
-            />
-          ) : (
-            <p className="text-[13px] text-zinc-500">Carregando imagem…</p>
-          )}
-        </div>
+        blobUrl ? (
+          <ImageZoomPane src={blobUrl} alt={name} />
+        ) : (
+          <p className="text-[13px] text-zinc-500">Carregando imagem…</p>
+        )
       ) : kind === "pdf" ? (
         blobUrl ? (
           <iframe
@@ -196,9 +190,7 @@ export function FilePreviewBody({
           </div>
         )
       ) : (
-        <pre className="whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-zinc-300">
-          {content || "Sem conteúdo textual."}
-        </pre>
+        <CodeTextView content={content} name={name} />
       )}
     </div>
   );

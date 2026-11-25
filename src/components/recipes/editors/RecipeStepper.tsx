@@ -1,4 +1,13 @@
-import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import {
+  ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  ChevronUp,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CountPill } from "@/components/ui/count-pill";
@@ -25,6 +34,28 @@ export function RecipeStepper({
 }) {
   const flow = normalizeFlow(recipe);
   const triggers = normalizeTriggers(recipe);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  function nodeKey(item: FlowEntry, index: number): string {
+    return String(item.id ?? `${item.type}-${index}`);
+  }
+
+  function expand(key: string) {
+    setCollapsed((current) => {
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
+  }
+
+  function toggle(key: string) {
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   function setFlow(next: FlowEntry[]) {
     commit(recipe, next, triggers, onChange);
@@ -62,6 +93,7 @@ export function RecipeStepper({
         prompt: "Descreva o que esta etapa deve fazer.",
       },
     ]);
+    expand(`passo-${count}`);
   }
 
   function addCheckpoint() {
@@ -79,6 +111,7 @@ export function RecipeStepper({
         prompt_template: "Aprovar a execução?",
       },
     ]);
+    expand(`checkpoint-${count}`);
   }
 
   function addSink() {
@@ -92,6 +125,7 @@ export function RecipeStepper({
         config: { format: "pdf" },
       },
     ]);
+    expand(`sink-${count}`);
   }
 
   function addComplex(type: FlowNodeType) {
@@ -125,6 +159,8 @@ export function RecipeStepper({
       switch: "Switch",
     };
     setFlow([...flow, { ...base[type], type, name: labels[type] }]);
+    const id = (base[type] as Dictionary).id;
+    if (typeof id === "string") expand(id);
   }
 
   return (
@@ -190,19 +226,53 @@ export function RecipeStepper({
             Ordem de execução
           </p>
           <CountPill value={flow.length} />
+          <div className="ml-auto flex gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[12px]"
+              onClick={() => setCollapsed(new Set(flow.map(nodeKey)))}
+            >
+              <ChevronsDownUp size={12} />
+              Recolher todos
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[12px]"
+              onClick={() => setCollapsed(new Set())}
+            >
+              <ChevronsUpDown size={12} />
+              Expandir todos
+            </Button>
+          </div>
         </div>
 
-        {flow.map((item, index) => (
+        {flow.map((item, index) => {
+          const key = nodeKey(item, index);
+          const isCollapsed = collapsed.has(key);
+          return (
           <div
-            key={`${item.type}-${index}`}
+            key={key}
             className={cn(
-              "rounded-lg border p-2.5",
-              item.type === "step" && "border-zinc-800 bg-zinc-950/40",
-              item.type === "hitl" && "border-amber-500/30 bg-amber-500/[0.04]",
-              item.type === "sink" && "border-emerald-500/30 bg-emerald-500/[0.04]",
+              "rounded-lg border border-l-4 p-2.5",
+              item.type === "step" && "border-zinc-800 border-l-blue-500/70 bg-zinc-950/40",
+              item.type === "hitl" && "border-amber-500/30 border-l-amber-400 bg-amber-500/[0.04]",
+              item.type === "sink" && "border-emerald-500/30 border-l-emerald-400 bg-emerald-500/[0.04]",
+              item.type !== "step" && item.type !== "hitl" && item.type !== "sink" && "border-zinc-800 border-l-purple-500/70 bg-zinc-950/40",
             )}
           >
             <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                aria-label={isCollapsed ? "Expandir etapa" : "Recolher etapa"}
+                onClick={() => toggle(key)}
+                title={isCollapsed ? "Expandir" : "Recolher"}
+              >
+                {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+              </Button>
               <Badge
                 variant={
                   item.type === "step"
@@ -256,7 +326,12 @@ export function RecipeStepper({
               </Button>
             </div>
 
-            {item.type === "step" ? (
+            {isCollapsed ? (
+              <p className="mt-1.5 line-clamp-2 px-1 text-[12px] text-zinc-500">
+                {String(item.prompt ?? item.sink_type ?? item.when ?? item.name ?? "Sem resumo")}
+              </p>
+            ) : (
+              item.type === "step" ? (
               <StepEditor
                 step={item}
                 workspaceId={workspaceId}
@@ -277,9 +352,10 @@ export function RecipeStepper({
                 node={item}
                 onChange={(value) => patch(index, value)}
               />
-            )}
+            ))}
           </div>
-        ))}
+          );
+        })}
 
         {flow.length === 0 ? (
           <p className="rounded-lg border border-dashed border-zinc-700 px-3 py-6 text-center text-[12px] text-zinc-500">

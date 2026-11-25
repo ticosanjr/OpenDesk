@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { Brain, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { Brain, Download, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { JsonImportButton } from "@/components/ui/json-import-button";
+import { exportJsonBundle, type BundleEnvelope } from "@/lib/import-export";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import type { PersonalContextGroup } from "@/lib/types";
 import { confirmAction } from "@/store/confirm-store";
@@ -58,6 +60,27 @@ export function PersonalContextCard() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function exportContext() {
+    if (!workspaceId) return;
+    setBusy("export");
+    try {
+      const bundle = await apiGet<BundleEnvelope>(
+        `/api/personal-context/export${query}`,
+      );
+      exportJsonBundle(
+        "personal_context",
+        bundle.items,
+        `opendesk-personal-context-${new Date().toISOString().slice(0, 10)}.json`,
+        workspaceId,
+      );
+      toast({ tone: "success", title: "Contexto pessoal exportado" });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function create() {
     if (!draft.instructions.trim()) {
@@ -176,14 +199,36 @@ export function PersonalContextCard() {
             valem para todos os workspaces.
           </p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setCreating((value) => !value)}
-        >
-          <Plus size={12} />
-          Nova regra
-        </Button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void exportContext()}
+            disabled={!workspaceId || busy === "export"}
+          >
+            {busy === "export" ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <Download size={12} />
+            )}
+            Exportar JSON
+          </Button>
+          <JsonImportButton
+            kind="personal_context"
+            endpoint="/api/personal-context/import"
+            workspaceId={workspaceId}
+            disabled={!workspaceId}
+            onImported={load}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setCreating((value) => !value)}
+          >
+            <Plus size={12} />
+            Nova regra
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {error ? (

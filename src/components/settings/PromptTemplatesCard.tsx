@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
-import { downloadConfigBundle } from "@/lib/config-bundle";
+import { JsonImportButton } from "@/components/ui/json-import-button";
+import { exportJsonBundle, type BundleEnvelope } from "@/lib/import-export";
 import type {
   PromptTemplateField,
   PromptTemplates,
@@ -114,6 +115,27 @@ export function PromptTemplatesCard() {
     }
   }
 
+  async function exportTemplates() {
+    if (!workspaceId) return;
+    setSaving(true);
+    try {
+      const bundle = await apiGet<BundleEnvelope>(
+        `/api/prompt-templates/export${query}`,
+      );
+      exportJsonBundle(
+        "prompt_templates",
+        bundle.items,
+        `opendesk-prompts-${new Date().toISOString().slice(0, 10)}.json`,
+        workspaceId,
+      );
+      toast({ tone: "success", title: "Prompts exportados" });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -133,16 +155,19 @@ export function PromptTemplatesCard() {
           <Button
             variant="outline"
             size="sm"
-            disabled={!workspaceId}
-            onClick={() => {
-              if (workspaceId) {
-                void downloadConfigBundle(workspaceId, ["prompt_templates"]);
-              }
-            }}
+            disabled={!workspaceId || saving}
+            onClick={() => void exportTemplates()}
           >
             <Download size={13} />
             Exportar JSON
           </Button>
+          <JsonImportButton
+            kind="prompt_templates"
+            endpoint="/api/prompt-templates/import"
+            workspaceId={workspaceId}
+            disabled={!workspaceId || saving}
+            onImported={load}
+          />
           <Button variant="outline" size="sm" onClick={() => void reset()} disabled={saving}>
             <RotateCcw size={13} />
             Restaurar

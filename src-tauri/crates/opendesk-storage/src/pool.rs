@@ -37,6 +37,9 @@ impl Storage {
     }
 
     pub async fn open_with(path: &Path, options: StorageOptions) -> Result<Self> {
+        crate::integrity::ensure_database_integrity(path)
+            .await
+            .map_err(|error| anyhow::anyhow!(error))?;
         let existed = path.exists();
         let write = open_write_pool(path, options.busy_timeout).await?;
         prepare(&write, path, existed).await?;
@@ -52,6 +55,9 @@ impl Storage {
 
 /// Single-pool entry point kept for the V1 shell (`opendesk_core::db::init`).
 pub async fn init(db_path: &Path) -> Result<SqlitePool> {
+    crate::integrity::ensure_database_integrity(db_path)
+        .await
+        .map_err(|error| anyhow::anyhow!(error))?;
     let existed = db_path.exists();
     if let Some(parent) = db_path.parent() {
         std::fs::create_dir_all(parent)

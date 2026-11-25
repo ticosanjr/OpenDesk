@@ -1,20 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   Download,
-  FolderOpen,
   Loader2,
   Plus,
   RefreshCw,
   RotateCcw,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
-import { Modal } from "@/components/ui/modal";
 import { apiBlob, apiDelete, apiGet, apiPost } from "@/lib/api";
 import { pickFolder, slugifyWorkspace } from "@/lib/folder";
 import { downloadBlob } from "@/lib/download";
@@ -29,15 +28,18 @@ import type {
 import { useAppStore } from "@/store/app-store";
 import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
-import { cn } from "@/lib/utils";
 import {
   fieldInputClass as inputClass,
   fieldLabelClass as labelClass,
 } from "@/lib/ui-classes";
-
-function megabytes(bytes: number): string {
-  return `${(bytes / 1_048_576).toFixed(1)} MB`;
-}
+import { RestoreBackupModal } from "@/components/settings/backups/RestoreBackupModal";
+import {
+  countsTitle,
+  databaseRecords,
+  fileToBase64,
+  megabytes,
+} from "@/components/settings/backups/backup-format";
+import { cn } from "@/lib/utils";
 
 export function BackupsCard() {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -48,6 +50,7 @@ export function BackupsCard() {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const importRef = useRef<HTMLInputElement | null>(null);
   const [restoring, setRestoring] = useState<WorkspaceBackup | null>(null);
   const [restoreName, setRestoreName] = useState("");
   const [restorePath, setRestorePath] = useState("");
@@ -193,6 +196,33 @@ export function BackupsCard() {
     }
   }
 
+  async function importBackup(file: File) {
+    if (!activeWorkspaceId) return;
+    setBusy("import");
+    try {
+      const content = await fileToBase64(file);
+      await apiPost<WorkspaceBackup>(`/api/backups/import${query}`, {
+        file_name: file.name,
+        content_base64: content,
+      });
+      await load();
+      toast({
+        tone: "success",
+        title: "Backup importado",
+        description: file.name,
+      });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível importar o backup",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setBusy(null);
+      if (importRef.current) importRef.current.value = "";
+    }
+  }
+
   async function download(backup: WorkspaceBackup) {
     setBusy(`download-${backup.id}`);
     try {
@@ -260,7 +290,30 @@ export function BackupsCard() {
               e pode ser restaurado como um novo workspace.
             </p>
           </div>
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => importRef.current?.click()}
+              disabled={busy === "import"}
+            >
+              {busy === "import" ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Upload size={13} />
+              )}
+              Importar .zip
+            </Button>
+            <input
+              ref={importRef}
+              type="file"
+              accept="application/zip,.zip"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void importBackup(file);
+              }}
+            />
             <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
               <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
               Atualizar
@@ -326,6 +379,13 @@ export function BackupsCard() {
                       </p>
                       <Badge variant="blue">{megabytes(backup.size_bytes)}</Badge>
                       <Badge variant="default">{backup.files} arquivos</Badge>
+                      <Badge
+                        variant="purple"
+                        title={countsTitle(backup.counts)}
+                      >
+                        {databaseRecords(backup.counts)} registros
+                      </Badge>
+                      <Badge variant="default">v{backup.version}</Badge>
                     </div>
                     <p className="mt-0.5 text-[11.5px] text-zinc-500">
                       {relativeTime(backup.created_at)} · SHA-256{" "}
@@ -371,86 +431,22 @@ export function BackupsCard() {
         </CardContent>
       </Card>
 
-      <Modal
-        open={restoring !== null}
+      <RestoreBackupModal
+        backup={restoring}
+        mode={restoreMode}
+        name={restoreName}
+        path={restorePath}
+        passphrase={restorePassphrase}
+        error={restoreError}
+        restoring={busy?.startsWith("restore-") ?? false}
+        onMode={setRestoreMode}
+        onName={setRestoreName}
+        onPath={setRestorePath}
+        onPassphrase={setRestorePassphrase}
+        onChooseTarget={() => void chooseTarget()}
         onClose={() => setRestoring(null)}
-        title="Restaurar backup"
-        description="Novo workspace mantém os arquivos atuais intactos; restaurar no lugar cria um backup de segurança antes de substituir."
-        size="md"
-      >
-        <div className="space-y-3">
-          <label>
-            <span className={labelClass}>Modo</span>
-            <select
-              value={restoreMode}
-              onChange={(event) =>
-                setRestoreMode(event.target.value as RestoreMode)
-              }
-              className={inputClass}
-            >
-              <option value="new_workspace">Restaurar como novo workspace</option>
-              <option value="in_place">Substituir o workspace atual</option>
-            </select>
-          </label>
-          {restoreMode === "new_workspace" ? (
-            <>
-              <label>
-                <span className={labelClass}>Nome do novo workspace</span>
-                <input
-                  value={restoreName}
-                  onChange={(event) => setRestoreName(event.target.value)}
-                  className={inputClass}
-                />
-              </label>
-              <label>
-                <span className={labelClass}>Pasta de destino</span>
-                <div className="flex gap-1.5">
-                  <input
-                    value={restorePath}
-                    onChange={(event) => setRestorePath(event.target.value)}
-                    placeholder="/home/user/OpenDesk Workareas/workspace-restaurado"
-                    className={cn(inputClass, "font-mono text-[12px]")}
-                  />
-                  <Button variant="outline" size="sm" className="h-9" onClick={() => void chooseTarget()}>
-                    <FolderOpen size={13} />
-                  </Button>
-                </div>
-              </label>
-            </>
-          ) : null}
-          <label>
-            <span className={labelClass}>Senha dos segredos (se o backup tiver)</span>
-            <input
-              type="password"
-              value={restorePassphrase}
-              onChange={(event) => setRestorePassphrase(event.target.value)}
-              className={inputClass}
-            />
-          </label>
-          {restoreError ? (
-            <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">
-              {restoreError}
-            </p>
-          ) : null}
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setRestoring(null)}>
-              Cancelar
-            </Button>
-            <Button
-              size="sm"
-              disabled={busy?.startsWith("restore-") ?? false}
-              onClick={() => void restore()}
-            >
-              {busy?.startsWith("restore-") ? (
-                <Loader2 size={13} className="animate-spin" />
-              ) : (
-                <RotateCcw size={13} />
-              )}
-              Restaurar
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        onRestore={() => void restore()}
+      />
     </>
   );
 }

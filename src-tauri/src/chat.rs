@@ -18,6 +18,19 @@ use uuid::Uuid;
 
 pub(super) const CANCEL_MESSAGE: &str = "chat turn cancelled";
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ChatAttachmentMeta {
+    pub name: String,
+    pub path: String,
+    #[serde(default)]
+    pub mime: Option<String>,
+    #[serde(default)]
+    pub size: Option<i64>,
+    pub direction: String,
+    #[serde(default)]
+    pub source: Option<String>,
+}
+
 #[path = "chat_parse.rs"]
 mod chat_parse;
 
@@ -48,6 +61,16 @@ pub async fn send_message_with_context(
     thread: ChatThread,
     content: &str,
     context: Option<&str>,
+) -> AppResult<ChatReply> {
+    send_message_with_metadata(state, thread, content, context, None).await
+}
+
+pub async fn send_message_with_metadata(
+    state: &AppState,
+    thread: ChatThread,
+    content: &str,
+    context: Option<&str>,
+    user_metadata: Option<String>,
 ) -> AppResult<ChatReply> {
     let content = content.trim();
     if content.is_empty() {
@@ -104,7 +127,14 @@ pub async fn send_message_with_context(
         .as_ref()
         .map(|turn| state.begin_chat_turn(&thread.id, &turn.id, Some(&session_id)));
 
-    let user = chat::add_message(&state.db, &thread.id, "user", content, None).await?;
+    let user = chat::add_message(
+        &state.db,
+        &thread.id,
+        "user",
+        content,
+        user_metadata.as_deref(),
+    )
+    .await?;
     state
         .events
         .publish(crate::events::OpenDeskWsEvent::ChatUpdated {
@@ -333,11 +363,33 @@ pub async fn send_message_with_context(
         }
     }
 
+    let attachments = match run_id.as_deref() {
+        Some(id) => crate::db::artifacts::list_by_run(&state.db, id, 100)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|artifact| ChatAttachmentMeta {
+                name: artifact
+                    .file_path
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(&artifact.file_path)
+                    .to_string(),
+                path: artifact.file_path,
+                mime: None,
+                size: Some(artifact.file_size_bytes),
+                direction: "received".into(),
+                source: Some("agent".into()),
+            })
+            .collect::<Vec<_>>(),
+        None => Vec::new(),
+    };
     let metadata = serde_json::json!({
         "usage": usage,
         "error": error,
         "session_id": session_id,
         "run_id": run_id,
+        "attachments": attachments,
     });
     let assistant = chat::add_message(
         &state.db,

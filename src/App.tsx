@@ -1,5 +1,5 @@
-import { lazy } from "react";
-import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
+import { lazy, useEffect } from "react";
+import { HashRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { RemoteAuthGate } from "@/components/layout/RemoteAuthGate";
 
@@ -21,17 +21,11 @@ const RunsPage = lazy(() =>
 const RunDetailPage = lazy(() =>
   import("@/pages/RunDetailPage").then((module) => ({ default: module.RunDetailPage })),
 );
-const WorktreesPage = lazy(() =>
-  import("@/pages/WorktreesPage").then((module) => ({ default: module.WorktreesPage })),
-);
 const ChatPage = lazy(() =>
   import("@/pages/ChatPage").then((module) => ({ default: module.ChatPage })),
 );
 const ArtifactsPage = lazy(() =>
   import("@/pages/ArtifactsPage").then((module) => ({ default: module.ArtifactsPage })),
-);
-const FilesPage = lazy(() =>
-  import("@/pages/FilesPage").then((module) => ({ default: module.FilesPage })),
 );
 const RoutinesPage = lazy(() =>
   import("@/pages/RoutinesPage").then((module) => ({ default: module.RoutinesPage })),
@@ -75,6 +69,17 @@ const CapturePage = lazy(() =>
   import("@/pages/CapturePage").then((module) => ({ default: module.CapturePage })),
 );
 
+function LegacyTabRedirect({ path, tab }: { path: string; tab: string }) {
+  const location = useLocation();
+  const search = new URLSearchParams(location.search);
+  search.set("tab", tab);
+  const target = `#${path}?${search.toString()}`;
+  useEffect(() => {
+    window.location.replace(target);
+  }, [target]);
+  return null;
+}
+
 export default function App() {
   return (
     <RemoteAuthGate>
@@ -88,10 +93,10 @@ export default function App() {
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="runs" element={<RunsPage />} />
           <Route path="runs/:runId" element={<RunDetailPage />} />
-          <Route path="worktrees" element={<WorktreesPage />} />
+          <Route path="worktrees" element={<LegacyTabRedirect path="/runs" tab="worktrees" />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="artifacts" element={<ArtifactsPage />} />
-          <Route path="files" element={<FilesPage />} />
+          <Route path="files" element={<LegacyTabRedirect path="/search" tab="files" />} />
           <Route path="routines" element={<RoutinesPage />} />
           <Route path="recipes" element={<RecipesPage />} />
           <Route path="recipe-runs/:runId" element={<RecipeRunDetailPage />} />

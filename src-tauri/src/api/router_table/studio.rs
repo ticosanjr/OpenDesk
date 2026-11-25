@@ -70,6 +70,33 @@ pub(super) fn routes() -> Router<Arc<AppState>> {
             "/api/starter-packs/{id}/install",
             post(starter_packs::install_pack),
         )
+        .route(
+            "/api/starter-packs/{id}/export",
+            get(starter_packs::export_pack),
+        )
+        .route(
+            "/api/starter-packs/import",
+            post(starter_packs::import_pack).layer(axum::extract::DefaultBodyLimit::max(
+                crate::config_bundle::MAX_BUNDLE_BYTES,
+            )),
+        )
+        .route("/api/bundles/packs/export", get(bundles::export_packs))
+        .route(
+            "/api/bundles/packs/import",
+            post(bundles::import_packs).layer(axum::extract::DefaultBodyLimit::max(
+                crate::config_bundle::MAX_BUNDLE_BYTES,
+            )),
+        )
+        .route(
+            "/api/bundles/workspaces/export",
+            get(bundles::export_workspaces),
+        )
+        .route(
+            "/api/bundles/workspaces/import",
+            post(bundles::import_workspaces).layer(axum::extract::DefaultBodyLimit::max(
+                crate::config_bundle::MAX_BUNDLE_BYTES,
+            )),
+        )
         .route("/api/blueprints", get(blueprints::list_blueprints))
         .route(
             "/api/blueprints/{id}/apply",
@@ -79,6 +106,16 @@ pub(super) fn routes() -> Router<Arc<AppState>> {
         .route(
             "/api/personal-context",
             get(personal_context::list).post(personal_context::create),
+        )
+        .route(
+            "/api/personal-context/export",
+            get(personal_context::export),
+        )
+        .route(
+            "/api/personal-context/import",
+            post(personal_context::import).layer(axum::extract::DefaultBodyLimit::max(
+                crate::config_bundle::MAX_BUNDLE_BYTES,
+            )),
         )
         .route(
             "/api/personal-context/{id}",

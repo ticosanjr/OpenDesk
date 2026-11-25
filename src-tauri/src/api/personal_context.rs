@@ -1,5 +1,9 @@
 use crate::{
+    api::bundles::{
+        BundleImportBody, envelope, expect_array, expect_str, validate_envelope, validate_items,
+    },
     app_state::AppState,
+    config_bundle,
     error::{AppError, AppResult},
     personal_context::{self, PersonalContextGroup, PersonalContextInput},
 };
@@ -64,4 +68,60 @@ pub async fn delete(
 ) -> AppResult<Json<serde_json::Value>> {
     personal_context::delete(&state.db, &id).await?;
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn export(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<PersonalContextQuery>,
+) -> AppResult<Json<serde_json::Value>> {
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, query.workspace_id.as_deref()).await?;
+    let groups = personal_context::list(&state.db, &workspace_id).await?;
+    let (global, local): (Vec<_>, Vec<_>) = groups
+        .into_iter()
+        .partition(|group| group.scope == "global");
+    Ok(Json(envelope(
+        "personal_context",
+        Some(&workspace_id),
+        serde_json::json!({ "global": global, "workspace": local }),
+    )))
+}
+
+pub async fn import(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<BundleImportBody>,
+) -> AppResult<Json<serde_json::Value>> {
+    let items = validate_envelope(&body.bundle, "personal_context")?;
+    validate_items(&items)?;
+    let groups = expect_array(&items, "global")?
+        .iter()
+        .chain(expect_array(&items, "workspace")?)
+        .collect::<Vec<_>>();
+    if groups.len() > crate::api::bundles::MAX_ITEMS {
+        return Err(AppError::BadRequest(
+            "bundle de contexto pessoal excede o limite de itens".into(),
+        ));
+    }
+    for group in &groups {
+        expect_str(group, "instructions")?;
+        if let Some(scope) = group.get("scope").and_then(serde_json::Value::as_str)
+            && !matches!(scope, "global" | "workspace")
+        {
+            return Err(AppError::BadRequest(format!("scope inválido: {scope}")));
+        }
+        if let Some(enabled) = group.get("is_enabled")
+            && !enabled.is_boolean()
+        {
+            return Err(AppError::BadRequest("is_enabled deve ser booleano".into()));
+        }
+    }
+    let workspace_id =
+        crate::api::tasks::resolve_workspace_id(&state, body.workspace_id.as_deref()).await?;
+    let mode = body.mode.into();
+    config_bundle::import_personal_context(&state.db, &workspace_id, &items, mode).await?;
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "kind": "personal_context",
+        "imported": groups.len(),
+    })))
 }

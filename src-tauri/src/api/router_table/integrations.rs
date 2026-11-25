@@ -93,6 +93,13 @@ pub(super) fn routes() -> Router<Arc<AppState>> {
         )
         .route("/api/memory/search", get(memory::search))
         .route("/api/memory/context", get(memory::context))
+        .route("/api/memory/export", get(memory::export))
+        .route(
+            "/api/memory/import",
+            post(memory::import).layer(axum::extract::DefaultBodyLimit::max(
+                crate::config_bundle::MAX_BUNDLE_BYTES,
+            )),
+        )
         .route("/api/mcp-hub/servers", get(mcp_hub::servers))
         .route("/api/mcp-hub/catalog", get(mcp_hub::catalog))
         .route("/api/mcp-hub/install", post(mcp_hub::install))
@@ -136,6 +143,24 @@ pub(super) fn routes() -> Router<Arc<AppState>> {
         .route("/api/voice/settings", put(voice::put_settings))
         .route("/api/voice/transcribe", post(voice::transcribe))
         .route("/api/voice/speak", post(voice::speak))
+        .route("/api/voice/tts", post(voice::tts))
+        .route("/api/voice/stt", post(voice::stt))
+        .route(
+            "/api/script-tools",
+            get(script_tools::list).post(script_tools::create),
+        )
+        .route("/api/script-tools/export", get(script_tools::export))
+        .route(
+            "/api/script-tools/import",
+            post(script_tools::import).layer(axum::extract::DefaultBodyLimit::max(
+                crate::config_bundle::MAX_BUNDLE_BYTES,
+            )),
+        )
+        .route(
+            "/api/script-tools/{id}",
+            put(script_tools::update).delete(script_tools::delete),
+        )
+        .route("/api/script-tools/{id}/test", post(script_tools::test))
         .route("/api/nodes", get(nodes::list).post(nodes::create))
         .route(
             "/api/nodes/{id}",

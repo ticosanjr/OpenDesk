@@ -29,6 +29,9 @@ pub enum AppError {
     #[error("queue full: {0}")]
     QueueFull(String),
 
+    #[error("{0}")]
+    Unavailable(String, String),
+
     #[error("OpenCode daemon error: {0}")]
     Daemon(String),
 
@@ -81,6 +84,7 @@ impl From<AppError> for opendesk_engine::error::AppError {
             AppError::NotFound(message) => Engine::NotFound(message),
             AppError::Conflict(message) => Engine::Conflict(message),
             AppError::QueueFull(message) => Engine::QueueFull(message),
+            AppError::Unavailable(message, _) => Engine::Internal(message),
             AppError::Daemon(message) => Engine::Daemon(message),
             AppError::Internal(message) => Engine::Internal(message),
         }
@@ -106,6 +110,8 @@ impl From<opendesk_domain::DomainError> for AppError {
 struct ErrorBody {
     code: &'static str,
     message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    install_hint: Option<String>,
 }
 
 impl AppError {
@@ -115,6 +121,7 @@ impl AppError {
             Self::NotFound(_) => (StatusCode::NOT_FOUND, "not_found"),
             Self::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
             Self::QueueFull(_) => (StatusCode::TOO_MANY_REQUESTS, "queue_full"),
+            Self::Unavailable(_, _) => (StatusCode::SERVICE_UNAVAILABLE, "voice_unavailable"),
             Self::Daemon(_) => (StatusCode::SERVICE_UNAVAILABLE, "daemon_unavailable"),
             Self::Http(_) => (StatusCode::BAD_GATEWAY, "opencode_error"),
             Self::Io(_) | Self::Db(_) | Self::Internal(_) => {
@@ -132,11 +139,27 @@ impl IntoResponse for AppError {
         } else {
             tracing::warn!(error = %self, "request rejected");
         }
+        let message = match &self {
+            Self::Db(sqlx::Error::Database(database))
+                if database.code().as_deref() == Some("11") =>
+            {
+                format!(
+                    "banco SQLite corrompido (code 11): {}. Rode `opendesk repair-db`                      ou restaure um backup automático antes de continuar.",
+                    database.message()
+                )
+            }
+            _ => self.to_string(),
+        };
+        let install_hint = match &self {
+            Self::Unavailable(_, hint) => Some(hint.clone()),
+            _ => None,
+        };
         (
             status,
             Json(ErrorBody {
                 code,
-                message: self.to_string(),
+                message,
+                install_hint,
             }),
         )
             .into_response()

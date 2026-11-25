@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
-import { PageBody } from "@/components/layout/PageHeader";
+import { PageBodyFill } from "@/components/layout/PageHeader";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { KanbanListView } from "@/components/kanban/KanbanListView";
 import { isWorkQueueJob } from "@/lib/queue";
@@ -305,7 +305,7 @@ export function KanbanPage() {
   }
 
   return (
-    <PageBody>
+    <PageBodyFill>
       <KanbanPageHeader
         workspaceName={workspace?.name ?? "Workspace"}
         queueStatus={queueStatus}
@@ -467,6 +467,6 @@ export function KanbanPage() {
         transitionTask={transitionTask}
         setWaiting={setWaiting}
       />
-    </PageBody>
+    </PageBodyFill>
   );
 }

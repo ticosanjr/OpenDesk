@@ -17,6 +17,7 @@ mod proposals;
 mod queue_scheduler;
 mod recipe_dispatcher;
 mod recipes;
+mod repair_db;
 mod run_notifier;
 #[allow(dead_code)]
 mod session_context;
@@ -46,8 +47,11 @@ pub mod db;
 pub mod desktop_integration;
 pub mod error;
 pub mod internal_api;
+pub mod mcp_scripts;
 pub mod metrics;
 pub mod passkey;
+pub mod script_tools;
+pub mod self_test;
 
 pub use mcp::{
     bridge as mcp_bridge, control as mcp_control, hub as mcp_hub, sampling as mcp_sampling,
@@ -278,6 +282,10 @@ pub fn run_cli(args: Vec<String>) {
 
 /// `opendesk migrate-v1-export`: reachable from the AppImage, which does not
 /// ship the separate `opendesk-cli` binary.
+pub fn run_repair_db(args: Vec<String>) {
+    repair_db::run(args);
+}
+
 pub fn run_v1_export(args: Vec<String>) {
     v1_export::run(args);
 }
@@ -322,6 +330,15 @@ pub fn run_mcp_control() {
     let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
     if let Err(error) = runtime.block_on(mcp_control::run_stdio()) {
         eprintln!("OpenDesk control MCP bridge failed: {error:#}");
+        std::process::exit(1);
+    }
+}
+
+/// MCP server over stdio used by OpenCode's `mcp.servers.opendesk-scripts`.
+pub fn run_mcp_scripts() {
+    let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+    if let Err(error) = runtime.block_on(mcp_scripts::run_stdio()) {
+        eprintln!("OpenDesk scripts MCP bridge failed: {error:#}");
         std::process::exit(1);
     }
 }

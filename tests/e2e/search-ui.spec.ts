@@ -48,6 +48,6 @@ test("search tab deep link is preserved and updated in the URL", async ({
     "aria-selected",
     "true",
   );
-  await page.getByRole("tab", { name: /Arquivos/ }).click();
-  await expect(page).toHaveURL(/tab=files/);
+  await page.getByRole("tab", { name: "Resultados de arquivos" }).click();
+  await expect(page).toHaveURL(/tab=file_results/);
 });

@@ -67,7 +67,7 @@ impl Task {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct CreateTaskInput {
     #[serde(default)]
     pub title: String,

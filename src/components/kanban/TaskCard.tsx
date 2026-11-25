@@ -15,13 +15,13 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { IconTag, originTag } from "@/components/ui/icon-tag";
 import { Button } from "@/components/ui/button";
 import { EntityLink } from "@/components/ui/entity-link";
 import { WorkflowStatusBadge } from "@/components/ui/workflow-status";
 import { links } from "@/lib/links";
 import {
   EFFORT_TONE,
-  ORIGIN_LABEL,
   PRIORITY_LABEL,
   PRIORITY_TONE,
   STATUS_LABEL,
@@ -171,13 +171,7 @@ export function TaskCard({
       {task.effort_level}
     </Badge>,
     task.origin && task.origin !== "MANUAL" ? (
-      <Badge
-        key="origin"
-        variant="purple"
-        title={`Origem da tarefa: ${ORIGIN_LABEL[task.origin] ?? task.origin}`}
-      >
-        {ORIGIN_LABEL[task.origin] ?? task.origin}
-      </Badge>
+      <IconTag key="origin" {...originTag(task.origin)} />
     ) : null,
     webTask ? (
       <Badge key="web" variant="blue">

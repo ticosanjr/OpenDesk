@@ -34,6 +34,7 @@ import { SectionNav } from "@/components/ui/section-nav";
 import { ToolsCard } from "@/components/settings/ToolsCard";
 import { QueueSettingsCard } from "@/components/settings/QueueSettingsCard";
 import { BackupsCard } from "@/components/settings/BackupsCard";
+import { SelfTestCard } from "@/components/settings/SelfTestCard";
 import { ConfigBundleCard } from "@/components/settings/ConfigBundleCard";
 import { AuditCard } from "@/components/settings/AuditCard";
 import { PromptSettings } from "@/components/settings/PromptSettings";
@@ -68,6 +69,7 @@ export function SettingsPage() {
   const tabs = [
     { id: "general", label: "Geral", icon: Settings, group: "Geral" },
     { id: "engine", label: "Engine", icon: Cpu, group: "Motor" },
+    { id: "diagnostics", label: "Diagnóstico", icon: ShieldCheck, group: "Motor" },
     { id: "harness", label: "Harnesses", icon: Workflow, group: "Motor" },
     { id: "sandbox", label: "Sandbox", icon: ShieldCheck, group: "Motor" },
     { id: "voice", label: "Voz", icon: Volume2, group: "Operação" },
@@ -157,6 +159,9 @@ export function SettingsPage() {
           ariaLabel="Seções de configuração"
         />
         <div className="min-w-0 space-y-4">
+      {activeTab === "diagnostics" && activeWorkspaceId ? (
+        <SelfTestCard workspaceId={activeWorkspaceId} />
+      ) : null}
       {activeTab === "engine" ? (
         <div id="settings-engine">
           <EngineCard />

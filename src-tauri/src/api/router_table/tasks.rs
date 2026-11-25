@@ -53,6 +53,16 @@ pub(super) fn routes() -> Router<Arc<AppState>> {
         )
         .route("/api/prompt/templates/reset", post(prompt_templates::reset))
         .route(
+            "/api/prompt-templates/export",
+            get(prompt_templates::export),
+        )
+        .route(
+            "/api/prompt-templates/import",
+            post(prompt_templates::import).layer(axum::extract::DefaultBodyLimit::max(
+                crate::config_bundle::MAX_BUNDLE_BYTES,
+            )),
+        )
+        .route(
             "/api/tasks/{id}/watchers",
             get(task_watchers::list).put(task_watchers::replace),
         )

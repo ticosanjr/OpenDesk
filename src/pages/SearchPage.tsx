@@ -13,6 +13,8 @@ import {
   X,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { SectionTabs } from "@/components/ui/section-tabs";
+import { FilesPage } from "@/pages/FilesPage";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppStore } from "@/store/app-store";
@@ -30,7 +32,7 @@ const TABS = [
   { id: "all", label: "Todos", kinds: null },
   { id: "tasks", label: "Tarefas", kinds: ["task"] },
   { id: "comments", label: "Comentários", kinds: ["comment"] },
-  { id: "files", label: "Arquivos", kinds: ["file"] },
+  { id: "file_results", label: "Resultados de arquivos", kinds: ["file"] },
   { id: "artifacts", label: "Artefatos", kinds: ["artifact"] },
   { id: "agents", label: "Agentes", kinds: ["agent"] },
   { id: "projects", label: "Projetos", kinds: ["project"] },
@@ -70,6 +72,14 @@ export function SearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [recent, setRecent] = useState<string[]>([]);
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
+  const filesView = params.get("tab") === "files";
+
+  function switchView(id: string) {
+    const next = new URLSearchParams(params);
+    if (id === "files") next.set("tab", "files");
+    else next.delete("tab");
+    setParams(next, { replace: true });
+  }
 
   useEffect(() => {
     setRecent(loadRecentSearches(window.localStorage));
@@ -100,6 +110,7 @@ export function SearchPage() {
   }, [activeWorkspaceId, query]);
 
   useEffect(() => {
+    if (filesView) return;
     let cancelled = false;
     const handle = window.setTimeout(() => {
       // A pending debounce must not rewrite the hash after the user opened
@@ -137,7 +148,7 @@ export function SearchPage() {
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [activeWorkspaceId, query, setParams, tab]);
+  }, [activeWorkspaceId, filesView, query, setParams, tab]);
 
   useEffect(() => {
     const nextQuery = params.get("q") ?? "";
@@ -197,11 +208,39 @@ export function SearchPage() {
       : hits.length;
   }
 
+  if (filesView) {
+    return (
+      <PageBody>
+        <PageHeader
+          title="Arquivos"
+          description={`${workspace?.name ?? "Workspace"} · navegação de arquivos e busca global no mesmo lugar.`}
+        />
+        <SectionTabs
+          value="files"
+          onChange={switchView}
+          items={[
+            { id: "search", label: "Buscar", icon: Search },
+            { id: "files", label: "Arquivos", icon: FolderTree },
+          ]}
+        />
+        <FilesPage embedded />
+      </PageBody>
+    );
+  }
+
   return (
     <PageBody>
       <PageHeader
         title="Buscar"
         description={`${workspace?.name ?? "Workspace"} · tarefas, comentários, arquivos, artefatos, agentes, projetos, rotinas e execuções.`}
+      />
+      <SectionTabs
+        value="search"
+        onChange={switchView}
+        items={[
+          { id: "search", label: "Buscar", icon: Search },
+          { id: "files", label: "Arquivos", icon: FolderTree },
+        ]}
       />
 
       <div className="rounded-xl border border-zinc-800/70 bg-zinc-900/20 p-3">

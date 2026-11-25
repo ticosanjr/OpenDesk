@@ -3,6 +3,8 @@ import { AgentCombobox } from "@/components/ui/agent-combobox";
 import { Button } from "@/components/ui/button";
 import { ModelCombobox } from "@/components/ui/model-combobox";
 import { SlashTextarea } from "@/components/ui/slash-textarea";
+import { VoiceDictationButton } from "@/components/ui/voice-dictation-button";
+import { appendTranscript } from "@/lib/use-voice-input";
 
 export function RunLogComposer({
   workspaceId,
@@ -66,6 +68,13 @@ export function RunLogComposer({
           onSubmit={onSend}
           placeholder="Responder, comentar ou pedir uma continuação… (Enter envia)"
           className="min-h-[88px] flex-1"
+        />
+        <VoiceDictationButton
+          label="Ditar resposta"
+          className="h-auto"
+          onTranscript={(transcript) =>
+            onComposerChange(appendTranscript(composer, transcript.text))
+          }
         />
         <Button
           size="sm"

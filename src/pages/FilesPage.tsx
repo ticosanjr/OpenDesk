@@ -17,7 +17,7 @@ import { FileListCard } from "./files/FileListCard";
 import { FilePreviewCard } from "./files/FilePreviewCard";
 import type { Crumb, FileScope, MediaInfo } from "./files/types";
 
-export function FilesPage() {
+export function FilesPage({ embedded = false }: { embedded?: boolean }) {
   const workspaces = useAppStore((state) => state.workspaces);
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const setWorkspaceDialogOpen = useUiStore(
@@ -79,7 +79,15 @@ export function FilesPage() {
       setContent(null);
       setLoadingFile(false);
       void loadTree(deepPath).finally(() =>
-        setParams({}, { replace: true }),
+        setParams(
+          (previous) => {
+            const next = new URLSearchParams(previous);
+            next.delete("path");
+            next.delete("dir");
+            return next;
+          },
+          { replace: true },
+        ),
       );
       return;
     }
@@ -110,7 +118,15 @@ export function FilesPage() {
       .finally(() => {
         setLoadingFile(false);
         void loadMedia(deepPath);
-        setParams({}, { replace: true });
+        setParams(
+          (previous) => {
+            const next = new URLSearchParams(previous);
+            next.delete("path");
+            next.delete("dir");
+            return next;
+          },
+          { replace: true },
+        );
       });
     // loadMedia only depends on activeWorkspaceId, which is already listed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -306,26 +322,31 @@ export function FilesPage() {
   }
 
   if (!activeWorkspaceId || !workspace) {
-    return (
+    const empty = (
+      <EmptyState
+        icon={FolderTree}
+        title="Nenhum workspace ativo"
+        description="Selecione ou crie um workspace para navegar por input/, output/ e .opencode/."
+        action={
+          <Button size="sm" onClick={() => setWorkspaceDialogOpen(true)}>
+            Criar workspace
+          </Button>
+        }
+      />
+    );
+    return embedded ? (
+      empty
+    ) : (
       <PageBody>
         <PageHeader title="Arquivos" />
-        <EmptyState
-          icon={FolderTree}
-          title="Nenhum workspace ativo"
-          description="Selecione ou crie um workspace para navegar por input/, output/ e .opencode/."
-          action={
-            <Button size="sm" onClick={() => setWorkspaceDialogOpen(true)}>
-              Criar workspace
-            </Button>
-          }
-        />
+        {empty}
       </PageBody>
     );
   }
 
-  return (
-    <PageBodyFill>
-      <div className="shrink-0">
+  const body = (
+    <>
+      <div className={embedded ? "hidden" : "shrink-0"}>
       <PageHeader
         title="Arquivos"
         description={`${workspace.name} · ${shortPath(workspace.root_path, 64)}`}
@@ -389,6 +410,7 @@ export function FilesPage() {
           onSave={() => void saveCurrentFile()}
         />
       </div>
-    </PageBodyFill>
+    </>
   );
+  return embedded ? body : <PageBodyFill>{body}</PageBodyFill>;
 }

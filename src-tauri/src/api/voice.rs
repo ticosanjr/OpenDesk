@@ -1,10 +1,15 @@
 use crate::{
     app_state::AppState,
-    db::workspaces,
     error::AppResult,
-    voice::{self, Speech, Transcription, VoiceSettings},
+    voice::{self, Transcription, VoiceSettings},
 };
-use axum::{Json, extract::State};
+use axum::{
+    Json,
+    extract::State,
+    http::header,
+    response::{IntoResponse, Response},
+};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -44,33 +49,50 @@ pub async fn transcribe(
     State(state): State<Arc<AppState>>,
     Json(body): Json<TranscribeBody>,
 ) -> AppResult<Json<Transcription>> {
-    let extension = body.mime.rsplit('/').next().unwrap_or("wav");
     Ok(Json(
-        voice::transcribe(&state.db, &state.paths, &body.audio_base64, extension).await?,
+        voice::transcribe(&state.db, &state.paths, &body.audio_base64, &body.mime).await?,
     ))
+}
+
+pub async fn stt(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<TranscribeBody>,
+) -> AppResult<Json<Transcription>> {
+    transcribe(State(state), Json(body)).await
 }
 
 #[derive(Debug, Deserialize)]
 pub struct SpeakBody {
     pub text: String,
-    #[serde(default)]
-    pub workspace_id: Option<String>,
 }
 
 pub async fn speak(
     State(state): State<Arc<AppState>>,
     Json(body): Json<SpeakBody>,
-) -> AppResult<Json<Speech>> {
-    let workspace_id =
-        crate::api::tasks::resolve_workspace_id(&state, body.workspace_id.as_deref()).await?;
-    let workspace = workspaces::get(&state.db, &workspace_id).await?;
-    Ok(Json(
-        voice::speak(
-            &state.db,
-            &state.paths,
-            std::path::Path::new(&workspace.root_path),
-            &body.text,
-        )
-        .await?,
-    ))
+) -> AppResult<Json<Value>> {
+    let speech = voice::speak(&state.db, &state.paths, &body.text).await?;
+    Ok(Json(json!({
+        "path": "",
+        "mime": speech.mime,
+        "provider": speech.provider,
+        "data": STANDARD.encode(speech.bytes),
+    })))
+}
+
+pub async fn tts(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<SpeakBody>,
+) -> AppResult<Response> {
+    let speech = voice::speak(&state.db, &state.paths, &body.text).await?;
+    Ok((
+        [
+            (header::CONTENT_TYPE, speech.mime),
+            (
+                header::HeaderName::from_static("x-voice-provider"),
+                speech.provider,
+            ),
+        ],
+        speech.bytes,
+    )
+        .into_response())
 }

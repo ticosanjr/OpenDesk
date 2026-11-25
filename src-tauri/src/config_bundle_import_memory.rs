@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, HashSet};
 use super::config_bundle_types::ImportMode;
 use crate::dsh_router::prompt_templates::PromptTemplates;
 
-pub(super) async fn import_memory(
+pub(crate) async fn import_memory(
     pool: &SqlitePool,
     workspace_id: &str,
     value: &Value,
@@ -108,7 +108,7 @@ pub(super) async fn import_memory(
     Ok(())
 }
 
-pub(super) async fn import_personal_context(
+pub(crate) async fn import_personal_context(
     pool: &SqlitePool,
     workspace_id: &str,
     value: &Value,
@@ -204,7 +204,7 @@ pub(super) async fn import_personal_context(
     Ok(())
 }
 
-pub(super) async fn import_prompts(
+pub(crate) async fn import_prompts(
     pool: &SqlitePool,
     workspace_id: &str,
     value: &Value,

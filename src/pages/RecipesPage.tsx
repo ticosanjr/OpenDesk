@@ -46,7 +46,7 @@ export function RecipesPage() {
   const [runAttachments, setRunAttachments] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [yamlOpen, setYamlOpen] = useState(true);
+  const [yamlOpen, setYamlOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [yamlWidth, setYamlWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("opendesk.recipe.yamlWidth"));

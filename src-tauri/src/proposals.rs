@@ -225,6 +225,7 @@ pub async fn ensure_workspace_bridge(state: &AppState, workspace_id: &str) -> Ap
     for (name, subcommand) in [
         ("opendesk-config", "mcp-config"),
         ("opendesk-control", "mcp-control"),
+        ("opendesk-scripts", "mcp-scripts"),
     ] {
         let server = serde_json::json!({
             "type": "local",

@@ -73,10 +73,16 @@ pub async fn preview(
         Some(&task.workspace_id),
     )
     .await?;
-    let session_packet = crate::session_context::build(&state.db, &task.id)
+    let mut session_packet = crate::session_context::build(&state.db, &task.id)
         .await
         .map(|packet| crate::session_context::render(&packet))
         .unwrap_or_default();
+    if let Ok(summary) = crate::script_tools::prompt_summary(&state.db, &task.workspace_id).await
+        && !summary.is_empty()
+    {
+        session_packet.push_str("\n\n");
+        session_packet.push_str(&summary);
+    }
     let context = PackContext {
         workspace_root: std::path::Path::new(&workspace.root_path),
         output_directory: &decision.output_directory,

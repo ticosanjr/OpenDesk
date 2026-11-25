@@ -147,6 +147,29 @@ export async function websocketUrl(): Promise<string> {
   return url.toString();
 }
 
+export async function apiPostBlob(path: string, body?: unknown): Promise<Blob> {
+  const endpoint = await getEndpoint();
+  const response = await fetch(`${apiBase(endpoint)}${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${endpoint.token}`,
+      "Content-Type": "application/json",
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!response.ok) {
+    let message = `Request failed (${response.status})`;
+    try {
+      const parsed = (await response.json()) as { message?: string };
+      if (parsed.message) message = parsed.message;
+    } catch {
+      // Keep the status-based message.
+    }
+    throw new Error(message);
+  }
+  return response.blob();
+}
+
 export async function apiBlob(path: string): Promise<Blob> {
   const endpoint = await getEndpoint();
   const response = await fetch(`${apiBase(endpoint)}${path}`, {

@@ -153,6 +153,7 @@ fn is_sensitive(method: &Method, path: &str) -> bool {
         || path.starts_with("/api/integrations")
         || path.starts_with("/api/settings")
         || path.starts_with("/api/studio")
+        || path.starts_with("/api/diagnostics")
         || path.starts_with("/api/starter-packs")
         || path.starts_with("/api/tasks")
         || path.starts_with("/api/recipes")

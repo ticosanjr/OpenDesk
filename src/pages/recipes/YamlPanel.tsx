@@ -52,9 +52,9 @@ export function YamlPanel({
                 type="button"
                 onClick={onClose}
                 aria-expanded={true}
-                aria-label="Recolher editor YAML"
+                aria-label="Ocultar editor YAML"
                 className="flex items-center gap-2 text-left"
-                title="Recolher editor YAML"
+                title="Ocultar editor YAML"
               >
                 <ChevronDown size={15} />
                 <CardTitle>YAML</CardTitle>
@@ -75,12 +75,12 @@ export function YamlPanel({
         <button
           type="button"
           onClick={onOpen}
-          aria-label="Expandir editor YAML"
+          aria-label="Mostrar YAML"
           className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-zinc-800/70 bg-zinc-900/30 px-3 py-2 text-[12.5px] text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200 xl:h-[70dvh] xl:w-11 xl:flex-col xl:px-0"
-          title="Abrir editor YAML"
+          title="Mostrar YAML"
         >
           <ChevronRight size={13} className="xl:rotate-0" />
-          <span className="xl:[writing-mode:vertical-rl]">YAML</span>
+          <span className="xl:[writing-mode:vertical-rl]">Mostrar YAML</span>
         </button>
       )}
     </>

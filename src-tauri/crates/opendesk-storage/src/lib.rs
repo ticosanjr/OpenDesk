@@ -10,6 +10,7 @@ pub mod db;
 pub mod dedupe;
 pub mod error;
 pub mod events;
+pub mod integrity;
 pub mod legacy;
 pub mod maintenance;
 pub mod paths;

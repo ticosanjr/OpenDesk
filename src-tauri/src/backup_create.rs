@@ -120,6 +120,7 @@ pub async fn create_with_options(
         version: BACKUP_VERSION,
         includes: includes.clone(),
         counts: counts.clone(),
+        state_sha256: Some(db_sha256.clone()),
         db_sha256: Some(db_sha256),
         files_sha256,
         workspace_root: workspace.root_path.clone(),

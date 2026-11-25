@@ -6,8 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { relativeTime } from "@/lib/format";
-import { downloadConfigBundle } from "@/lib/config-bundle";
-import { useAppStore } from "@/store/app-store";
+import { JsonImportButton } from "@/components/ui/json-import-button";
+import { exportJsonBundle, type BundleEnvelope } from "@/lib/import-export";
 import { toast } from "@/store/toast-store";
 
 interface MemoryNote {
@@ -179,6 +179,29 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
     }
   }
 
+  async function exportMemory() {
+    if (!workspaceId) return;
+    setBusy("export");
+    try {
+      const bundle = await apiGet<BundleEnvelope>(`/api/memory/export${query}`);
+      exportJsonBundle(
+        "structured_memory",
+        bundle.items,
+        `opendesk-structured-memory-${new Date().toISOString().slice(0, 10)}.json`,
+        workspaceId,
+      );
+      toast({ tone: "success", title: "Memória estruturada exportada" });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Não foi possível exportar",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -194,25 +217,27 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-1.5">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              const workspaceId = useAppStore.getState().activeWorkspaceId;
-              if (workspaceId) {
-                void downloadConfigBundle(workspaceId, [
-                  "memory_md",
-                  "structured_memory",
-                  "personal_context",
-                  "learning",
-                ]);
-              }
-            }}
+            onClick={() => void exportMemory()}
+            disabled={!workspaceId || busy === "export"}
           >
-            <Download size={13} />
+            {busy === "export" ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Download size={13} />
+            )}
             Exportar JSON
           </Button>
+          <JsonImportButton
+            kind="structured_memory"
+            endpoint="/api/memory/import"
+            workspaceId={workspaceId}
+            disabled={!workspaceId}
+            onImported={load}
+          />
         </div>
         <div className="grid gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3 sm:grid-cols-2 lg:grid-cols-4">
           <input

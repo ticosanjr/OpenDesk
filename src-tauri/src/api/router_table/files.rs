@@ -93,6 +93,12 @@ pub(super) fn routes() -> Router<Arc<AppState>> {
         )
         .route("/api/proposals/{id}/resolve", post(proposals::resolve))
         .route("/api/backups", get(backups::list).post(backups::create))
+        .route(
+            "/api/backups/import",
+            post(backups::import).layer(axum::extract::DefaultBodyLimit::max(
+                crate::backup::MAX_IMPORT_BYTES as usize / 3 * 4 + 4096,
+            )),
+        )
         .route("/api/backups/{id}/download", get(backups::download))
         .route("/api/backups/{id}/restore", post(backups::restore))
         .route("/api/backups/{id}", axum::routing::delete(backups::delete))
