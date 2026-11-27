@@ -73,9 +73,20 @@ pub async fn put_config(
     Ok(Json(telegram::status(&state).await))
 }
 
-pub async fn start(State(state): State<Arc<AppState>>) -> Json<TelegramStatus> {
-    let _ = state.telegram.start_if_enabled(state.clone()).await;
-    Json(telegram::status(&state).await)
+pub async fn start(State(state): State<Arc<AppState>>) -> AppResult<Json<TelegramStatus>> {
+    let mut config = telegram::load(&state.db).await?;
+    // "Iniciar bot" is an explicit start action: enabling the integration here
+    // avoids a silent no-op when the checkbox was not saved first.
+    if !config.enabled {
+        config.enabled = true;
+        telegram::save(&state.db, &config).await?;
+    }
+    if !state.telegram.start_if_enabled(state.clone()).await? {
+        return Err(AppError::BadRequest(
+            "não foi possível iniciar o bot do Telegram".into(),
+        ));
+    }
+    Ok(Json(telegram::status(&state).await))
 }
 
 pub async fn stop(State(state): State<Arc<AppState>>) -> Json<TelegramStatus> {
@@ -89,10 +100,17 @@ pub async fn test(State(state): State<Arc<AppState>>) -> AppResult<Json<serde_js
     let config = telegram::load(&state.db).await?;
     let targets = telegram::resolve_recipients(&state.db, &config.allowlist).await;
     if targets.is_empty() {
-        return Err(AppError::BadRequest(
-            "nenhum chat conhecido na allowlist; envie /start para o bot pelo celular primeiro"
-                .into(),
-        ));
+        let running = state.telegram.is_running().await;
+        let reason = if !config.enabled {
+            "A integração está desabilitada: marque “habilitar integração Telegram” e salve."
+        } else if !running {
+            "O bot está parado: clique em “Iniciar bot” para começar o long polling."
+        } else {
+            "O bot está ativo, mas ainda não recebeu uma mensagem deste usuário. Envie /start pelo celular usando exatamente o @username da allowlist."
+        };
+        return Err(AppError::BadRequest(format!(
+            "nenhum chat conhecido na allowlist. {reason}"
+        )));
     }
     let message = "OpenDesk conectado. Envie uma mensagem para conversar com o agente.";
     for target in &targets {

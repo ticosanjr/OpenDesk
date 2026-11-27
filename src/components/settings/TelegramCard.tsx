@@ -70,6 +70,7 @@ export function TelegramCard() {
         agent: agent.trim() || "build",
       });
       setStatus(value);
+      setEnabled(value.config.enabled);
       setToken("");
       if (clearToken) setEnabled(false);
       setMessage(
@@ -95,6 +96,7 @@ export function TelegramCard() {
         `/api/integrations/telegram/${start ? "start" : "stop"}`,
       );
       setStatus(value);
+      if (start) setEnabled(value.config.enabled);
       setMessage(start ? "Bot iniciado." : "Bot parado.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
