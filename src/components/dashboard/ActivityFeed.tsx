@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Archive, Cog, Cpu, Sparkles } from "lucide-react";
+import { Archive, Sparkles } from "lucide-react";
+import { RunStatusIcon } from "@/components/ui/run-status";
 import {
   Card,
   CardContent,
@@ -161,21 +162,7 @@ export function ActivityFeed({
                             : "border-zinc-800/70",
                       )}
                     >
-                      {activity.run.status === "RUNNING" ? (
-                        <Cog size={13} className="opendesk-gear shrink-0 text-blue-400" />
-                      ) : (
-                        <Cpu
-                          size={13}
-                          className={cn(
-                            "shrink-0",
-                            activity.run.status === "FAILED"
-                              ? "text-red-400"
-                              : activity.run.status === "SUCCESS"
-                                ? "text-emerald-400/80"
-                                : "text-blue-400/70",
-                          )}
-                        />
-                      )}
+                      <RunStatusIcon status={activity.run.status} size={13} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[12px] text-zinc-300">
                           {activity.run.task_title ?? activity.run.agent_name} ·{" "}

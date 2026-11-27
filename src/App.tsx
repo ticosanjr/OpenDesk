@@ -24,9 +24,6 @@ const RunDetailPage = lazy(() =>
 const ChatPage = lazy(() =>
   import("@/pages/ChatPage").then((module) => ({ default: module.ChatPage })),
 );
-const ArtifactsPage = lazy(() =>
-  import("@/pages/ArtifactsPage").then((module) => ({ default: module.ArtifactsPage })),
-);
 const RoutinesPage = lazy(() =>
   import("@/pages/RoutinesPage").then((module) => ({ default: module.RoutinesPage })),
 );
@@ -95,7 +92,7 @@ export default function App() {
           <Route path="runs/:runId" element={<RunDetailPage />} />
           <Route path="worktrees" element={<LegacyTabRedirect path="/runs" tab="worktrees" />} />
           <Route path="chat" element={<ChatPage />} />
-          <Route path="artifacts" element={<ArtifactsPage />} />
+          <Route path="artifacts" element={<LegacyTabRedirect path="/search" tab="artifacts" />} />
           <Route path="files" element={<LegacyTabRedirect path="/search" tab="files" />} />
           <Route path="routines" element={<RoutinesPage />} />
           <Route path="recipes" element={<RecipesPage />} />

@@ -3,6 +3,7 @@ import { Radio } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { toast } from "@/store/toast-store";
+import { ChannelBotsPanel } from "@/components/integrations/ChannelBotsPanel";
 import { ChannelStatusGrid } from "@/components/integrations/channels/ChannelStatusGrid";
 import { RoutesSection, type RouteForm } from "@/components/integrations/channels/RoutesSection";
 import { WhatsAppSection } from "@/components/integrations/channels/WhatsAppSection";
@@ -254,6 +255,10 @@ export function ChannelsCard({ workspaceId }: { workspaceId: string }) {
           />
         </CardContent>
       </Card>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ChannelBotsPanel channel="telegram" workspaceId={workspaceId} />
+        <ChannelBotsPanel channel="signal" workspaceId={workspaceId} />
+      </div>
     </div>
   );
 }

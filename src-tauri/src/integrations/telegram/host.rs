@@ -1,17 +1,17 @@
-use super::http::{TypingGuard, handle_callback};
+use super::http::handle_callback;
 use super::{
-    BotInfo, IncomingTelegram, IncomingTelegramFile, MAX_FILE_BYTES, OFFSET_KEY, TelegramConfig,
-    TelegramUpdate, allowed, delete_webhook, download_file, get_me, get_updates, help_text, load,
-    parse_interaction_reply, record_chat, safe_file_name, send_reply, send_text, token,
+    BotInfo, IncomingTelegram, OFFSET_KEY, TelegramConfig, TelegramUpdate, allowed, delete_webhook,
+    get_me, get_updates, help_text, load, parse_interaction_reply, record_chat, send_reply,
+    send_text, token,
 };
 use crate::{
     app_state::AppState,
     chat,
-    db::{chat as chat_db, interactions, settings, workspaces},
+    db::{channel_bots, chat as chat_db, interactions, settings},
     error::{AppError, AppResult},
 };
 use serde_json::json;
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
 #[derive(Default)]
@@ -124,7 +124,7 @@ impl TelegramBridge {
                         let config = load(&state.db).await?;
                         let result = match update {
                             TelegramUpdate::Message(message) => {
-                                handle_incoming(&state, &config, &token, message).await
+                                handle_incoming(&state, &config, &token, message, None).await
                             }
                             TelegramUpdate::Callback(callback) => {
                                 handle_callback(&state, &config, &token, callback).await
@@ -147,11 +147,75 @@ impl TelegramBridge {
     }
 }
 
+/// Per-bot routing data resolved from `channel_chat_contexts`.
+pub(crate) struct BotScope {
+    pub bot_id: String,
+    pub workspace_id: String,
+    pub agent: String,
+    pub system_context: String,
+    pub memory_scope: String,
+    pub context_id: String,
+    pub opencode_session_id: Option<String>,
+}
+
+/// Routes one update received by a workspace bot, keeping every chat isolated
+/// by `(bot_id, external_chat_id)`.
+pub async fn handle_bot_update(
+    state: &Arc<AppState>,
+    bot: &channel_bots::ChannelBot,
+    config: &TelegramConfig,
+    token: &str,
+    update: TelegramUpdate,
+) -> AppResult<()> {
+    match update {
+        TelegramUpdate::Message(message) => {
+            let title = message
+                .chat_title
+                .clone()
+                .or_else(|| message.username.clone())
+                .unwrap_or_else(|| message.chat_id.clone());
+            let context = channel_bots::upsert_seen_context(
+                &state.db,
+                bot,
+                &message.chat_id,
+                "group",
+                &title,
+            )
+            .await?;
+            if !context.enabled {
+                tracing::debug!(
+                    bot_id = %bot.id,
+                    chat_id = %message.chat_id,
+                    "contexto desabilitado: mensagem ignorada"
+                );
+                return Ok(());
+            }
+            let scope = BotScope {
+                bot_id: bot.id.clone(),
+                workspace_id: bot.workspace_id.clone(),
+                agent: context
+                    .agent_override
+                    .clone()
+                    .unwrap_or_else(|| bot.default_agent.clone()),
+                system_context: context.system_context.clone(),
+                memory_scope: context.memory_scope.clone(),
+                context_id: context.id.clone(),
+                opencode_session_id: context.opencode_session_id.clone(),
+            };
+            handle_incoming(state, config, token, message, Some(&scope)).await
+        }
+        TelegramUpdate::Callback(callback) => {
+            super::http::handle_callback(state, config, token, callback).await
+        }
+    }
+}
+
 async fn handle_incoming(
     state: &Arc<AppState>,
     config: &TelegramConfig,
     token: &str,
     incoming: IncomingTelegram,
+    scope: Option<&BotScope>,
 ) -> AppResult<()> {
     if !allowed(
         &config.allowlist,
@@ -233,9 +297,23 @@ async fn handle_incoming(
         return Ok(());
     }
 
+    let external_id = scope
+        .map(|scope| format!("telegram:{}:{}", scope.bot_id, incoming.chat_id))
+        .unwrap_or_else(|| incoming.chat_id.clone());
     if matches!(lower.as_str(), "/parar" | "parar" | "/stop" | "stop") {
-        let thread =
-            chat_db::find_external_any_workspace(&state.db, "telegram", &incoming.chat_id).await?;
+        let thread = if scope.is_some() {
+            chat_db::find_external(
+                &state.db,
+                &scope
+                    .map(|scope| scope.workspace_id.clone())
+                    .unwrap_or_default(),
+                "telegram",
+                &external_id,
+            )
+            .await?
+        } else {
+            chat_db::find_external_any_workspace(&state.db, "telegram", &incoming.chat_id).await?
+        };
         let Some(thread) = thread else {
             send_reply(
                 token,
@@ -272,7 +350,9 @@ async fn handle_incoming(
         return Ok(());
     }
 
-    let configured_workspace = config.workspace_id.clone();
+    let configured_workspace = scope
+        .map(|scope| scope.workspace_id.clone())
+        .or_else(|| config.workspace_id.clone());
     let workspace_id = match &configured_workspace {
         Some(id) => id.clone(),
         None => settings::active_workspace_id(&state.db)
@@ -280,10 +360,9 @@ async fn handle_incoming(
             .ok_or_else(|| AppError::BadRequest("no active workspace for Telegram".into()))?,
     };
     let mut thread =
-        chat_db::find_external(&state.db, &workspace_id, "telegram", &incoming.chat_id).await?;
+        chat_db::find_external(&state.db, &workspace_id, "telegram", &external_id).await?;
     if thread.is_none() && configured_workspace.is_none() {
-        thread =
-            chat_db::find_external_any_workspace(&state.db, "telegram", &incoming.chat_id).await?;
+        thread = chat_db::find_external_any_workspace(&state.db, "telegram", &external_id).await?;
     }
     let label = incoming
         .chat_title
@@ -298,10 +377,12 @@ async fn handle_incoming(
                 chat_db::CreateThreadInput {
                     workspace_id: workspace_id.clone(),
                     title: Some(format!("Telegram · {label}")),
-                    agent: config.agent.clone(),
+                    agent: scope
+                        .map(|scope| scope.agent.clone())
+                        .unwrap_or_else(|| config.agent.clone()),
                     model: None,
                     source: Some("telegram".into()),
-                    external_id: Some(incoming.chat_id.clone()),
+                    external_id: Some(external_id.clone()),
                 },
             )
             .await?;
@@ -315,17 +396,34 @@ async fn handle_incoming(
         }
     };
 
+    if let Some(scope) = scope
+        && let Some(session) = scope.opencode_session_id.as_deref()
+        && thread.opencode_session_id.as_deref() != Some(session)
+    {
+        chat_db::update_session(&state.db, &thread.id, session).await?;
+    }
     let templates = crate::dsh_router::prompt_templates::PromptTemplates::load(
         &state.db,
         Some(&thread.workspace_id),
     )
     .await
     .unwrap_or_default();
-    let context =
+    let mut context =
         chat::channel_context_with(&templates, "Telegram", &thread.workspace_id, &thread.id);
+    if let Some(scope) = scope {
+        if !scope.system_context.trim().is_empty() {
+            context.push_str("\n\n## Contexto deste grupo\n");
+            context.push_str(scope.system_context.trim());
+        }
+        if scope.memory_scope == "none" {
+            context.push_str("\n\nEsta conversa não deve usar memória pessoal ou estruturada.");
+        }
+    }
     let mut content = trimmed.to_string();
     if let Some(file) = &incoming.file {
-        match save_incoming_file(state, &thread.workspace_id, &incoming, file, token).await {
+        match super::reply::save_incoming_file(state, &thread.workspace_id, &incoming, file, token)
+            .await
+        {
             Ok(path) => {
                 if content.is_empty() {
                     content = format!(
@@ -355,84 +453,23 @@ async fn handle_incoming(
 
     let background_state = state.clone();
     let bot_token = token.to_string();
+    let context_id = scope.map(|scope| scope.context_id.clone());
     let chat_id = incoming.chat_id.clone();
     let message_id = incoming.message_id;
     tokio::spawn(async move {
-        run_chat_reply(
+        super::reply::run_chat_reply(
             background_state,
-            bot_token,
-            chat_id,
-            message_id,
-            thread,
-            content,
-            context,
+            super::reply::ReplyRequest {
+                token: bot_token,
+                chat_id,
+                message_id,
+                thread,
+                content,
+                context,
+                context_id,
+            },
         )
         .await;
     });
     Ok(())
-}
-
-async fn run_chat_reply(
-    state: Arc<AppState>,
-    token: String,
-    chat_id: String,
-    message_id: i64,
-    thread: crate::db::chat::ChatThread,
-    content: String,
-    context: String,
-) {
-    let typing = TypingGuard::start(token.clone(), chat_id.clone());
-    let progress = tokio::spawn({
-        let token = token.clone();
-        let chat_id = chat_id.clone();
-        async move {
-            loop {
-                tokio::time::sleep(Duration::from_secs(120)).await;
-                let _ = send_text(&token, &chat_id, "Ainda estou trabalhando…").await;
-            }
-        }
-    });
-    let result = chat::send_message_with_context(&state, thread, &content, Some(&context)).await;
-    progress.abort();
-    drop(typing);
-    match result {
-        Ok(reply) => {
-            let _ = send_reply(&token, &chat_id, message_id, &reply.assistant.content).await;
-        }
-        Err(error) => {
-            let _ = send_reply(
-                &token,
-                &chat_id,
-                message_id,
-                &format!("Não consegui responder agora: {error}"),
-            )
-            .await;
-        }
-    }
-}
-
-async fn save_incoming_file(
-    state: &Arc<AppState>,
-    workspace_id: &str,
-    incoming: &IncomingTelegram,
-    file: &IncomingTelegramFile,
-    token: &str,
-) -> AppResult<String> {
-    if file.size.is_some_and(|size| size > MAX_FILE_BYTES as i64) {
-        return Err(AppError::BadRequest(format!(
-            "o arquivo excede o limite de {} MB do Bot API",
-            MAX_FILE_BYTES / (1024 * 1024)
-        )));
-    }
-    let workspace = workspaces::get(&state.db, workspace_id).await?;
-    let day = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let relative_dir = Path::new("input").join("telegram").join(&day);
-    let file_name = safe_file_name(&format!(
-        "{}-{}-{}",
-        incoming.chat_id, incoming.message_id, file.file_name
-    ));
-    let relative = relative_dir.join(file_name);
-    let destination = Path::new(&workspace.root_path).join(&relative);
-    download_file(token, &file.file_id, &destination).await?;
-    Ok(relative.to_string_lossy().replace('\\', "/"))
 }

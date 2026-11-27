@@ -16,7 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { apiBlob, apiDelete, apiGet, apiPost } from "@/lib/api";
 import { pickFolder, slugifyWorkspace } from "@/lib/folder";
-import { downloadBlob } from "@/lib/download";
+import { saveExportedData } from "@/lib/import-export";
 import { relativeTime } from "@/lib/format";
 import type {
   BackupOptions,
@@ -229,7 +229,12 @@ export function BackupsCard() {
       const blob = await apiBlob(
         `/api/backups/${backup.id}/download${query}`,
       );
-      downloadBlob(blob, backup.file_name);
+      await saveExportedData({
+        filename: backup.file_name,
+        content: blob,
+        mime: "application/zip",
+        filters: [{ name: "ZIP", extensions: ["zip"] }],
+      });
     } catch (cause) {
       toast({
         tone: "error",

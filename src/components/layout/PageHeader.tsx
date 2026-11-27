@@ -5,24 +5,30 @@ export function PageHeader({
   title,
   description,
   actions,
+  compact = false,
   className,
 }: {
   title: string;
   description?: string;
   actions?: ReactNode;
+  compact?: boolean;
   className?: string;
 }) {
   return (
     <div
       className={cn(
-        "flex flex-wrap items-start justify-between gap-3",
+        "flex flex-wrap items-start justify-between gap-3 py-2.5",
+        compact ? "min-h-[48px] py-1.5" : "min-h-[64px]",
         className,
       )}
     >
       <div className="min-w-0 flex-1">
-        <h1 className="type-page">{title}</h1>
+        <h1 className="type-page truncate">{title}</h1>
         {description ? (
-          <p className="mt-1 max-w-prose text-[13.5px] leading-relaxed text-zinc-400">
+          <p
+            title={description}
+            className="mt-0.5 truncate text-[13.5px] leading-relaxed text-zinc-400"
+          >
             {description}
           </p>
         ) : null}
@@ -36,7 +42,7 @@ export function PageHeader({
 
 export function PageBody({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto min-w-0 w-full max-w-[1440px] space-y-5 p-5 pb-10 lg:p-7 lg:pb-12">
+    <div className="min-w-0 w-full space-y-5 px-3 py-3 sm:px-4">
       {children}
     </div>
   );
@@ -45,7 +51,7 @@ export function PageBody({ children }: { children: ReactNode }) {
 /** Full-height page where only explicit child scrollers should scroll. */
 export function PageBodyFill({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-hidden p-5 lg:p-7">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col gap-4 overflow-hidden px-3 py-3 sm:px-4">
       {children}
     </div>
   );

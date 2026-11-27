@@ -2,6 +2,7 @@ mod api;
 mod app_state;
 mod bootstrap;
 mod chat;
+mod chat_memory;
 mod cli;
 mod computer;
 mod control_plane;
@@ -264,6 +265,7 @@ pub fn run() {
         {
             tauri::async_runtime::block_on(async {
                 state.cron.shutdown();
+                state.bot_supervisor.stop_all().await;
                 state.write_buffer.shutdown().await;
                 state.queue.shutdown().await;
                 state.daemon.shutdown().await;

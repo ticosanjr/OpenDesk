@@ -74,8 +74,9 @@ export function StudioPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="px-5 pb-0 pt-5 lg:px-7 lg:pt-7">
+      <div className="px-3 pb-0 pt-3 sm:px-4">
         <PageHeader
+          compact
           title="OpenCode Studio"
           description="CRUD visual de agentes, skills, comandos, MCPs e JSONC — sempre gravando nos arquivos nativos do OpenCode."
           actions={
@@ -89,7 +90,7 @@ export function StudioPage() {
           }
         />
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
           <div
             role="group"
             aria-label="Escopo do Studio"
@@ -155,7 +156,7 @@ export function StudioPage() {
       </div>
 
       <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-zinc-800/70">
-        <div className="shrink-0 p-3 pb-0 lg:px-5">
+        <div className="shrink-0 px-3 pb-0 sm:px-4">
           <StudioScopeSummary
             scope={scope}
             workspaceId={activeWorkspaceId}
@@ -171,7 +172,7 @@ export function StudioPage() {
             }}
           />
         ) : scope === "workspace" && !activeWorkspaceId ? (
-          <div className="p-5 lg:p-7">
+          <div className="p-3 sm:p-4">
             <EmptyState
               icon={FolderPlus}
               title="Nenhum workspace ativo"

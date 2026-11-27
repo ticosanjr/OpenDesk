@@ -1,27 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
-import { BrainCircuit, Download, Loader2, Plus, ShieldCheck, Trash2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { BrainCircuit, Download, Loader2, Plus, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
-import { relativeTime } from "@/lib/format";
+import {
+  StructuredMemoryRow,
+  type MemoryNote,
+} from "@/components/learning/StructuredMemoryRow";
 import { JsonImportButton } from "@/components/ui/json-import-button";
 import { exportJsonBundle, type BundleEnvelope } from "@/lib/import-export";
 import { toast } from "@/store/toast-store";
-
-interface MemoryNote {
-  id: string;
-  namespace: string;
-  kind: string;
-  title: string;
-  body: string;
-  tags_json: string;
-  confidence: number;
-  trust_level: string;
-  expires_at?: string | null;
-  created_at: string;
-}
+import type { MemoryUsageScope } from "@/lib/types";
+import {
+  MemoryScopeFilterBar,
+  matchesScopeFilter,
+  type MemoryScopeFilter,
+} from "@/components/learning/MemoryScopeControls";
 
 interface MemoryNamespace {
   id: string;
@@ -47,6 +42,7 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [selectedNamespace, setSelectedNamespace] = useState("");
+  const [scopeFilter, setScopeFilter] = useState<MemoryScopeFilter>("all");
   const [acl, setAcl] = useState<MemoryAcl[]>([]);
   const [aclForm, setAclForm] = useState({ agent: "", read: true, write: false });
   const [form, setForm] = useState({
@@ -57,6 +53,7 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
     tags: "",
     confidence: "0.6",
     trust: "observed",
+    usageScope: "normal" as MemoryUsageScope,
   });
 
   const query = `?workspace_id=${encodeURIComponent(workspaceId)}`;
@@ -117,6 +114,7 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
           .filter(Boolean),
         confidence: Number(form.confidence) || 0.5,
         trust_level: form.trust,
+        usage_scope: form.usageScope,
       });
       setForm({ ...form, title: "", body: "", tags: "" });
       await load();
@@ -124,6 +122,26 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
       toast({
         tone: "error",
         title: "Falha ao salvar a memória",
+        description: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function updateScope(id: string, usageScope: MemoryUsageScope) {
+    setBusy(`scope:${id}`);
+    try {
+      await apiPut(`/api/memory/notes/${id}`, { usage_scope: usageScope });
+      await load();
+      toast({
+        tone: "success",
+        title: `Escopo alterado para ${usageScope === "both" ? "ambos" : usageScope}`,
+      });
+    } catch (cause) {
+      toast({
+        tone: "error",
+        title: "Falha ao alterar o escopo",
         description: cause instanceof Error ? cause.message : String(cause),
       });
     } finally {
@@ -184,12 +202,13 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
     setBusy("export");
     try {
       const bundle = await apiGet<BundleEnvelope>(`/api/memory/export${query}`);
-      exportJsonBundle(
+      const savedName = await exportJsonBundle(
         "structured_memory",
         bundle.items,
         `opendesk-structured-memory-${new Date().toISOString().slice(0, 10)}.json`,
         workspaceId,
       );
+      if (!savedName) return;
       toast({ tone: "success", title: "Memória estruturada exportada" });
     } catch (cause) {
       toast({
@@ -201,6 +220,10 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
       setBusy(null);
     }
   }
+
+  const visibleNotes = notes.filter((note) =>
+    matchesScopeFilter(note.usage_scope, scopeFilter),
+  );
 
   return (
     <Card>
@@ -239,6 +262,12 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
             onImported={load}
           />
         </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <MemoryScopeFilterBar value={scopeFilter} onChange={setScopeFilter} />
+          <span className="text-[11px] text-zinc-500">
+            Normal = tarefas/rotinas · Chat = conversas e bots · Ambos = os dois
+          </span>
+        </div>
         <div className="grid gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3 sm:grid-cols-2 lg:grid-cols-4">
           <input
             value={form.namespace}
@@ -275,6 +304,18 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
                 {trust}
               </option>
             ))}
+          </select>
+          <select
+            aria-label="Escopo de uso da memória"
+            value={form.usageScope}
+            onChange={(event) =>
+              setForm({ ...form, usageScope: event.target.value as MemoryUsageScope })
+            }
+            className={inputClass}
+          >
+            <option value="normal">Normal</option>
+            <option value="chat">Chat</option>
+            <option value="both">Ambos</option>
           </select>
           <input
             value={form.confidence}
@@ -321,51 +362,25 @@ export function StructuredMemoryCard({ workspaceId }: { workspaceId: string }) {
 
         {loading ? (
           <p className="text-[12.5px] text-zinc-500">carregando memória…</p>
-        ) : notes.length === 0 ? (
+        ) : visibleNotes.length === 0 ? (
           <EmptyState
-            title="Memória vazia"
-            description="Agentes podem salvar notas via MCP `memory_save`; você também pode criar aqui."
+            title={notes.length === 0 ? "Memória vazia" : "Nenhuma nota neste filtro"}
+            description={
+              notes.length === 0
+                ? "Agentes podem salvar notas via MCP `memory_create`; você também pode criar aqui."
+                : "Troque o filtro de escopo para ver outras notas."
+            }
           />
         ) : (
           <div className="space-y-1.5">
-            {notes.map((note) => (
-              <div
+            {visibleNotes.map((note) => (
+              <StructuredMemoryRow
                 key={note.id}
-                className="flex items-start justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge variant="blue">{note.namespace}</Badge>
-                    <span className="text-[13px] font-medium text-zinc-200">
-                      {note.title}
-                    </span>
-                    <Badge variant={note.trust_level === "verified" ? "green" : "default"}>
-                      {note.trust_level}
-                    </Badge>
-                    <span className="font-mono text-[10.5px] text-zinc-600">
-                      {(note.confidence * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                  <p className="mt-0.5 line-clamp-2 text-[12px] text-zinc-500">
-                    {note.body}
-                  </p>
-                  <p className="text-[11px] text-zinc-600">
-                    {note.kind}
-                    {note.tags_json !== "[]" ? ` · ${note.tags_json}` : ""} ·{" "}
-                    {relativeTime(note.created_at)}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2"
-                  aria-label={`Remover memória ${note.title}`}
-                  disabled={busy === `note:${note.id}`}
-                  onClick={() => void removeNote(note.id)}
-                >
-                  <Trash2 size={11} />
-                </Button>
-              </div>
+                note={note}
+                busy={busy}
+                onScopeChange={(value) => void updateScope(note.id, value)}
+                onRemove={() => void removeNote(note.id)}
+              />
             ))}
           </div>
         )}

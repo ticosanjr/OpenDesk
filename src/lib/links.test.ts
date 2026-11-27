@@ -26,7 +26,7 @@ describe("navigation links", () => {
   });
 
   it("encodes artifacts, routines and recipes", () => {
-    expect(links.artifact("art 1")).toBe("/artifacts?artifact=art%201");
+    expect(links.artifact("art 1")).toBe("/search?tab=artifacts&artifact=art%201");
     expect(links.routine("sched 1")).toBe("/routines?routine=sched%201");
     expect(links.schedule("sched 1")).toBe("/routines?routine=sched%201");
     expect(links.recipe("recipe/1")).toBe("/recipes?recipe=recipe%2F1");
@@ -57,7 +57,7 @@ describe("settings and integration links", () => {
     expect(links.learning()).toBe("/learning");
     expect(links.learning("proposals")).toBe("/learning?tab=proposals");
     expect(links.governance()).toBe("/governance");
-    expect(links.governance("goals")).toBe("/governance?section=goals");
+    expect(links.governance("goals")).toBe("/governance?tab=goals");
   });
 });
 

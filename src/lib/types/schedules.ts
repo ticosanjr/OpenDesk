@@ -142,3 +142,43 @@ export interface SchedulePreview {
   human: string;
   next_runs: string[];
 }
+
+export type ChannelBotStatus = "stopped" | "running" | "error";
+export type ChannelChatType = "group" | "private";
+export type ChannelMemoryScope = "chat" | "normal" | "both" | "none";
+
+export interface ChannelBot {
+  id: string;
+  workspace_id: string;
+  channel: string;
+  name: string;
+  enabled: boolean;
+  token_configured: boolean;
+  allowlist: string[];
+  default_agent: string;
+  status: ChannelBotStatus | string;
+  last_error?: string | null;
+  last_checked_at?: string | null;
+  running: boolean;
+  config_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChannelChatContext {
+  id: string;
+  bot_id: string;
+  workspace_id: string;
+  channel: string;
+  external_chat_id: string;
+  chat_type: ChannelChatType | string;
+  title: string;
+  system_context: string;
+  agent_override?: string | null;
+  memory_scope: ChannelMemoryScope;
+  opencode_session_id?: string | null;
+  enabled: boolean;
+  last_message_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}

@@ -23,13 +23,13 @@ export function SectionTabs({
   className?: string;
 }) {
   return (
-    <div className="sticky top-0 z-20 -mx-5 border-b border-zinc-800/60 bg-[#09090b]/95 lg:-mx-7">
+    <div className="sticky top-0 z-20 -mx-3 border-b border-zinc-800/60 bg-[#09090b]/95 sm:-mx-4">
       <div className="relative">
         <div
           role="tablist"
           aria-label="Seções"
           className={cn(
-            "flex gap-1 overflow-x-auto px-5 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:px-7",
+            "flex gap-1 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-4",
             className,
           )}
         >

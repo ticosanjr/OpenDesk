@@ -16,6 +16,7 @@ export function FilePreferencesCard() {
   const [preferences, setPreferences] = useState<FilePreferences>({
     downloadDir: "",
     downloadAsk: true,
+    importExportAsk: true,
     htmlAllowScripts: false,
   });
   const [loading, setLoading] = useState(true);
@@ -78,6 +79,27 @@ export function FilePreferencesCard() {
             title="Escolher pasta de downloads"
             placeholder="vazio pergunta a cada download"
             hint="Quando o diálogo está desligado, os arquivos vão direto para esta pasta."
+            disabled={loading}
+          />
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-2">
+          <div>
+            <p className="text-[12.5px] font-medium text-zinc-300">
+              Perguntar sempre onde salvar ao importar/exportar
+            </p>
+            <p className="text-[11.5px] text-zinc-500">
+              Quando desligado, exportações vão direto para a pasta padrão.
+            </p>
+          </div>
+          <Switch
+            checked={preferences.importExportAsk}
+            onCheckedChange={(value) =>
+              setPreferences((current) => ({
+                ...current,
+                importExportAsk: value,
+              }))
+            }
+            label="Perguntar ao importar/exportar"
             disabled={loading}
           />
         </div>

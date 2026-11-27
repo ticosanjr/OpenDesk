@@ -28,16 +28,18 @@ should use it instead of inventing local variants.
 | Sidebar | 236px expanded, 64px collapsed |
 | Settings / Integrations rail | 220px vertical, grouped |
 | Topbar | 56px |
-| Page gutter | 20px (default), 28px at ≥1024px |
-| Maximum content width | 1440px, centered |
-| Section gap | 20px (default), 24px at ≥1024px |
+| Page gutter | 12px mobile, 16px at ≥640px |
+| Maximum content width | Full width (no artificial cap) |
+| Section gap | 20px (PageBody), 16px (PageBodyFill) |
 | Card gap | 12–16px |
 | Card padding | 16px (compact), 20px (default) |
 | Inline gap | 4–8px |
 | Label → field | 6px |
 
-`PageBody` owns the gutter and maximum width. `PageBodyFill` is for full-height
-surfaces (Kanban, Chat, Studio) where children manage their own scrollers.
+`PageBody` owns the full-width gutter; content is never centered with a
+`max-w` cap. `PageBodyFill` is for full-height surfaces (Kanban, Chat, Studio,
+Files) where children manage their own scrollers. `PageHeader` keeps a stable
+minimum height between tabs and truncates its single-line description.
 
 ## Typography
 

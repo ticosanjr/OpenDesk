@@ -1,3 +1,4 @@
+pub mod bot_supervisor;
 pub mod delivery;
 pub mod discord;
 pub mod external_chat;

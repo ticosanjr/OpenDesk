@@ -15,6 +15,25 @@ pub(super) fn routes() -> Router<Arc<AppState>> {
         .route("/api/channels/routes/{id}", delete(channels::delete_route))
         .route("/api/channels/status", get(channels::status))
         .route(
+            "/api/channels/bots",
+            get(channel_bots::list).post(channel_bots::create),
+        )
+        .route(
+            "/api/channels/bots/{id}",
+            put(channel_bots::update).delete(channel_bots::delete),
+        )
+        .route("/api/channels/bots/{id}/start", post(channel_bots::start))
+        .route("/api/channels/bots/{id}/stop", post(channel_bots::stop))
+        .route("/api/channels/bots/{id}/test", post(channel_bots::test))
+        .route(
+            "/api/channels/bots/{id}/contexts",
+            get(channel_bots::list_contexts).post(channel_bots::create_context),
+        )
+        .route(
+            "/api/channels/bots/{id}/contexts/{ctx_id}",
+            put(channel_bots::update_context).delete(channel_bots::delete_context),
+        )
+        .route(
             "/api/channels/whatsapp",
             get(channels::get_whatsapp).put(channels::put_whatsapp),
         )
@@ -89,7 +108,9 @@ pub(super) fn routes() -> Router<Arc<AppState>> {
         )
         .route(
             "/api/memory/notes/{id}",
-            patch(memory::update_note).delete(memory::delete_note),
+            patch(memory::update_note)
+                .put(memory::update_note)
+                .delete(memory::delete_note),
         )
         .route("/api/memory/search", get(memory::search))
         .route("/api/memory/context", get(memory::context))

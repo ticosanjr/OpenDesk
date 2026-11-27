@@ -40,11 +40,12 @@ export function WorkspacesCard({
       const bundle = await apiGet<BundleEnvelope>(
         "/api/bundles/workspaces/export",
       );
-      exportJsonBundle(
+      const savedName = await exportJsonBundle(
         "workspaces_bundle",
         bundle.items,
         `opendesk-workspaces-${new Date().toISOString().slice(0, 10)}.json`,
       );
+      if (!savedName) return;
       toast({ tone: "success", title: "Workspaces exportados" });
     } catch (cause) {
       toast({

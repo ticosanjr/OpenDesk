@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import type { StudioRuntime } from "@/lib/types";
 import { loadAgents, loadRuntime } from "@/lib/studio-cache";
 import { cn } from "@/lib/utils";
@@ -37,6 +39,12 @@ export function SlashTextarea({
   showHints?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const activeItemRef = useRef<HTMLButtonElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    placement: "top" | "bottom";
+    style: CSSProperties;
+  } | null>(null);
   const [runtime, setRuntime] = useState<StudioRuntime | null>(null);
   const [agents, setAgents] = useState<Array<{ id: string; name?: string | null; description?: string | null }>>([]);
   const [slash, setSlash] = useState<{ trigger: Trigger; query: string; start: number } | null>(null);
@@ -88,6 +96,50 @@ export function SlashTextarea({
       }));
   }, [agents, runtime, slash]);
 
+  const placeMenu = useCallback(() => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const placement =
+      spaceBelow < 260 && spaceAbove > spaceBelow ? "top" : "bottom";
+    const available = Math.max(
+      96,
+      Math.min(240, (placement === "top" ? spaceAbove : spaceBelow) - 12),
+    );
+    const width = Math.max(220, Math.min(rect.width, window.innerWidth - rect.left - 8));
+    const style: CSSProperties = {
+      position: "fixed",
+      left: rect.left,
+      width,
+      maxHeight: available,
+      zIndex: 50,
+      ...(placement === "top"
+        ? { bottom: window.innerHeight - rect.top + 6 }
+        : { top: rect.bottom + 6 }),
+    };
+    setMenuPosition({ placement, style });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!slash) {
+      setMenuPosition(null);
+      return;
+    }
+    placeMenu();
+    const onViewportChange = () => placeMenu();
+    window.addEventListener("resize", onViewportChange);
+    window.addEventListener("scroll", onViewportChange, true);
+    return () => {
+      window.removeEventListener("resize", onViewportChange);
+      window.removeEventListener("scroll", onViewportChange, true);
+    };
+  }, [items.length, placeMenu, slash]);
+
+  useEffect(() => {
+    activeItemRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [active, slash]);
+
   function update(next: string, cursor: number) {
     onChange(next);
     const before = next.slice(0, cursor);
@@ -117,7 +169,7 @@ export function SlashTextarea({
   }
 
   return (
-    <div className={cn("relative min-w-0", containerClassName)}>
+    <div ref={containerRef} className={cn("relative min-w-0", containerClassName)}>
       <textarea
         ref={ref}
         value={value}
@@ -185,40 +237,46 @@ export function SlashTextarea({
           <span className="font-mono text-zinc-400">#skill</span> para uma skill.
         </p>
       ) : null}
-      {slash ? (
-        <div
-          role="listbox"
-          className="absolute z-40 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl"
-        >
-          {items.length === 0 ? (
-            <p className="px-2 py-1 text-[12px] text-zinc-500">
-              Nenhum comando/skill encontrado no runtime.
-            </p>
-          ) : (
-            items.map((item, index) => (
-              <button
-                key={`${item.label}:${item.detail}`}
-                type="button"
-                role="option"
-                aria-selected={index === active}
-                className={cn(
-                  "block w-full rounded px-2 py-1.5 text-left hover:bg-zinc-800",
-                  index === active && "bg-zinc-800/80",
-                )}
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  insert(item);
-                }}
-              >
-                <span className="font-mono text-[12px] text-zinc-200">
-                  {item.label}
-                </span>
-                <span className="ml-2 text-[11.5px] text-zinc-500">{item.detail}</span>
-              </button>
-            ))
-          )}
-        </div>
-      ) : null}
+      {slash && menuPosition
+        ? createPortal(
+            <div
+              role="listbox"
+              data-placement={menuPosition.placement}
+              style={menuPosition.style}
+              className="max-h-60 overflow-y-auto overscroll-contain rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl"
+            >
+              {items.length === 0 ? (
+                <p className="px-2 py-1 text-[12px] text-zinc-500">
+                  Nenhum comando/skill encontrado no runtime.
+                </p>
+              ) : (
+                items.map((item, index) => (
+                  <button
+                    key={`${item.label}:${item.detail}`}
+                    ref={index === active ? activeItemRef : undefined}
+                    type="button"
+                    role="option"
+                    aria-selected={index === active}
+                    className={cn(
+                      "block w-full rounded px-2 py-1.5 text-left hover:bg-zinc-800",
+                      index === active && "bg-zinc-800/80",
+                    )}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      insert(item);
+                    }}
+                  >
+                    <span className="font-mono text-[12px] text-zinc-200">
+                      {item.label}
+                    </span>
+                    <span className="ml-2 text-[11.5px] text-zinc-500">{item.detail}</span>
+                  </button>
+                ))
+              )}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

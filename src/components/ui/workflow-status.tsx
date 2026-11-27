@@ -1,14 +1,14 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  AlertTriangle,
+  Ban,
   CheckCircle2,
   Circle,
-  ClipboardCheck,
   Clock3,
-  Cog,
+  Loader2,
   MessageCircle,
-  Pause,
-  XCircle,
+  MessageCircleQuestion,
+  PauseCircle,
+  ShieldAlert,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -18,13 +18,14 @@ import { workflowMeta, type WorkflowLike } from "@/lib/workflow";
 const ICONS: Record<string, LucideIcon> = {
   READY: Circle,
   QUEUED: Clock3,
-  HELD: Pause,
-  RUNNING: Cog,
-  NEEDS_APPROVAL: ClipboardCheck,
+  HELD: PauseCircle,
+  RUNNING: Loader2,
+  NEEDS_APPROVAL: ShieldAlert,
+  WAITING_HITL: MessageCircleQuestion,
   WAITING_INPUT: MessageCircle,
-  BLOCKED: AlertTriangle,
+  BLOCKED: PauseCircle,
   DONE: CheckCircle2,
-  CANCELLED: XCircle,
+  CANCELLED: Ban,
 };
 
 /**
@@ -47,7 +48,7 @@ export function WorkflowStatusBadge({
       <Badge variant={meta.tone} className={cn("max-w-full", className)}>
         <Icon
           size={10}
-          className={meta.state === "RUNNING" ? "opendesk-gear shrink-0" : "shrink-0"}
+          className={meta.state === "RUNNING" ? "animate-spin shrink-0" : "shrink-0"}
         />
         <span className="truncate">{meta.label}</span>
         {showReason && meta.reason !== meta.label ? (

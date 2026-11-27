@@ -148,9 +148,10 @@ pub async fn send_message_with_metadata(
     )
     .await
     .unwrap_or_default();
-    let personal_body = crate::personal_context::render_body(&state.db, &thread.workspace_id)
+    let memory_bodies = crate::chat_memory::chat_memory_bodies(state, &thread)
         .await
         .unwrap_or_default();
+    let personal_body = memory_bodies.personal;
     let personal_context = if personal_body.is_empty() {
         String::new()
     } else {
@@ -163,6 +164,12 @@ pub async fn send_message_with_metadata(
     let mut parts = Vec::new();
     if !personal_context.trim().is_empty() {
         parts.push(personal_context.trim().to_string());
+    }
+    if !memory_bodies.structured.trim().is_empty() {
+        parts.push(crate::dsh_router::prompt_templates::render(
+            &templates.structured_memory_block,
+            &[("structured_memory", memory_bodies.structured.trim())],
+        ));
     }
     if let Some(context) = context.map(str::trim).filter(|value| !value.is_empty()) {
         parts.push(context.to_string());

@@ -122,12 +122,13 @@ export function PromptTemplatesCard() {
       const bundle = await apiGet<BundleEnvelope>(
         `/api/prompt-templates/export${query}`,
       );
-      exportJsonBundle(
+      const savedName = await exportJsonBundle(
         "prompt_templates",
         bundle.items,
         `opendesk-prompts-${new Date().toISOString().slice(0, 10)}.json`,
         workspaceId,
       );
+      if (!savedName) return;
       toast({ tone: "success", title: "Prompts exportados" });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));

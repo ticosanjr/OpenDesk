@@ -57,7 +57,7 @@ export const links = {
   calendar: (date?: string) =>
     date ? `/calendar?date=${enc(date)}` : "/calendar",
   calendarEvent: (id: string) => `/calendar?event=${enc(id)}`,
-  artifact: (id: string) => `/artifacts?artifact=${enc(id)}`,
+  artifact: (id: string) => `/search?tab=artifacts&artifact=${enc(id)}`,
   routine: (scheduleId: string) => `/routines?routine=${enc(scheduleId)}`,
   /** Older name kept so existing callers keep working. */
   schedule: (scheduleId: string) => links.routine(scheduleId),
@@ -87,5 +87,5 @@ export const links = {
   learning: (tab?: string) =>
     tab ? `/learning?tab=${enc(tab)}` : "/learning",
   governance: (section?: string) =>
-    section ? `/governance?section=${enc(section)}` : "/governance",
+    section ? `/governance?tab=${enc(section)}` : "/governance",
 };

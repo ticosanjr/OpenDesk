@@ -1,5 +1,5 @@
 import { apiPost } from "@/lib/api";
-import { downloadBlob } from "@/lib/download";
+import { saveExportedData } from "@/lib/import-export";
 
 export const CONFIG_BUNDLE_PRESETS: Record<string, string[]> = {
   all: [],
@@ -11,15 +11,17 @@ export const CONFIG_BUNDLE_PRESETS: Record<string, string[]> = {
 export async function downloadConfigBundle(
   workspaceId: string,
   sections: string[] = [],
-): Promise<string> {
+): Promise<string | null> {
   const data = await apiPost<unknown>("/api/config-bundle/export", {
     workspace_id: workspaceId,
     sections,
   });
   const name = `opendesk-config-${new Date().toISOString().slice(0, 10)}.json`;
-  downloadBlob(
-    new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
-    name,
-  );
-  return name;
+  const result = await saveExportedData({
+    filename: name,
+    content: JSON.stringify(data, null, 2),
+    mime: "application/json",
+    filters: [{ name: "JSON", extensions: ["json"] }],
+  });
+  return result.saved ? name : null;
 }

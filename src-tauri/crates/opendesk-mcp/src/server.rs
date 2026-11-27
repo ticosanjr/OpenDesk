@@ -73,14 +73,24 @@ where
                             "isError": false
                         }
                     })),
-                    Err(error) => Some(json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "result": {
-                            "content": [{ "type": "text", "text": format!("{error:#}") }],
-                            "isError": true
-                        }
-                    })),
+                    Err(error) => {
+                        let text = format!("{error:#}");
+                        Some(match text.strip_prefix("INVALID_PARAMS: ") {
+                            Some(message) => json!({
+                                "jsonrpc": "2.0",
+                                "id": id,
+                                "error": { "code": -32602, "message": message }
+                            }),
+                            None => json!({
+                                "jsonrpc": "2.0",
+                                "id": id,
+                                "result": {
+                                    "content": [{ "type": "text", "text": text }],
+                                    "isError": true
+                                }
+                            }),
+                        })
+                    }
                 }
             }
             "shutdown" => Some(json!({ "jsonrpc": "2.0", "id": id, "result": null })),

@@ -292,11 +292,21 @@ pub async fn handle_http_with(
     };
     match result {
         Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
-        Err(error) => json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "error": { "code": -32601, "message": format!("{error:#}") },
-        }),
+        Err(error) => {
+            let text = format!("{error:#}");
+            match text.strip_prefix("INVALID_PARAMS: ") {
+                Some(message) => json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": { "code": -32602, "message": message },
+                }),
+                None => json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": { "code": -32601, "message": text },
+                }),
+            }
+        }
     }
 }
 async fn dispatch(

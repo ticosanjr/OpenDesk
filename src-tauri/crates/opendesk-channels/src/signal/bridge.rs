@@ -98,10 +98,41 @@ impl SignalBridge {
             )));
         }
 
+        self.start_with_config(config, handler).await
+    }
+
+    /// Starts the bridge with an explicit configuration. Multi-bot workspaces
+    /// use this entry point so each account gets its own process and handler.
+    pub async fn start_with_config(
+        self: &Arc<Self>,
+        config: SignalConfig,
+        handler: Arc<dyn SignalEventHandler>,
+    ) -> AppResult<bool> {
+        self.stop().await;
+        if !config.enabled {
+            return Ok(false);
+        }
+        if config.account.trim().is_empty() {
+            return Err(AppError::BadRequest(
+                "Signal está habilitado, mas a conta (número) não foi configurada.".into(),
+            ));
+        }
+        if config.allowlist.is_empty() {
+            return Err(AppError::BadRequest(
+                "Signal está habilitado, mas a allowlist está vazia. Adicione ao menos um número."
+                    .into(),
+            ));
+        }
+        if detect_cli(&config.cli_path).await.is_none() {
+            return Err(AppError::BadRequest(format!(
+                "signal-cli não encontrado em '{}'. Instale ou informe o caminho.",
+                config.cli_path
+            )));
+        }
+
         let bridge = Arc::clone(self);
-        let pool = pool.clone();
         let handle = tokio::spawn(async move {
-            if let Err(error) = bridge.run(pool, handler).await {
+            if let Err(error) = bridge.run_with_config(config, handler).await {
                 tracing::error!(error = %error, "Signal bridge stopped");
             }
         });
@@ -109,12 +140,11 @@ impl SignalBridge {
         Ok(true)
     }
 
-    async fn run(
+    async fn run_with_config(
         self: Arc<Self>,
-        pool: SqlitePool,
+        config: SignalConfig,
         handler: Arc<dyn SignalEventHandler>,
     ) -> anyhow::Result<()> {
-        let config = load(&pool).await?;
         let mut command = Command::new(&config.cli_path);
         command
             .args(["-a", &config.account, "--output", "json", "daemon"])
@@ -137,7 +167,6 @@ impl SignalBridge {
             let Some(incoming) = parse_incoming(&line) else {
                 continue;
             };
-            let config = load(&pool).await?;
             if incoming.source == config.account {
                 continue;
             }
@@ -145,7 +174,7 @@ impl SignalBridge {
                 tracing::warn!(source = %incoming.source, "Signal message rejected by allowlist");
                 continue;
             }
-            if let Err(error) = handler.handle(config, incoming).await {
+            if let Err(error) = handler.handle(config.clone(), incoming).await {
                 tracing::warn!(error = %error, "Signal message failed");
             }
         }

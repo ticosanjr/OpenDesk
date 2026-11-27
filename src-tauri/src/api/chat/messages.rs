@@ -104,8 +104,8 @@ pub async fn prompt_preview(
     let thread = chat_db::get_thread(&state.db, &id).await?;
     let workspace = workspaces::get(&state.db, &thread.workspace_id).await?;
     let templates = PromptTemplates::load(&state.db, Some(&thread.workspace_id)).await?;
-    let personal_body =
-        crate::personal_context::render_body(&state.db, &thread.workspace_id).await?;
+    let memory_bodies = crate::chat_memory::chat_memory_bodies(&state, &thread).await?;
+    let personal_body = memory_bodies.personal;
     let personal = if personal_body.is_empty() {
         String::new()
     } else {
@@ -137,6 +137,17 @@ pub async fn prompt_preview(
             label: "Contexto pessoal".into(),
             source: "Contexto pessoal".into(),
             content: personal.trim().to_string(),
+        });
+    }
+    if !memory_bodies.structured.trim().is_empty() {
+        sections.push(PromptSection {
+            id: "structured_memory".into(),
+            label: "Memória estruturada relevante".into(),
+            source: "Memória (chat)".into(),
+            content: crate::dsh_router::prompt_templates::render(
+                &templates.structured_memory_block,
+                &[("structured_memory", memory_bodies.structured.trim())],
+            ),
         });
     }
     sections.push(PromptSection {

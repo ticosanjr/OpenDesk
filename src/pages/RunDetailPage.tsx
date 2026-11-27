@@ -60,12 +60,14 @@ export function RunDetailPage() {
     if (!runId) return;
     setExporting(format);
     try {
-      await downloadRun(runId, format);
-      toast({
-        tone: "success",
-        title: `Export ${format.toUpperCase()} gerado`,
-        description: "O download foi iniciado.",
-      });
+      const saved = await downloadRun(runId, format);
+      if (saved.saved) {
+        toast({
+          tone: "success",
+          title: `Export ${format.toUpperCase()} gerado`,
+          description: "O download foi iniciado.",
+        });
+      }
     } catch (cause) {
       toast({
         tone: "error",

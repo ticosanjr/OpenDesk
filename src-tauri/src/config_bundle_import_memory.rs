@@ -58,6 +58,7 @@ pub(crate) async fn import_memory(
                         tags: Some(tags.clone()),
                         confidence: Some(note.confidence),
                         trust_level: Some(note.trust_level.clone()),
+                        usage_scope: Some(note.usage_scope.clone()),
                         ..Default::default()
                     },
                 )
@@ -78,6 +79,7 @@ pub(crate) async fn import_memory(
                 trust_level: note.trust_level,
                 expires_at: note.expires_at,
                 source: note.source,
+                usage_scope: Some(note.usage_scope),
             },
         )
         .await?;
@@ -167,6 +169,13 @@ pub(crate) async fn import_personal_context(
                             .get("source_quote")
                             .and_then(Value::as_str)
                             .map(str::to_string),
+                        usage_scope: Some(
+                            group
+                                .get("usage_scope")
+                                .and_then(Value::as_str)
+                                .unwrap_or("both")
+                                .to_string(),
+                        ),
                     },
                 )
                 .await?;
@@ -197,6 +206,13 @@ pub(crate) async fn import_personal_context(
                     .get("source_quote")
                     .and_then(Value::as_str)
                     .map(str::to_string),
+                usage_scope: Some(
+                    group
+                        .get("usage_scope")
+                        .and_then(Value::as_str)
+                        .unwrap_or("both")
+                        .to_string(),
+                ),
             },
         )
         .await?;

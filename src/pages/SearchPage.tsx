@@ -12,9 +12,10 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { PageBody, PageBodyFill, PageHeader } from "@/components/layout/PageHeader";
 import { SectionTabs } from "@/components/ui/section-tabs";
 import { FilesPage } from "@/pages/FilesPage";
+import { ArtifactsTabContent } from "@/pages/artifacts/ArtifactsTabContent";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppStore } from "@/store/app-store";
@@ -33,7 +34,7 @@ const TABS = [
   { id: "tasks", label: "Tarefas", kinds: ["task"] },
   { id: "comments", label: "Comentários", kinds: ["comment"] },
   { id: "file_results", label: "Resultados de arquivos", kinds: ["file"] },
-  { id: "artifacts", label: "Artefatos", kinds: ["artifact"] },
+  { id: "artifact_results", label: "Resultados de artefatos", kinds: ["artifact"] },
   { id: "agents", label: "Agentes", kinds: ["agent"] },
   { id: "projects", label: "Projetos", kinds: ["project"] },
   { id: "routines", label: "Rotinas", kinds: ["schedule"] },
@@ -72,11 +73,16 @@ export function SearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [recent, setRecent] = useState<string[]>([]);
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
-  const filesView = params.get("tab") === "files";
+  const view =
+    params.get("tab") === "files"
+      ? "files"
+      : params.get("tab") === "artifacts"
+        ? "artifacts"
+        : "search";
 
   function switchView(id: string) {
     const next = new URLSearchParams(params);
-    if (id === "files") next.set("tab", "files");
+    if (id === "files" || id === "artifacts") next.set("tab", id);
     else next.delete("tab");
     setParams(next, { replace: true });
   }
@@ -110,7 +116,7 @@ export function SearchPage() {
   }, [activeWorkspaceId, query]);
 
   useEffect(() => {
-    if (filesView) return;
+    if (view !== "search") return;
     let cancelled = false;
     const handle = window.setTimeout(() => {
       // A pending debounce must not rewrite the hash after the user opened
@@ -148,7 +154,7 @@ export function SearchPage() {
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [activeWorkspaceId, filesView, query, setParams, tab]);
+  }, [activeWorkspaceId, query, setParams, tab, view]);
 
   useEffect(() => {
     const nextQuery = params.get("q") ?? "";
@@ -208,22 +214,34 @@ export function SearchPage() {
       : hits.length;
   }
 
-  if (filesView) {
+  const viewTabs = [
+    { id: "search", label: "Buscar", icon: Search },
+    { id: "files", label: "Arquivos", icon: FolderTree },
+    { id: "artifacts", label: "Artefatos", icon: Archive },
+  ];
+
+  if (view === "files") {
     return (
-      <PageBody>
+      <PageBodyFill>
         <PageHeader
           title="Arquivos"
           description={`${workspace?.name ?? "Workspace"} · navegação de arquivos e busca global no mesmo lugar.`}
         />
-        <SectionTabs
-          value="files"
-          onChange={switchView}
-          items={[
-            { id: "search", label: "Buscar", icon: Search },
-            { id: "files", label: "Arquivos", icon: FolderTree },
-          ]}
-        />
+        <SectionTabs value="files" onChange={switchView} items={viewTabs} />
         <FilesPage embedded />
+      </PageBodyFill>
+    );
+  }
+
+  if (view === "artifacts") {
+    return (
+      <PageBody>
+        <PageHeader
+          title="Artefatos"
+          description={`${workspace?.name ?? "Workspace"} · quem criou, por quê, quando, diff e destinos.`}
+        />
+        <SectionTabs value="artifacts" onChange={switchView} items={viewTabs} />
+        <ArtifactsTabContent />
       </PageBody>
     );
   }
@@ -234,14 +252,7 @@ export function SearchPage() {
         title="Buscar"
         description={`${workspace?.name ?? "Workspace"} · tarefas, comentários, arquivos, artefatos, agentes, projetos, rotinas e execuções.`}
       />
-      <SectionTabs
-        value="search"
-        onChange={switchView}
-        items={[
-          { id: "search", label: "Buscar", icon: Search },
-          { id: "files", label: "Arquivos", icon: FolderTree },
-        ]}
-      />
+      <SectionTabs value="search" onChange={switchView} items={viewTabs} />
 
       <div className="rounded-xl border border-zinc-800/70 bg-zinc-900/20 p-3">
         <div className="flex h-11 items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/50 px-3">

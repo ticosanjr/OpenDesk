@@ -43,7 +43,7 @@ export function ThreadListCard({
   });
 
   return (
-    <Card className="flex h-[680px] max-h-[calc(100dvh-190px)] min-h-[460px] flex-col overflow-hidden">
+    <Card className="flex h-full min-h-0 flex-col overflow-hidden">
       <CardHeader className="px-4 py-3.5">
         <div>
           <CardTitle>Conversas</CardTitle>
@@ -68,7 +68,11 @@ export function ThreadListCard({
           />
         </div>
       </div>
-      <CardContent className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
+      <CardContent
+        tabIndex={0}
+        aria-label="Lista de conversas"
+        className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2"
+      >
         {filteredThreads.length === 0 ? (
           <p className="p-4 text-center text-[13.5px] text-zinc-500">
             {threads.length === 0

@@ -17,6 +17,7 @@ pub mod event;
 pub mod hitl;
 pub mod ids;
 pub mod mcp;
+pub mod memory;
 pub mod notification;
 pub mod ports;
 pub mod run;
@@ -37,6 +38,7 @@ pub use mcp::{
     ElicitationPort, ElicitationRequest, ElicitationResponse, SamplingMessage, SamplingPort,
     SamplingRequest, SamplingResponse,
 };
+pub use memory::MemoryUsageScope;
 pub use notification::{CareLevel, QuietHours};
 pub use ports::{
     Clock, ConversationRepository, NotificationIntent, NotificationLevel, Notifier, SystemClock,

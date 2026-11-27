@@ -11,6 +11,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { ChannelBotsPanel } from "@/components/integrations/ChannelBotsPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
@@ -22,9 +23,10 @@ import {
   smallLabelClass as labelClass,
 } from "@/lib/ui-classes";
 
-export function TelegramCard() {
+export function TelegramCard({ workspaceId: workspaceIdProp }: { workspaceId?: string }) {
   const workspaces = useAppStore((state) => state.workspaces);
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
+  const panelWorkspaceId = workspaceIdProp ?? activeWorkspaceId ?? "";
   const [status, setStatus] = useState<TelegramStatus | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [token, setToken] = useState("");
@@ -128,7 +130,8 @@ export function TelegramCard() {
   const bot = status?.bot_username ? `@${status.bot_username}` : null;
 
   return (
-    <Card>
+    <>
+      <Card>
       <CardHeader>
         <div>
           <CardTitle className="flex items-center gap-2">
@@ -292,6 +295,10 @@ export function TelegramCard() {
           </p>
         </div>
       </CardContent>
-    </Card>
+      </Card>
+      <div className="mt-4">
+        <ChannelBotsPanel channel="telegram" workspaceId={panelWorkspaceId} />
+      </div>
+    </>
   );
 }

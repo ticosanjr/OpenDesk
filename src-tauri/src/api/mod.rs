@@ -13,6 +13,7 @@ pub mod budget;
 pub mod bundles;
 pub mod calendar;
 pub mod capture;
+pub mod channel_bots;
 pub mod channels;
 pub mod chat;
 #[cfg(feature = "desktop")]

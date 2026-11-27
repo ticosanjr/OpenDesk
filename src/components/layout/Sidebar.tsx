@@ -3,7 +3,6 @@ import type { LucideIcon } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import {
   Activity,
-  Archive,
   Brain,
   Loader2,
   CalendarClock,
@@ -55,7 +54,6 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
   {
     label: "Biblioteca",
     items: [
-      { to: "/artifacts", label: "Artefatos", icon: Archive },
       { to: "/packs", label: "Pacotes", icon: Package },
       { to: "/studio", label: "OpenCode Studio", icon: Wand2 },
     ],

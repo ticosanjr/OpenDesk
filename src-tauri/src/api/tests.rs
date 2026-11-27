@@ -65,6 +65,7 @@ mod backups;
 mod browse;
 mod bundles;
 mod calendar;
+mod channel_bots;
 mod channels;
 mod chat_files;
 mod config_bundle;

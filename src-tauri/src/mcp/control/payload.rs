@@ -2,6 +2,18 @@ use super::util::{bool_arg, integer_arg, optional, optional_str, required, strin
 use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
+/// Strict `usage_scope` validation shared by memory tools. Invalid values are
+/// tagged so the JSON-RPC gateway can answer with `-32602`.
+pub(super) fn usage_scope_arg(args: &Value) -> Result<Option<String>> {
+    match optional_str(args, "usage_scope") {
+        None => Ok(None),
+        Some(value) if matches!(value, "normal" | "chat" | "both") => Ok(Some(value.into())),
+        Some(value) => Err(anyhow!(
+            "INVALID_PARAMS: usage_scope inválido '{value}'; use 'normal', 'chat' ou 'both'"
+        )),
+    }
+}
+
 pub(super) fn task_create_body(args: &Value) -> Result<Value> {
     Ok(json!({
         "title": required(args, "title")?,
@@ -256,5 +268,17 @@ mod tests {
                 .unwrap()
                 .contains("/hooks/entrada")
         );
+    }
+
+    #[test]
+    fn usage_scope_is_fail_closed() {
+        assert_eq!(usage_scope_arg(&json!({})).expect("default"), None);
+        assert_eq!(
+            usage_scope_arg(&json!({ "usage_scope": "chat" })).expect("chat"),
+            Some("chat".into())
+        );
+        let error = usage_scope_arg(&json!({ "usage_scope": "none" })).unwrap_err();
+        assert!(error.to_string().contains("INVALID_PARAMS"));
+        assert!(error.to_string().contains("normal"));
     }
 }

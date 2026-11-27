@@ -99,12 +99,13 @@ export function ScriptToolsCard({ workspaceId }: { workspaceId: string }) {
     setBusy("export");
     try {
       const bundle = await apiGet<BundleEnvelope>(`/api/script-tools/export${query}`);
-      exportJsonBundle(
+      const savedName = await exportJsonBundle(
         "script_tools",
         bundle.items,
         `opendesk-script-tools-${new Date().toISOString().slice(0, 10)}.json`,
         workspaceId,
       );
+      if (!savedName) return;
       toast({ tone: "success", title: "Ferramentas exportadas" });
     } catch (cause) {
       toast({

@@ -1,13 +1,14 @@
 mod format;
 mod host;
 mod http;
+mod reply;
 #[cfg(test)]
 mod tests;
 
 use crate::{app_state::AppState, error::AppResult};
 
 pub use format::{notify_permission, notify_task_interaction};
-pub use host::TelegramBridge;
+pub use host::{TelegramBridge, handle_bot_update};
 
 #[allow(unused_imports)]
 pub use opendesk_channels::telegram::{

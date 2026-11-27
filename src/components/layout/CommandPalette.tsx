@@ -46,7 +46,6 @@ const icons = {
   "/calendar": CalendarDays,
   "/runs": Activity,
   "/chat": MessageSquare,
-  "/artifacts": Archive,
   "/files": FolderTree,
   "/routines": CalendarClock,
   "/recipes": Workflow,

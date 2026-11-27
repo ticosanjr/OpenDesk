@@ -216,12 +216,13 @@ impl CronEngine {
             crate::personal_context::render_body(&self.pool, &schedule.workspace_id)
                 .await
                 .unwrap_or_default();
-        let memory_context = opendesk_storage::repos::memory::render_context(
+        let memory_context = opendesk_storage::repos::memory::render_context_for(
             &self.pool,
             &schedule.workspace_id,
             &decision.selected_agent,
             &format!("{} {}", schedule.name, prompt),
             8,
+            Some(opendesk_domain::MemoryUsageScope::Normal),
         )
         .await
         .unwrap_or_default();

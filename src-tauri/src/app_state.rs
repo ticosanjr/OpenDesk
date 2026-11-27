@@ -53,6 +53,7 @@ pub struct AppState {
     pub google: Arc<GoogleOAuth>,
     pub signal: Arc<SignalBridge>,
     pub telegram: Arc<TelegramBridge>,
+    pub bot_supervisor: Arc<crate::integrations::bot_supervisor::BotSupervisor>,
     pub discord: Arc<DiscordBridge>,
     pub slack: Arc<SlackBridge>,
     pub whatsapp_qr: Arc<WhatsAppQrBridge>,
@@ -137,6 +138,8 @@ impl AppState {
         let google = GoogleOAuth::new(db.clone(), secrets.clone(), events.clone());
         let signal = Arc::new(SignalBridge::default());
         let telegram = Arc::new(TelegramBridge::default());
+        let bot_supervisor =
+            Arc::new(crate::integrations::bot_supervisor::BotSupervisor::default());
         let io_bus = Arc::new(crate::io_bus::runtime::IoBus::new());
         let mut queue_policy = crate::db::queue::load_policy(&db).await?;
         if settings::get(&db, crate::db::queue::QUEUE_POLICY_SETTING)
@@ -189,6 +192,7 @@ impl AppState {
             google,
             signal,
             telegram,
+            bot_supervisor,
             discord: Arc::new(DiscordBridge::default()),
             slack: Arc::new(SlackBridge::default()),
             whatsapp_qr: Arc::new(WhatsAppQrBridge::default()),

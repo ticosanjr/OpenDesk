@@ -376,9 +376,12 @@ export function RunsPage() {
                           </span>
                         </td>
                         <td className="px-3 py-2">
-                          <Badge variant={runStatusTone(run.status)}>
-                            {runStatusLabel(run.status)}
-                          </Badge>
+                          <span className="inline-flex items-center gap-1.5">
+                            <RunStatusIcon status={run.status} size={12} />
+                            <Badge variant={runStatusTone(run.status)}>
+                              {runStatusLabel(run.status)}
+                            </Badge>
+                          </span>
                         </td>
                         <td className="px-3 py-2">
                           <Badge variant={runScope(run) === "work" ? "default" : "purple"}>

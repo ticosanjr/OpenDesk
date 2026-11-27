@@ -3,6 +3,7 @@ import { apiGet, apiPut } from "./api";
 export interface FilePreferences {
   downloadDir: string;
   downloadAsk: boolean;
+  importExportAsk: boolean;
   htmlAllowScripts: boolean;
 }
 
@@ -27,10 +28,20 @@ export async function loadFilePreferences(): Promise<FilePreferences> {
     return {
       downloadDir: parse(settings, "download_dir", ""),
       downloadAsk: parse(settings, "download_ask", true),
+      importExportAsk: parse(
+        settings,
+        "import_export_ask",
+        parse(settings, "files.import_export_ask", true),
+      ),
       htmlAllowScripts: parse(settings, "html_allow_scripts", false),
     };
   } catch {
-    return { downloadDir: "", downloadAsk: true, htmlAllowScripts: false };
+    return {
+      downloadDir: "",
+      downloadAsk: true,
+      importExportAsk: true,
+      htmlAllowScripts: false,
+    };
   }
 }
 
@@ -40,6 +51,7 @@ export async function saveFilePreferences(
   await Promise.all([
     apiPut("/api/settings/download_dir", preferences.downloadDir.trim()),
     apiPut("/api/settings/download_ask", preferences.downloadAsk),
+    apiPut("/api/settings/import_export_ask", preferences.importExportAsk),
     apiPut("/api/settings/html_allow_scripts", preferences.htmlAllowScripts),
   ]);
 }

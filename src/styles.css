@@ -267,24 +267,14 @@ button {
   border-color: rgba(59, 130, 246, 0.65) !important;
 }
 
-@keyframes opendesk-gear-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.opendesk-gear {
-  animation: opendesk-gear-spin 1.8s linear infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .opendesk-gear,
   .animate-pulse {
     animation: none;
   }
 
   /* A spinner communicates progress; slow it down instead of freezing it. */
   .animate-spin {
-    animation-duration: 2.4s !important;
+    animation-duration: 3s !important;
   }
 
   [class*="animate-["] {

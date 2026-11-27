@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CountPill } from "@/components/ui/count-pill";
 import { WorkingIndicator } from "@/components/ui/working-indicator";
+import { RunStatusIcon } from "@/components/ui/run-status";
 import { IconLabel } from "@/components/ui/icon-label";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EntityLink } from "@/components/ui/entity-link";
@@ -221,21 +222,24 @@ export function QueueController({
                 className="cv-auto rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-2.5 py-2"
               >
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge
-                    variant={
-                      job.status === "RUNNING"
-                        ? "blue"
-                        : job.status === "FAILED"
-                          ? "red"
-                          : job.status === "COMPLETED"
-                            ? "green"
-                            : job.status === "CANCELLED"
-                              ? "default"
-                              : "yellow"
-                    }
-                  >
-                    {job.status}
-                  </Badge>
+                  <span className="inline-flex items-center gap-1">
+                    <RunStatusIcon status={job.status} size={12} />
+                    <Badge
+                      variant={
+                        job.status === "RUNNING"
+                          ? "blue"
+                          : job.status === "FAILED"
+                            ? "red"
+                            : job.status === "COMPLETED"
+                              ? "green"
+                              : job.status === "CANCELLED"
+                                ? "default"
+                                : "yellow"
+                      }
+                    >
+                      {job.status}
+                    </Badge>
+                  </span>
                   {job.job_kind && job.job_kind !== "task" ? (
                     <Badge variant="purple">{job.job_kind}</Badge>
                   ) : null}

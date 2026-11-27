@@ -1,8 +1,10 @@
 use crate::error::{AppError, AppResult};
+use opendesk_domain::MemoryUsageScope;
 use opendesk_storage::repos::workspaces;
 
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
+use std::str::FromStr;
 use uuid::Uuid;
 
 const MAX_NAME: usize = 80;
@@ -22,10 +24,12 @@ pub struct PersonalContextGroup {
     pub updated_at: String,
     pub source: String,
     pub source_quote: Option<String>,
+    #[serde(default = "default_usage_scope")]
+    pub usage_scope: String,
 }
 
 const COLUMNS: &str = "id, workspace_id, scope, name, instructions, is_enabled, position, \
-    created_at, updated_at, source, source_quote";
+    created_at, updated_at, source, source_quote, usage_scope";
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PersonalContextInput {
@@ -45,6 +49,9 @@ pub struct PersonalContextInput {
     /// Present only when the agent saves on an explicit user request.
     #[serde(default)]
     pub source_quote: Option<String>,
+    /// `normal`, `chat` or `both`. Legacy imports default to `both`.
+    #[serde(default)]
+    pub usage_scope: Option<String>,
 }
 
 fn default_scope() -> String {
@@ -53,6 +60,14 @@ fn default_scope() -> String {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_usage_scope() -> String {
+    MemoryUsageScope::Both.as_str().into()
+}
+
+fn parse_usage_scope(value: &str) -> AppResult<MemoryUsageScope> {
+    MemoryUsageScope::from_str(value).map_err(|error| AppError::BadRequest(error.to_string()))
 }
 
 pub async fn list(pool: &SqlitePool, workspace_id: &str) -> AppResult<Vec<PersonalContextGroup>> {
@@ -80,8 +95,37 @@ pub async fn enabled(
         .collect())
 }
 
+pub async fn enabled_for(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    scope: MemoryUsageScope,
+) -> AppResult<Vec<PersonalContextGroup>> {
+    Ok(enabled(pool, workspace_id)
+        .await?
+        .into_iter()
+        .filter(|group| match group.usage_scope.as_str() {
+            "normal" => scope.allows_normal(),
+            "chat" => scope.allows_chat(),
+            "both" => true,
+            _ => false,
+        })
+        .collect())
+}
+
 pub async fn render_body(pool: &SqlitePool, workspace_id: &str) -> AppResult<String> {
-    let groups = enabled(pool, workspace_id).await?;
+    render_body_for(pool, workspace_id, MemoryUsageScope::Normal).await
+}
+
+pub async fn render_body_chat(pool: &SqlitePool, workspace_id: &str) -> AppResult<String> {
+    render_body_for(pool, workspace_id, MemoryUsageScope::Chat).await
+}
+
+pub async fn render_body_for(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    scope: MemoryUsageScope,
+) -> AppResult<String> {
+    let groups = enabled_for(pool, workspace_id, scope).await?;
     if groups.is_empty() {
         return Ok(String::new());
     }
@@ -121,6 +165,10 @@ pub async fn create(
     input: PersonalContextInput,
 ) -> AppResult<PersonalContextGroup> {
     let (scope, workspace_id, name, instructions) = validate(&input, pool, None).await?;
+    let usage_scope = match input.usage_scope.as_deref() {
+        Some(value) => parse_usage_scope(value)?,
+        None => MemoryUsageScope::Both,
+    };
     let id = Uuid::now_v7().to_string();
     let position = match input.position {
         Some(position) => position,
@@ -150,8 +198,9 @@ pub async fn create(
     };
     sqlx::query(
         "INSERT INTO personal_context_groups
-            (id, workspace_id, scope, name, instructions, is_enabled, position, source, source_quote)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (id, workspace_id, scope, name, instructions, is_enabled, position, source,
+             source_quote, usage_scope)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&workspace_id)
@@ -162,6 +211,7 @@ pub async fn create(
     .bind(position)
     .bind(source)
     .bind(source_quote.as_deref())
+    .bind(usage_scope.as_str())
     .execute(pool)
     .await?;
     get(pool, &id).await
@@ -186,11 +236,15 @@ pub async fn update(
     } else {
         current.source.as_str()
     };
+    let usage_scope = match input.usage_scope.as_deref() {
+        Some(value) => parse_usage_scope(value)?,
+        None => parse_usage_scope(&current.usage_scope).unwrap_or(MemoryUsageScope::Both),
+    };
     sqlx::query(
         "UPDATE personal_context_groups SET
             workspace_id = ?, scope = ?, name = ?, instructions = ?,
             is_enabled = ?, position = ?, source = ?, source_quote = ?,
-            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            usage_scope = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
          WHERE id = ?",
     )
     .bind(&workspace_id)
@@ -201,6 +255,7 @@ pub async fn update(
     .bind(input.position.unwrap_or(current.position))
     .bind(source)
     .bind(source_quote.as_deref())
+    .bind(usage_scope.as_str())
     .bind(id)
     .execute(pool)
     .await?;
@@ -310,6 +365,7 @@ mod tests {
                 is_enabled: true,
                 position: None,
                 source_quote: None,
+                usage_scope: None,
             },
         )
         .await
@@ -324,6 +380,7 @@ mod tests {
                 is_enabled: true,
                 position: Some(10),
                 source_quote: None,
+                usage_scope: None,
             },
         )
         .await
@@ -338,6 +395,7 @@ mod tests {
                 is_enabled: false,
                 position: Some(20),
                 source_quote: None,
+                usage_scope: None,
             },
         )
         .await

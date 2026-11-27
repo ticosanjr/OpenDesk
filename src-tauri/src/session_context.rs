@@ -99,12 +99,13 @@ pub async fn build(pool: &SqlitePool, task_id: &str) -> AppResult<SessionPacket>
         .map(|artifact| artifact.file_path.clone())
         .collect();
 
-    let memory = db::memory::render_context(
+    let memory = db::memory::render_context_for(
         pool,
         &task.workspace_id,
         &agent,
         &format!("{} {}", task.title, task.description),
         5,
+        Some(opendesk_domain::MemoryUsageScope::Normal),
     )
     .await
     .unwrap_or_default();

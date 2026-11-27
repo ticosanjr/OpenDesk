@@ -1,8 +1,10 @@
 import {
-  AlertTriangle,
+  Ban,
   CheckCircle2,
   Clock3,
   Loader2,
+  MessageCircleQuestion,
+  PauseCircle,
   XCircle,
   type LucideIcon,
 } from "lucide-react";
@@ -47,16 +49,18 @@ export function runStatusMeta(status: string): RunStatusMeta {
     return { label, tone: "red", icon: XCircle, spin: false };
   }
   if (normalized === "CANCELLED") {
-    return { label, tone: "default", icon: XCircle, spin: false };
+    return { label, tone: "default", icon: Ban, spin: false };
   }
-  if (["BLOCKED", "MISSED"].includes(normalized)) {
-    return { label, tone: "yellow", icon: AlertTriangle, spin: false };
+  if (["WAITING_HITL", "NEEDS_APPROVAL"].includes(normalized)) {
+    return { label, tone: "yellow", icon: MessageCircleQuestion, spin: false };
   }
-  if (
-    ["PENDING", "QUEUED", "PAUSED", "WAITING", "WAITING_INPUT", "WAITING_APPROVAL"].includes(
-      normalized,
-    )
-  ) {
+  if (["BLOCKED", "HELD", "PAUSED"].includes(normalized)) {
+    return { label, tone: "yellow", icon: PauseCircle, spin: false };
+  }
+  if (normalized === "MISSED") {
+    return { label, tone: "yellow", icon: Clock3, spin: false };
+  }
+  if (["PENDING", "QUEUED", "WAITING", "WAITING_INPUT", "WAITING_APPROVAL"].includes(normalized)) {
     return { label, tone: "yellow", icon: Clock3, spin: false };
   }
   return { label, tone, icon: Clock3, spin: false };

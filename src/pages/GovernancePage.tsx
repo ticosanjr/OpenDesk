@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
+  Activity,
   Network,
   Plus,
   RefreshCw,
@@ -9,6 +11,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { SectionTabs } from "@/components/ui/section-tabs";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -48,6 +51,14 @@ export function GovernancePage() {
   );
   const workspace = workspaces.find((item) => item.id === activeWorkspaceId);
 
+  const [params, setParams] = useSearchParams();
+  const requestedTab = params.get("tab") ?? "agents";
+  const tab = ["agents", "goals", "delegations", "handoffs", "performance"].includes(requestedTab)
+    ? requestedTab
+    : "agents";
+  function setTab(next: string) {
+    setParams({ tab: next }, { replace: true });
+  }
   const [data, setData] = useState<GovernanceOverview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -357,42 +368,62 @@ export function GovernancePage() {
         </div>
       </Card>
 
+      <SectionTabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { id: "agents", label: "Agentes", icon: Users },
+          { id: "goals", label: "Metas", icon: Target },
+          { id: "delegations", label: "Delegações", icon: Network },
+          { id: "handoffs", label: "Handoffs", icon: ShieldCheck },
+          { id: "performance", label: "Performance", icon: Activity },
+        ]}
+      />
+
       {loading && !data ? (
         <LoadingState rows={3} label="Carregando governança…" />
       ) : (
         <>
-          <OrgChart
-            agents={agents}
-            profiles={profiles}
-            performance={performance}
-            busy={busy}
-            onEdit={setEditingAgent}
-            onHeartbeat={(agent) => void heartbeat(agent)}
-          />
-          <GoalsSection
-            goals={goals}
-            agents={agents}
-            busy={busy}
-            onNew={() => setGoalModal({})}
-            onEdit={(goal) => setGoalModal({ goal })}
-            onDelete={(goal) => void removeGoal(goal)}
-          />
-          <DelegationsSection
-            agents={agents}
-            delegations={delegations}
-            busy={busy}
-            onCreate={(input) => void createDelegation(input)}
-            onResolve={(delegation, approved) =>
-              void resolveDelegation(delegation, approved)
-            }
-          />
-          {activeWorkspaceId ? (
+          {tab === "agents" ? (
+            <OrgChart
+              agents={agents}
+              profiles={profiles}
+              performance={performance}
+              busy={busy}
+              onEdit={setEditingAgent}
+              onHeartbeat={(agent) => void heartbeat(agent)}
+            />
+          ) : null}
+          {tab === "goals" ? (
+            <GoalsSection
+              goals={goals}
+              agents={agents}
+              busy={busy}
+              onNew={() => setGoalModal({})}
+              onEdit={(goal) => setGoalModal({ goal })}
+              onDelete={(goal) => void removeGoal(goal)}
+            />
+          ) : null}
+          {tab === "delegations" ? (
+            <DelegationsSection
+              agents={agents}
+              delegations={delegations}
+              busy={busy}
+              onCreate={(input) => void createDelegation(input)}
+              onResolve={(delegation, approved) =>
+                void resolveDelegation(delegation, approved)
+              }
+            />
+          ) : null}
+          {tab === "handoffs" && activeWorkspaceId ? (
             <HandoffsSection
               workspaceId={activeWorkspaceId}
               agents={agents}
             />
           ) : null}
-          <PerformanceSection rows={performance} />
+          {tab === "performance" ? (
+            <PerformanceSection rows={performance} />
+          ) : null}
         </>
       )}
 

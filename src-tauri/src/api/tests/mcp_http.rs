@@ -428,3 +428,50 @@ async fn sampling_respects_budget_hard_stop() {
         "{body}"
     );
 }
+
+#[tokio::test]
+async fn invalid_memory_scope_returns_json_rpc_invalid_params() {
+    let ctx = test_support::context().await;
+    let path = format!("/api/mcp?workspace_id={}", ctx.workspace_id);
+    let (status, body) = call(
+        &ctx,
+        Method::POST,
+        &path,
+        Some(json!({
+            "jsonrpc": "2.0",
+            "id": 9,
+            "method": "tools/call",
+            "params": {
+                "name": "memory_set_scope",
+                "arguments": { "id": "missing", "usage_scope": "none" }
+            }
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["error"]["code"], -32602, "{body}");
+    assert!(
+        body["error"]["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("usage_scope"),
+        "{body}"
+    );
+
+    let (_, body) = call(
+        &ctx,
+        Method::POST,
+        &path,
+        Some(json!({
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "tools/call",
+            "params": {
+                "name": "personal_context_set_scope",
+                "arguments": { "id": "missing", "usage_scope": "invalido" }
+            }
+        })),
+    )
+    .await;
+    assert_eq!(body["error"]["code"], -32602, "{body}");
+}

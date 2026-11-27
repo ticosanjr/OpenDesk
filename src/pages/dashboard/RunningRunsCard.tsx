@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { EntityLink } from "@/components/ui/entity-link";
 import { WorkingIndicator } from "@/components/ui/working-indicator";
+import { RunStatusIcon } from "@/components/ui/run-status";
 import { relativeTime } from "@/lib/format";
 import type { TaskRun } from "@/lib/types";
 
@@ -25,8 +26,9 @@ export function RunningRunsCard({
               className="min-w-0 rounded-lg border border-blue-500/20 bg-zinc-950/40 px-2.5 py-1.5 text-left transition-colors hover:border-blue-500/40"
               title={`Abrir execução de ${run.task_title ?? run.agent_name}`}
             >
-              <p className="max-w-[260px] truncate text-[13px] text-zinc-200">
-                {run.task_title ?? run.agent_name}
+              <p className="flex max-w-[260px] items-center gap-1 truncate text-[13px] text-zinc-200">
+                <RunStatusIcon status={run.status} size={11} />
+                <span className="truncate">{run.task_title ?? run.agent_name}</span>
               </p>
               <p className="font-mono text-[11.5px] text-zinc-500">
                 @{run.agent_name} · {run.model_id} ·{" "}

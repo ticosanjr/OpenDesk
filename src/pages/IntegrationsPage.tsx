@@ -348,13 +348,13 @@ export function IntegrationsPage() {
 
       {activeTab === "signal" ? (
         <div id="integrations-signal">
-          <SignalCard />
+          <SignalCard workspaceId={activeWorkspaceId ?? undefined} />
         </div>
       ) : null}
 
       {activeTab === "telegram" ? (
         <div id="integrations-telegram">
-          <TelegramCard />
+          <TelegramCard workspaceId={activeWorkspaceId ?? undefined} />
         </div>
       ) : null}
 

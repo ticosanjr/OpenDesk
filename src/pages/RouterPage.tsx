@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshCw, Route, ShieldAlert } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import {
+  ChartNoAxesCombined,
+  ListChecks,
+  RefreshCw,
+  Route,
+  ShieldAlert,
+  SlidersHorizontal,
+  Wallet,
+} from "lucide-react";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { SectionTabs } from "@/components/ui/section-tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -21,9 +31,16 @@ import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
 import type { BudgetSettings, RouterRule } from "@/lib/types";
 import { ROUTER_POLICY_LABELS } from "@/lib/types";
 import { confirmAction } from "@/store/confirm-store";
-import { cn } from "@/lib/utils";
 
 export function RouterPage() {
+  const [params, setParams] = useSearchParams();
+  const requestedTab = params.get("tab") ?? "models";
+  const tab = ["models", "rules", "budget", "analysis"].includes(requestedTab)
+    ? requestedTab
+    : "models";
+  function setTab(next: string) {
+    setParams({ tab: next }, { replace: true });
+  }
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const workspaces = useAppStore((state) => state.workspaces);
   const refresh = useAppStore((state) => state.refresh);
@@ -268,53 +285,96 @@ export function RouterPage() {
         </p>
       ) : null}
 
-      <RouterPolicyPicker policy={policy} onChange={(id) => void changePolicy(id)} />
-
-      <RouterModelsCard
-        defaultModel={defaultModel}
-        manualModel={manualModel}
-        saving={savingModels}
-        onDefaultModelChange={(value) => {
-          setDefaultModel(value);
-          setPolicyResults({});
-        }}
-        onManualModelChange={(value) => {
-          setManualModel(value);
-          setPolicyResults({});
-        }}
-        onSave={() => void saveModels()}
+      <SectionTabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { id: "models", label: "Políticas & Modelos", icon: SlidersHorizontal },
+          { id: "rules", label: "Regras", icon: ListChecks },
+          { id: "budget", label: "Budget Guard", icon: Wallet },
+          { id: "analysis", label: "Análise de Custos", icon: ChartNoAxesCombined },
+        ]}
       />
 
-      <RouterPolicyTestCard
-        policy={policy}
-        workspaceId={activeWorkspaceId}
-        title={testTitle}
-        description={testDescription}
-        tags={testTags}
-        results={policyResults}
-        testingPolicy={testingPolicy}
-        onTitleChange={setTestTitle}
-        onDescriptionChange={setTestDescription}
-        onTagsChange={setTestTags}
-        onTest={(id) => void testPolicy(id)}
-        onTestAll={() => void testAllPolicies()}
-      />
-
-      {policy === "MANUAL" ? (
-        <Card>
-          <CardContent className="flex items-start gap-3 p-4 text-[13px] text-zinc-400">
-            <ShieldAlert size={16} className="mt-0.5 text-amber-300" />
-            <p>
-              Em <strong>Manual</strong>, o roteador usa o modelo do modo Manual
-              salvo neste workspace. Se a tarefa tiver um modelo próprio, ele
-              vence. Sem modelo manual e sem override, o roteador usa o modelo
-              padrão do OpenDesk.
-            </p>
-          </CardContent>
-        </Card>
+      {tab === "models" ? (
+        <>
+          <RouterPolicyPicker policy={policy} onChange={(id) => void changePolicy(id)} />
+          <RouterModelsCard
+            defaultModel={defaultModel}
+            manualModel={manualModel}
+            saving={savingModels}
+            onDefaultModelChange={(value) => {
+              setDefaultModel(value);
+              setPolicyResults({});
+            }}
+            onManualModelChange={(value) => {
+              setManualModel(value);
+              setPolicyResults({});
+            }}
+            onSave={() => void saveModels()}
+          />
+          <RouterPolicyTestCard
+            policy={policy}
+            workspaceId={activeWorkspaceId}
+            title={testTitle}
+            description={testDescription}
+            tags={testTags}
+            results={policyResults}
+            testingPolicy={testingPolicy}
+            onTitleChange={setTestTitle}
+            onDescriptionChange={setTestDescription}
+            onTagsChange={setTestTags}
+            onTest={(id) => void testPolicy(id)}
+            onTestAll={() => void testAllPolicies()}
+          />
+          {policy === "MANUAL" ? (
+            <Card>
+              <CardContent className="flex items-start gap-3 p-4 text-[13px] text-zinc-400">
+                <ShieldAlert size={16} className="mt-0.5 text-amber-300" />
+                <p>
+                  Em <strong>Manual</strong>, o roteador usa o modelo do modo Manual
+                  salvo neste workspace. Se a tarefa tiver um modelo próprio, ele
+                  vence. Sem modelo manual e sem override, o roteador usa o modelo
+                  padrão do OpenDesk.
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
+        </>
       ) : null}
 
-      <div className={cn((policy === "CUSTOM_RULES" || policy === "MANUAL") && "hidden")}>
+      {tab === "rules" ? (
+        <RouterRulesCard
+          config={config}
+          onNew={() => setRuleOpen(true)}
+          onEdit={editRule}
+          onRemove={(id) => void removeRule(id)}
+        />
+      ) : null}
+
+      {tab === "budget" ? (
+        <>
+          <RouterBudgetCard
+            config={config}
+            settings={settings}
+            saving={savingBudget}
+            onSettingsChange={setSettings}
+            onSave={() => void saveBudget()}
+          />
+          <Card>
+            <CardContent className="flex items-start gap-3 p-4">
+              <ShieldAlert size={16} className="mt-0.5 text-amber-400/70" />
+              <p className="text-[13px] leading-relaxed text-zinc-500">
+                O Budget Guard consulta o SQLite antes de cada job. Hard cap pausa a
+                fila; o alerta soft apenas notifica. A janela de 5h usa tokens de
+                entrada + saída dos runs.
+              </p>
+            </CardContent>
+          </Card>
+        </>
+      ) : null}
+
+      {tab === "analysis" ? (
         <RouterCostCard
           routerModel={routerModel}
           savingModel={savingModel}
@@ -328,36 +388,7 @@ export function RouterPage() {
           onSaveBlend={() => void saveBlend()}
           onAnalyze={() => void analyze()}
         />
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-3">
-        <RouterBudgetCard
-          config={config}
-          settings={settings}
-          saving={savingBudget}
-          onSettingsChange={setSettings}
-          onSave={() => void saveBudget()}
-        />
-        <div className={cn("lg:col-span-2", policy !== "CUSTOM_RULES" && "hidden")}>
-          <RouterRulesCard
-            config={config}
-            onNew={() => setRuleOpen(true)}
-            onEdit={editRule}
-            onRemove={(id) => void removeRule(id)}
-          />
-        </div>
-      </div>
-
-      <Card>
-        <CardContent className="flex items-start gap-3 p-4">
-          <ShieldAlert size={16} className="mt-0.5 text-amber-400/70" />
-          <p className="text-[13px] leading-relaxed text-zinc-500">
-            O Budget Guard consulta o SQLite antes de cada job. Hard cap pausa a
-            fila; o alerta soft apenas notifica. A janela de 5h usa tokens de
-            entrada + saída dos runs.
-          </p>
-        </CardContent>
-      </Card>
+      ) : null}
 
       <RouterRuleModal
         open={ruleOpen}

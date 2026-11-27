@@ -1,6 +1,6 @@
 [package]
 name = "opendesk-recipes"
-version = "1.9.2"
+version = "1.10.0"
 description = "OpenDesk recipes: parser, DAG and HITL flow"
 edition = "2024"
 license = "MIT"

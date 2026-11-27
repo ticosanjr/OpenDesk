@@ -38,6 +38,7 @@ async fn exports_previews_and_imports_memories_without_duplicates() {
             trust_level: "observed".into(),
             expires_at: None,
             source: Some("test".into()),
+            usage_scope: None,
         },
     )
     .await

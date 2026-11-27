@@ -40,6 +40,7 @@ test("personal context import validates the envelope and applies rules", async (
   });
 
   await page.goto("/#/learning");
+  await page.getByRole("tab", { name: "Contexto Pessoal" }).click();
   await expect(page.getByText("Contexto pessoal", { exact: true })).toBeVisible();
 
   const importButton = page.getByRole("button", { name: "Importar JSON" }).first();

@@ -93,12 +93,13 @@ pub async fn post_task_message(
     .await?;
     let personal_context =
         crate::personal_context::render_body(&state.db, &task.workspace_id).await?;
-    let memory_context = crate::db::memory::render_context(
+    let memory_context = crate::db::memory::render_context_for(
         &state.db,
         &task.workspace_id,
         &decision.selected_agent,
         &format!("{} {}", task.title, task.description),
         8,
+        Some(opendesk_domain::MemoryUsageScope::Normal),
     )
     .await
     .unwrap_or_default();

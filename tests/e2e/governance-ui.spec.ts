@@ -73,6 +73,7 @@ test("governance edits profiles, creates goals and delegates with approval", asy
       heartbeat_enabled: true,
     });
 
+  await page.getByRole("tab", { name: "Metas" }).click();
   await page.getByRole("button", { name: "Nova meta" }).first().click();
   const goal = page.getByRole("dialog");
   await goal.getByLabel("Agente").selectOption("lead");
@@ -83,6 +84,7 @@ test("governance edits profiles, creates goals and delegates with approval", asy
   await goal.getByRole("button", { name: "Criar meta" }).click();
   await expect(page.getByText("Publicar 4 relatórios").first()).toBeVisible();
 
+  await page.getByRole("tab", { name: "Delegações" }).click();
   const delegations = page
     .locator("section")
     .filter({ hasText: "Delegações" })

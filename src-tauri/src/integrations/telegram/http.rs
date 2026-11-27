@@ -10,7 +10,7 @@ use std::time::Duration;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-pub(super) async fn handle_callback(
+pub(crate) async fn handle_callback(
     state: &std::sync::Arc<AppState>,
     config: &TelegramConfig,
     token: &str,

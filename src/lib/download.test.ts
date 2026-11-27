@@ -4,6 +4,8 @@ import { downloadBlob, downloadRun, downloadUrl, exportFilename } from "./downlo
 vi.mock("./api", () => ({
   apiBlob: vi.fn(async () => new Blob(["conteúdo"], { type: "text/markdown" })),
 }));
+const saveExportedData = vi.hoisted(() => vi.fn(async () => ({ saved: true })));
+vi.mock("./import-export", () => ({ saveExportedData }));
 
 describe("export downloads", () => {
   afterEach(() => {
@@ -33,37 +35,33 @@ describe("export downloads", () => {
     vi.useRealTimers();
   });
 
-  it("downloads a run through the API blob", async () => {
-    vi.useFakeTimers();
-    vi.stubGlobal("URL", {
-      createObjectURL: () => "blob:run",
-      revokeObjectURL: () => {},
-    });
-    const click = vi
-      .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(() => {});
+  it("downloads a run through the shared export policy", async () => {
     await downloadRun("run-1", "json");
-    expect(click).toHaveBeenCalled();
-    vi.runAllTimers();
-    vi.useRealTimers();
+    expect(saveExportedData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filename: "opendesk-run-run-1.json",
+        mime: "application/json",
+      }),
+    );
   });
 
-  it("downloads any authenticated URL through the API blob", async () => {
+  it("selects the MIME type for html and markdown exports", async () => {
+    await downloadRun("run-html", "html");
+    expect(saveExportedData).toHaveBeenLastCalledWith(
+      expect.objectContaining({ mime: "text/html" }),
+    );
+    await downloadRun("run-md", "md");
+    expect(saveExportedData).toHaveBeenLastCalledWith(
+      expect.objectContaining({ mime: "text/markdown" }),
+    );
+  });
+
+  it("downloads any authenticated URL through the shared export policy", async () => {
     const { apiBlob } = await import("./api");
-    vi.useFakeTimers();
-    vi.stubGlobal("URL", {
-      createObjectURL: () => "blob:file",
-      revokeObjectURL: () => {},
-    });
-    const click = vi
-      .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(() => {});
-
     await downloadUrl("/api/files/raw?path=doc.md", "doc.md");
-
     expect(apiBlob).toHaveBeenCalledWith("/api/files/raw?path=doc.md");
-    expect(click).toHaveBeenCalled();
-    vi.runAllTimers();
-    vi.useRealTimers();
+    expect(saveExportedData).toHaveBeenCalledWith(
+      expect.objectContaining({ filename: "doc.md" }),
+    );
   });
 });

@@ -21,6 +21,7 @@ describe("file preferences", () => {
     await expect(loadFilePreferences()).resolves.toEqual({
       downloadDir: "/tmp/downloads",
       downloadAsk: false,
+      importExportAsk: true,
       htmlAllowScripts: true,
     });
   });
@@ -30,12 +31,14 @@ describe("file preferences", () => {
     await expect(loadFilePreferences()).resolves.toEqual({
       downloadDir: "",
       downloadAsk: true,
+      importExportAsk: true,
       htmlAllowScripts: false,
     });
     apiGet.mockRejectedValue(new Error("offline"));
     await expect(loadFilePreferences()).resolves.toEqual({
       downloadDir: "",
       downloadAsk: true,
+      importExportAsk: true,
       htmlAllowScripts: false,
     });
   });
@@ -45,6 +48,7 @@ describe("file preferences", () => {
     await saveFilePreferences({
       downloadDir: " /tmp/downloads ",
       downloadAsk: false,
+      importExportAsk: false,
       htmlAllowScripts: true,
     });
     expect(apiPut).toHaveBeenCalledWith(
@@ -52,6 +56,7 @@ describe("file preferences", () => {
       "/tmp/downloads",
     );
     expect(apiPut).toHaveBeenCalledWith("/api/settings/download_ask", false);
+    expect(apiPut).toHaveBeenCalledWith("/api/settings/import_export_ask", false);
     expect(apiPut).toHaveBeenCalledWith(
       "/api/settings/html_allow_scripts",
       true,

@@ -18,7 +18,7 @@ pub use raw::{RawChunk, raw, read_raw};
 #[allow(unused_imports)]
 pub use read::{FileContent, content};
 #[allow(unused_imports)]
-pub use save::{SaveFileBody, save_file, save_to_destination};
+pub use save::{SaveBytesBody, SaveFileBody, save_bytes, save_file, save_to_destination};
 #[allow(unused_imports)]
 pub use search::{FileSearchResult, invalidate_search_index, search};
 

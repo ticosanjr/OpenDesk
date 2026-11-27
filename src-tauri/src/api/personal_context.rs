@@ -47,6 +47,9 @@ pub async fn create(
             "scope deve ser 'workspace' ou 'global'".into(),
         ));
     }
+    if input.usage_scope.is_none() {
+        input.usage_scope = Some("normal".into());
+    }
     Ok(Json(personal_context::create(&state.db, input).await?))
 }
 
@@ -113,6 +116,13 @@ pub async fn import(
             && !enabled.is_boolean()
         {
             return Err(AppError::BadRequest("is_enabled deve ser booleano".into()));
+        }
+        if let Some(usage_scope) = group.get("usage_scope").and_then(serde_json::Value::as_str)
+            && !matches!(usage_scope, "normal" | "chat" | "both")
+        {
+            return Err(AppError::BadRequest(format!(
+                "usage_scope inválido: {usage_scope}"
+            )));
         }
     }
     let workspace_id =

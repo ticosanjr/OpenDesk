@@ -11,6 +11,7 @@ import {
   Square,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { ChannelBotsPanel } from "@/components/integrations/ChannelBotsPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
@@ -22,9 +23,10 @@ import {
   smallLabelClass as labelClass,
 } from "@/lib/ui-classes";
 
-export function SignalCard() {
+export function SignalCard({ workspaceId: workspaceIdProp }: { workspaceId?: string }) {
   const workspaces = useAppStore((state) => state.workspaces);
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
+  const panelWorkspaceId = workspaceIdProp ?? activeWorkspaceId ?? "";
   const [status, setStatus] = useState<SignalStatus | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [account, setAccount] = useState("");
@@ -136,7 +138,8 @@ export function SignalCard() {
   const running = status?.bridge_running ?? false;
 
   return (
-    <Card>
+    <>
+      <Card>
       <CardHeader>
         <div>
           <CardTitle className="flex items-center gap-2">
@@ -288,7 +291,11 @@ export function SignalCard() {
           Vincular um dispositivo exige o celular com Signal por perto.
         </p>
       </CardContent>
-    </Card>
+      </Card>
+      <div className="mt-4">
+        <ChannelBotsPanel channel="signal" workspaceId={panelWorkspaceId} />
+      </div>
+    </>
   );
 }
 

@@ -7,6 +7,7 @@ test("router lets the user save the cost blend", async ({ page, request }) => {
 
   await page.goto("/#/router");
   await expect(page.getByRole("heading", { name: "Roteador & Custos" })).toBeVisible();
+  await page.getByRole("tab", { name: "Análise de Custos" }).click();
   const range = page.getByLabel("Peso da entrada");
   await range.focus();
   await range.press("Home");
@@ -67,6 +68,7 @@ test("router saves OpenDesk models and tests every policy", async ({
   await expect(page.getByText(/engine_offline|OK ·/).first()).toBeVisible();
 
   await page.getByRole("button", { name: "Regras customizadas" }).click();
+  await page.getByRole("tab", { name: "Regras", exact: true }).click();
   await expect(page.getByText("Regras IF-THEN")).toBeVisible();
   await expect(page.getByText("Modelo roteador e comparação")).toBeHidden();
 
@@ -96,6 +98,8 @@ test("router saves OpenDesk models and tests every policy", async ({
     })
     .toBe(true);
 
+  await page.getByRole("tab", { name: "Políticas & Modelos" }).click();
   await page.getByRole("button", { name: "Melhor custo-benefício" }).click();
+  await page.getByRole("tab", { name: "Análise de Custos" }).click();
   await expect(page.getByText("Modelo roteador e comparação")).toBeVisible();
 });

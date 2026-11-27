@@ -262,6 +262,8 @@ export function DashboardPage() {
 
       <CostMixCard />
 
+      <IntegrationFootprint items={integrations} />
+
       <PinnedArtifactsCard
         artifacts={pinnedArtifacts}
         onOpenArtifact={(artifactId) => navigate(links.artifact(artifactId))}
@@ -287,8 +289,6 @@ export function DashboardPage() {
           onCreateTask={() => setTaskDialogOpen(true)}
         />
       </div>
-
-      <IntegrationFootprint items={integrations} />
 
       <WorkspaceFooter workspace={activeWorkspace} />
     </PageBody>

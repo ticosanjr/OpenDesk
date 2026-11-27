@@ -26,6 +26,10 @@ pub(super) fn routes() -> Router<Arc<AppState>> {
         .route("/api/files/content", get(files::content))
         .route("/api/files/archive", get(files::archive))
         .route("/api/files/save", axum::routing::post(files::save_file))
+        .route(
+            "/api/files/save-bytes",
+            post(files::save_bytes).layer(DefaultBodyLimit::max(180 * 1024 * 1024)),
+        )
         .route("/api/files/raw", get(files::raw))
         .route("/api/files/media", get(files::media))
         .route(

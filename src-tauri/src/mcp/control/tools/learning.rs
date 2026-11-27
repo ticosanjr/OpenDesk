@@ -38,3 +38,76 @@ pub(super) fn personal_context_save() -> Value {
         }),
     )
 }
+
+pub(super) fn personal_context_list() -> Value {
+    tool(
+        "personal_context_list",
+        "Lista regras do contexto pessoal do workspace. Cada item informa usage_scope: 'normal' | 'chat' | 'both'.",
+        json!({
+            "type": "object",
+            "properties": {
+                "workspace_id": { "type": "string", "description": "Workspace alvo; vazio usa o ativo." }
+            }
+        }),
+    )
+}
+
+pub(super) fn personal_context_create() -> Value {
+    tool(
+        "personal_context_create",
+        "Cria uma regra no contexto pessoal. SÓ use com pedido explícito do usuário. usage_scope aceita 'normal' (tarefas), 'chat' (chat/bots) ou 'both'.",
+        json!({
+            "type": "object",
+            "required": ["instructions", "user_request"],
+            "properties": {
+                "instructions": { "type": "string" },
+                "user_request": { "type": "string" },
+                "scope": { "type": "string", "enum": ["workspace", "global"] },
+                "name": { "type": "string" },
+                "is_enabled": { "type": "boolean" },
+                "position": { "type": "integer" },
+                "usage_scope": {
+                    "type": "string",
+                    "enum": ["normal", "chat", "both"],
+                    "description": "normal = tarefas/rotinas; chat = chat e bots; both = ambos."
+                },
+                "workspace_id": { "type": "string" }
+            }
+        }),
+    )
+}
+
+pub(super) fn personal_context_update() -> Value {
+    tool(
+        "personal_context_update",
+        "Atualiza uma regra do contexto pessoal. usage_scope aceita 'normal' | 'chat' | 'both'; outros valores retornam -32602.",
+        json!({
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+                "id": { "type": "string" },
+                "instructions": { "type": "string" },
+                "scope": { "type": "string", "enum": ["workspace", "global"] },
+                "name": { "type": "string" },
+                "is_enabled": { "type": "boolean" },
+                "position": { "type": "integer" },
+                "usage_scope": { "type": "string", "enum": ["normal", "chat", "both"] }
+            }
+        }),
+    )
+}
+
+pub(super) fn personal_context_set_scope() -> Value {
+    tool(
+        "personal_context_set_scope",
+        "Altera apenas o escopo de uma regra pessoal: usage_scope='normal' | 'chat' | 'both'.",
+        json!({
+            "type": "object",
+            "required": ["id", "usage_scope"],
+            "properties": {
+                "id": { "type": "string" },
+                "usage_scope": { "type": "string", "enum": ["normal", "chat", "both"] }
+            }
+        }),
+    )
+}

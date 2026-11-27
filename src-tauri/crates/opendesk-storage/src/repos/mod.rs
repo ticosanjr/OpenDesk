@@ -6,6 +6,7 @@ pub mod artifacts;
 pub mod auth_sessions;
 pub mod budget;
 pub mod calendar;
+pub mod channel_bots;
 pub mod channels;
 pub mod chat;
 pub mod chat_turns;

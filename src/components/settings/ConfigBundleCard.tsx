@@ -41,7 +41,9 @@ export function ConfigBundleCard() {
         activeWorkspaceId,
         CONFIG_BUNDLE_PRESETS[preset] ?? [],
       );
-      toast({ tone: "success", title: "Bundle exportado", description: name });
+      if (name) {
+        toast({ tone: "success", title: "Bundle exportado", description: name });
+      }
     } catch (cause) {
       toast({
         tone: "error",

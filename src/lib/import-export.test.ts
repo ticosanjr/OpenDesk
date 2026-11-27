@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const saveDialog = vi.hoisted(() => vi.fn());
+const loadPrefs = vi.hoisted(() => vi.fn());
+const tauriRuntime = vi.hoisted(() => vi.fn(() => false));
 vi.mock("@/lib/api", () => ({ apiPost: vi.fn() }));
 vi.mock("@/lib/download", () => ({ downloadBlob: vi.fn() }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ save: saveDialog, open: vi.fn() }));
+vi.mock("@/lib/file-preferences", () => ({ loadFilePreferences: loadPrefs }));
+vi.mock("@/lib/runtime-env", () => ({ isTauriRuntime: tauriRuntime }));
 
 import { apiPost } from "@/lib/api";
 import { downloadBlob } from "@/lib/download";
@@ -10,12 +16,21 @@ import {
   importJsonBundle,
   pickJsonBundle,
   readJsonBundle,
+  saveExportedData,
   validateBundleEnvelope,
   type BundleEnvelope,
 } from "./import-export";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  tauriRuntime.mockReturnValue(false);
+  loadPrefs.mockResolvedValue({
+    downloadDir: "",
+    downloadAsk: true,
+    importExportAsk: true,
+    htmlAllowScripts: false,
+  });
+  saveDialog.mockResolvedValue(null);
 });
 
 describe("import/export bundles", () => {
@@ -56,16 +71,16 @@ describe("import/export bundles", () => {
     ).toThrow(/items/);
   });
 
-  it("downloads a versioned envelope without a source workspace", () => {
-    exportJsonBundle("script_tools", { tools: [] }, "tools.json");
+  it("downloads a versioned envelope without a source workspace", async () => {
+    await exportJsonBundle("script_tools", { tools: [] }, "tools.json");
     const [blob, filename] = (downloadBlob as ReturnType<typeof vi.fn>).mock
       .calls[0] as [Blob, string];
     expect(filename).toBe("tools.json");
     expect(blob).toBeInstanceOf(Blob);
   });
 
-  it("downloads a versioned envelope", () => {
-    const name = exportJsonBundle(
+  it("downloads a versioned envelope", async () => {
+    const name = await exportJsonBundle(
       "personal_context",
       { global: [], workspace: [] },
       "contexto.json",
@@ -116,6 +131,102 @@ describe("import/export bundles", () => {
       mode: "replace",
       bundle,
     });
+  });
+});
+
+describe("saveExportedData", () => {
+  it("returns null when the user cancels an export", async () => {
+    tauriRuntime.mockReturnValue(true);
+    saveDialog.mockResolvedValue(null);
+    await expect(
+      exportJsonBundle("script_tools", { tools: [] }, "cancelado.json"),
+    ).resolves.toBeNull();
+    expect(apiPost).not.toHaveBeenCalled();
+  });
+
+  it("falls back to a browser download when the native dialog throws", async () => {
+    tauriRuntime.mockReturnValue(true);
+    saveDialog.mockRejectedValue(new Error("dialog unavailable"));
+    await expect(
+      exportJsonBundle("script_tools", { tools: [] }, "fallback.json"),
+    ).resolves.toBe("fallback.json");
+    expect(downloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "fallback.json",
+    );
+  });
+
+  it("uses the configured folder as the dialog default", async () => {
+    tauriRuntime.mockReturnValue(true);
+    loadPrefs.mockResolvedValue({
+      downloadDir: "/home/test/Downloads",
+      downloadAsk: true,
+      importExportAsk: true,
+      htmlAllowScripts: false,
+    });
+    saveDialog.mockResolvedValue("/home/test/Downloads/dados.json");
+    await saveExportedData({
+      filename: "dados.json",
+      content: new Blob(["{}"], { type: "application/json" }),
+      mime: "application/json",
+    });
+    expect(saveDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        defaultPath: "/home/test/Downloads/dados.json",
+      }),
+    );
+  });
+
+  it("saves directly to the configured folder in Tauri", async () => {
+    tauriRuntime.mockReturnValue(true);
+    loadPrefs.mockResolvedValue({
+      downloadDir: "/home/test/Downloads",
+      downloadAsk: true,
+      importExportAsk: false,
+      htmlAllowScripts: false,
+    });
+    const result = await saveExportedData({
+      filename: "dados.json",
+      content: "{}",
+      mime: "application/json",
+    });
+    expect(result).toEqual({
+      saved: true,
+      path: "/home/test/Downloads/dados.json",
+    });
+    expect(apiPost).toHaveBeenCalledWith(
+      "/api/files/save-bytes",
+      expect.objectContaining({
+        destination: "/home/test/Downloads/dados.json",
+        content_base64: expect.any(String),
+      }),
+    );
+  });
+
+  it("asks for a destination and respects cancel", async () => {
+    tauriRuntime.mockReturnValue(true);
+    saveDialog.mockResolvedValue("/home/test/escolhido.json");
+    await saveExportedData({
+      filename: "dados.json",
+      content: "{}",
+      mime: "application/json",
+    });
+    expect(saveDialog).toHaveBeenCalled();
+    expect(apiPost).toHaveBeenCalledWith(
+      "/api/files/save-bytes",
+      expect.objectContaining({ destination: "/home/test/escolhido.json" }),
+    );
+
+    saveDialog.mockResolvedValue(null);
+    (apiPost as unknown as ReturnType<typeof vi.fn>).mockClear();
+    await expect(
+      saveExportedData({
+        filename: "cancelado.json",
+        content: "{}",
+        mime: "application/json",
+      }),
+    ).resolves.toEqual({ saved: false });
+    expect(apiPost).not.toHaveBeenCalled();
   });
 });
 

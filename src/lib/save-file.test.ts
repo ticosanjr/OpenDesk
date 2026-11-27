@@ -20,6 +20,7 @@ describe("saveLocalFile", () => {
     loadFilePreferences.mockResolvedValue({
       downloadDir: "/tmp/downloads",
       downloadAsk: true,
+      importExportAsk: true,
       htmlAllowScripts: false,
     });
   });
@@ -49,6 +50,7 @@ describe("saveLocalFile", () => {
     loadFilePreferences.mockResolvedValue({
       downloadDir: "/tmp/downloads",
       downloadAsk: false,
+      importExportAsk: true,
       htmlAllowScripts: false,
     });
     apiPost.mockResolvedValue({});
@@ -63,6 +65,11 @@ describe("saveLocalFile", () => {
     save.mockResolvedValue(null);
     await expect(saveLocalFile({ filename: "a.md" })).resolves.toBe(false);
     expect(apiPost).not.toHaveBeenCalled();
+  });
+
+  it("returns false when the dialog is unavailable and there is no fallback", async () => {
+    save.mockRejectedValue(new Error("no tauri"));
+    await expect(saveLocalFile({ filename: "a.md" })).resolves.toBe(false);
   });
 
   it("falls back to a browser download when the dialog is unavailable", async () => {

@@ -1,5 +1,6 @@
 use super::model::*;
 use crate::error::{AppError, AppResult};
+use opendesk_domain::MemoryUsageScope;
 use sqlx::SqlitePool;
 
 pub async fn get_note(pool: &SqlitePool, id: &str) -> AppResult<MemoryNote> {
@@ -33,9 +34,13 @@ pub async fn update_note(
         Some(tags) => serde_json::to_string(&tags).unwrap_or_else(|_| "[]".into()),
         None => current.tags_json,
     };
+    let usage_scope = match input.usage_scope.as_deref() {
+        Some(value) => parse_usage_scope(value)?,
+        None => parse_usage_scope(&current.usage_scope).unwrap_or(MemoryUsageScope::Both),
+    };
     sqlx::query(
         "UPDATE memory_notes SET title = ?, body = ?, tags_json = ?, confidence = ?,
-                trust_level = ?, expires_at = ?,
+                trust_level = ?, expires_at = ?, usage_scope = ?,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
          WHERE id = ?",
     )
@@ -54,6 +59,7 @@ pub async fn update_note(
     } else {
         input.expires_at.or(current.expires_at)
     })
+    .bind(usage_scope.as_str())
     .bind(id)
     .execute(pool)
     .await?;
@@ -75,6 +81,17 @@ pub async fn list_notes(
     agent: Option<&str>,
     limit: i64,
 ) -> AppResult<Vec<MemoryNote>> {
+    list_notes_for(pool, workspace_id, namespace, agent, limit, None).await
+}
+
+pub async fn list_notes_for(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    namespace: Option<&str>,
+    agent: Option<&str>,
+    limit: i64,
+    usage_scope: Option<MemoryUsageScope>,
+) -> AppResult<Vec<MemoryNote>> {
     let mut query = format!(
         "SELECT {NOTE_COLUMNS}
          FROM memory_notes n
@@ -88,6 +105,7 @@ pub async fn list_notes(
         query.push_str(" AND ");
         query.push_str(&readable_clause("ns"));
     }
+    query.push_str(&scope_clause("n", usage_scope));
     query.push_str(" ORDER BY n.confidence DESC, n.updated_at DESC LIMIT ?");
     let mut request = sqlx::query_as::<_, MemoryNote>(&query)
         .bind(workspace_id)
@@ -107,6 +125,17 @@ pub async fn search(
     agent: Option<&str>,
     limit: i64,
 ) -> AppResult<Vec<MemoryNote>> {
+    search_for(pool, workspace_id, term, agent, limit, None).await
+}
+
+pub async fn search_for(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    term: &str,
+    agent: Option<&str>,
+    limit: i64,
+    usage_scope: Option<MemoryUsageScope>,
+) -> AppResult<Vec<MemoryNote>> {
     let pattern = format!("%{}%", term.trim().to_lowercase());
     let mut query = format!(
         "SELECT {NOTE_COLUMNS}
@@ -120,6 +149,7 @@ pub async fn search(
         query.push_str(" AND ");
         query.push_str(&readable_clause("ns"));
     }
+    query.push_str(&scope_clause("n", usage_scope));
     query.push_str(" ORDER BY n.confidence DESC, n.updated_at DESC LIMIT ?");
     let mut request = sqlx::query_as::<_, MemoryNote>(&query)
         .bind(workspace_id)
@@ -140,14 +170,27 @@ pub async fn render_context(
     query: &str,
     limit: i64,
 ) -> AppResult<String> {
+    render_context_for(pool, workspace_id, agent, query, limit, None).await
+}
+
+pub async fn render_context_for(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    agent: &str,
+    query: &str,
+    limit: i64,
+    usage_scope: Option<MemoryUsageScope>,
+) -> AppResult<String> {
     let mut notes = if query.trim().is_empty() {
         Vec::new()
     } else {
-        search(pool, workspace_id, query, Some(agent), limit).await?
+        search_for(pool, workspace_id, query, Some(agent), limit, usage_scope).await?
     };
     if notes.len() < limit as usize {
         let seen = notes.iter().map(|note| note.id.clone()).collect::<Vec<_>>();
-        for note in list_notes(pool, workspace_id, None, Some(agent), limit).await? {
+        for note in
+            list_notes_for(pool, workspace_id, None, Some(agent), limit, usage_scope).await?
+        {
             if !seen.contains(&note.id) {
                 notes.push(note);
             }

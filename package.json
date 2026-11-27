@@ -1,7 +1,7 @@
 {
   "name": "opendesk",
   "private": true,
-  "version": "1.9.2",
+  "version": "1.10.0",
   "description": "Visual governance, automation and observability for OpenCode",
   "type": "module",
   "scripts": {

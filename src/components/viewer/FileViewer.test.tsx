@@ -5,6 +5,7 @@ vi.mock("@/lib/file-preferences", () => ({
   loadFilePreferences: vi.fn(async () => ({
     downloadDir: "",
     downloadAsk: true,
+    importExportAsk: true,
     htmlAllowScripts: false,
   })),
   saveFilePreferences: vi.fn(async () => undefined),

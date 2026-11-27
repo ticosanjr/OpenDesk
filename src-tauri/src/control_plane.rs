@@ -43,10 +43,22 @@ pub async fn start(state: Arc<AppState>, options: StartOptions) -> anyhow::Resul
     tokio::spawn(integrations::google_calendar::sync_loop(state.clone()));
 
     if options.integrations {
-        if let Err(error) = state.signal.start_if_enabled(state.clone()).await {
+        if let Err(error) =
+            crate::integrations::bot_supervisor::BotSupervisor::seed_legacy(&state).await
+        {
+            tracing::warn!(error = %error, "legacy channel bots were not seeded");
+        }
+        let enabled_bots = crate::db::channel_bots::all_enabled(&state.db)
+            .await
+            .unwrap_or_default();
+        let has_signal_bot = enabled_bots.iter().any(|bot| bot.channel == "signal");
+        let has_telegram_bot = enabled_bots.iter().any(|bot| bot.channel == "telegram");
+        if !has_signal_bot && let Err(error) = state.signal.start_if_enabled(state.clone()).await {
             tracing::warn!(error = %error, "Signal bridge was not started");
         }
-        if let Err(error) = state.telegram.start_if_enabled(state.clone()).await {
+        if !has_telegram_bot
+            && let Err(error) = state.telegram.start_if_enabled(state.clone()).await
+        {
             tracing::warn!(error = %error, "Telegram bridge was not started");
         }
         if let Err(error) = state.discord.start_if_enabled(state.clone()).await {
@@ -58,6 +70,7 @@ pub async fn start(state: Arc<AppState>, options: StartOptions) -> anyhow::Resul
         if let Err(error) = state.whatsapp_qr.start_if_enabled(state.clone()).await {
             tracing::warn!(error = %error, "WhatsApp QR bridge was not started");
         }
+        state.bot_supervisor.start_all(state.clone()).await;
     }
 
     state.refresh_watcher().await?;

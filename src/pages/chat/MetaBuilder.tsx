@@ -37,7 +37,7 @@ export function MetaBuilder({ workspaceId }: { workspaceId: string }) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex min-h-0 w-full flex-1 flex-col gap-3">
       <div className="flex w-full items-stretch gap-2">
         <SlashTextarea
           containerClassName="min-w-0 flex-1"
@@ -50,7 +50,7 @@ export function MetaBuilder({ workspaceId }: { workspaceId: string }) {
         />
         <Button
           size="sm"
-          className="h-auto min-h-[52px] w-28 shrink-0"
+          className="h-auto min-h-[52px] min-w-[132px] px-4 shrink-0"
           onClick={() => void build()}
           disabled={busy}
         >

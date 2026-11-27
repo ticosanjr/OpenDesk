@@ -14,6 +14,7 @@ async fn note(ctx: &crate::test_support::TestContext, namespace: &str) -> Memory
             trust_level: "verified".into(),
             expires_at: None,
             source: Some("test".into()),
+            usage_scope: None,
         },
     )
     .await
@@ -84,6 +85,7 @@ async fn consolidates_duplicates_and_archives_expired() {
             trust_level: "observed".into(),
             expires_at: None,
             source: None,
+            usage_scope: None,
         },
     )
     .await
@@ -128,6 +130,7 @@ async fn search_and_expiry() {
             trust_level: "inferred".into(),
             expires_at: Some("2000-01-01T00:00:00.000Z".into()),
             source: None,
+            usage_scope: None,
         },
     )
     .await

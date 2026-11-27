@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Brain, Download, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { Brain, Download, Loader2, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,15 +7,22 @@ import { Switch } from "@/components/ui/switch";
 import { JsonImportButton } from "@/components/ui/json-import-button";
 import { exportJsonBundle, type BundleEnvelope } from "@/lib/import-export";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
-import type { PersonalContextGroup } from "@/lib/types";
+import type { MemoryUsageScope, PersonalContextGroup } from "@/lib/types";
+import {
+  MemoryScopeFilterBar,
+  MemoryScopeSelect,
+  matchesScopeFilter,
+  type MemoryScopeFilter,
+} from "@/components/learning/MemoryScopeControls";
 import { confirmAction } from "@/store/confirm-store";
 import { toast } from "@/store/toast-store";
 import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
+import { smallInputClass as inputClass } from "@/lib/ui-classes";
 import {
-  smallInputClass as inputClass,
-  smallLabelClass as labelClass,
-} from "@/lib/ui-classes";
+  PersonalContextCreateForm,
+  type PersonalContextDraft,
+} from "@/components/learning/PersonalContextForm";
 
 export function PersonalContextCard() {
   const workspaceId = useAppStore((state) => state.activeWorkspaceId);
@@ -24,14 +31,17 @@ export function PersonalContextCard() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [draft, setDraft] = useState({
+  const [scopeFilter, setScopeFilter] = useState<MemoryScopeFilter>("all");
+  const [draft, setDraft] = useState<PersonalContextDraft>({
     instructions: "",
-    scope: "workspace" as "workspace" | "global",
+    scope: "workspace",
+    usageScope: "normal",
   });
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState({
     instructions: "",
     scope: "workspace" as "workspace" | "global",
+    usageScope: "normal" as MemoryUsageScope,
   });
 
   const query = workspaceId
@@ -68,12 +78,13 @@ export function PersonalContextCard() {
       const bundle = await apiGet<BundleEnvelope>(
         `/api/personal-context/export${query}`,
       );
-      exportJsonBundle(
+      const savedName = await exportJsonBundle(
         "personal_context",
         bundle.items,
         `opendesk-personal-context-${new Date().toISOString().slice(0, 10)}.json`,
         workspaceId,
       );
+      if (!savedName) return;
       toast({ tone: "success", title: "Contexto pessoal exportado" });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -94,8 +105,9 @@ export function PersonalContextCard() {
         workspace_id: draft.scope === "workspace" ? workspaceId : null,
         instructions: draft.instructions.trim(),
         is_enabled: true,
+        usage_scope: draft.usageScope,
       });
-      setDraft({ instructions: "", scope: "workspace" });
+      setDraft({ instructions: "", scope: "workspace", usageScope: "normal" });
       setCreating(false);
       await load();
       toast({ tone: "success", title: "Contexto pessoal criado" });
@@ -111,6 +123,7 @@ export function PersonalContextCard() {
     setEditDraft({
       instructions: group.instructions,
       scope: group.scope,
+      usageScope: group.usage_scope ?? "both",
     });
   }
 
@@ -130,6 +143,7 @@ export function PersonalContextCard() {
         instructions: editDraft.instructions.trim(),
         is_enabled: group.is_enabled,
         position: group.position,
+        usage_scope: editDraft.usageScope,
       });
       setEditing(null);
       await load();
@@ -151,8 +165,36 @@ export function PersonalContextCard() {
         instructions: group.instructions,
         is_enabled: !group.is_enabled,
         position: group.position,
+        usage_scope: group.usage_scope ?? "both",
       });
       await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function updateScope(
+    group: PersonalContextGroup,
+    usageScope: MemoryUsageScope,
+  ) {
+    setBusy(`scope:${group.id}`);
+    try {
+      await apiPut(`/api/personal-context/${group.id}`, {
+        scope: group.scope,
+        workspace_id: group.workspace_id,
+        name: group.name,
+        instructions: group.instructions,
+        is_enabled: group.is_enabled,
+        position: group.position,
+        usage_scope: usageScope,
+      });
+      await load();
+      toast({
+        tone: "success",
+        title: `Escopo alterado para ${usageScope === "both" ? "ambos" : usageScope}`,
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -185,6 +227,10 @@ export function PersonalContextCard() {
       setBusy(null);
     }
   }
+
+  const visibleGroups = groups.filter((group) =>
+    matchesScopeFilter(group.usage_scope, scopeFilter),
+  );
 
   return (
     <Card>
@@ -237,58 +283,21 @@ export function PersonalContextCard() {
           </p>
         ) : null}
 
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <MemoryScopeFilterBar value={scopeFilter} onChange={setScopeFilter} />
+          <span className="text-[11px] text-zinc-500">
+            Normal = tarefas/rotinas · Chat = conversas e bots · Ambos = os dois
+          </span>
+        </div>
+
         {creating ? (
-          <div className="space-y-2 rounded-lg border border-violet-500/20 bg-violet-500/[0.03] p-3">
-            <label>
-              <span className={labelClass}>Escopo</span>
-              <select
-                value={draft.scope}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    scope: event.target.value as "workspace" | "global",
-                  }))
-                }
-                className={inputClass}
-              >
-                <option value="workspace">workspace</option>
-                <option value="global">global</option>
-              </select>
-            </label>
-            <label>
-              <span className={labelClass}>Regra</span>
-              <textarea
-                value={draft.instructions}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    instructions: event.target.value,
-                  }))
-                }
-                rows={3}
-                placeholder="Ex.: responda em português, seja direto e cite fontes."
-                className={cn(inputClass, "h-auto resize-y py-2")}
-              />
-            </label>
-            <div className="flex justify-end gap-1.5">
-              <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>
-                <X size={12} />
-                Cancelar
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => void create()}
-                disabled={busy === "create"}
-              >
-                {busy === "create" ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Save size={12} />
-                )}
-                Adicionar
-              </Button>
-            </div>
-          </div>
+          <PersonalContextCreateForm
+            draft={draft}
+            onChange={setDraft}
+            busy={busy === "create"}
+            onCreate={() => void create()}
+            onCancel={() => setCreating(false)}
+          />
         ) : null}
 
         {loading && groups.length === 0 ? (
@@ -296,14 +305,15 @@ export function PersonalContextCard() {
             <Loader2 size={12} className="animate-spin" />
             Carregando contexto…
           </p>
-        ) : groups.length === 0 ? (
+        ) : visibleGroups.length === 0 ? (
           <p className="rounded-lg border border-zinc-800/70 bg-zinc-950/30 px-3 py-3 text-[12.5px] text-zinc-500">
-            Nenhuma regra pessoal ainda. Adicione uma regra para orientar todos
-            os prompts sem repetir as mesmas instruções.
+            {groups.length === 0
+              ? "Nenhuma regra pessoal ainda. Adicione uma regra para orientar todos os prompts sem repetir as mesmas instruções."
+              : "Nenhuma regra neste filtro de escopo."}
           </p>
         ) : (
           <div className="space-y-2">
-            {groups.map((group) => {
+            {visibleGroups.map((group) => {
               const isEditing = editing === group.id;
               return (
                 <div
@@ -324,6 +334,12 @@ export function PersonalContextCard() {
                         {group.source === "agent" ? (
                           <Badge variant="yellow">via agente</Badge>
                         ) : null}
+                        <MemoryScopeSelect
+                          value={group.usage_scope ?? "both"}
+                          label={group.name}
+                          disabled={busy === `scope:${group.id}`}
+                          onChange={(value) => void updateScope(group, value)}
+                        />
                       </div>
                       {!isEditing ? (
                         <>
@@ -389,6 +405,21 @@ export function PersonalContextCard() {
                       >
                         <option value="workspace">workspace</option>
                         <option value="global">global</option>
+                      </select>
+                      <select
+                        aria-label="Onde usar esta regra"
+                        value={editDraft.usageScope}
+                        onChange={(event) =>
+                          setEditDraft((current) => ({
+                            ...current,
+                            usageScope: event.target.value as MemoryUsageScope,
+                          }))
+                        }
+                        className={inputClass}
+                      >
+                        <option value="normal">Normal (tarefas e rotinas)</option>
+                        <option value="chat">Chat (conversas e bots)</option>
+                        <option value="both">Ambos</option>
                       </select>
                       <textarea
                         value={editDraft.instructions}

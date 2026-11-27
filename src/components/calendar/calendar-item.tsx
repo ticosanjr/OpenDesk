@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { runStatusMeta, RUN_STATUS_ICON_CLASS } from "@/components/ui/run-status";
+import { runStatusMeta, RunStatusIcon } from "@/components/ui/run-status";
 import { itemTimeLabel } from "@/lib/calendar";
 import type { CalendarItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -92,10 +92,7 @@ export function CalendarItemChip({
             {(() => {
               const meta = executionMeta(item.execution_status);
               return meta ? (
-                <meta.icon
-                  size={10}
-                  className={RUN_STATUS_ICON_CLASS[meta.tone]}
-                />
+                <RunStatusIcon status={item.execution_status ?? ""} size={10} />
               ) : null;
             })()}
             {kindLabel(item.kind)}

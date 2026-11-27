@@ -652,3 +652,136 @@ opcional via Bitwarden CLI.
   goldens, cobertura frontend 98,55% linhas e 90,2% branches. Ajustes de
   compatibilidade: título da aba Arquivos, YAML aberto no E2E de receitas e
   separação do botão de ditado do label do título da tarefa.
+
+## 2026-11-27 — Plano v3, F1: layout full-width, headers estáveis e botões
+
+- `PageBody` perdeu o teto de 1440px e o cabeçalho passou a usar gutter
+  uniforme `12px`/`16px`, com `PageHeader` de altura mínima estável e descrição
+  truncada.
+- `PageBodyFill` ocupa largura/altura totais com padding uniforme.
+- OpenCode Studio usa cabeçalho compacto e barras de abas mais enxutas.
+- Dashboard moveu `IntegrationFootprint` para imediatamente após
+  `CostMixCard`.
+- Chat/Criador e lista de conversas passaram a usar a altura disponível, sem
+  cards de altura fixa.
+- Botões ganharam `shrink-0` e padding horizontal mínimo por variante; o botão
+  “Criar arquivo” do MetaBuilder ganhou largura/padding seguros.
+- `DESIGN.md` atualizado para o contrato full-width.
+- Goldens visuais regravados para o novo layout; scroll e a11y verdes.
+
+## 2026-11-27 — Plano v3, F2: dropdown do Chat e status visual unificado
+
+- `SlashTextarea` agora mede o viewport e renderiza o dropdown de `/`, `@` e `#`
+  em portal fixo: abre para cima perto da base, limita a altura, rola com
+  `overscroll-contain` e mantém o item ativo visível por teclado.
+- `WorkingIndicator` usa `Loader2` girando; removidos `Cog`, `.opendesk-gear` e
+  os keyframes da engrenagem.
+- `RunStatusIcon`/`WorkflowStatusBadge` foram alinhados à tabela canônica:
+  spinner para execução, relógio para fila, aprovação/HITL, pausa, sucesso,
+  falha e cancelamento com `Ban`.
+- Ícones de status aplicados em Runs (tabela e lista), Dashboard, ActivityFeed,
+  fila, Kanban via badge de workflow e calendário.
+- `prefers-reduced-motion` mantém o spinner visível em velocidade reduzida.
+- Testes novos cobrem dropdown acima do campo e estados de status; Vitest
+  **324** testes.
+
+## 2026-11-27 — Plano v3, F3: subabas estruturais e Arquivos em altura total
+
+- Buscar/Arquivos/Artefatos consolidados em `/search` com um único cabeçalho:
+  `?tab=files` e `?tab=artifacts`; `/artifacts` redireciona preservando
+  `?artifact=`/`?id=`.
+- `ArtifactsTabContent` extraído para reutilização sem `PageHeader` duplicado.
+- Arquivos embedded ocupam altura total com scroll independente na árvore e no
+  preview.
+- Sidebar/Command Palette deixaram de listar Artefatos como página separada;
+  links `artifact` agora apontam para a aba canônica.
+- Governança dividida em Agentes, Metas, Delegações, Handoffs e Performance.
+- Aprendizado dividido em Lições & Loop, Contexto Pessoal, Memória Estruturada e
+  Avaliação de Skills.
+- Roteador dividido em Políticas & Modelos, Regras, Budget Guard e Análise de
+  Custos.
+- E2E atualizados para navegar pelas novas subabas; scroll, a11y, artifacts,
+  files-search, governance, learning e router verdes.
+- Goldens de artifacts/files/governance/learning/router regravados.
+
+## 2026-11-27 — Plano v3, F4: política única de importar/exportar
+
+- `FilePreferences` ganhou `importExportAsk` (default `true`), persistido em
+  `import_export_ask` e editável em Configurações → Geral.
+- Novo `saveExportedData` / `pickImportFile` em `import-export.ts`:
+  - Tauri: diálogo nativo de salvar ou gravação direta na pasta configurada;
+  - fallback para diálogo se a pasta sumir;
+  - browser/PWA: download nativo e input file;
+  - cancelamento não gera sucesso falso.
+- Novo endpoint `POST /api/files/save-bytes` com validação de destino em
+  `$HOME`/temporário, escrita atômica e limite de 128 MB.
+- `exportJsonBundle`, Config Bundle, exports de runs, downloads autenticados e
+  backups ZIP passam pela mesma política.
+- Botões de exportação só exibem toast de sucesso quando o arquivo foi salvo.
+- `pickJsonBundle` reutiliza o seletor unificado de importação.
+
+## 2026-11-27 — Plano v3, F5: multi-bot por workspace e contexto isolado
+
+- Migration `0004_channel_bots_and_memory_scope.sql` cria `channel_bots` e
+  `channel_chat_contexts`, com escopo `normal | chat | both` em memórias e
+  contexto pessoal (preparando a F7).
+- `repos/channel_bots.rs` cobre CRUD por workspace, contextos por conversa,
+  auto-registro de chats vistos e status dos bots.
+- `BotSupervisor` mantém um handle isolado por bot:
+  - Telegram com long polling, offset e status próprios;
+  - Signal com processo `signal-cli` e handler isolados;
+  - falha de um bot não altera os demais;
+  - shutdown cancela todos os handles.
+- Migração suave: configuração global legada de Telegram/Signal é semeada em
+  `channel_bots` no primeiro boot, evitando perder o bot atual.
+- Mensagens são roteadas por `(bot_id, external_chat_id)`:
+  - threads/sessões distintas por grupo;
+  - `agent_override` e `system_context` do grupo entram no prompt;
+  - `memory_scope` do grupo é propagado;
+  - contexto desabilitado ignora a mensagem sem executar o agente.
+- API: `/api/channels/bots` e `/api/channels/bots/{id}/contexts`, com
+  `start`, `stop` e `test`; tokens ficam apenas no `SecretStore` e nunca são
+  devolvidos no JSON.
+- Rotas legadas de Telegram/Signal continuam operando quando não há bot novo.
+
+## 2026-11-27 — Plano v3, F6: UI de bots por workspace e contextos por grupo
+
+- Tipos `ChannelBot` e `ChannelChatContext` adicionados ao contrato TypeScript.
+- `ChannelBotsPanel` reutilizável:
+  - cabeçalho com workspace ativa e resumo de bots em outras workspaces;
+  - lista com status ao vivo, token, agente, iniciar/parar, testar, contextos,
+    editar e excluir;
+  - formulário de criação/edição com token write-only, allowlist, agente padrão
+    e opções específicas de Signal (conta e caminho do CLI);
+  - recarrega ao trocar de workspace, sem vazar bots da workspace anterior.
+- `ChannelBotContextsModal`:
+  - grupos detectados automaticamente + inclusão manual por ID;
+  - instruções exclusivas, agente do grupo, escopo de memória
+    (`Chat | Normal | Ambos | Nenhuma`), ativação e remoção;
+  - reinício da sessão apenas do grupo selecionado.
+- `TelegramCard`, `SignalCard` e `ChannelsCard` incorporam o painel; a API de
+  listagem aceita `all=true` para o resumo entre workspaces.
+- Testes: 4 Vitest do painel e E2E próprio de bots/contextos; integrações e a11y
+  continuam verdes.
+
+## 2026-11-27 — Plano v3, F7: escopo de memória normal/chat/both
+
+- `MemoryUsageScope` (`normal | chat | both`) adicionado ao domínio com parsing
+  estrito e fail-closed.
+- Migration 0004 já aplica `usage_scope` em `memory_notes` e
+  `personal_context_groups`; registros legados ficam em `both`.
+- Repositórios de memória filtram por escopo (`normal/both` ou `chat/both`) e
+  aceitam `usage_scope` em create/update/list/search.
+- Contexto pessoal ganhou `usage_scope` em create/update e renderização
+  separada para execuções normais e chat.
+- Prompts:
+  - tarefas, rotinas, receitas e previews normais usam apenas `normal/both`;
+  - chat, Telegram, Signal e preview de chat usam apenas `chat/both`;
+  - grupo com `memory_scope=none` não injeta contexto pessoal nem memória.
+- API HTTP aceita/retorna `usage_scope`; create pela UI/API usa `normal` por
+  padrão e imports legados usam `both`.
+- MCP `opendesk-control` ganhou `memory_create/list/update/set_scope` e
+  `personal_context_list/create/update/set_scope`, com validação estrita e
+  erro JSON-RPC `-32602` para escopo inválido.
+- UI de Aprendizado ganhou filtros Todos/Normal/Chat/Ambos e seletor inline com
+  salvamento imediato em contexto pessoal e memória estruturada.

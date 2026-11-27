@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/api", () => ({ apiPost: vi.fn() }));
-vi.mock("@/lib/download", () => ({ downloadBlob: vi.fn() }));
+const saveExportedData = vi.hoisted(() => vi.fn(async () => ({ saved: true })));
+vi.mock("@/lib/import-export", () => ({ saveExportedData }));
 
 import { apiPost } from "@/lib/api";
-import { downloadBlob } from "@/lib/download";
 import { CONFIG_BUNDLE_PRESETS, downloadConfigBundle } from "./config-bundle";
 
 beforeEach(() => {
@@ -29,12 +29,16 @@ describe("config bundle", () => {
       workspace_id: "ws-1",
       sections: ["prompt_templates"],
     });
-    expect(downloadBlob).toHaveBeenCalledTimes(1);
-    const [blob, filename] = (downloadBlob as ReturnType<typeof vi.fn>).mock
-      .calls[0];
-    expect(blob).toBeInstanceOf(Blob);
-    expect(filename).toBe(name);
+    expect(saveExportedData).toHaveBeenCalledTimes(1);
+    const options = (saveExportedData as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(options.filename).toBe(name);
+    expect(typeof options.content).toBe("string");
     expect(name).toMatch(/^opendesk-config-\d{4}-\d{2}-\d{2}\.json$/);
+  });
+
+  it("returns null when the export is cancelled", async () => {
+    saveExportedData.mockResolvedValueOnce({ saved: false });
+    await expect(downloadConfigBundle("ws-3")).resolves.toBeNull();
   });
 
   it("defaults to all sections", async () => {

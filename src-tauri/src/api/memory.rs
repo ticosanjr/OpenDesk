@@ -12,8 +12,10 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
+use opendesk_domain::MemoryUsageScope;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use std::str::FromStr;
 use std::sync::Arc;
 
 #[derive(Debug, Deserialize, Default)]
@@ -23,6 +25,15 @@ pub struct MemoryQuery {
     pub agent: Option<String>,
     pub limit: Option<i64>,
     pub q: Option<String>,
+    pub usage_scope: Option<String>,
+}
+
+fn scope_filter(value: Option<&str>) -> AppResult<Option<MemoryUsageScope>> {
+    value
+        .map(|raw| {
+            MemoryUsageScope::from_str(raw).map_err(|error| AppError::BadRequest(error.to_string()))
+        })
+        .transpose()
 }
 
 async fn workspace(state: &AppState, value: Option<&str>) -> AppResult<String> {
@@ -113,12 +124,13 @@ pub async fn list_notes(
 ) -> AppResult<Json<Vec<MemoryNote>>> {
     let workspace_id = workspace(&state, query.workspace_id.as_deref()).await?;
     Ok(Json(
-        memory::list_notes(
+        memory::list_notes_for(
             &state.db,
             &workspace_id,
             query.namespace.as_deref(),
             query.agent.as_deref(),
             query.limit.unwrap_or(100),
+            scope_filter(query.usage_scope.as_deref())?,
         )
         .await?,
     ))
@@ -127,9 +139,12 @@ pub async fn list_notes(
 pub async fn create_note(
     State(state): State<Arc<AppState>>,
     Query(query): Query<MemoryQuery>,
-    Json(input): Json<CreateNoteInput>,
+    Json(mut input): Json<CreateNoteInput>,
 ) -> AppResult<Json<MemoryNote>> {
     let workspace_id = workspace(&state, query.workspace_id.as_deref()).await?;
+    if input.usage_scope.is_none() {
+        input.usage_scope = Some(MemoryUsageScope::Normal.as_str().into());
+    }
     if let Some(agent) = query.agent.as_deref()
         && !memory::can_write(&state.db, &workspace_id, &input.namespace, agent).await?
     {
@@ -165,12 +180,13 @@ pub async fn search(
 ) -> AppResult<Json<Vec<MemoryNote>>> {
     let workspace_id = workspace(&state, query.workspace_id.as_deref()).await?;
     Ok(Json(
-        memory::search(
+        memory::search_for(
             &state.db,
             &workspace_id,
             query.q.as_deref().unwrap_or(""),
             query.agent.as_deref(),
             query.limit.unwrap_or(20),
+            scope_filter(query.usage_scope.as_deref())?,
         )
         .await?,
     ))
@@ -181,12 +197,13 @@ pub async fn context(
     Query(query): Query<MemoryQuery>,
 ) -> AppResult<Json<Value>> {
     let workspace_id = workspace(&state, query.workspace_id.as_deref()).await?;
-    let rendered = memory::render_context(
+    let rendered = memory::render_context_for(
         &state.db,
         &workspace_id,
         query.agent.as_deref().unwrap_or("build"),
         query.q.as_deref().unwrap_or(""),
         query.limit.unwrap_or(8),
+        Some(scope_filter(query.usage_scope.as_deref())?.unwrap_or(MemoryUsageScope::Normal)),
     )
     .await?;
     Ok(Json(json!({ "context": rendered })))

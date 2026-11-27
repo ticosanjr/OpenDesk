@@ -1,4 +1,5 @@
 import { apiBlob } from "./api";
+import { saveExportedData, type SavedExport } from "./import-export";
 
 export type ExportFormat = "md" | "html" | "json";
 
@@ -18,14 +19,28 @@ export function downloadBlob(blob: Blob, filename: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export async function downloadRun(runId: string, format: ExportFormat): Promise<void> {
+export async function downloadRun(runId: string, format: ExportFormat): Promise<SavedExport> {
   const blob = await apiBlob(
     `/api/runs/${encodeURIComponent(runId)}/export?format=${format}`,
   );
-  downloadBlob(blob, exportFilename(runId, format));
+  return saveExportedData({
+    filename: exportFilename(runId, format),
+    content: blob,
+    mime:
+      format === "html"
+        ? "text/html"
+        : format === "json"
+          ? "application/json"
+          : "text/markdown",
+    filters: [{ name: format.toUpperCase(), extensions: [format] }],
+  });
 }
 
 /** Fetch any local API file with auth and save it through the browser. */
 export async function downloadUrl(url: string, filename: string): Promise<void> {
-  downloadBlob(await apiBlob(url), filename);
+  await saveExportedData({
+    filename,
+    content: await apiBlob(url),
+    mime: "application/octet-stream",
+  });
 }

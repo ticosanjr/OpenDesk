@@ -20,12 +20,13 @@ export function PacksBundleActions({ onImported }: { onImported?: () => void }) 
       const bundle = await apiGet<BundleEnvelope>(
         `/api/bundles/packs/export${query}`,
       );
-      exportJsonBundle(
+      const savedName = await exportJsonBundle(
         "packs_bundle",
         bundle.items,
         `opendesk-packs-${new Date().toISOString().slice(0, 10)}.json`,
         workspaceId,
       );
+      if (!savedName) return;
       toast({ tone: "success", title: "Pacotes exportados" });
     } catch (cause) {
       toast({

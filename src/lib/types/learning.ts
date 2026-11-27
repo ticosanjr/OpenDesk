@@ -62,6 +62,8 @@ export interface LearningScanResult {
   lessons: number;
 }
 
+export type MemoryUsageScope = "normal" | "chat" | "both";
+
 export interface PersonalContextGroup {
   id: string;
   workspace_id?: string | null;
@@ -74,6 +76,7 @@ export interface PersonalContextGroup {
   updated_at: string;
   source?: "manual" | "agent" | string;
   source_quote?: string | null;
+  usage_scope?: MemoryUsageScope;
 }
 
 export interface PromptPreviewSection {

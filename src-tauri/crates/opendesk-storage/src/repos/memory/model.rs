@@ -1,7 +1,9 @@
 use super::notes::get_note;
 use crate::error::{AppError, AppResult};
+use opendesk_domain::MemoryUsageScope;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
+use std::str::FromStr;
 use uuid::Uuid;
 
 pub const KINDS: &[&str] = &["semantic", "episodic", "procedural", "preference"];
@@ -30,6 +32,8 @@ pub struct MemoryNote {
     pub trust_level: String,
     pub expires_at: Option<String>,
     pub source: Option<String>,
+    #[serde(default = "default_usage_scope")]
+    pub usage_scope: String,
     pub created_at: String,
     pub updated_at: String,
     #[sqlx(default)]
@@ -64,6 +68,9 @@ pub struct CreateNoteInput {
     pub expires_at: Option<String>,
     #[serde(default)]
     pub source: Option<String>,
+    /// `normal`, `chat` or `both`. Legacy imports default to `both`.
+    #[serde(default)]
+    pub usage_scope: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -76,6 +83,8 @@ pub struct UpdateNoteInput {
     pub trust_level: Option<String>,
     pub expires_at: Option<String>,
     pub clear_expiry: bool,
+    #[serde(default)]
+    pub usage_scope: Option<String>,
 }
 
 pub(super) fn default_namespace() -> String {
@@ -90,10 +99,30 @@ pub(super) fn default_confidence() -> f64 {
 pub(super) fn default_trust() -> String {
     "observed".into()
 }
+fn default_usage_scope() -> String {
+    MemoryUsageScope::Both.as_str().into()
+}
+
+pub(super) fn parse_usage_scope(value: &str) -> AppResult<MemoryUsageScope> {
+    MemoryUsageScope::from_str(value).map_err(|error| AppError::BadRequest(error.to_string()))
+}
+
+pub(super) fn scope_clause(alias: &str, scope: Option<MemoryUsageScope>) -> String {
+    match scope {
+        None => String::new(),
+        Some(MemoryUsageScope::Normal) => {
+            format!(" AND {alias}.usage_scope IN ('normal', 'both')")
+        }
+        Some(MemoryUsageScope::Chat) => {
+            format!(" AND {alias}.usage_scope IN ('chat', 'both')")
+        }
+        Some(MemoryUsageScope::Both) => format!(" AND {alias}.usage_scope = 'both'"),
+    }
+}
 
 pub(super) const NOTE_COLUMNS: &str = "n.id, n.workspace_id, n.namespace, n.kind, n.title, n.body, n.tags_json, \
-    n.confidence, n.trust_level, n.expires_at, n.source, n.created_at, n.updated_at, \
-    n.access_count, n.last_accessed_at, n.archived_at";
+    n.confidence, n.trust_level, n.expires_at, n.source, n.usage_scope, n.created_at, \
+    n.updated_at, n.access_count, n.last_accessed_at, n.archived_at";
 pub(super) const NS_COLUMNS: &str = "id, workspace_id, name, description, created_at, updated_at";
 
 pub async fn list_namespaces(
@@ -265,13 +294,17 @@ pub async fn create_note(
             "memória precisa de título e corpo".into(),
         ));
     }
+    let usage_scope = match input.usage_scope.as_deref() {
+        Some(value) => parse_usage_scope(value)?,
+        None => MemoryUsageScope::Both,
+    };
     ensure_namespace(pool, workspace_id, &input.namespace, None).await?;
     let id = Uuid::now_v7().to_string();
     sqlx::query(
         "INSERT INTO memory_notes (
             id, workspace_id, namespace, kind, title, body, tags_json, confidence,
-            trust_level, expires_at, source
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            trust_level, expires_at, source, usage_scope
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(workspace_id)
@@ -284,6 +317,7 @@ pub async fn create_note(
     .bind(&trust)
     .bind(input.expires_at.as_deref())
     .bind(input.source.as_deref())
+    .bind(usage_scope.as_str())
     .execute(pool)
     .await?;
     get_note(pool, &id).await

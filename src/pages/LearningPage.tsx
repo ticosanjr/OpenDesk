@@ -8,7 +8,9 @@ import {
   Sparkles,
   Brain,
 } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { SectionTabs } from "@/components/ui/section-tabs";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
@@ -35,6 +37,16 @@ import { LessonsToolbar, type LessonFilter } from "@/pages/learning/LessonsToolb
 import { StatCard } from "@/pages/learning/StatCard";
 
 export function LearningPage() {
+  const [params, setParams] = useSearchParams();
+  const requestedTab = params.get("tab") ?? "lessons";
+  const tab = ["lessons", "context", "memory", "eval"].includes(requestedTab)
+    ? requestedTab
+    : requestedTab === "proposals"
+      ? "eval"
+      : "lessons";
+  function setTab(next: string) {
+    setParams({ tab: next }, { replace: true });
+  }
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const workspaces = useAppStore((state) => state.workspaces);
   const lastRunEvent = useAppStore((state) => state.lastRunEvent);
@@ -312,7 +324,18 @@ export function LearningPage() {
         </p>
       ) : null}
 
-      {stats ? (
+      <SectionTabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { id: "lessons", label: "Lições & Loop", icon: Brain },
+          { id: "context", label: "Contexto Pessoal", icon: Sparkles },
+          { id: "memory", label: "Memória Estruturada", icon: Activity },
+          { id: "eval", label: "Avaliação de Skills", icon: CheckCircle2 },
+        ]}
+      />
+
+      {tab === "lessons" && stats ? (
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           <StatCard
             icon={<Lightbulb size={13} />}
@@ -341,66 +364,72 @@ export function LearningPage() {
         </div>
       ) : null}
 
-      <PersonalContextCard />
+      {tab === "context" ? <PersonalContextCard /> : null}
 
-      {activeWorkspaceId ? (
+      {tab === "memory" && activeWorkspaceId ? (
+        <StructuredMemoryCard workspaceId={activeWorkspaceId} />
+      ) : null}
+
+      {tab === "eval" && activeWorkspaceId ? (
         <div className="space-y-4">
-          <StructuredMemoryCard workspaceId={activeWorkspaceId} />
           <SkillEvalCard workspaceId={activeWorkspaceId} />
+          {learningProposals.length > 0 ? (
+            <LearningProposalsSection
+              proposals={learningProposals}
+              busy={busy}
+              workspaceId={activeWorkspaceId}
+              onResolve={(proposal, approved) =>
+                void resolveProposal(proposal, approved)
+              }
+            />
+          ) : null}
         </div>
       ) : null}
 
-      {settings ? (
-        <LearningSettingsCard
-          settings={settings}
-          savingSettings={savingSettings}
-          onSave={(next) => void saveSettings(next)}
-        />
-      ) : null}
+      {tab === "lessons" ? (
+        <>
+          {settings ? (
+            <LearningSettingsCard
+              settings={settings}
+              savingSettings={savingSettings}
+              onSave={(next) => void saveSettings(next)}
+            />
+          ) : null}
 
-      <LearningGuidanceCard />
+          <LearningGuidanceCard />
 
-      {learningProposals.length > 0 ? (
-        <LearningProposalsSection
-          proposals={learningProposals}
-          busy={busy}
-          workspaceId={activeWorkspaceId}
-          onResolve={(proposal, approved) =>
-            void resolveProposal(proposal, approved)
-          }
-        />
-      ) : null}
+          <section className="space-y-2">
+            <LessonsToolbar filter={filter} onFilterChange={setFilter} />
 
-      <section className="space-y-2">
-        <LessonsToolbar filter={filter} onFilterChange={setFilter} />
-
-        {loading && !data ? (
-          <LoadingState rows={3} label="Carregando lições…" />
-        ) : filteredLessons.length === 0 ? (
-          <EmptyState
-            icon={Brain}
-            title="Nenhuma lição nesta visão"
-            description="Rode “Analisar execuções” para extrair padrões das execuções recentes. Falhas repetidas viram lições; você decide o que promover."
-          />
-        ) : (
-          <div className="space-y-1.5">
-            {filteredLessons.map((lesson) => (
-              <LessonCard
-                key={lesson.id}
-                lesson={lesson}
-                settings={settings}
-                busy={busy}
-                workspaceId={activeWorkspaceId}
-                onPromote={() => void promote(lesson)}
-                onRemember={() => void rememberLesson(lesson)}
-                onForget={() => void forget(lesson)}
-                onRestore={() => void restore(lesson)}
-                onDismiss={() => void dismiss(lesson)}
+            {loading && !data ? (
+              <LoadingState rows={3} label="Carregando lições…" />
+            ) : filteredLessons.length === 0 ? (
+              <EmptyState
+                icon={Brain}
+                title="Nenhuma lição nesta visão"
+                description="Rode “Analisar execuções” para extrair padrões das execuções recentes. Falhas repetidas viram lições; você decide o que promover."
               />
-            ))}
-          </div>
-        )}
-      </section>
+            ) : (
+              <div className="space-y-1.5">
+                {filteredLessons.map((lesson) => (
+                  <LessonCard
+                    key={lesson.id}
+                    lesson={lesson}
+                    settings={settings}
+                    busy={busy}
+                    workspaceId={activeWorkspaceId}
+                    onPromote={() => void promote(lesson)}
+                    onRemember={() => void rememberLesson(lesson)}
+                    onForget={() => void forget(lesson)}
+                    onRestore={() => void restore(lesson)}
+                    onDismiss={() => void dismiss(lesson)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      ) : null}
     </PageBody>
   );
 }

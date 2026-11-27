@@ -41,6 +41,10 @@ pub(super) fn tools() -> Vec<Value> {
         chat::chat_send_file(),
         learning::learning_save(),
         learning::personal_context_save(),
+        learning::personal_context_list(),
+        learning::personal_context_create(),
+        learning::personal_context_update(),
+        learning::personal_context_set_scope(),
         tasks::task_message_list(),
         tasks::task_message_post(),
         tasks::run_list(),
@@ -62,6 +66,10 @@ pub(super) fn tools() -> Vec<Value> {
         vault::vault_list_refs(),
         vault::vault_request_fill(),
         memory::memory_save(),
+        memory::memory_create(),
+        memory::memory_list(),
+        memory::memory_update(),
+        memory::memory_set_scope(),
         memory::memory_search(),
         handoffs::handoff_create(),
         handoffs::handoff_list(),
@@ -185,6 +193,8 @@ fn visible_in(name: &str, phase: &str) -> bool {
             | "elicit"
             | "sampling"
             | "memory_search"
+            | "memory_list"
+            | "personal_context_list"
             | "mcp_discover_tools"
     ) {
         return true;
@@ -223,7 +233,13 @@ fn visible_in(name: &str, phase: &str) -> bool {
             | "task_dispatch"
             | "learning_save"
             | "personal_context_save"
+            | "personal_context_create"
+            | "personal_context_update"
+            | "personal_context_set_scope"
             | "memory_save"
+            | "memory_create"
+            | "memory_update"
+            | "memory_set_scope"
             | "chat_send_file"
             | "task_message_post"
             | "voice_speak"
@@ -288,6 +304,10 @@ mod tests {
             "chat_send_file",
             "learning_save",
             "personal_context_save",
+            "personal_context_list",
+            "personal_context_create",
+            "personal_context_update",
+            "personal_context_set_scope",
             "task_message_list",
             "task_message_post",
             "run_list",
@@ -313,6 +333,10 @@ mod tests {
             "handoff_create",
             "handoff_list",
             "memory_save",
+            "memory_create",
+            "memory_list",
+            "memory_update",
+            "memory_set_scope",
             "memory_search",
             "handoff_respond",
             "handoff_finish",
@@ -334,7 +358,7 @@ mod tests {
         ] {
             assert!(names.iter().any(|name| name == expected), "{expected}");
         }
-        assert_eq!(names.len(), 51);
+        assert_eq!(names.len(), 59);
     }
 
     #[test]

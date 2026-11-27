@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MessageSquare, RefreshCw, Wand2 } from "lucide-react";
-import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { PageBody, PageBodyFill, PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SectionTabs } from "@/components/ui/section-tabs";
 import { Badge } from "@/components/ui/badge";
@@ -284,7 +284,7 @@ export function ChatPage() {
   }
 
   return (
-    <PageBody>
+    <PageBodyFill>
       <PageHeader
         title="Chat & Criador"
         description={`${workspace?.name ?? "Workspace"} · converse com qualquer agente, com histórico local. Threads do Signal e do Telegram aparecem com o selo correspondente.`}
@@ -312,7 +312,7 @@ export function ChatPage() {
       ) : null}
 
       {tab === "chat" ? (
-      <div className="grid gap-3 lg:grid-cols-[320px_1fr]">
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[320px_1fr]">
         <ThreadListCard
           threads={threads}
           threadQuery={threadQuery}
@@ -328,7 +328,7 @@ export function ChatPage() {
           onCreate={() => void createThread()}
         />
 
-        <Card className="flex h-[680px] max-h-[calc(100dvh-190px)] min-h-[460px] flex-col overflow-hidden">
+        <Card className="flex h-full min-h-0 flex-col overflow-hidden">
           <ThreadHeader
             thread={thread}
             workspaceId={activeWorkspaceId}
@@ -383,7 +383,7 @@ export function ChatPage() {
       />
 
       {tab === "builder" ? (
-      <Card>
+      <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
           <div>
             <CardTitle className="flex items-center gap-2">
@@ -396,11 +396,11 @@ export function ChatPage() {
           </div>
           <Badge variant="purple">disco</Badge>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex min-h-0 flex-1 flex-col">
           <MetaBuilder workspaceId={activeWorkspaceId} />
         </CardContent>
       </Card>
       ) : null}
-    </PageBody>
+    </PageBodyFill>
   );
 }
